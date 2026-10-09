@@ -46,6 +46,9 @@ class OAuthFixture:
             "iat": now,
             "exp": now + 3600,
             "nonce": self.nonce,
+            "name": "Synthetic Person",
+            "email": "person@example.test",
+            "email_verified": True,
         }
         identity.update(self.id_overrides)
         access = {
@@ -191,6 +194,17 @@ def test_identity_permission_does_not_invent_plan_scope():
     fixture.access_overrides["scope"] = "openid profile email"
     tokens = fixture.exchange()
     assert "chatgpt.tokens.use.direct" not in tokens.scopes
+
+
+def test_basic_account_projection_uses_only_verified_bounded_identity_claims():
+    fixture = OAuthFixture()
+    tokens = fixture.exchange()
+    assert tokens.account_name == "Synthetic Person"
+    assert tokens.account_email == "person@example.test"
+
+    fixture.id_overrides["email_verified"] = False
+    tokens = fixture.exchange()
+    assert tokens.account_email is None
 
 
 def test_refresh_omits_scope_and_uses_registration_and_replaces_rotating_token():

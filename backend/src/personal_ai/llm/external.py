@@ -11,6 +11,27 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.llm.client import ChatMessage, InferenceContext
+from personal_ai.routing.contracts import EndpointRef
+
+
+class ExecutionProfileIdentity(BaseModel):
+    """The exact shared Phase 18 profile identity selected for local execution."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    endpoint: EndpointRef
+    endpoint_id: str = Field(min_length=1, max_length=200)
+    deployment_id: str = Field(min_length=1, max_length=200)
+    serializer_id: str = Field(min_length=1, max_length=200)
+    runtime_id: str = Field(min_length=1, max_length=200)
+
+
+CHATGPT_PLAN_PROFILE = ExecutionProfileIdentity(
+    endpoint=EndpointRef(endpoint_profile_id="openai_chatgpt_plan:responses", profile_version=1),
+    endpoint_id="openai-responses-v1",
+    deployment_id="api.openai.com-v1",
+    serializer_id="siwc-responses-text-v1",
+    runtime_id="chatgpt-responses-httpx-v1",
+)
 
 
 class PreparedMessage(BaseModel):
@@ -27,7 +48,7 @@ class PreparedExecution(ApplicationScope):
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     owner_id: str = Field(min_length=1, max_length=200)
     conversation_id: UUID
     reservation_id: UUID
@@ -35,6 +56,7 @@ class PreparedExecution(ApplicationScope):
     source_authority_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     provider_id: str = Field(min_length=1, max_length=200)
     model_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
+    execution_profile: ExecutionProfileIdentity
     connection_id: UUID
     connection_revision: int = Field(ge=1, strict=True)
     messages: tuple[PreparedMessage, ...] = Field(min_length=1, max_length=256)

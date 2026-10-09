@@ -53,6 +53,8 @@ class VerifiedTokens:
     scopes: tuple[str, ...]
     expires_at: int
     earliest_refresh_at: int
+    account_name: str | None = None
+    account_email: str | None = None
 
 
 class OpenAIOAuth:
@@ -309,6 +311,21 @@ class OpenAIOAuth:
                 tuple(scopes),
                 min(int(time.time()) + expiry, access["exp"]),
                 earliest,
+                (
+                    identity.get("name")
+                    if isinstance(identity.get("name"), str)
+                    and 1 <= len(identity["name"]) <= 200
+                    and not any(ord(char) < 32 for char in identity["name"])
+                    else None
+                ),
+                (
+                    identity.get("email")
+                    if identity.get("email_verified") is True
+                    and isinstance(identity.get("email"), str)
+                    and 1 <= len(identity["email"]) <= 320
+                    and not any(ord(char) < 32 for char in identity["email"])
+                    else None
+                ),
             )
         except (ValueError, TypeError, KeyError, AttributeError):
             raise OAuthFailure("oauth_identity_invalid") from None

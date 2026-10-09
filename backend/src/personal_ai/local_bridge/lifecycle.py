@@ -31,6 +31,7 @@ class SafeConnection:
     plan_permission: bool
     revision: int
     remote_revocation: str = "unknown"
+    account_label: str = "ChatGPT account"
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -44,6 +45,7 @@ class SignInAttempt:
     connection_id: str
     client_id: str | None
     revision: int
+    enable_plan_usage: bool = False
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -68,6 +70,8 @@ class CredentialLifecycle:
 
     @staticmethod
     def _safe(registration):
+        label = registration.account_email or registration.account_name or "ChatGPT account"
+        label = f"{label} · {registration.connection_id[:8]}"
         return SafeConnection(
             registration.connection_id,
             registration.state,
@@ -75,9 +79,16 @@ class CredentialLifecycle:
             and REQUIRED_USAGE_SCOPES.issubset(registration.credentials.scopes),
             registration.revision,
             registration.remote_revocation,
+            label,
         )
 
-    def begin(self, redirect_uri: str, *, connection_id: str | None = None):
+    def begin(
+        self,
+        redirect_uri: str,
+        *,
+        connection_id: str | None = None,
+        enable_plan_usage: bool = False,
+    ):
         """Local controller only; the authorization URL must never be an IPC response."""
         parsed = urlsplit(redirect_uri)
         if (
@@ -96,6 +107,13 @@ class CredentialLifecycle:
             selected = tx.state.registrations.get(connection_id) if connection_id else None
             if connection_id and selected is None:
                 raise OAuthFailure("oauth_registration_missing")
+            if enable_plan_usage and (
+                selected is None
+                or selected.state != "permission_required"
+                or selected.credentials is None
+                or REQUIRED_USAGE_SCOPES.issubset(selected.credentials.scopes)
+            ):
+                raise OAuthFailure("oauth_permission_enable_not_required")
             if selected is None and len(tx.state.registrations) >= 32:
                 raise OAuthFailure("oauth_registration_capacity")
             connection_id = connection_id or str(uuid4())
@@ -110,6 +128,7 @@ class CredentialLifecycle:
                 connection_id,
                 client_id,
                 selected.revision if selected else 0,
+                enable_plan_usage,
             )
             query = {
                 "client_id": client_id or "dynamic_agent_client",
@@ -132,6 +151,8 @@ class CredentialLifecycle:
             # account after the ordinary account selector instead.
             if not client_id:
                 query["agent_name_hint"] = "Personal AI Local Bridge"
+            if enable_plan_usage:
+                query["prompt"] = "consent"
         with self._attempt_lock:
             self._attempts = {
                 k: v for k, v in self._attempts.items() if v.expires_at > self.clock()
@@ -200,6 +221,8 @@ class CredentialLifecycle:
             ):
                 raise OAuthFailure("oauth_registration_duplicate")
             registration.issuer, registration.subject = tokens.issuer, tokens.subject
+            registration.account_name = tokens.account_name
+            registration.account_email = tokens.account_email
             self._replace(registration, tokens)
             tx.save()
             return self._safe(registration)
@@ -214,6 +237,8 @@ class CredentialLifecycle:
             expires_at=tokens.expires_at,
             earliest_refresh_at=tokens.earliest_refresh_at,
         )
+        registration.account_name = tokens.account_name or registration.account_name
+        registration.account_email = tokens.account_email or registration.account_email
         registration.refresh_pending = False
         if new_session:
             registration.revision += 1
@@ -236,6 +261,8 @@ class CredentialLifecycle:
                 raise OAuthFailure("bridge_auth_required")
             if registration.state in {"disconnected", "reauth"}:
                 raise OAuthFailure("bridge_auth_required")
+            if registration.state == "configuration_error":
+                raise OAuthFailure("bridge_client_configuration")
             if registration.refresh_pending:
                 # Crash/timeout after rotating-token send: do not replay under any identity.
                 registration.state = "reauth"
@@ -270,6 +297,12 @@ class CredentialLifecycle:
                         registration.credentials = None
                         registration.revision += 1
                         registration.state, registration.refresh_pending = "reauth", False
+                    elif error.code == "invalid_client":
+                        registration.revision += 1
+                        registration.state, registration.refresh_pending = (
+                            "configuration_error",
+                            False,
+                        )
                     elif error.uncertain:
                         registration.state = "reauth"
                     else:
@@ -327,17 +360,37 @@ class CredentialLifecycle:
                 raise OAuthFailure("oauth_registration_missing")
             registration.state = "disconnected"
             registration.revision += 1
+            disconnect_revision = registration.revision
+            client_id = registration.client_id
+            refresh_token = (
+                registration.credentials.refresh_token
+                if registration.credentials is not None
+                else None
+            )
             tx.save()  # Stop requests even if revoke hangs/crashes.
-            confirmed = False
-            try:
-                if registration.credentials and registration.credentials.refresh_token:
+        confirmed = False
+        if refresh_token:
+            for attempt in range(3):
+                try:
                     confirmed = self.oauth.revoke(
-                        client_id=registration.client_id,
-                        refresh_token=registration.credentials.refresh_token,
+                        client_id=client_id,
+                        refresh_token=refresh_token,
                     )
-            except OAuthFailure:
-                pass
-            finally:
+                except OAuthFailure:
+                    confirmed = False
+                if confirmed or attempt == 2:
+                    break
+                time.sleep(0.1 * (2**attempt))
+        with self.store.transaction() as tx:
+            registration = tx.state.registrations.get(connection_id)
+            if registration is None:
+                raise OAuthFailure("oauth_registration_missing")
+            # A later explicit sign-in owns the registration if one completed
+            # while bounded remote revocation was in flight.
+            if (
+                registration.revision == disconnect_revision
+                and registration.state == "disconnected"
+            ):
                 registration.credentials = None
                 registration.refresh_pending = False
                 registration.remote_revocation = "confirmed" if confirmed else "unconfirmed"

@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import json
 import multiprocessing
 import os
 import time
@@ -14,7 +15,12 @@ import pytest
 
 from personal_ai.llm.chatgpt.oauth import ISSUER, SCOPES, OAuthFailure, VerifiedTokens
 from personal_ai.local_bridge.lifecycle import CredentialLifecycle
-from personal_ai.local_bridge.store import LocalStoreError, ProtectedLocalStore
+from personal_ai.local_bridge.store import (
+    DispatchReceipt,
+    LocalStoreError,
+    ProtectedLocalStore,
+    Registration,
+)
 
 
 class FakeOAuth:
@@ -25,6 +31,7 @@ class FakeOAuth:
         self.expires_at = int(time.time()) + 3600
         self.refresh_error = None
         self.revoke_confirmed = True
+        self.revoke_results = None
 
     def discovery(self):
         return {}
@@ -39,6 +46,8 @@ class FakeOAuth:
             self.scopes,
             self.expires_at,
             0,
+            "Synthetic Person",
+            "person@example.test",
         )
 
     def exchange(self, **kwargs):
@@ -55,6 +64,8 @@ class FakeOAuth:
 
     def revoke(self, **kwargs):
         self.calls.append(("revoke", kwargs))
+        if self.revoke_results is not None:
+            return self.revoke_results.pop(0)
         return self.revoke_confirmed
 
 
@@ -225,7 +236,14 @@ def test_refresh_failure_distinguishes_revocation_temporary_and_uncertain(
         registration = tx.state.registrations[safe.connection_id]
         assert (registration.credentials is None) is cleared
         assert registration.refresh_pending is uncertain
-        assert registration.state == ("reauth" if uncertain or cleared else "unavailable")
+        expected_state = (
+            "reauth"
+            if uncertain or cleared
+            else "configuration_error"
+            if code == "invalid_client"
+            else "unavailable"
+        )
+        assert registration.state == expected_state
     if uncertain or cleared:
         with pytest.raises(OAuthFailure):
             lifecycle.snapshot(safe.connection_id)
@@ -267,15 +285,111 @@ def test_failed_post_rotation_persistence_keeps_durable_uncertainty_fence(tmp_pa
 
 def test_receipt_capacity_failure_does_not_evict_uncertain_sends(tmp_path):
     lifecycle, _, safe = connected_lifecycle(tmp_path)
+    now = int(time.time())
     with lifecycle.store.transaction() as tx:
         tx.state.receipts = {
-            f"{index:064x}": {"fingerprint": "a" * 64, "status": "unknown"} for index in range(4096)
+            f"{index:064x}": DispatchReceipt(
+                fingerprint="a" * 64,
+                status="send_started",
+                connection_id=safe.connection_id,
+                connection_revision=safe.revision,
+                created_at=now,
+                updated_at=now,
+                proof_expires_at=now + 60,
+            )
+            for index in range(4096)
         }
         tx.save()
     with pytest.raises(LocalStoreError, match="local_store_capacity"):
-        lifecycle.store.claim("f" * 64, "b" * 64, safe.connection_id, safe.revision)
+        lifecycle.store.claim(
+            "f" * 64, "b" * 64, safe.connection_id, safe.revision, now + 60, now=now
+        )
     with lifecycle.store.transaction() as tx:
-        assert len(tx.state.receipts) == 4096 and tx.state.receipts["0" * 64]["status"] == "unknown"
+        assert len(tx.state.receipts) == 4096
+        assert tx.state.receipts["0" * 64].status == "send_started"
+
+
+def test_pre_send_claim_is_recoverable_after_process_crash_without_reopening_sends(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    identity, fingerprint = "a" * 64, "b" * 64
+    token = lifecycle.store.claim(
+        identity, fingerprint, safe.connection_id, safe.revision, int(time.time()) + 60
+    )
+    with lifecycle.store._claim_fds_lock:
+        descriptor = lifecycle.store._claim_fds[token]
+    # Simulate process exit: the OS lock is released, while the durable record remains.
+    lifecycle.store._release_pre_send(descriptor, token)
+    restarted = ProtectedLocalStore(lifecycle.store.directory)
+    next_token = restarted.claim(
+        identity, fingerprint, safe.connection_id, safe.revision, int(time.time()) + 60
+    )
+    restarted.mark_send_started(
+        identity,
+        fingerprint,
+        safe.connection_id,
+        safe.revision,
+        next_token,
+        expires_at=int(time.time()) + 60,
+        now=int(time.time()),
+    )
+    with restarted.transaction() as tx:
+        assert tx.state.receipts[identity].status == "send_started"
+
+
+def test_settled_receipts_are_reclaimed_after_retention_and_proof_expiry(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    now = 1_000_000
+    for index in range(4097):
+        identity = f"{index:064x}"
+        fingerprint = hashlib.sha256(identity.encode()).hexdigest()
+        token = lifecycle.store.claim(
+            identity,
+            fingerprint,
+            safe.connection_id,
+            safe.revision,
+            now + 60,
+            now=now,
+        )
+        lifecycle.store.mark_send_started(
+            identity,
+            fingerprint,
+            safe.connection_id,
+            safe.revision,
+            token,
+            expires_at=now + 60,
+            now=now,
+        )
+        lifecycle.store.settle(identity, "success", now=now)
+        now += 86401
+    with lifecycle.store.transaction() as tx:
+        assert len(tx.state.receipts) == 1
+        assert next(iter(tx.state.receipts.values())).status == "success"
+
+
+def test_collected_terminal_receipt_cannot_replay_expired_proof_after_clock_rollback(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    identity, fingerprint = "c" * 64, "d" * 64
+    now = 1_000_000
+    token = lifecycle.store.claim(
+        identity, fingerprint, safe.connection_id, safe.revision, now + 60, now=now
+    )
+    lifecycle.store.mark_send_started(
+        identity,
+        fingerprint,
+        safe.connection_id,
+        safe.revision,
+        token,
+        expires_at=now + 60,
+        now=now,
+    )
+    lifecycle.store.settle(identity, "success", now=now)
+    lifecycle.store.maintain(now=now + 86460)
+    with lifecycle.store.transaction() as tx:
+        assert identity not in tx.state.receipts
+    with pytest.raises(LocalStoreError, match="dispatch_authority_expired"):
+        lifecycle.store.claim(
+            identity, fingerprint, safe.connection_id, safe.revision, now + 60, now=now + 1
+        )
 
 
 @pytest.mark.parametrize("confirmed", [True, False])
@@ -294,6 +408,16 @@ def test_disconnect_stops_locally_clears_tokens_retains_mapping_and_reports_revo
         lifecycle.snapshot(safe.connection_id)
 
 
+def test_disconnect_retries_transient_revocation_without_allowing_inference(tmp_path):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+    oauth.revoke_results = [False, False, True]
+    disconnected = lifecycle.disconnect(safe.connection_id)
+    assert disconnected.remote_revocation == "confirmed"
+    assert len([call for call in oauth.calls if call[0] == "revoke"]) == 3
+    with pytest.raises(OAuthFailure):
+        lifecycle.snapshot(safe.connection_id)
+
+
 def test_identity_only_registration_cannot_get_inference_credential(tmp_path):
     lifecycle, oauth, safe = connected_lifecycle(tmp_path)
     oauth.scopes = ("openid", "profile", "email")
@@ -306,6 +430,95 @@ def test_identity_only_registration_cannot_get_inference_credential(tmp_path):
     assert safe.state == "permission_required" and not safe.plan_permission
     with pytest.raises(OAuthFailure, match="bridge_permission_required"):
         lifecycle.snapshot(safe.connection_id)
+
+
+def test_enable_plan_usage_is_explicit_reconsent_after_identity_only_signin(tmp_path):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+    oauth.scopes = ("openid", "profile", "email")
+    attempt, url = lifecycle.begin(
+        "http://127.0.0.1:54321/auth/callback", connection_id=safe.connection_id
+    )
+    identity_only = lifecycle.complete(
+        attempt, {"state": parse_qs(urlsplit(url).query)["state"][0], "code": "synthetic-code"}
+    )
+    assert identity_only.state == "permission_required"
+    enable_attempt, enable_url = lifecycle.begin(
+        "http://127.0.0.1:54321/auth/callback",
+        connection_id=safe.connection_id,
+        enable_plan_usage=True,
+    )
+    query = parse_qs(urlsplit(enable_url).query)
+    assert query["prompt"] == ["consent"]
+    assert set(query["scope"][0].split()) == set(SCOPES)
+    oauth.scopes = tuple(SCOPES)
+    enabled = lifecycle.complete(
+        enable_attempt,
+        {"state": query["state"][0], "code": "synthetic-code"},
+    )
+    assert enabled.state == "connected" and enabled.plan_permission
+    assert enabled.account_label.startswith("person@example.test · ")
+    assert "synthetic-subject" not in str(asdict(enabled))
+
+
+def test_identical_email_registrations_have_distinct_safe_labels():
+    first = Registration(
+        connection_id="11111111-1111-4111-8111-111111111111",
+        client_id="oaiapp_first",
+        account_email="person@example.test",
+    )
+    second = Registration(
+        connection_id="22222222-2222-4222-8222-222222222222",
+        client_id="oaiapp_second",
+        account_email="person@example.test",
+    )
+    assert (
+        CredentialLifecycle._safe(first).account_label
+        != CredentialLifecycle._safe(second).account_label
+    )
+
+
+def test_invalid_client_enters_nonretrying_configuration_error(tmp_path):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+    with lifecycle.store.transaction() as tx:
+        tx.state.registrations[safe.connection_id].credentials.expires_at = 1
+        tx.save()
+    oauth.refresh_error = OAuthFailure("invalid_client")
+    with pytest.raises(OAuthFailure, match="invalid_client"):
+        lifecycle.snapshot(safe.connection_id)
+    with pytest.raises(OAuthFailure, match="bridge_client_configuration"):
+        lifecycle.snapshot(safe.connection_id)
+    assert len([call for call in oauth.calls if call[0] == "refresh"]) == 1
+    with lifecycle.store.transaction() as tx:
+        assert tx.state.registrations[safe.connection_id].state == "configuration_error"
+
+
+def test_v1_state_migration_preserves_unknown_send_fence_and_credentials(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    state_path = lifecycle.store.directory / "state.json"
+    legacy = json.loads(state_path.read_text())
+    legacy["schema_version"] = 1
+    legacy.pop("clock_high_water", None)
+    registration = legacy["registrations"][safe.connection_id]
+    registration.pop("account_name", None)
+    registration.pop("account_email", None)
+    identity, fingerprint = "a" * 64, "b" * 64
+    legacy["receipts"] = {identity: {"fingerprint": fingerprint, "status": "unknown"}}
+    state_path.write_text(json.dumps(legacy))
+    os.chmod(state_path, 0o600)
+    migrated = ProtectedLocalStore(lifecycle.store.directory)
+    with migrated.transaction() as tx:
+        receipt = tx.state.receipts[identity]
+        assert tx.state.schema_version == 2
+        assert receipt.status == "send_started"
+        assert receipt.fingerprint == fingerprint
+        assert (
+            tx.state.registrations[safe.connection_id].credentials.refresh_token
+            == "synthetic-refresh"
+        )
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        migrated.claim(
+            identity, fingerprint, safe.connection_id, safe.revision, int(time.time()) + 60
+        )
 
 
 def test_unsafe_store_permissions_symlinks_and_corruption_fail_explicitly(tmp_path):
@@ -379,7 +592,18 @@ def test_expired_attempt_and_earliest_refresh_constraints_fail_without_exchange(
 
 def claim_in_process(path, identity, connection_id, revision, result):
     try:
-        ProtectedLocalStore(Path(path)).claim(identity, "b" * 64, connection_id, revision)
+        store = ProtectedLocalStore(Path(path))
+        now = int(time.time())
+        token = store.claim(identity, "b" * 64, connection_id, revision, now + 60, now=now)
+        store.mark_send_started(
+            identity,
+            "b" * 64,
+            connection_id,
+            revision,
+            token,
+            expires_at=now + 60,
+            now=now,
+        )
         result.put("claimed")
     except LocalStoreError as error:
         result.put(error.code)
@@ -413,6 +637,8 @@ def test_physical_send_claim_is_single_use_across_real_processes_and_restart(tmp
     ]
     restarted = ProtectedLocalStore(lifecycle.store.directory)
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
-        restarted.claim("a" * 64, "c" * 64, safe.connection_id, safe.revision)
+        restarted.claim(
+            "a" * 64, "c" * 64, safe.connection_id, safe.revision, int(time.time()) + 60
+        )
     with restarted.transaction() as tx:
-        assert tx.state.receipts["a" * 64]["status"] == "unknown"
+        assert tx.state.receipts["a" * 64].status == "send_started"

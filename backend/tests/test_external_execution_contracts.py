@@ -20,7 +20,7 @@ from personal_ai.llm.client import (
     GenerationMetadata,
     ProviderIdentity,
 )
-from personal_ai.llm.external import PreparedExecution
+from personal_ai.llm.external import CHATGPT_PLAN_PROFILE, PreparedExecution
 
 
 def execution_package(**overrides):
@@ -34,6 +34,7 @@ def execution_package(**overrides):
         "source_authority_digest": "b" * 64,
         "provider_id": "openai_chatgpt_plan",
         "model_id": "account-visible-model",
+        "execution_profile": CHATGPT_PLAN_PROFILE,
         "connection_id": uuid4(),
         "connection_revision": 1,
         "messages": [

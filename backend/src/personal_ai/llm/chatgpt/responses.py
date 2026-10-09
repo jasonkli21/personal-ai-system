@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 
@@ -16,10 +17,12 @@ from personal_ai.llm.client import (
     ExecutionProvenance,
     GenerationEvent,
     GenerationMetadata,
+    ProviderErrorObservation,
     ProviderIdentity,
     UsageMetadata,
 )
 from personal_ai.llm.errors import LLMInvalidRequestError, LLMInvalidResponseError
+from personal_ai.llm.external import CHATGPT_PLAN_PROFILE, ExecutionProfileIdentity
 
 PROVIDER = "openai_chatgpt_plan"
 SERIALIZER = "siwc-responses-text-v1"
@@ -43,16 +46,27 @@ class VisibleModel:
 
 
 class BridgeProviderFailure(RuntimeError):
-    def __init__(self, code, *, status=None, shape="unknown"):
+    def __init__(self, code, *, observation=None):
         super().__init__(code)
-        self.code, self.status, self.shape = code, status, shape
+        self.code, self.observation = code, observation
 
 
-def classify_error(data, status=None):
+def classify_error(data, status=None, *, request_id=None):
     error = data.get("error") if isinstance(data, dict) else None
-    code = error.get("code") if isinstance(error, dict) else None
+    raw_code = error.get("code") if isinstance(error, dict) else None
+    raw_param = error.get("param") if isinstance(error, dict) else None
+    code = (
+        raw_code
+        if isinstance(raw_code, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", raw_code)
+        else None
+    )
+    param = (
+        raw_param
+        if isinstance(raw_param, str) and re.fullmatch(r"[A-Za-z0-9_.\[\]-]{1,128}", raw_param)
+        else None
+    )
     shape = (
-        "error"
+        "structured_error"
         if isinstance(error, dict)
         else ("detail" if isinstance(data, dict) and "detail" in data else "unknown")
     )
@@ -64,7 +78,15 @@ def classify_error(data, status=None):
             429: "bridge_usage_limit",
             400: "bridge_unsupported_request",
         }.get(status, "bridge_unavailable")
-    return BridgeProviderFailure(normalized, status=status, shape=shape)
+    safe_request_id = (
+        request_id
+        if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", request_id)
+        else None
+    )
+    return BridgeProviderFailure(
+        normalized,
+        observation=ProviderErrorObservation(status, code, param, safe_request_id, shape),
+    )
 
 
 def serialize(messages: Sequence[ChatMessage], model: str) -> bytes:
@@ -148,8 +170,25 @@ async def sse_objects(response) -> AsyncIterator[dict]:
 
 
 class ChatGPTResponses:
-    def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(
+        self,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+        supported_profiles: tuple[ExecutionProfileIdentity, ...] = (CHATGPT_PLAN_PROFILE,),
+    ):
         self.transport = transport
+        self.supported_profiles = frozenset(supported_profiles)
+        if not self.supported_profiles or any(
+            profile.endpoint_id != CHATGPT_PLAN_PROFILE.endpoint_id
+            or profile.deployment_id != CHATGPT_PLAN_PROFILE.deployment_id
+            or profile.serializer_id != SERIALIZER
+            or profile.runtime_id != CHATGPT_PLAN_PROFILE.runtime_id
+            for profile in self.supported_profiles
+        ):
+            raise ValueError("chatgpt_execution_profile_unsupported")
+
+    def supports_profile(self, profile: ExecutionProfileIdentity) -> bool:
+        return profile in self.supported_profiles
 
     def _client(self):
         return httpx.AsyncClient(
@@ -217,22 +256,26 @@ class ChatGPTResponses:
         access_token: str,
         connection_id: str,
         invocation_id: str,
+        execution_profile: ExecutionProfileIdentity = CHATGPT_PLAN_PROFILE,
         max_output_bytes: int,
         timeout_seconds: float,
     ) -> AsyncIterator[GenerationEvent]:
+        if not self.supports_profile(execution_profile):
+            raise LLMInvalidRequestError("bridge_execution_profile_unsupported")
         body = serialize(messages, model)
-        identity = ProviderIdentity(PROVIDER, model, SERIALIZER)
+        identity = ProviderIdentity(PROVIDER, model, execution_profile.serializer_id)
         provenance = ExecutionProvenance(
             "connected_provider", "bridge_observed", PROVIDER, model, connection_id
         )
 
-        def terminal(status, code=None, usage=None):
+        def terminal(status, code=None, usage=None, provider_error=None):
             return GenerationEvent.terminal(
                 GenerationMetadata(
                     status,
                     identity,
                     usage=usage,
                     error_code=code,
+                    provider_error=provider_error,
                     invocation_id=invocation_id,
                     provenance=provenance,
                 )
@@ -242,6 +285,8 @@ class ChatGPTResponses:
         terminal_event = None
         response_id = None
         text_parts = []
+        refusal_parts = []
+        refusal_final_seen = False
         try:
             async with (
                 asyncio.timeout(timeout_seconds),
@@ -258,7 +303,11 @@ class ChatGPTResponses:
             ):
                 if response.status_code != 200:
                     data = await bounded_json(response)
-                    error = classify_error(data, response.status_code)
+                    error = classify_error(
+                        data,
+                        response.status_code,
+                        request_id=response.headers.get("x-request-id"),
+                    )
                     # A generic server/gateway error does not establish that the
                     # provider rejected admission before doing work. Documented
                     # subscription admission errors remain explicit rejections.
@@ -269,17 +318,19 @@ class ChatGPTResponses:
                         and raw_error["code"] in ERROR_CODES
                     )
                     if response.status_code >= 500 and not documented:
-                        yield terminal("incomplete", "bridge_transport_unknown")
+                        yield terminal(
+                            "incomplete",
+                            "bridge_transport_unknown",
+                            provider_error=error.observation,
+                        )
                     else:
-                        yield terminal("rejected", error.code)
+                        yield terminal("rejected", error.code, provider_error=error.observation)
                     return
                 if "text/event-stream" not in response.headers.get("content-type", ""):
                     raise LLMInvalidResponseError("bridge_stream_invalid")
                 if response.headers.get("content-encoding", "identity") != "identity":
                     raise LLMInvalidResponseError("bridge_stream_encoding_unsupported")
                 async for data in sse_objects(response):
-                    if terminal_event is not None:
-                        raise LLMInvalidResponseError("bridge_event_after_terminal")
                     kind = data.get("type")
                     if kind == "response.created":
                         created = data.get("response", {})
@@ -325,13 +376,32 @@ class ChatGPTResponses:
                                 if not isinstance(content, list) or len(content) > 256:
                                     raise LLMInvalidResponseError("bridge_completion_invalid")
                                 for part in content:
-                                    if (
-                                        not isinstance(part, dict)
-                                        or part.get("type") != "output_text"
-                                        or not isinstance(part.get("text"), str)
-                                    ):
+                                    if not isinstance(part, dict):
                                         raise LLMInvalidResponseError("bridge_output_unsupported")
-                                    final_text.append(part["text"])
+                                    if part.get("type") == "output_text":
+                                        value = part.get("text")
+                                        if not isinstance(value, str):
+                                            raise LLMInvalidResponseError(
+                                                "bridge_completion_invalid"
+                                            )
+                                        final_text.append(value)
+                                    elif part.get("type") == "refusal":
+                                        value = part.get("refusal")
+                                        if not isinstance(value, str):
+                                            raise LLMInvalidResponseError(
+                                                "bridge_completion_invalid"
+                                            )
+                                        final_text.append(value)
+                                    elif part.get("type") == "reasoning_text":
+                                        # Validate but never disclose reasoning content.
+                                        if not isinstance(part.get("text"), str):
+                                            raise LLMInvalidResponseError(
+                                                "bridge_completion_invalid"
+                                            )
+                                    else:
+                                        raise LLMInvalidResponseError("bridge_output_unsupported")
+                            if refusal_parts and not refusal_final_seen:
+                                raise LLMInvalidResponseError("bridge_refusal_incomplete")
                             if "".join(final_text) != "".join(text_parts):
                                 raise LLMInvalidResponseError("bridge_terminal_text_mismatch")
                             usage = result.get("usage")
@@ -355,15 +425,18 @@ class ChatGPTResponses:
                         else:
                             if result.get("status") != "failed":
                                 raise LLMInvalidResponseError("bridge_completion_invalid")
-                            terminal_event = terminal("failure", classify_error(result).code)
+                            error = classify_error(
+                                result, request_id=response.headers.get("x-request-id")
+                            )
+                            terminal_event = terminal(
+                                "failure", error.code, provider_error=error.observation
+                            )
                     elif kind == "error":
+                        error = classify_error(
+                            {"error": data}, request_id=response.headers.get("x-request-id")
+                        )
                         terminal_event = terminal(
-                            "failure",
-                            classify_error(
-                                {
-                                    "error": data,
-                                }
-                            ).code,
+                            "failure", error.code, provider_error=error.observation
                         )
                     elif kind in {"response.output_item.added", "response.output_item.done"}:
                         item = data.get("item")
@@ -374,22 +447,58 @@ class ChatGPTResponses:
                             raise LLMInvalidResponseError("bridge_tool_unsupported")
                     elif kind in {"response.content_part.added", "response.content_part.done"}:
                         part = data.get("part")
-                        if not isinstance(part, dict) or part.get("type") != "output_text":
+                        if not isinstance(part, dict) or part.get("type") not in {
+                            "output_text",
+                            "refusal",
+                            "reasoning_text",
+                        }:
                             raise LLMInvalidResponseError("bridge_output_unsupported")
-                    elif kind in {"response.refusal.delta", "response.refusal.done"}:
-                        terminal_event = terminal("rejected", "bridge_rejected")
-                    elif kind not in {
+                    elif kind == "response.refusal.delta":
+                        delta = data.get("delta")
+                        if not isinstance(delta, str):
+                            raise LLMInvalidResponseError("bridge_refusal_invalid")
+                        emitted_bytes += len(delta.encode())
+                        if emitted_bytes > max_output_bytes:
+                            terminal_event = terminal("incomplete", "bridge_output_bound")
+                        elif delta:
+                            refusal_parts.append(delta)
+                            text_parts.append(delta)
+                            yield GenerationEvent.text_delta(delta)
+                    elif kind == "response.refusal.done":
+                        refusal = data.get("refusal")
+                        if not isinstance(refusal, str):
+                            raise LLMInvalidResponseError("bridge_refusal_invalid")
+                        if refusal_parts and "".join(refusal_parts) != refusal:
+                            raise LLMInvalidResponseError("bridge_refusal_mismatch")
+                        if not refusal_parts and refusal:
+                            emitted_bytes += len(refusal.encode())
+                            if emitted_bytes > max_output_bytes:
+                                terminal_event = terminal("incomplete", "bridge_output_bound")
+                            else:
+                                text_parts.append(refusal)
+                                yield GenerationEvent.text_delta(refusal)
+                        refusal_final_seen = True
+                    elif kind in {
                         "response.in_progress",
                         "response.output_text.done",
                         "response.reasoning_summary_part.added",
                         "response.reasoning_summary_part.done",
                         "response.reasoning_summary_text.delta",
                         "response.reasoning_summary_text.done",
-                        "response.reasoning_text.delta",
-                        "response.reasoning_text.done",
                     }:
+                        pass
+                    elif kind in {"response.reasoning_text.delta", "response.reasoning_text.done"}:
+                        field = "delta" if kind.endswith("delta") else "text"
+                        if not isinstance(data.get(field), str):
+                            raise LLMInvalidResponseError("bridge_event_invalid")
+                        # Reasoning output is intentionally not streamed to the caller.
+                    else:
                         raise LLMInvalidResponseError("bridge_event_invalid")
-                yield terminal_event or terminal("incomplete", "bridge_terminal_missing")
+                    if terminal_event is not None:
+                        # A validated Responses terminal is authoritative; socket EOF is not.
+                        yield terminal_event
+                        return
+                yield terminal("incomplete", "bridge_terminal_missing")
         except TimeoutError:
             yield terminal("incomplete", "bridge_timeout_unknown")
         except httpx.HTTPError:

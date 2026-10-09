@@ -17,6 +17,7 @@ from personal_ai.llm.chatgpt.responses import (
     serialize,
 )
 from personal_ai.llm.client import ChatMessage, ExternalCompletion
+from personal_ai.llm.external import CHATGPT_PLAN_PROFILE, ExecutionProfileIdentity
 from personal_ai.local_bridge.disclosure import CredentialEcho, LocalOutputGuard
 from personal_ai.local_bridge.http import create_loopback_app
 from personal_ai.local_bridge.runtime import (
@@ -26,6 +27,7 @@ from personal_ai.local_bridge.runtime import (
     LocalChatGPTBridge,
 )
 from personal_ai.local_bridge.store import LocalStoreError
+from personal_ai.routing.contracts import EndpointRef
 from tests.test_chatgpt_local_lifecycle import connected_lifecycle
 from tests.test_external_execution_contracts import execution_package, signed_grant
 
@@ -86,7 +88,11 @@ class ProviderFixture:
             return httpx.Response(200, json={"models": self.catalog})
         assert request.url.path == "/v1/responses"
         if self.status != 200:
-            return httpx.Response(self.status, json=self.error)
+            return httpx.Response(
+                self.status,
+                json=self.error,
+                headers={"x-request-id": "req_synthetic_123"},
+            )
         return httpx.Response(
             200,
             headers={"content-type": "text/event-stream"},
@@ -138,10 +144,11 @@ def bridge_fixture(tmp_path, *, gated=True):
         distribution="local_personal",
         compatibility_reference="synthetic-offline-compatibility",
         plan_only_reference="synthetic-offline-plan-only",
+        execution_profile=CHATGPT_PLAN_PROFILE,
+        model_id="account-visible-model",
         plan_only_verified=True,
         verified_at=now,
         valid_until=now + 3600,
-        model_slugs=("account-visible-model",),
         data_use={
             "status": "approved",
             "max_sensitivity": "sensitive",
@@ -222,7 +229,6 @@ def test_stream_reports_explicit_completion_usage_and_observed_provenance():
         ([created(), delta()], "bridge_terminal_missing"),
         ([created(), delta(), completed(model="other-model")], "bridge_protocol_invalid"),
         ([created(), completed()], "bridge_protocol_invalid"),
-        ([created(), delta(), completed(), delta("extra")], "bridge_protocol_invalid"),
         ([delta(), completed()], "bridge_protocol_invalid"),
         ([created(), delta(), completed(id="foreign-response")], "bridge_protocol_invalid"),
         (
@@ -248,6 +254,78 @@ def test_terminal_loss_model_drift_and_protocol_failures_do_not_succeed(events, 
     result = transport_events(fixture)
     assert result[-1].metadata.status == "incomplete" and result[-1].metadata.error_code == code
     assert len(fixture.sends()) == 1
+
+
+def test_refusal_content_is_streamed_as_completed_assistant_output():
+    refusal = "I cannot help with that request."
+    fixture = ProviderFixture()
+    fixture.events = [
+        created(),
+        {
+            "type": "response.content_part.added",
+            "part": {"type": "refusal", "refusal": ""},
+        },
+        {"type": "response.refusal.delta", "delta": "I cannot "},
+        {"type": "response.refusal.delta", "delta": "help with that request."},
+        {"type": "response.refusal.done", "refusal": refusal},
+        {
+            "type": "response.content_part.done",
+            "part": {"type": "refusal", "refusal": refusal},
+        },
+        completed(
+            output=[
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "refusal", "refusal": refusal}],
+                }
+            ]
+        ),
+    ]
+    result = transport_events(fixture)
+    assert result[-1].metadata.status == "success"
+    assert "".join(event.delta for event in result if event.kind == "delta") == refusal
+
+
+def test_reasoning_content_is_validated_but_never_disclosed():
+    fixture = ProviderFixture()
+    fixture.events = [
+        created(),
+        {"type": "response.output_item.added", "item": {"type": "reasoning"}},
+        {"type": "response.reasoning_text.delta", "delta": "private reasoning"},
+        {"type": "response.reasoning_text.done", "text": "private reasoning"},
+        {"type": "response.output_item.done", "item": {"type": "reasoning"}},
+        {
+            "type": "response.content_part.added",
+            "part": {"type": "reasoning_text", "text": "private reasoning"},
+        },
+        delta("Visible answer"),
+        completed(
+            output=[
+                {"type": "reasoning"},
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "reasoning_text", "text": "private reasoning"},
+                        {"type": "output_text", "text": "Visible answer"},
+                    ],
+                },
+            ]
+        ),
+    ]
+    result = transport_events(fixture)
+    assert result[-1].metadata.status == "success"
+    output = "".join(event.delta for event in result if event.kind == "delta")
+    assert output == "Visible answer" and "private reasoning" not in output
+
+
+def test_valid_terminal_commits_before_eof_and_ignores_unread_post_terminal_events():
+    fixture = ProviderFixture()
+    fixture.events = [created(), delta(), completed(), delta("late")]
+    result = transport_events(fixture)
+    assert result[-1].metadata.status == "success"
+    assert "late" not in "".join(event.delta for event in result if event.kind == "delta")
 
 
 @pytest.mark.parametrize(
@@ -283,6 +361,50 @@ def test_admission_and_usage_errors_are_normalized_without_body_or_billing_fallb
     assert result[-1].metadata.error_code == code
     assert "private-admission-details" not in str(asdict(result[-1]))
     assert len(fixture.sends()) == 1
+
+
+def test_provider_error_observation_preserves_only_bounded_recovery_facts():
+    fixture = ProviderFixture()
+    fixture.status = 400
+    fixture.error = {
+        "error": {
+            "code": "subscription_sharing_unsupported_capability",
+            "param": "input[0].content",
+            "message": "private diagnostic text",
+        }
+    }
+    event = transport_events(fixture)[-1]
+    observation = event.metadata.provider_error
+    assert (observation.status, observation.code, observation.param, observation.request_id) == (
+        400,
+        "subscription_sharing_unsupported_capability",
+        "input[0].content",
+        "req_synthetic_123",
+    )
+    assert observation.shape == "structured_error"
+    assert "private diagnostic text" not in str(asdict(event))
+
+    fixture.status = 503
+    fixture.error = {"detail": "private detail"}
+    observation = transport_events(fixture)[-1].metadata.provider_error
+    assert observation.status == 503 and observation.code is None and observation.param is None
+    assert observation.shape == "detail" and observation.request_id == "req_synthetic_123"
+
+
+def test_provider_error_observation_drops_unbounded_or_invalid_fields():
+    fixture = ProviderFixture()
+    fixture.status = 400
+    fixture.error = {
+        "error": {
+            "code": "not safe!",
+            "param": "p" * 129,
+            "message": "private text",
+        }
+    }
+    event = transport_events(fixture)[-1]
+    observation = event.metadata.provider_error
+    assert observation.code is None and observation.param is None
+    assert "private text" not in str(asdict(event))
 
 
 def test_usage_failure_after_deltas_is_not_completion_or_reset_timestamp():
@@ -337,11 +459,31 @@ class SlowStream(httpx.AsyncByteStream):
         self.closed = True
 
 
+class TerminalThenHangingStream(httpx.AsyncByteStream):
+    def __init__(self):
+        self.closed = False
+
+    async def __aiter__(self):
+        yield sse([created(), delta(), completed()])
+        await asyncio.sleep(1)
+
+    async def aclose(self):
+        self.closed = True
+
+
 def test_total_deadline_closes_stream_without_retry():
     fixture = ProviderFixture()
     fixture.stream = SlowStream()
     result = transport_events(fixture, timeout_seconds=0.01)
     assert result[-1].metadata.error_code == "bridge_timeout_unknown"
+    assert fixture.stream.closed and len(fixture.sends()) == 1
+
+
+def test_terminal_event_succeeds_even_if_stream_never_reaches_eof():
+    fixture = ProviderFixture()
+    fixture.stream = TerminalThenHangingStream()
+    result = transport_events(fixture, timeout_seconds=0.05)
+    assert result[-1].metadata.status == "success"
     assert fixture.stream.closed and len(fixture.sends()) == 1
 
 
@@ -360,7 +502,7 @@ def test_consumer_cancellation_closes_provider_and_retains_unknown_send_fence(tm
     asyncio.run(stop())
     assert provider.stream.closed and len(provider.sends()) == 1
     with bridge.lifecycle.store.transaction() as tx:
-        assert tx.state.receipts[package.dispatch_identity]["status"] == "unknown"
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
 
 
 def test_cancellation_of_running_consumer_closes_provider(tmp_path):
@@ -383,7 +525,7 @@ def test_cancellation_of_running_consumer_closes_provider(tmp_path):
     asyncio.run(stop())
     assert provider.stream.closed
     with bridge.lifecycle.store.transaction() as tx:
-        assert tx.state.receipts[package.dispatch_identity]["status"] == "unknown"
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
 
 
 def test_local_output_bound_is_not_provider_token_bound():
@@ -450,15 +592,16 @@ def test_compressed_provider_stream_is_rejected_before_decompression():
         {"plan_only_verified": False},
         {"valid_until": 1},
         {"client_id": "oaiapp_other"},
-        {"model_slugs": ("other-model",)},
+        {"model_id": "other-model"},
         {"distribution": "hosted_web_installed_bridge", "distribution_approval": None},
         {"data_use": {"status": "unknown"}},
     ],
 )
 def test_local_compatibility_attestation_cannot_be_waived_by_signed_package(tmp_path, change):
     bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
-    original = bridge.gates[str(package.connection_id)]
-    bridge.gates[str(package.connection_id)] = CompatibilityGate.model_validate(
+    gate_key = next(iter(bridge.gates))
+    original = bridge.gates[gate_key]
+    bridge.gates[gate_key] = CompatibilityGate.model_validate(
         {
             **original.model_dump(),
             **change,
@@ -472,12 +615,13 @@ def test_local_compatibility_attestation_cannot_be_waived_by_signed_package(tmp_
 @pytest.mark.parametrize("denial", ["compatibility", "privacy"])
 def test_local_policy_denial_precedes_any_credential_refresh(tmp_path, denial):
     bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
-    gate = bridge.gates[str(package.connection_id)].model_dump()
+    gate_key = next(iter(bridge.gates))
+    gate = bridge.gates[gate_key].model_dump()
     if denial == "compatibility":
         gate["plan_only_verified"] = False
     else:
         gate["data_use"]["max_sensitivity"] = "public"
-    bridge.gates[str(package.connection_id)] = CompatibilityGate.model_validate(gate)
+    bridge.gates[gate_key] = CompatibilityGate.model_validate(gate)
     with bridge.lifecycle.store.transaction() as tx:
         tx.state.registrations[str(package.connection_id)].credentials.expires_at = 1
         tx.save()
@@ -509,6 +653,114 @@ def test_expiry_during_catalog_refresh_aborts_without_claim_or_send(tmp_path):
     assert not provider.sends()
 
 
+def test_proof_expiry_after_claim_is_known_no_send_and_releases_reservation(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    current_time = [proof.claims.issued_at]
+    bridge.clock = lambda: current_time[0]
+    original_claim = bridge.lifecycle.store.claim
+
+    def claim_then_expire(*args, **kwargs):
+        token = original_claim(*args, **kwargs)
+        current_time[0] = proof.claims.expires_at
+        return token
+
+    bridge.lifecycle.store.claim = claim_then_expire
+    with pytest.raises(InvalidDispatchGrant):
+        run_bridge(bridge, session, package, proof)
+    with bridge.lifecycle.store.transaction() as tx:
+        assert package.dispatch_identity not in tx.state.receipts
+    assert not provider.sends()
+
+
+def test_compatibility_expiry_after_claim_is_known_no_send(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    gate_key = next(iter(bridge.gates))
+    gate = bridge.gates[gate_key]
+    gate = CompatibilityGate.model_validate(
+        {**gate.model_dump(), "valid_until": proof.claims.issued_at + 10}
+    )
+    bridge.gates[gate_key] = gate
+    current_time = [proof.claims.issued_at]
+    bridge.clock = lambda: current_time[0]
+    original_claim = bridge.lifecycle.store.claim
+
+    def claim_then_expire_gate(*args, **kwargs):
+        token = original_claim(*args, **kwargs)
+        current_time[0] = gate.verified_at + 20
+        return token
+
+    bridge.lifecycle.store.claim = claim_then_expire_gate
+    with pytest.raises(BridgeDenied, match="bridge_compatibility_unverified"):
+        run_bridge(bridge, session, package, proof)
+    with bridge.lifecycle.store.transaction() as tx:
+        assert package.dispatch_identity not in tx.state.receipts
+    assert not provider.sends()
+
+
+def test_connection_change_after_claim_is_reported_as_known_no_send(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    original_claim = bridge.lifecycle.store.claim
+
+    def claim_then_disconnect(*args, **kwargs):
+        token = original_claim(*args, **kwargs)
+        bridge.lifecycle.disconnect(str(package.connection_id))
+        return token
+
+    bridge.lifecycle.store.claim = claim_then_disconnect
+    with pytest.raises(LocalStoreError, match="connection_changed"):
+        run_bridge(bridge, session, package, proof)
+    assert not provider.sends()
+    receipt = asyncio.run(
+        bridge.reconcile(
+            package.dispatch_identity,
+            package.fingerprint,
+            origin=session.origin,
+            authorization=session.authorization,
+        )
+    )
+    assert receipt.status == "not_sent"
+
+
+def test_signed_execution_profile_must_match_registered_local_transport(tmp_path):
+    bridge, provider, session, package, _, private = bridge_fixture(tmp_path)
+    alternate = ExecutionProfileIdentity(
+        endpoint=EndpointRef(
+            endpoint_profile_id="openai_chatgpt_plan:responses-alt", profile_version=1
+        ),
+        endpoint_id=CHATGPT_PLAN_PROFILE.endpoint_id,
+        deployment_id=CHATGPT_PLAN_PROFILE.deployment_id,
+        serializer_id=CHATGPT_PLAN_PROFILE.serializer_id,
+        runtime_id=CHATGPT_PLAN_PROFILE.runtime_id,
+    )
+    package = package.model_copy(update={"execution_profile": alternate})
+    proof = signed_grant(
+        package,
+        private,
+        caller_id=session.caller_id,
+        audience=bridge.verifier.audience,
+        now=int(time.time()),
+    )
+    previous = next(iter(bridge.gates.values()))
+    configured = CompatibilityGate.model_validate(
+        {**previous.model_dump(), "execution_profile": alternate}
+    )
+    bridge.gates = {configured.key: configured}
+    with pytest.raises(BridgeDenied, match="bridge_execution_profile_unsupported"):
+        run_bridge(bridge, session, package, proof)
+    assert not provider.sends()
+
+    registered_transport = ChatGPTResponses(
+        transport=provider.provider.transport,
+        supported_profiles=(CHATGPT_PLAN_PROFILE, alternate),
+    )
+    provider.provider = registered_transport
+    bridge.provider = registered_transport
+    result = run_bridge(bridge, session, package, proof)
+    assert result[-1].metadata.status == "success"
+    assert result[-1].metadata.identity.serializer_id == alternate.serializer_id
+    assert len(provider.sends()) == 1
+
+
 def test_local_output_cutoff_is_not_a_known_provider_terminal(tmp_path):
     bridge, _, session, package, _, private = bridge_fixture(tmp_path)
     package = package.model_copy(update={"max_output_bytes": 1})
@@ -522,7 +774,7 @@ def test_local_output_cutoff_is_not_a_known_provider_terminal(tmp_path):
     result = run_bridge(bridge, session, package, proof)
     assert result[-1].metadata.error_code == "bridge_output_bound"
     with bridge.lifecycle.store.transaction() as tx:
-        assert tx.state.receipts[package.dispatch_identity]["status"] == "unknown"
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
 
 
 @pytest.mark.parametrize("status", [500, 502, 503])
@@ -535,7 +787,7 @@ def test_generic_server_error_does_not_prove_rejection_before_work(tmp_path, sta
     assert result[-1].metadata.error_code == "bridge_transport_unknown"
     assert "private upstream diagnostics" not in str(asdict(result[-1]))
     with bridge.lifecycle.store.transaction() as tx:
-        assert tx.state.receipts[package.dispatch_identity]["status"] == "unknown"
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, proof)
     assert len(provider.sends()) == 1
@@ -545,6 +797,24 @@ def test_bridge_executes_once_and_completed_provenance_contains_no_credentials(t
     bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
     events = run_bridge(bridge, session, package, proof)
     assert events[-1].metadata.status == "success"
+    receipt = asyncio.run(
+        bridge.reconcile(
+            package.dispatch_identity,
+            package.fingerprint,
+            origin=session.origin,
+            authorization=session.authorization,
+        )
+    )
+    assert receipt.status == "success" and receipt.output_available is False
+    with pytest.raises(LocalStoreError, match="dispatch_receipt_not_found"):
+        asyncio.run(
+            bridge.reconcile(
+                package.dispatch_identity,
+                "f" * 64,
+                origin=session.origin,
+                authorization=session.authorization,
+            )
+        )
     safe_output = json.dumps([asdict(e) for e in events]) + caplog.text
     for private in (
         "synthetic-access",
@@ -558,6 +828,56 @@ def test_bridge_executes_once_and_completed_provenance_contains_no_credentials(t
         assert private not in safe_output
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, proof)
+    assert len(provider.sends()) == 1
+
+
+def test_terminal_receipt_reconciles_after_runtime_restart_and_repair(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    result = run_bridge(bridge, session, package, proof)
+    assert result[-1].metadata.status == "success"
+
+    restarted = LocalChatGPTBridge(
+        bridge.lifecycle,
+        bridge.provider,
+        bridge.verifier,
+        origins=(session.origin, "https://other-approved.example"),
+        gates=tuple(bridge.gates.values()),
+        clock=bridge.clock,
+    )
+    repaired_session = restarted.approve_pairing(session.origin, str(session.connection_id))
+    assert repaired_session.caller_id != session.caller_id
+    reconciled = asyncio.run(
+        restarted.reconcile(
+            package.dispatch_identity,
+            package.fingerprint,
+            origin=repaired_session.origin,
+            authorization=repaired_session.authorization,
+        )
+    )
+    assert reconciled.status == "success"
+    assert reconciled.output_available is False
+
+    foreign_session = restarted.approve_pairing(
+        "https://other-approved.example", str(session.connection_id)
+    )
+    with pytest.raises(LocalStoreError, match="dispatch_receipt_not_found"):
+        asyncio.run(
+            restarted.reconcile(
+                package.dispatch_identity,
+                package.fingerprint,
+                origin=foreign_session.origin,
+                authorization=foreign_session.authorization,
+            )
+        )
+    with pytest.raises(BridgeDenied, match="bridge_caller_denied"):
+        asyncio.run(
+            restarted.reconcile(
+                package.dispatch_identity,
+                package.fingerprint,
+                origin=session.origin,
+                authorization="unpaired-random-capability-value",
+            )
+        )
     assert len(provider.sends()) == 1
 
 
@@ -603,7 +923,7 @@ def test_unknown_send_outcome_remains_fenced_across_runtime_restart_and_resigned
     events = run_bridge(bridge, session, package, proof)
     assert events[-1].metadata.error_code == "bridge_terminal_missing"
     with bridge.lifecycle.store.transaction() as tx:
-        assert tx.state.receipts[package.dispatch_identity]["status"] == "unknown"
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
     second_proof = signed_grant(
         package,
         private,
@@ -652,7 +972,7 @@ def test_credential_echo_across_delta_boundaries_cannot_escape_local_guard(tmp_p
         asyncio.run(send())
     assert "synthetic-access" not in "".join(event.delta for event in output)
     with bridge.lifecycle.store.transaction() as tx:
-        assert tx.state.receipts[package.dispatch_identity]["status"] == "unknown"
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
 
 
 def test_catalog_cannot_echo_credentials_through_display_names(tmp_path):
@@ -732,9 +1052,54 @@ def test_loopback_host_origin_peer_content_and_authorization_are_all_required(tm
         assert result.status_code == 200 and '"status":"success"' in result.text
         assert "synthetic-access" not in result.text and "oaiapp_synthetic" not in result.text
         assert result.headers["Access-Control-Allow-Origin"] == session.origin
+        receipt_payload = {
+            "dispatch_identity": package.dispatch_identity,
+            "fingerprint": package.fingerprint,
+        }
+        reconcile = client.post(
+            "/receipt/reconcile",
+            headers={**headers, "Content-Type": "application/json"},
+            json=receipt_payload,
+        )
+        assert reconcile.status_code == 200
+        assert reconcile.json() == {"status": "success", "output_available": False}
+        assert (
+            client.post(
+                "/receipt/reconcile",
+                headers={**headers, "Content-Type": "application/json"},
+                json={**receipt_payload, "fingerprint": "f" * 64},
+            ).status_code
+            == 404
+        )
+        acknowledged = client.post(
+            "/receipt/acknowledge",
+            headers={**headers, "Content-Type": "application/json"},
+            json=receipt_payload,
+        )
+        assert acknowledged.status_code == 200
+        assert acknowledged.json() == {
+            "status": "acknowledged",
+            "output_available": False,
+        }
     with TestClient(app, base_url="http://127.0.0.1:8765", client=("192.0.2.1", 1234)) as client:
         assert client.get("/connection", headers=headers).status_code == 403
     assert len(provider.sends()) == 1
+
+
+def test_connection_endpoint_rejects_stale_pairing_revision(tmp_path):
+    bridge, _, session, _, _, _ = bridge_fixture(tmp_path)
+    app = create_loopback_app(bridge, port=8765)
+    headers = {"Origin": session.origin, "X-Bridge-Authorization": session.authorization}
+    with TestClient(
+        app,
+        base_url="http://127.0.0.1:8765",
+        client=("127.0.0.1", 1234),
+    ) as client:
+        assert client.get("/connection", headers=headers).status_code == 200
+        bridge.lifecycle.disconnect(str(session.connection_id))
+        stale = client.get("/connection", headers=headers)
+        assert stale.status_code == 409
+        assert stale.json() == {"error": "bridge_connection_changed"}
 
 
 def test_private_network_preflight_is_a_separate_unverified_gate(tmp_path):

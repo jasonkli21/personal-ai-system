@@ -25,7 +25,7 @@ from personal_ai.local_bridge.runtime import BridgeDenied, CompatibilityGate, Lo
 from personal_ai.local_bridge.store import LocalStoreError, ProtectedLocalStore
 
 
-def local_sign_in(lifecycle: CredentialLifecycle, *, connection_id=None):
+def local_sign_in(lifecycle: CredentialLifecycle, *, connection_id=None, enable_plan_usage=False):
     """Ephemeral OAuth callback listener, separate from paired browser execution."""
     outcome = {}
     attempt_id = None
@@ -78,6 +78,7 @@ def local_sign_in(lifecycle: CredentialLifecycle, *, connection_id=None):
         attempt_id, url = lifecycle.begin(
             f"http://127.0.0.1:{server.server_port}/auth/callback",
             connection_id=connection_id,
+            enable_plan_usage=enable_plan_usage,
         )
         if not webbrowser.open(url):
             raise OAuthFailure("oauth_system_browser_unavailable")
@@ -158,7 +159,10 @@ def main():
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     print("Local bridge. Live execution requires verified local gates and a signed package.")
-    print("Commands: sign-in | reauth CONNECTION | sign-out CONNECTION | status |")
+    print(
+        "Commands: sign-in | reauth CONNECTION | enable-usage CONNECTION | "
+        "sign-out CONNECTION | status |"
+    )
     print("pair EXACT_ORIGIN CONNECTION | quit")
     try:
         while True:
@@ -174,6 +178,18 @@ def main():
                     print(json.dumps(asdict(local_sign_in(lifecycle))))
                 elif len(command) == 2 and command[0] == "reauth":
                     print(json.dumps(asdict(local_sign_in(lifecycle, connection_id=command[1]))))
+                elif len(command) == 2 and command[0] == "enable-usage":
+                    print(
+                        json.dumps(
+                            asdict(
+                                local_sign_in(
+                                    lifecycle,
+                                    connection_id=command[1],
+                                    enable_plan_usage=True,
+                                )
+                            )
+                        )
+                    )
                 elif len(command) == 2 and command[0] == "sign-out":
                     print(json.dumps(asdict(lifecycle.disconnect(command[1]))))
                 elif len(command) == 3 and command[0] == "pair":

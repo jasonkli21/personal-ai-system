@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
@@ -89,6 +90,32 @@ class UsageMetadata:
             raise ValueError("usage_confidence_invalid")
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderErrorObservation:
+    """Bounded machine-readable provider facts; never includes diagnostic body text."""
+
+    status: int | None = None
+    code: str | None = None
+    param: str | None = None
+    request_id: str | None = None
+    shape: Literal["structured_error", "detail", "unknown"] = "unknown"
+
+    def __post_init__(self) -> None:
+        if self.status is not None and (
+            type(self.status) is not int or not 100 <= self.status <= 599
+        ):
+            raise ValueError("provider_error_status_invalid")
+        for value, pattern in (
+            (self.code, r"^[A-Za-z0-9_.:-]{1,128}$"),
+            (self.param, r"^[A-Za-z0-9_.\[\]-]{1,128}$"),
+            (self.request_id, r"^[A-Za-z0-9_.:-]{1,128}$"),
+        ):
+            if value is not None and (
+                not isinstance(value, str) or not re.fullmatch(pattern, value)
+            ):
+                raise ValueError("provider_error_field_invalid")
+
+
 GenerationStatus = Literal["success", "incomplete", "failure", "rejected"]
 
 
@@ -136,6 +163,7 @@ class GenerationMetadata:
     invocation_id: str | None = None
     attempt_ids: tuple[str, ...] = ()
     provenance: ExecutionProvenance | None = None
+    provider_error: ProviderErrorObservation | None = None
 
     def __post_init__(self) -> None:
         if self.provenance is not None and (

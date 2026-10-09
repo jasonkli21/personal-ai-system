@@ -11,11 +11,11 @@ prepare/finalize, manual import, or continuation UI in this phase. Read the
 | Seam | Implementation and ownership |
 | --- | --- |
 | Neutral output | `llm.client.ExecutionProvenance`, `ExternalCompletion`, and additive optional `GenerationMetadata.provenance`. Connected observations and manual user declarations cannot be interchanged. Existing Phase 16 generation behavior remains compatible. |
-| Prepared value | `llm.external.PreparedExecution` contains immutable bounded messages, scope/reservation/branch/source digests, selected provider/model/connection revision, sensitivity/policy and byte/deadline limits. It neither builds context nor persists turns. |
+| Prepared value | `llm.external.PreparedExecution` v2 contains immutable bounded messages, scope/reservation/branch/source digests, selected provider/model/connection revision, exact Phase 18 endpoint/deployment/serializer/runtime profile identity, sensitivity/policy and byte/deadline limits. It neither builds context nor persists turns. |
 | Dispatch proof | `auth.dispatch_grants` verifies domain-separated canonical Ed25519 signatures against locally pinned issuer/key/audience. Hashes bind the entire prepared value. Caller, connection, provider/model, policy/sensitivity and a maximum 120-second validity are checked explicitly. No cloud issuer is implemented. |
 | Provider protocol | `llm.chatgpt.OpenAIOAuth` and `ChatGPTResponses` own fixed public endpoints, OIDC/JWKS verification, account model discovery, supported serialization, HTTP/SSE bounds and safe error normalization. They are not registered in the managed automatic-provider factory. |
 | Local lifecycle | `local_bridge.lifecycle.CredentialLifecycle` owns pending sign-in, selected registration identity, refresh/reauth/revocation and safe connection projections. |
-| Local transport fence | `local_bridge.store.ProtectedLocalStore` owns atomic protected credentials/registrations and hash/status-only send receipts. No prompt, response or quota value is stored. |
+| Local transport fence | `local_bridge.store.ProtectedLocalStore` owns atomic protected credentials/registrations and typed hash/status-only send receipts, including safe pre-send recovery and terminal retention. No prompt, response or quota value is stored. |
 | Local caller surface | `LocalChatGPTBridge`, `create_loopback_app`, and the CLI own pairing, expiry, proof checking and one physical send. Local operator commands own sign-in/out and pairing approval. |
 | Future cloud orchestration | Phase 25.2 must use existing shared policy/planner/builder and DynamoDB turn transactions for prepare/finalize, Postgres for allowed safe control metadata, and authenticated grant issuance. Browser completion remains a local-client observation, not cloud-verified billing evidence. |
 
@@ -48,6 +48,7 @@ The native terminal supports:
 sign-in
 status
 reauth CONNECTION_UUID
+enable-usage CONNECTION_UUID
 sign-out CONNECTION_UUID
 pair EXACT_ORIGIN CONNECTION_UUID
 quit
@@ -62,6 +63,14 @@ never enter authorization URLs; returning sign-in uses the account selector and
 must still match the selected verified identity/client. The provider-bound client
 registration represents the selected ChatGPT workspace; no workspace ID is invented
 from subject/email. Personal AI workspace scope remains separate.
+
+An account label uses a verified email when available, otherwise a bounded account
+name, plus a short connection suffix so identical labels remain distinguishable.
+It does not expose subject IDs or credentials. If sign-in established identity but
+did not grant plan-use scope, ordinary sign-in does not force consent. After an
+explicit local choice, enable-usage CONNECTION_UUID repeats authorization with the
+saved client and requests prompt=consent; it is available only for a connection
+that needs the missing scope.
 
 Default local storage is `~/.local/state/personal-ai-bridge` (directory `0700`, files
 `0600`). A custom `--directory` must be protected, outside any Git checkout and outside
@@ -92,7 +101,7 @@ The optional local file is `0600` and has exactly these top-level keys:
 | --- | --- |
 | `issuer` | Reviewed context-grant issuer identity. No public cloud issuance exists yet. |
 | `keys` | Map of reviewed key IDs to hex-encoded 32-byte Ed25519 public keys, pinned out of band. No browser-supplied key, dynamic JWKS URL or signing secret. |
-| `gates` | `CompatibilityGate` records binding local connection/client, reviewed distribution, model-specific compatibility/plan-only evidence, data-use approval/sensitivity ceiling, verification time and expiry (at most seven days). Hosted web requires a distribution-approval reference. `plan_only_verified` defaults false. |
+| `gates` | `CompatibilityGate` records binding local connection/client, exact Phase 18 endpoint/deployment/serializer/runtime profile and model, reviewed distribution, model-specific compatibility/plan-only evidence, data-use approval/sensitivity ceiling, verification time and expiry (at most seven days). Hosted web requires a distribution-approval reference. `plan_only_verified` defaults false. |
 | `private_network_verified` | Defaults false. True requires actual browser/PNA acceptance; synthetic preflight tests do not establish it. |
 
 New models are discovered dynamically, with server ordering and visible slugs/display
@@ -112,12 +121,16 @@ unless separately verified. HTTPS-to-loopback mixed-content/browser behavior rem
 an external capability check, not something CORS alone proves.
 
 The runtime verifies the proof before credential access, then checks local compatibility
-and privacy, refreshes if needed, discovers the selected model, and rechecks all
-dispatch authority around the durable claim. Tokens must outlive the bounded request.
-Claim identity is the owner/app/workspace/conversation/reservation digest, independent
-of proof ID; resigning or editing a reservation cannot resend it. A claimed send is
-an admitted in-flight effect: sign-out cannot undo a request already admitted to IO.
-Connection revision and proof/caller expiry are checked before further output.
+and privacy, refreshes if needed, and discovers the selected model. It performs the
+final caller/proof/gate/connection checks before a typed `claimed_pre_send` receipt is
+written. Those checks are repeated while holding the pre-send fence; only then does
+the durable status advance to `send_started`, immediately before provider I/O. A
+crash with only `claimed_pre_send` is safely recoverable as `not_sent`; after
+`send_started`, the remote effect may have happened and remains single-use. Tokens
+must outlive the bounded request. Claim identity is the owner/app/workspace/conversation/
+reservation digest, independent of proof ID; resigning or editing a reservation cannot
+resend it. A send admitted to I/O cannot be undone by sign-out. Connection revision
+and proof/caller expiry are checked before further output.
 
 The text-only serializer sets `store: false` and `stream: true`, maps system instructions
 to developer messages, and supplies the full authorized history as input. It accepts
@@ -130,23 +143,43 @@ features, tools, terminal text/model/status mismatch, and post-terminal events f
 explicitly. Byte truncation is a local safety bound, not a guarantee of provider
 token consumption. Credential-echo guards cover model labels and split text deltas.
 
-Only valid `response.completed` plus matching final text becomes success. Explicit
-incomplete/failure/admission/usage results have bounded normalized codes. No reset
-time or quota availability is inferred. Lost terminal events, transport interruptions,
-timeouts, generic server/gateway errors, cancellation, protocol violations or local
-output cutoff leave the physical
-receipt unknown and single-use. Partial output remains transient. Receipts hold no
-output to replay; a lost completion cannot be regenerated under another identity.
-Capacity exhaustion (4,096 retained claims or 2 MiB state) stops dispatch instead of
-evicting uncertainty. There is no automated receipt reset/pruning procedure.
+Only a validated Responses terminal event is authoritative; the stream is closed
+immediately after it, without waiting for socket EOF. Refusal delta/done events form
+visible assistant output, while refusal and reasoning content parts are accepted and
+reasoning text is not disclosed. Matching completed text/model/status and bounded
+usage are still required. Provider errors retain only bounded HTTP status, exact safe
+code/parameter, request ID and body-shape observations; diagnostic text is never
+returned.
+
+Explicit incomplete/failure/admission/usage results have bounded normalized codes.
+No reset time or quota availability is inferred. Lost terminal events, transport
+interruptions, timeouts, generic server/gateway errors, cancellation, protocol
+violations or local output cutoff remain `send_started` and single-use. Partial output
+remains transient. Receipts hold no output to replay; a lost completion cannot be
+regenerated under another identity. A paired client can use `POST /receipt/reconcile`
+with the dispatch identity and package fingerprint to read only `pre_send_active`,
+`not_sent`, `unknown`, or a terminal status; it can acknowledge a terminal receipt with
+`POST /receipt/acknowledge`. Both endpoints are scoped to the active caller, origin,
+connection revision, identity and fingerprint and never return output.
+
+Receipts are typed and capped at 4,096 and 2 MiB of state. Pre-send claims can be
+recovered only after the process lock proves no active send-start transition owns
+them. `send_started` uncertainty is never pruned. Settled receipts become eligible
+for collection only after proof expiry and either caller acknowledgement or 24 hours
+since terminal completion. A persisted high-water clock prevents wall-clock rollback
+from making an expired proof replayable. Capacity still fails closed if unresolved
+receipts fill the store.
 
 Refresh records an in-flight marker before IO under the same cross-process lock and
 atomically replaces the token set. Confirmed terminal refresh errors clear unusable
-tokens; temporary failures retain them. A crash, uncertain rotation or failed
+tokens; temporary failures retain them. A provider `invalid_client` response moves
+the registration to a non-retrying configuration-error state instead of repeatedly
+using broken client configuration. A crash, uncertain rotation or failed
 post-rotation persistence requires reauthorization. Disconnect persists a stop before
-revocation, then clears tokens while retaining registration/host identity. Remote
-revocation failure is explicitly `unconfirmed`; the user can disconnect the app in
-ChatGPT settings. No hidden revocation or inference retries run.
+revocation, retries transient revocation failures at most three times, then clears
+tokens while retaining registration/host identity. Remote revocation failure is
+explicitly `unconfirmed`; the user can disconnect the app in ChatGPT settings.
+Provider request and token-refresh operations are never automatically retried.
 
 ## Verification and later phases
 

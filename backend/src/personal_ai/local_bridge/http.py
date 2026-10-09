@@ -8,7 +8,7 @@ from dataclasses import asdict
 import anyio
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.auth.dispatch_grants import InvalidDispatchGrant, SignedDispatchGrant
 from personal_ai.llm.chatgpt.oauth import OAuthFailure
@@ -24,6 +24,12 @@ class DispatchInput(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     package: PreparedExecution
     proof: SignedDispatchGrant
+
+
+class ReceiptInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    dispatch_identity: str = Field(pattern=r"^[a-f0-9]{64}$")
+    fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 def strict_json(body):
@@ -122,7 +128,9 @@ def create_loopback_app(
         try:
             result = await bridge.connection(**caller(request))
             return asdict(result)
-        except (BridgeDenied, OAuthFailure, LocalStoreError):
+        except BridgeDenied as error:
+            return JSONResponse({"error": error.code}, status_code=409)
+        except (OAuthFailure, LocalStoreError):
             return JSONResponse({"error": "bridge_unavailable"}, status_code=409)
 
     @app.get("/models")
@@ -131,6 +139,53 @@ def create_loopback_app(
             return {"models": [asdict(model) for model in await bridge.models(**caller(request))]}
         except (BridgeDenied, OAuthFailure, LocalStoreError, BridgeProviderFailure, CredentialEcho):
             return JSONResponse({"error": "bridge_models_unavailable"}, status_code=409)
+
+    async def receipt_input(request):
+        if request.headers.get("content-type") != "application/json":
+            raise ValueError("bridge_request_invalid")
+        body = bytearray()
+        with anyio.fail_after(5):
+            async for chunk in request.stream():
+                body.extend(chunk)
+                if len(body) > 1024:
+                    raise ValueError("bridge_request_too_large")
+        return ReceiptInput.model_validate(strict_json(body))
+
+    @app.post("/receipt/reconcile")
+    async def reconcile(request: Request):
+        try:
+            submitted = await receipt_input(request)
+            return asdict(
+                await bridge.reconcile(
+                    submitted.dispatch_identity,
+                    submitted.fingerprint,
+                    **caller(request),
+                )
+            )
+        except LocalStoreError:
+            return JSONResponse({"error": "dispatch_receipt_not_found"}, status_code=404)
+        except (ValueError, RecursionError, TimeoutError, UnicodeError):
+            return JSONResponse({"error": "bridge_request_invalid"}, status_code=400)
+        except BridgeDenied as error:
+            return JSONResponse({"error": error.code}, status_code=403)
+
+    @app.post("/receipt/acknowledge")
+    async def acknowledge(request: Request):
+        try:
+            submitted = await receipt_input(request)
+            return asdict(
+                await bridge.acknowledge(
+                    submitted.dispatch_identity,
+                    submitted.fingerprint,
+                    **caller(request),
+                )
+            )
+        except LocalStoreError:
+            return JSONResponse({"error": "dispatch_receipt_not_found"}, status_code=404)
+        except (ValueError, RecursionError, TimeoutError, UnicodeError):
+            return JSONResponse({"error": "bridge_request_invalid"}, status_code=400)
+        except BridgeDenied as error:
+            return JSONResponse({"error": error.code}, status_code=403)
 
     @app.post("/execute")
     async def execute(request: Request):
