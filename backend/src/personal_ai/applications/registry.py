@@ -318,6 +318,11 @@ def default_application_registry() -> ApplicationRegistry:
                 display_name="Personal AI",
                 workspace_kind="optional",
                 memory_namespace="personal_ai",
+                context_policy=ApplicationContextPolicy(
+                    version="personal-ai-context-policy-v2",
+                    external_execution_modes=("connected_provider", "manual_external"),
+                    maximum_model_sensitivity="sensitive",
+                ),
             ),
             ApplicationDefinition(
                 application_id="travel",

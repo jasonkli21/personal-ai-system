@@ -10,11 +10,15 @@ coverage were verified at `03d967a`; this evidence update makes no behavior chan
 **Disposition: Phase 25.2 remains incomplete.** The local review fixes below are
 implemented and offline-verified, but Phase 15 has no production pre-retrieval
 membership/source/revocation authority, and the canonical DynamoDB transaction
-suite could not run without an isolated engine. The current `ExternalTurnAuthority`
-callback is still a required integration point, not an implementation, and its
-post-assembly check cannot satisfy pre-retrieval authorization. Do not compose an
-HTTP issuer or begin Phase 25.3 UI/API work on this seam. No provider, account,
-browser, cloud, or physical execution was enabled.
+suite could not run without an isolated engine. In the reviewed P25.2 baseline, the
+`ExternalTurnAuthority` callback was still a required integration point rather than
+an implementation, and its post-assembly check could not satisfy pre-retrieval
+authorization. The user later directed Phase 25.3 HTTP/UI work to proceed over a
+scoped request authority despite those gates. See its [decision review](phase-25-3-readiness-review-2026-10-10.md)
+and [implementation evidence](phase-25-3-implementation-evidence.md). The P25.3
+composition does not establish production authorization or close P15/DynamoDB
+acceptance. No live provider, account, browser, cloud, or physical execution was
+enabled by this P25.2 verification.
 
 ## Review fixes implemented
 

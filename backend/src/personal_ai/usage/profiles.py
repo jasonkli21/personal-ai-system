@@ -56,6 +56,11 @@ class EndpointProfileResolver:
                     )
         return self.registry
 
+    @property
+    def endpoint_registry(self) -> EndpointRegistry:
+        """Return the canonical registry used by P18 selection and revalidation."""
+        return self._current_registry()
+
     def resolve(self, *, provider_id: str, model_id: str, operation: str) -> ProviderEndpoint:
         snapshot = self._current_registry().refresh()
         preferred_id = _KNOWN_PROFILE_IDS.get((provider_id, operation))

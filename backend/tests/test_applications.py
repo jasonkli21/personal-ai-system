@@ -53,6 +53,10 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
     assert registry.capability(
         "personal_ai", "conversation_history", kind="context_provider"
     ).available
+    assert registry.get("personal_ai").context_policy.external_execution_modes == (
+        "connected_provider",
+        "manual_external",
+    )
     memory = registry.capability("personal_ai", "ai_memory", kind="context_provider")
     assert memory.available
     assert memory.feature_gate == "memory_enabled"
@@ -61,6 +65,7 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
     for application_id in ("travel", "shopping", "finance", "health"):
         registration = registry.registration(application_id)
         assert registration.definition.cross_application.mode == "disabled"
+        assert registration.definition.context_policy.external_execution_modes == ()
         assert {p.capability_id for p in registration.context_providers} >= {
             "conversation_history", "ai_memory"
         }

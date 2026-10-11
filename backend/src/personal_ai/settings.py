@@ -101,6 +101,11 @@ class Settings(BaseSettings):
     inference_additional_endpoint_profiles: tuple[dict[str, object], ...] = Field(
         default=(), max_length=32
     )
+    external_dispatch_grant_issuer: str = Field(default="personal-ai-api", min_length=1, max_length=200)
+    external_dispatch_grant_key_id: str = Field(default="", max_length=100)
+    # Raw Ed25519 private key as unpadded base64url. Store in Secret Manager or
+    # an untracked local environment file; never expose it to browser or bridge.
+    external_dispatch_grant_private_key: SecretStr = Field(default=SecretStr(""))
     gcp_project_id: str = Field(default="", max_length=200)
     persistence_local_postgres_dsn: SecretStr = Field(
         default=SecretStr(

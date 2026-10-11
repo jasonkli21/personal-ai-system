@@ -2,6 +2,15 @@
 
 Date: 2026-10-10. This is the local implementation model; it does not establish deployed authorization or live provider acceptance. Phase 25.2 remains incomplete pending Phase 15 pre-retrieval/revocation authority and real DynamoDB transaction verification.
 
+**Status note (2026-10-10):** This document records the accepted Phase 25.2 gate before
+Phase 25.3. The user later directed authenticated HTTP/UI composition to proceed
+despite that gate. The local composition and its scoped authority are described in
+the [Phase 25.3 guide](phase-25-3-implementation-guide.md), [evidence](phase-25-3-implementation-evidence.md),
+and [prerequisite decision review](phase-25-3-readiness-review-2026-10-10.md). Statements
+below that no HTTP/UI composition exists describe the Phase 25.2 baseline; canonical
+reservation ownership and the outstanding Phase 15/DynamoDB acceptance gates remain
+in force.
+
 ## Architectural model and ownership
 
 `ChatTurnService` retains conversation orchestration and now exposes its existing preparation and compare-and-swap transition seams to `ExternalTurnService`. Normal streaming, external preparation, and continuation use the same planner, context assembler, scope, branch selection, preparation lease, and message repositories. An external service coordinates proof issuance/import, never provider IO or domain mutation. `auth.dispatch_grants` owns asymmetric signing/verification; registered application policy owns disclosure decisions; Phase 18 owns exact endpoint definitions; the Phase 25.1 bridge owns credentials, account-specific discovery, provider IO, and physical-send receipts. Unresolved receipts retain short-lived reconciliation detail in the bounded state file, then compact into protected hash-named per-dispatch tombstone files. Tombstones remain permanent resend fences and reconcile as unknown. P19 still owns automatic physical-attempt/quota accounting.

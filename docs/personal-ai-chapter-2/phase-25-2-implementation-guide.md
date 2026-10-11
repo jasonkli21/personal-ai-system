@@ -4,8 +4,12 @@ This phase implements an internal, gated external-turn state machine. Its review
 fixes tighten idempotency, authorization replay, provenance, account model
 selection, output bounds, and completion lifecycle. **The phase remains incomplete**
 until Phase 15 supplies authoritative pre-retrieval and revocation checks and the
-canonical DynamoDB behavior is tested against an isolated engine. Do not compose an
-HTTP issuer or Phase 25.3 UI/API on the current authority callback. See the
+canonical DynamoDB behavior is tested against an isolated engine. Its no-HTTP
+composition statement describes the Phase 25.2 baseline: the user later directed
+Phase 25.3 HTTP/UI composition to proceed despite those prerequisites. That deviation
+and the local request-scoped authority are recorded in the [Phase 25.3 decision review](phase-25-3-readiness-review-2026-10-10.md)
+and [implementation guide](phase-25-3-implementation-guide.md); Phase 15 and
+DynamoDB acceptance remain open. See the
 [architecture and rewrite-risk review](phase-25-2-architecture.md) and
 [verification evidence](phase-25-2-implementation-evidence.md).
 

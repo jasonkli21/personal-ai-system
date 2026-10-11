@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 import anyio
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
 from personal_ai.api.dependencies import (
@@ -34,6 +34,7 @@ from personal_ai.context.traces import (
     ContextTraceRepository,
     UnsupportedContextTraceSchemaError,
 )
+from personal_ai.contracts.execution import ContinuationRequest
 from personal_ai.entities import Conversation
 from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.settings import Settings, get_settings
@@ -156,6 +157,26 @@ def create_message(
     """Persist and stream a new chat turn."""
     request_id = _request_id(http_request)
     return _sse_response(service.send(conversation_id, request.content, request_id=request_id), request_id=request_id)
+
+
+@router.post(
+    "/{conversation_id}/continue",
+    response_class=StreamingResponse,
+    responses=SSE_RESPONSES,
+)
+def continue_conversation_turn(
+    conversation_id: UUID,
+    continuation: ContinuationRequest,
+    http_request: Request,
+    service: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
+) -> StreamingResponse:
+    """Continue through the shared automatic lane or external-turn preparation UI."""
+    if continuation.choice.mode != "automatic":
+        raise HTTPException(status_code=422, detail="external_choice_requires_preparation")
+    request_id = _request_id(http_request)
+    return _sse_response(
+        service.continue_turn(conversation_id, continuation), request_id=request_id
+    )
 
 
 @router.post(

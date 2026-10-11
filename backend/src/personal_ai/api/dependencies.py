@@ -1,8 +1,10 @@
 """FastAPI dependencies for the Phase 1 conversation surface."""
 
+import base64
 import time
 from typing import Annotated
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import Depends, HTTPException, Request
 
 from personal_ai.applications.contracts import ApplicationContextRequest
@@ -11,6 +13,8 @@ from personal_ai.applications.registry import (
     ApplicationRegistry,
     application_registry_for,
 )
+from personal_ai.auth.contracts import AuthenticatedPrincipal
+from personal_ai.auth.dispatch_grants import DispatchGrantSigner
 from personal_ai.auth.scope import STANDALONE_APPLICATION_ID, RequestScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.adapters import (
@@ -31,6 +35,8 @@ from personal_ai.memory.lifecycle_jobs import MemoryLifecycleCoordinator, PubSub
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.services import ChatTurnService, ConversationService
+from personal_ai.services.external_turn_authority import PrincipalBoundExternalTurnAuthority
+from personal_ai.services.external_turns import ExternalTurnService
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 from personal_ai.usage.contracts import ProviderUsageAccounting
@@ -275,4 +281,62 @@ def get_chat_turn_service(
         memory_lifecycle=lifecycle_coordinator,
         model=settings.ai_model,
         stale_stream_after_seconds=settings.request_timeout_seconds + 60,
+    )
+
+
+def get_external_dispatch_signer(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DispatchGrantSigner | None:
+    encoded = settings.external_dispatch_grant_private_key.get_secret_value().strip()
+    if not encoded or not settings.external_dispatch_grant_key_id:
+        return None
+    try:
+        raw = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+        key = Ed25519PrivateKey.from_private_bytes(raw)
+    except (ValueError, TypeError):
+        return None
+    return DispatchGrantSigner(
+        issuer=settings.external_dispatch_grant_issuer,
+        key_id=settings.external_dispatch_grant_key_id,
+        key=key,
+    )
+
+
+def get_external_turn_service(
+    request: Request,
+    chat: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
+    context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
+    conversations: Annotated[ConversationRepository, Depends(get_conversation_repository)],
+    messages: Annotated[MessageRepository, Depends(get_message_repository)],
+    context_assembler: Annotated[ContextAssembler, Depends(get_context_assembler)],
+    usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    signer: Annotated[DispatchGrantSigner | None, Depends(get_external_dispatch_signer)],
+) -> ExternalTurnService:
+    """Compose external execution over existing P18, context, auth, and chat seams."""
+    resolver = getattr(usage, "endpoint_profile_resolver", None)
+    if resolver is None:
+        raise HTTPException(status_code=503, detail="external_endpoint_registry_unavailable")
+    try:
+        registry = resolver.endpoint_registry
+    except Exception:  # noqa: BLE001 - registry failure must fail closed at the API boundary.
+        raise HTTPException(status_code=503, detail="external_endpoint_registry_unavailable") from None
+    authority = PrincipalBoundExternalTurnAuthority(
+        principal=principal,
+        conversations=conversations,
+        messages=messages,
+        permission_revalidator=context_assembler.permission_revalidator,
+        workspace_authorizer=getattr(request.app.state, "workspace_authorizer", None),
+        allow_development_principal=(
+            settings.auth_mode == "development"
+            and settings.app_environment in {"local", "test"}
+        ),
+    )
+    return ExternalTurnService(
+        chat=chat,
+        context=context,
+        registry=registry,
+        authority=authority,
+        signer=signer,
     )

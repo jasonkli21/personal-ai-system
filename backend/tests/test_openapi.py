@@ -21,6 +21,11 @@ def test_openapi_documents_non_streaming_conversation_routes() -> None:
     assert routes["/v1/conversations"]["post"]["responses"]["201"]
     assert routes["/v1/conversations"]["get"]["responses"]["200"]
     assert routes["/v1/conversations/{conversation_id}"]["get"]["responses"]["200"]
+    assert routes["/v1/conversations/execution-options"]["get"]["responses"]["200"]
+    assert routes["/v1/conversations/{conversation_id}/external-turns/prepare"]["post"]["responses"]["200"]
+    assert "text/event-stream" in routes[
+        "/v1/conversations/{conversation_id}/continue"
+    ]["post"]["responses"]["200"]["content"]
 
 
 def test_openapi_documents_sse_and_safe_stream_errors() -> None:

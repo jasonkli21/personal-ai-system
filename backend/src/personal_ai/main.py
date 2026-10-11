@@ -12,6 +12,7 @@ from personal_ai.api.artifacts import router as artifacts_router
 from personal_ai.api.booking_extractions import router as booking_extractions_router
 from personal_ai.api.decisions import router as decisions_router
 from personal_ai.api.domains import router as domains_router
+from personal_ai.api.external_turns import router as external_turns_router
 from personal_ai.api.iterative_research import router as iterative_research_router
 from personal_ai.api.itinerary_proposals import router as itinerary_proposals_router
 from personal_ai.api.profile import router as profile_router
@@ -48,6 +49,7 @@ app = FastAPI(title="Personal AI System", version="0.1.0", lifespan=lifespan)
 app.state.application_registry = default_application_registry()
 app.add_middleware(AuthenticationMiddleware)
 app.include_router(conversations_router)
+app.include_router(external_turns_router)
 app.include_router(research_router)
 app.include_router(iterative_research_router)
 app.include_router(itinerary_proposals_router)

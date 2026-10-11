@@ -63,7 +63,8 @@ class Authority:
         return self.version
 
 
-def profile(provider="openai_chatgpt_plan"):
+def profile(provider="openai_chatgpt_plan", execution_mode="CHATGPT_PLAN"):
+    plan_execution = execution_mode == "CHATGPT_PLAN"
     return EndpointProfile(
         endpoint_profile_id=f"{provider}:responses",
         profile_version=1,
@@ -74,8 +75,9 @@ def profile(provider="openai_chatgpt_plan"):
         credential_source="user_runtime",
         credential_reference="user_runtime:local",
         tier_id="subscription",
-        execution_mode="CHATGPT_PLAN",
-        cost_class="SUBSCRIPTION",
+        execution_mode=execution_mode,
+        cost_class="SUBSCRIPTION" if plan_execution else "USER_BILLED",
+        billing_owner="subscription" if plan_execution else "user",
         enabled=True,
         capabilities=frozenset({"streaming"}),
         context_limit_tokens=10000,
@@ -126,7 +128,13 @@ def setup():
     )
     key = Ed25519PrivateKey.generate()
     authority = Authority()
-    registry = EndpointRegistry([profile(), profile("another_provider")])
+    registry = EndpointRegistry(
+        [
+            profile(),
+            profile("another_provider"),
+            profile("local_byok", execution_mode="EXPLICIT_BYOK"),
+        ]
+    )
     clock = [now]
     service = ExternalTurnService(
         chat=chat,
@@ -486,6 +494,12 @@ def test_connected_model_selection_is_separate_from_endpoint_profile(setup):
     assert prepared.connected_package.model_id == "account-visible-model-v2"
     assert prepared.connected_package.execution_profile.endpoint == selected.endpoint
     assert service.registry.profiles[0].model_id == "model-1"
+
+
+def test_connected_lane_rejects_an_explicit_byok_profile_without_an_adapter(setup):
+    service, *_ = setup
+    with pytest.raises(ConversationConflictError, match="explicit_endpoint_unavailable"):
+        service._profile(choice("connected_provider", "local_byok"), "personal")
 
 
 def test_plan_never_automatic_candidate_or_free_quota(setup):
@@ -1196,3 +1210,180 @@ def test_commit_response_loss_replays_canonical_completion(setup, monkeypatch):
     result = finish(setup, prepared, selected)
     assert result.execution.state == "completed" and result.content == "External answer"
     assert len(messages.list_active(owner_id="local", conversation_id=cid)) == 2
+
+
+def test_authenticated_external_turn_routes_prepare_and_import_through_shared_service(setup):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from personal_ai.api.dependencies import get_external_turn_service
+    from personal_ai.api.external_turns import router
+
+    service, conversation_id, _messages, *_ = setup
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_external_turn_service] = lambda: service
+    with TestClient(app) as client:
+        response = client.post(
+            f"/v1/conversations/{conversation_id}/external-turns/prepare",
+            json={
+                "content": "Continue from this answer",
+                "idempotency_key": str(uuid4()),
+                "choice": {"mode": "manual_external"},
+                "candidate_message_ids": None,
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        prepared = response.json()
+        assert prepared["mode"] == "manual_external"
+        assert prepared["context_package"]["counter_kind"] == "estimated"
+        assert prepared["context_package"]["fingerprint"] == prepared["package_fingerprint"]
+        assert "user:" in prepared["portable_prompt"]
+
+        invalid_label = client.post(
+            f"/v1/conversations/{conversation_id}/external-turns/{prepared['message_id']}/import",
+            json={
+                "package_fingerprint": prepared["package_fingerprint"],
+                "text": "Imported response",
+                "provider_label": "invalid, label",
+            },
+        )
+        assert invalid_label.status_code == 422
+
+        imported = client.post(
+            f"/v1/conversations/{conversation_id}/external-turns/{prepared['message_id']}/import",
+            json={
+                "package_fingerprint": prepared["package_fingerprint"],
+                "text": "Imported response",
+                "provider_label": "Example Provider",
+                "model_label": "unverified-model",
+            },
+        )
+        assert imported.status_code == 200
+        payload = imported.json()
+        assert payload["content"] == "Imported response"
+        assert payload["attribution"]["mode"] == "manual_external"
+        assert payload["attribution"]["fact_source"] == "user_declared"
+        assert payload["attribution"]["model_verified"] is False
+
+
+def test_principal_bound_authority_requires_verified_owner_and_rechecks_source_grants(setup):
+    from personal_ai.auth.contracts import AuthenticatedPrincipal
+    from personal_ai.contracts.context_references import (
+        ContextPermissionDependency,
+        ContextSourceSnapshot,
+    )
+    from personal_ai.services.external_turn_authority import PrincipalBoundExternalTurnAuthority
+
+    service, conversation_id, messages, *_ = setup
+    principal = AuthenticatedPrincipal(
+        issuer="https://accounts.google.com",
+        subject="subject-123",
+        owner_id="local",
+        email=None,
+        issued_at=1,
+        authenticated=True,
+    )
+    authority = PrincipalBoundExternalTurnAuthority(
+        principal=principal,
+        conversations=service.chat._conversations,
+        messages=messages,
+        permission_revalidator=None,
+    )
+    assert len(authority.snapshot(
+        service.context,
+        conversation_id,
+        choice("manual_external"),
+        (),
+        (),
+    )) == 64
+
+    wrong_owner = principal.__class__(
+        issuer=principal.issuer,
+        subject=principal.subject,
+        owner_id="another-owner",
+        email=None,
+        issued_at=1,
+        authenticated=True,
+    )
+    denied = PrincipalBoundExternalTurnAuthority(
+        principal=wrong_owner,
+        conversations=service.chat._conversations,
+        messages=messages,
+        permission_revalidator=None,
+    )
+    with pytest.raises(ConversationConflictError, match="principal_scope_mismatch"):
+        denied.snapshot(service.context, conversation_id, choice("manual_external"), (), ())
+
+    dependency = ContextPermissionDependency(
+        permission_id="source-read",
+        version="grant-v3",
+        purpose="manual external disclosure",
+    )
+    snapshot = ContextSourceSnapshot(
+        provider_id="synthetic.source",
+        source_id="source-1",
+        source_version="source-v1",
+        item_id="item-1",
+        owner_id="local",
+        application_id="personal_ai",
+        content_fingerprint="b" * 64,
+        permission_dependencies=(dependency,),
+    )
+
+    class RevokedPermission:
+        @staticmethod
+        def is_current(_dependency):
+            return False
+
+    revoked = PrincipalBoundExternalTurnAuthority(
+        principal=principal,
+        conversations=service.chat._conversations,
+        messages=messages,
+        permission_revalidator=RevokedPermission(),
+    )
+    with pytest.raises(ConversationConflictError, match="source_permission_revoked"):
+        revoked.snapshot(
+            service.context,
+            conversation_id,
+            choice("manual_external"),
+            (),
+            (snapshot,),
+        )
+
+
+def test_execution_options_follow_application_policy_and_current_explicit_profiles(setup):
+    from types import SimpleNamespace
+
+    from personal_ai.api.external_turns import execution_options
+
+    service, *_ = setup
+    usage = SimpleNamespace(
+        endpoint_profile_resolver=SimpleNamespace(endpoint_registry=service.registry)
+    )
+    options = execution_options(service.context, usage, service.signer)
+    assert options.modes == ("automatic", "connected_provider", "manual_external")
+    assert {item.provider_id for item in options.explicit_profiles} == {
+        "openai_chatgpt_plan",
+        "another_provider",
+    }
+
+    without_signer = execution_options(service.context, usage, None)
+    assert without_signer.modes == ("automatic", "manual_external")
+    assert without_signer.explicit_profiles == ()
+
+    denied_context = service.context.model_copy(
+        update={
+            "definition": service.context.definition.model_copy(
+                update={
+                    "context_policy": service.context.definition.context_policy.model_copy(
+                        update={"external_execution_modes": ()}
+                    )
+                }
+            )
+        }
+    )
+    denied = execution_options(denied_context, usage, service.signer)
+    assert denied.modes == ("automatic",)
+    assert denied.explicit_profiles == ()

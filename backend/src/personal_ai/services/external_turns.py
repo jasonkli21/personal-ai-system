@@ -1,7 +1,8 @@
 """External execution orchestration over the shared chat preparation/transaction seam.
 
-Not composed into HTTP routes until membership/revocation and bridge live gates pass.
-No credentials, accounts, raw errors, reset guesses, or P19 quota claims enter this service.
+HTTP composition uses a request-scoped principal authority. Complete Phase 15
+derived-source/revocation and bridge live acceptance remain separate open gates.
+No credentials, raw errors, reset guesses, or P19 quota claims enter this service.
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal, Protocol
 from uuid import UUID, uuid5
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner, SignedDispatchGrant
@@ -32,7 +35,13 @@ from personal_ai.contracts.execution import (
 )
 from personal_ai.entities import Message, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
-from personal_ai.llm.client import ExternalCompletion
+from personal_ai.llm.client import (
+    ExecutionProvenance,
+    ExternalCompletion,
+    GenerationMetadata,
+    ProviderIdentity,
+    UsageMetadata,
+)
 from personal_ai.llm.external import ExecutionProfileIdentity, PreparedExecution, PreparedMessage
 from personal_ai.routing.contracts import EndpointRef
 from personal_ai.routing.registry import EndpointRegistry, EndpointRegistryError
@@ -52,11 +61,48 @@ class PreparedExternalTurn:
     reservation: TurnReservation
     messages: tuple[PreparedMessage, ...]
     connected_package: PreparedExecution | None
+    context_package: ContextPackage | None = None
     count_kind: Literal["estimated"] = "estimated"
 
     @property
     def portable_prompt(self) -> str:
         return "\n\n".join(f"{m.role}:\n{m.content}" for m in self.messages)
+
+
+class ContextPackageSourceSummary(BaseModel):
+    """User-visible category summary; source IDs and raw provider metadata stay private."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    category: str = Field(min_length=1, max_length=48)
+    item_count: int = Field(ge=0, le=1000)
+    sensitivity: tuple[str, ...] = Field(default=(), max_length=5)
+    authority: tuple[str, ...] = Field(default=(), max_length=6)
+
+
+class ContextPackageExclusionSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    category: str = Field(min_length=1, max_length=48)
+    reason: str = Field(min_length=1, max_length=64)
+    item_count: int = Field(ge=1, le=1000)
+
+
+class ContextPackage(BaseModel):
+    """Transient exact prepared content plus a redacted, bounded inspection view."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["context-package-v1"] = "context-package-v1"
+    messages: tuple[PreparedMessage, ...] = Field(min_length=1, max_length=256)
+    included_sources: tuple[ContextPackageSourceSummary, ...] = Field(default=(), max_length=32)
+    excluded_sources: tuple[ContextPackageExclusionSummary, ...] = Field(default=(), max_length=128)
+    selected_message_count: int = Field(ge=0, le=20000)
+    input_tokens: int = Field(ge=0)
+    counter_kind: Literal["estimated"] = "estimated"
+    effective_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
+    maximum_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
+    policy_version: str = Field(min_length=1, max_length=200)
+    grant_versions: tuple[str, ...] = Field(default=(), max_length=512)
+    expires_at: datetime
+    fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class ExternalTurnAuthority(Protocol):
@@ -94,13 +140,18 @@ class ExternalTurnService:
 
     def _profile(self, choice: ExecutionChoice, sensitivity: str):
         try:
-            return self.registry.revalidate_explicit(
+            profile = self.registry.revalidate_explicit(
                 choice.endpoint,
                 sensitivity=sensitivity,
                 required_capabilities=frozenset({"streaming"}),
             )
         except (EndpointRegistryError, ValueError):
             raise ConversationConflictError("explicit_endpoint_unavailable")
+        # This sidecar's connected client is the local ChatGPT-plan adapter. Other
+        # explicit endpoint modes need their own registered transport contract.
+        if profile.execution_mode != "CHATGPT_PLAN":
+            raise ConversationConflictError("explicit_endpoint_unavailable")
+        return profile
 
     def _snapshot(self, conversation_id, choice, sources, snapshots=()):
         self.chat.require_context(self.context)
@@ -126,6 +177,8 @@ class ExternalTurnService:
         choice = request.choice
         if choice.mode == "automatic":
             raise ConversationConflictError("automatic_execution_uses_existing_routing_lane")
+        if choice.mode == "connected_provider" and self.signer is None:
+            raise ConversationConflictError("dispatch_signer_unavailable")
         now = self.clock()
         self._snapshot(conversation_id, choice, ())  # Before any read/count/disclosure.
         identity = uuid5(
@@ -256,7 +309,58 @@ class ExternalTurnService:
                 profile_version=profile.profile_version if profile else None,
                 profile_digest=digest(profile.model_dump(mode="json")) if profile else None,
             )
-            result.append(PreparedExternalTurn(identity, reservation, messages, package))
+            included: dict[str, tuple[int, set[str], set[str]]] = {}
+            excluded: dict[tuple[str, str], int] = {}
+            for item in assembled.manifest.items:
+                if item.injected:
+                    count, sensitivities, authorities = included.setdefault(
+                        item.source_class, (0, set(), set())
+                    )
+                    sensitivities.add(item.sensitivity)
+                    authorities.add(item.authority)
+                    included[item.source_class] = (count + 1, sensitivities, authorities)
+                elif item.omission_reason:
+                    key = (item.source_class, item.omission_reason)
+                    excluded[key] = excluded.get(key, 0) + 1
+            grant_versions = tuple(sorted({
+                dependency.version
+                for snapshot in snapshots
+                for dependency in snapshot.permission_dependencies
+            }))
+            context_package = ContextPackage(
+                messages=messages,
+                included_sources=tuple(
+                    ContextPackageSourceSummary(
+                        category=category,
+                        item_count=count,
+                        sensitivity=tuple(sorted(sensitivities)),
+                        authority=tuple(sorted(authorities)),
+                    )
+                    for category, (count, sensitivities, authorities)
+                    in sorted(included.items())
+                ),
+                excluded_sources=tuple(
+                    ContextPackageExclusionSummary(
+                        category=category, reason=reason, item_count=count
+                    )
+                    for (category, reason), count in sorted(excluded.items())
+                ),
+                selected_message_count=len(assembled.selected_message_ids),
+                input_tokens=assembled.budget.selected_total,
+                effective_sensitivity=inference.effective_sensitivity,
+                maximum_sensitivity=inference.maximum_sensitivity,
+                policy_version=inference.policy_version,
+                grant_versions=grant_versions,
+                expires_at=reservation.expires_at,
+                fingerprint=package_hash,
+            )
+            if len(context_package.model_dump_json().encode("utf-8")) > 262144:
+                raise ConversationConflictError("context_package_too_large")
+            result.append(
+                PreparedExternalTurn(
+                    identity, reservation, messages, package, context_package
+                )
+            )
             return assistant.model_copy(
                 update={"execution": reservation, "status": MessageStatus.PENDING}
             )
@@ -352,6 +456,108 @@ class ExternalTurnService:
             ),
         )
         return proof
+
+    def dispatch_package(
+        self,
+        conversation_id: UUID,
+        message_id: UUID,
+        package: PreparedExecution,
+    ) -> SignedDispatchGrant:
+        """Revalidate a browser-returned package against its canonical reservation."""
+        if package.reservation_id != message_id:
+            raise ConversationConflictError("dispatch_binding_invalid")
+        _, reservation = self._current(
+            conversation_id, message_id, package.fingerprint
+        )
+        prepared = PreparedExternalTurn(
+            message_id=message_id,
+            reservation=reservation,
+            messages=package.messages,
+            connected_package=package,
+        )
+        return self.dispatch(conversation_id, prepared, self._choice(reservation))
+
+    def import_manual(
+        self,
+        conversation_id: UUID,
+        message_id: UUID,
+        package_hash: str,
+        text: str,
+        *,
+        provider_label: str | None = None,
+        model_label: str | None = None,
+    ) -> Message:
+        """Finalize only an explicit user import against the matching reservation."""
+        completion = ExternalCompletion(
+            text=text,
+            provenance=ExecutionProvenance(
+                mode="manual_external",
+                fact_source="user_declared",
+                provider_id=provider_label,
+                model_id=model_label,
+            ),
+        )
+        return self.finalize(
+            conversation_id,
+            message_id,
+            package_hash,
+            completion,
+            explicit_import=True,
+        )
+
+    def finalize_connected(
+        self,
+        conversation_id: UUID,
+        message_id: UUID,
+        package_hash: str,
+        text: str,
+        *,
+        latency_ms: int | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+    ) -> Message:
+        """Record a successful bridge result as client-reported turn attribution."""
+        _, reservation = self._current(conversation_id, message_id, package_hash)
+        if reservation.mode != "connected_provider":
+            raise ConversationConflictError("connected_completion_requires_connected_reservation")
+        choice = self._choice(reservation)
+        profile = self._profile(choice, reservation.effective_sensitivity)
+        provenance = ExecutionProvenance(
+            mode="connected_provider",
+            fact_source="bridge_observed",
+            provider_id=reservation.provider_id,
+            model_id=reservation.model_id,
+            connection_id=str(reservation.connection_id),
+        )
+        usage = (
+            UsageMetadata(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                source="provider",
+                confidence="reported",
+            )
+            if input_tokens is not None or output_tokens is not None
+            else None
+        )
+        completion = ExternalCompletion(
+            text=text,
+            provenance=provenance,
+            generation=GenerationMetadata(
+                status="success",
+                identity=ProviderIdentity(
+                    reservation.provider_id, reservation.model_id, profile.serializer_id
+                ),
+                usage=usage,
+                provenance=provenance,
+            ),
+        )
+        return self.finalize(
+            conversation_id,
+            message_id,
+            package_hash,
+            completion,
+            latency_ms=latency_ms,
+        )
 
     def finalize(
         self,
