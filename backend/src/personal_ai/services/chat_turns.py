@@ -40,7 +40,7 @@ from personal_ai.llm import (
 from personal_ai.llm.client import GenerationEvent, GenerationMetadata, GenerationResult
 from personal_ai.llm.errors import LLMIncompleteGenerationError
 from personal_ai.llm.preparation import require_matching_endpoint
-from personal_ai.storage import ConversationConflictError
+from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 from personal_ai.usage.context import bind_usage_task
@@ -72,8 +72,6 @@ class _ManagedStream:
     ) -> None:
         self._iterator = iterator.__aiter__()
         self._on_abandon = on_abandon
-        self._on_terminal_sent: Callable[[], object] | None = None
-        self._terminal_notified = False
         self._started = False
         self._closed = False
 
@@ -100,17 +98,6 @@ class _ManagedStream:
                 await close()
         else:
             await self._on_abandon()
-
-    def set_terminal_callback(self, callback: Callable[[], object]) -> None:
-        self._on_terminal_sent = callback
-
-    def terminal_sent(self) -> None:
-        if self._terminal_notified:
-            return
-        self._terminal_notified = True
-        if self._on_terminal_sent is not None:
-            self._on_terminal_sent()
-
 
 class ChatTurnService:
     """Create append-only turns, stream model output, and finalize state."""
@@ -189,6 +176,7 @@ class ChatTurnService:
         preparation_hook,
         candidate_message_ids=None,
         history_authorizer=None,
+        continuation_digest: str,
     ) -> _PreparedTurn:
         # External assembly must not disclose context to an unrelated count/summary provider.
         from personal_ai.context.tokens import EstimatedTokenCounter
@@ -201,20 +189,44 @@ class ChatTurnService:
         if self._application_context is None:
             raise ContextPreparationError("application_context_required")
         active = self._active(conversation_id)
-        user = self._new_message(
-            conversation_id=conversation_id,
-            role=MessageRole.USER,
-            content=content,
-            status=MessageStatus.COMPLETED,
-            now=datetime.now(UTC),
-            parent_message_id=active[-1].id if active else None,
-            message_id=user_id,
-        )
+        try:
+            user = self.get_message(conversation_id, user_id)
+        except ResourceNotFoundError:
+            abandoned_user = _unfinished_continuation_user(active)
+            user = self._new_message(
+                conversation_id=conversation_id,
+                role=MessageRole.USER,
+                content=content,
+                status=MessageStatus.COMPLETED,
+                now=datetime.now(UTC),
+                parent_message_id=(
+                    abandoned_user.parent_message_id
+                    if abandoned_user is not None
+                    else (active[-1].id if active else None)
+                ),
+                message_id=user_id,
+                continuation_digest=continuation_digest,
+                supersedes_message_id=abandoned_user.id if abandoned_user else None,
+            )
+            already_persisted = False
+            supersede_from = abandoned_user.id if abandoned_user else None
+        else:
+            if (
+                user.role is not MessageRole.USER
+                or user.content != content
+                or user.continuation_digest != continuation_digest
+                or user.status is not MessageStatus.COMPLETED
+                or not active
+                or active[-1].id != user.id
+            ):
+                raise ConversationConflictError("idempotency_input_changed_or_turn_not_resumable")
+            already_persisted = True
+            supersede_from = None
         return self._prepare_context_turn(
             active,
             user,
-            (user,),
-            None,
+            () if already_persisted else (user,),
+            supersede_from,
             None,
             request_id,
             assistant_id=assistant_id,
@@ -222,6 +234,8 @@ class ChatTurnService:
             external=True,
             candidate_message_ids=candidate_message_ids,
             history_authorizer=history_authorizer,
+            continuation_digest=continuation_digest,
+            user_already_persisted=already_persisted,
         )
 
     def continue_turn(self, conversation_id: UUID, request) -> AsyncIterator[str]:
@@ -232,25 +246,64 @@ class ChatTurnService:
             conversation_id,
             f"{self._owner_id}:{self._application_context.scope.application_id if self._application_context else 'personal_ai'}:{self._application_context.scope.workspace_id if self._application_context else None}:{request.idempotency_key}",
         )
+        intent_digest = request.intent_digest
         active = self._active(conversation_id)
-        user = self._new_message(
-            conversation_id=conversation_id,
-            role=MessageRole.USER,
-            content=request.content,
-            status=MessageStatus.COMPLETED,
-            now=datetime.now(UTC),
-            parent_message_id=active[-1].id if active else None,
-            message_id=uuid5(identity, "user"),
-        )
+        try:
+            existing_assistant = self.get_message(conversation_id, identity)
+        except ResourceNotFoundError:
+            existing_assistant = None
+        if existing_assistant is not None:
+            if existing_assistant.continuation_digest != intent_digest:
+                raise ConversationConflictError("idempotency_input_changed")
+            if existing_assistant.status is MessageStatus.COMPLETED:
+                return self._replay_completed_continuation(conversation_id, existing_assistant)
+            raise ConversationConflictError("continuation_exists_inspect_canonical_state")
+
+        user_id = uuid5(identity, "user")
+        try:
+            user = self.get_message(conversation_id, user_id)
+        except ResourceNotFoundError:
+            abandoned_user = _unfinished_continuation_user(active)
+            user = self._new_message(
+                conversation_id=conversation_id,
+                role=MessageRole.USER,
+                content=request.content,
+                status=MessageStatus.COMPLETED,
+                now=datetime.now(UTC),
+                parent_message_id=(
+                    abandoned_user.parent_message_id
+                    if abandoned_user is not None
+                    else (active[-1].id if active else None)
+                ),
+                message_id=user_id,
+                continuation_digest=intent_digest,
+                supersedes_message_id=abandoned_user.id if abandoned_user else None,
+            )
+            already_persisted = False
+            supersede_from = abandoned_user.id if abandoned_user else None
+        else:
+            if (
+                user.role is not MessageRole.USER
+                or user.content != request.content
+                or user.continuation_digest != intent_digest
+                or user.status is not MessageStatus.COMPLETED
+                or not active
+                or active[-1].id != user.id
+            ):
+                raise ConversationConflictError("idempotency_input_changed_or_turn_not_resumable")
+            already_persisted = True
+            supersede_from = None
         return self._prepare_context_stream(
             active,
             user,
-            (user,),
-            None,
+            () if already_persisted else (user,),
+            supersede_from,
             None,
             request_id=str(request.idempotency_key),
             candidate_message_ids=request.candidate_message_ids,
             assistant_id=identity,
+            continuation_digest=intent_digest,
+            user_already_persisted=already_persisted,
         )
 
     def send(self, conversation_id: UUID, content: str, *, request_id: str) -> AsyncIterator[str]:
@@ -338,6 +391,8 @@ class ChatTurnService:
         external: bool = False,
         candidate_message_ids=None,
         history_authorizer=None,
+        continuation_digest: str | None = None,
+        user_already_persisted: bool = False,
     ) -> _PreparedTurn:
         if self._application_context is None and getattr(
             self._llm, "requires_inference_context", True
@@ -350,7 +405,7 @@ class ChatTurnService:
                 raise ContextPreparationError("generation_counter_endpoint_mismatch") from error
         reservation = uuid4()
         deadline = monotonic() + self._context.settings.request_timeout_seconds
-        persisted_users = self._messages.prepare_message_turn(
+        appended_users = self._messages.prepare_message_turn(
             owner_id=self._owner_id,
             conversation_id=user.conversation_id,
             expected_active_ids=[m.id for m in active],
@@ -359,6 +414,7 @@ class ChatTurnService:
             updated_at=datetime.now(UTC),
             preparation_id=reservation,
         )
+        persisted_users = (user,) if user_already_persisted else tuple(appended_users)
         try:
             post_active = self._messages.list_active(
                 owner_id=self._owner_id,
@@ -466,6 +522,7 @@ class ChatTurnService:
                 parent_message_id=user.id,
                 supersedes_message_id=assistant_supersedes,
                 message_id=assistant_id,
+                continuation_digest=continuation_digest,
             )
             if preparation_hook is not None:
                 assistant = preparation_hook(assistant, assembled, inference_context, post_active)
@@ -515,16 +572,15 @@ class ChatTurnService:
 
     def _stream(self, turn: _PreparedTurn) -> AsyncIterator[str]:
         completed: list[Message] = []
-        stream = _ManagedStream(
+        return _ManagedStream(
             self._stream_events(turn, completed), lambda: self._abandon_before_start(turn)
         )
-        stream.set_terminal_callback(lambda: self._schedule_memory_extraction(completed, turn))
-        return stream
 
-    def _schedule_memory_extraction(
-        self, completed: list[Message], turn: _PreparedTurn
+    def schedule_post_completion(
+        self, message: Message, selected_memory_ids: Sequence[UUID], *, request_id: str
     ) -> None:
-        if (self._memory_extraction is None and self._memory_lifecycle is None) or not completed:
+        """Run the same optional lifecycle after any canonical assistant completion."""
+        if self._memory_extraction is None and self._memory_lifecycle is None:
             return
 
         async def run() -> None:
@@ -532,33 +588,30 @@ class ChatTurnService:
                 if self._memory_lifecycle is not None:
                     await anyio.to_thread.run_sync(
                         lambda: self._memory_lifecycle.after_completed(
-                            completed[0],
-                            turn.selected_memory_ids,
+                            message,
+                            tuple(selected_memory_ids),
                             application_context=self._application_context,
                         )
                     )
                 elif self._memory_extraction is not None:
                     await anyio.to_thread.run_sync(
                         lambda: self._memory_extraction.run(
-                            completed[0], application_context=self._application_context
+                            message, application_context=self._application_context
                         )
                     )
             except Exception as error:  # noqa: BLE001 - optional post-completion work
                 logger.info(
                     "Memory post-turn failed request_id=%s error_class=%s",
-                    turn.request_id,
+                    request_id,
                     type(error).__name__,
                 )
 
         try:
-            task = asyncio.create_task(run(), name="post-completion-memory-extraction")
-        except RuntimeError as error:
-            logger.info(
-                "Memory post-turn scheduling failed request_id=%s error_class=%s",
-                turn.request_id,
-                type(error).__name__,
-            )
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(run())
             return
+        task = loop.create_task(run(), name="post-completion-memory-extraction")
         self._post_completion_tasks.add(task)
         task.add_done_callback(self._post_completion_tasks.discard)
 
@@ -654,15 +707,16 @@ class ChatTurnService:
                 message_id=turn.assistant.id,
                 status=MessageStatus.COMPLETED,
                 content=content,
-                model=self._model,
+                model=generation_metadata.identity.model_id,
                 replacement=turn.assistant.model_copy(
                     update={
                         "status": MessageStatus.COMPLETED,
                         "content": content,
-                        "model": self._model,
+                        "model": generation_metadata.identity.model_id,
                         "attribution": TurnAttribution(
                             mode="connected_provider",
                             fact_source="server_observed",
+                            execution_origin="automatic_managed",
                             provider_id=generation_metadata.identity.provider_id,
                             model_id=generation_metadata.identity.model_id,
                             recorded_at=datetime.now(UTC),
@@ -692,6 +746,9 @@ class ChatTurnService:
                 return
             terminal = True
             completed_turn.append(completed)
+            self.schedule_post_completion(
+                completed, turn.selected_memory_ids, request_id=turn.request_id
+            )
             usage = generation_metadata.usage
             logger.info(
                 "Chat generation completed request_id=%s provider=%s model=%s "
@@ -793,6 +850,7 @@ class ChatTurnService:
         parent_message_id: UUID | None = None,
         supersedes_message_id: UUID | None = None,
         message_id: UUID | None = None,
+        continuation_digest: str | None = None,
     ) -> Message:
         return Message(
             id=message_id or uuid4(),
@@ -804,7 +862,28 @@ class ChatTurnService:
             created_at=now,
             parent_message_id=parent_message_id,
             supersedes_message_id=supersedes_message_id,
+            continuation_digest=continuation_digest,
         )
+
+    def _replay_completed_continuation(
+        self, conversation_id: UUID, assistant: Message
+    ) -> AsyncIterator[str]:
+        async def replay():
+            user = self.get_message(conversation_id, uuid5(assistant.id, "user"))
+            for message in (user, assistant):
+                yield _sse(
+                    "message.created", SSEMessageCreated(message=message).model_dump_json()
+                )
+            yield _sse(
+                "response.delta",
+                SSEResponseDelta(message_id=assistant.id, delta=assistant.content).model_dump_json(),
+            )
+            yield _sse(
+                "response.completed",
+                SSEResponseCompleted(message=assistant).model_dump_json(),
+            )
+
+        return replay()
 
 
 async def _produce_deltas(
@@ -888,3 +967,16 @@ async def _cancel_provider_task(task: asyncio.Task[None], *, request_id: str) ->
 def _sse(event: str, data: str) -> str:
     """Return one correctly terminated SSE frame."""
     return f"event: {event}\ndata: {data}\n\n"
+
+
+def _unfinished_continuation_user(active: Sequence[Message]) -> Message | None:
+    if not active:
+        return None
+    message = active[-1]
+    if (
+        message.role is MessageRole.USER
+        and message.status is MessageStatus.COMPLETED
+        and message.continuation_digest is not None
+    ):
+        return message
+    return None

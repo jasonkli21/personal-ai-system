@@ -112,7 +112,13 @@ def test_manual_finalize_cas_race_and_restart(repositories):
             "status": MessageStatus.COMPLETED,
             "content": "Imported answer",
             "attribution": TurnAttribution(
-                mode="manual_external", fact_source="user_declared", recorded_at=now
+                mode="manual_external",
+                fact_source="user_declared",
+                execution_origin="manual_import",
+                recorded_at=now,
+                package_fingerprint=assistant.execution.package_fingerprint,
+                source_message_ids=assistant.execution.source_message_ids,
+                source_snapshots=assistant.execution.source_snapshots,
             ),
             "execution": assistant.execution.model_copy(
                 update={"state": "completed", "completion_digest": "b" * 64}

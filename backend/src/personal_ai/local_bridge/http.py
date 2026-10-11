@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.auth.dispatch_grants import InvalidDispatchGrant, SignedDispatchGrant
+from personal_ai.contracts.execution import normalize_external_failure
 from personal_ai.llm.chatgpt.oauth import OAuthFailure
 from personal_ai.llm.chatgpt.responses import BridgeProviderFailure
 from personal_ai.llm.errors import LLMError
@@ -222,7 +223,9 @@ def create_loopback_app(
                 TimeoutError,
             ) as error:
                 # Protocol interruption has no terminal success and partial output is transient.
-                code = getattr(error, "code", "bridge_execution_interrupted")
+                code = normalize_external_failure(
+                    getattr(error, "code", "bridge_execution_interrupted")
+                ).value
                 yield (
                     b"data: "
                     + json.dumps({"kind": "interrupted", "error": code}).encode()

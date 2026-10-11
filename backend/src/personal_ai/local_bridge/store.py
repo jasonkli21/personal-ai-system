@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -78,7 +79,7 @@ class DispatchReceipt(BaseModel):
 
 class LocalState(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     clock_high_water: int = Field(default=0, strict=True, ge=0)
     host_id: str
     runtime_id: str
@@ -165,9 +166,12 @@ class ProtectedLocalStore:
                     raw = json.loads(payload)
                     if not isinstance(raw, dict):
                         raise TypeError()
-                    migrated = raw.get("schema_version") == 1
-                    if migrated:
+                    schema_version = raw.get("schema_version")
+                    migrated = schema_version in {1, 2}
+                    if schema_version == 1:
                         raw = self._migrate_v1(raw)
+                    if raw.get("schema_version") == 2:
+                        raw = self._migrate_v2(raw)
                     state = LocalState.model_validate(raw)
                     UUID(state.runtime_id)
                     UUID(state.host_id.removeprefix("urn:uuid:"))
@@ -231,6 +235,20 @@ class ProtectedLocalStore:
             "receipts": receipts,
         }
 
+    @staticmethod
+    def _migrate_v2(raw):
+        """Upgrade the bounded receipt table to use compact durable send fences."""
+        if set(raw) != {
+            "schema_version",
+            "clock_high_water",
+            "host_id",
+            "runtime_id",
+            "registrations",
+            "receipts",
+        }:
+            raise ValueError("local_state_schema_invalid")
+        return {**raw, "schema_version": 3}
+
     def _write(self, state: LocalState):
         # Revalidate mutations before they become canonical.
         try:
@@ -293,8 +311,7 @@ class ProtectedLocalStore:
             os.close(descriptor)
             self._pre_send_mutex.release()
 
-    @staticmethod
-    def _prune(state: LocalState, now: int) -> int:
+    def _prune(self, state: LocalState, now: int) -> int:
         retained_seconds = 86400
         expired = [
             identity
@@ -309,9 +326,118 @@ class ProtectedLocalStore:
                 )
             )
         ]
+        expired_unknown = [
+            identity
+            for identity, receipt in state.receipts.items()
+            if receipt.status == "send_started"
+            and receipt.proof_expires_at <= now
+            and receipt.updated_at + retained_seconds <= now
+        ]
+        for identity in expired_unknown:
+            self._persist_send_fence(identity, state.receipts[identity])
         for identity in expired:
             del state.receipts[identity]
-        return len(expired)
+        for identity in expired_unknown:
+            del state.receipts[identity]
+        return len(expired) + len(expired_unknown)
+
+    def _send_fence_directory(self) -> Path:
+        directory = self.directory / "send-fences"
+        if directory.exists() or directory.is_symlink():
+            self._check(directory, directory=True)
+        else:
+            try:
+                directory.mkdir(mode=0o700)
+            except FileExistsError:
+                pass
+            self._check(directory, directory=True)
+        return directory
+
+    @staticmethod
+    def _fence_payload(identity: str, receipt: DispatchReceipt) -> dict[str, object]:
+        return {
+            "identity": identity,
+            "fingerprint": receipt.fingerprint,
+            "origin_digest": hashlib.sha256((receipt.origin or "").encode()).hexdigest(),
+            "connection_id": receipt.connection_id,
+            "connection_revision": receipt.connection_revision,
+        }
+
+    def _read_send_fence(self, identity: str) -> dict[str, object] | None:
+        if not re.fullmatch(r"[a-f0-9]{64}", identity):
+            raise LocalStoreError("dispatch_identity_invalid")
+        directory = self.directory / "send-fences"
+        if not directory.exists() and not directory.is_symlink():
+            return None
+        self._check(directory, directory=True)
+        path = directory / identity
+        if not path.exists() and not path.is_symlink():
+            return None
+        self._check(path)
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as file:
+            payload = file.read(4097)
+        if len(payload) > 4096:
+            raise LocalStoreError("send_fence_invalid")
+        try:
+            value = json.loads(payload)
+            if (
+                not isinstance(value, dict)
+                or set(value)
+                != {
+                    "identity",
+                    "fingerprint",
+                    "origin_digest",
+                    "connection_id",
+                    "connection_revision",
+                }
+                or value["identity"] != identity
+                or not isinstance(value["fingerprint"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", value["fingerprint"])
+                or not isinstance(value["origin_digest"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", value["origin_digest"])
+                or not isinstance(value["connection_id"], str)
+                or not re.fullmatch(r"[a-f0-9-]{36}", value["connection_id"])
+                or type(value["connection_revision"]) is not int
+                or value["connection_revision"] < 0
+            ):
+                raise ValueError()
+            return value
+        except (ValueError, TypeError, json.JSONDecodeError):
+            raise LocalStoreError("send_fence_invalid") from None
+
+    def _persist_send_fence(self, identity: str, receipt: DispatchReceipt) -> None:
+        directory = self._send_fence_directory()
+        path = directory / identity
+        expected = self._fence_payload(identity, receipt)
+        try:
+            descriptor = os.open(
+                path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+                0o600,
+            )
+        except FileExistsError:
+            if self._read_send_fence(identity) != expected:
+                raise LocalStoreError("send_fence_conflict")
+            return
+        try:
+            self._check(path)
+            file_handle = os.fdopen(descriptor, "wb")
+            descriptor = -1
+            with file_handle as file:
+                file.write(json.dumps(expected, sort_keys=True, separators=(",", ":")).encode())
+                file.flush()
+                os.fsync(file.fileno())
+            directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except BaseException:
+            if descriptor >= 0:
+                os.close(descriptor)
+            path.unlink(missing_ok=True)
+            raise
 
     def maintain(self, *, now: int | None = None) -> int:
         with self.transaction() as tx:
@@ -363,6 +489,8 @@ class ProtectedLocalStore:
                 if pruned:
                     tx.save()
                 previous = tx.state.receipts.get(identity)
+                if self._read_send_fence(identity) is not None:
+                    raise LocalStoreError("dispatch_already_claimed")
                 if previous is not None:
                     if previous.status == "claimed_pre_send":
                         # Holding the pre-send lock proves no live executor owns it.
@@ -486,6 +614,18 @@ class ProtectedLocalStore:
         try:
             with self.transaction() as tx:
                 receipt = tx.state.receipts.get(identity)
+                if receipt is None:
+                    fence = self._read_send_fence(identity)
+                    if (
+                        fence is None
+                        or fence["fingerprint"] != fingerprint
+                        or fence["origin_digest"]
+                        != hashlib.sha256((origin or "").encode()).hexdigest()
+                        or fence["connection_id"] != connection
+                        or fence["connection_revision"] != revision
+                    ):
+                        raise LocalStoreError("dispatch_receipt_not_found")
+                    return "unknown"
                 if (
                     receipt is None
                     or receipt.fingerprint != fingerprint

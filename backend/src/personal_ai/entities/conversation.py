@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from personal_ai.auth.scope import ApplicationScopedRecord
 from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
@@ -72,5 +72,18 @@ class Message(TimestampedRecord):
     model: str | None = Field(default=None, max_length=200)
     error_code: str | None = Field(default=None, max_length=100)
     error_fact_source: Literal["server_observed", "client_reported"] | None = None
+    failure_status: int | None = Field(default=None, ge=100, le=599, strict=True)
+    failure_latency_ms: int | None = Field(default=None, ge=0, le=3_600_000, strict=True)
     attribution: TurnAttribution | None = None
     execution: TurnReservation | None = None
+    # Deterministic continuation intent, shared by automatic and external retries.
+    continuation_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def client_failure_facts_are_labeled(self):
+        if (
+            (self.failure_status is not None or self.failure_latency_ms is not None)
+            and self.error_fact_source != "client_reported"
+        ):
+            raise ValueError("failure_facts_require_client_reported_source")
+        return self

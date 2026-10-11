@@ -7,6 +7,16 @@ cover the baseline plus the complete review-fix source changes documented here.
 Those reviewed changes were committed together as one commit after checks.
 Existing untracked independent-review documents were preserved.
 
+Review-fix addendum: 2026-10-10. The Phase 25.2 review identified credential
+echoes through provider-error metadata and eventual capacity exhaustion from
+unresolved local receipts. The provider-error boundary now checks code, parameter,
+and request ID against the protected credential values before IPC. The local state
+format now migrates v1/v2 to v3 and compacts aged uncertain receipt detail into
+permanent protected tombstone files after proof expiry and one day; replay remains
+blocked and reconciliation remains `unknown`. The focused boundary/lifecycle tests
+are included in the Phase 25.2 evidence. This addendum does not change the historical
+runtime verification record above.
+
 **Disposition: local implementation verified; full Phase 25.1/live acceptance remains
 open.** No real ChatGPT account, reusable provider credential, provider request, cloud
 resource, database migration, or application workflow was used or enabled.
@@ -79,12 +89,13 @@ retention remain explicit compatibility/operational concerns, not retry permissi
 | Turn, active branch, source authority and domain actions | Existing cloud/application owners. No bridge implementation or bypass; cloud issuance/finalization remains P25.2 work. |
 
 Atomic replacement plus file/directory fsync is tested through injected persistence
-failure; real power-loss/filesystem behavior remains unverified. Typed hash/status
-receipts cap at 4,096. Uncertain sends are never evicted; settled receipts are
-collectible after proof expiry and caller acknowledgement or a 24-hour terminal
-retention interval. A persisted clock high-water mark prevents proof replay after
-clock rollback. Deleting state is not recovery. A durable admitted send cannot be
-undone by disconnect; revision/expiry checks stop further output.
+failure; real power-loss/filesystem behavior remains unverified. Receipt detail caps
+at 4,096 entries. Uncertain sends are compacted after proof expiry and a 24-hour
+reconciliation interval into durable hash-named tombstones; their send fence is never
+evicted. Settled detail is collectible after proof expiry and caller acknowledgement
+or a 24-hour terminal retention interval. A persisted clock high-water mark prevents
+proof replay after clock rollback. Deleting state is not recovery. A durable admitted
+send cannot be undone by disconnect; revision/expiry checks stop further output.
 
 ## Independent review disposition — 2026-10-09
 
@@ -97,7 +108,7 @@ No unrelated cleanup was added.
 
 | Finding | Disposition |
 | --- | --- |
-| F1 — settled receipt capacity exhaustion | Fixed: settled receipts are collected only after proof expiry and acknowledgement or 24-hour terminal retention; unresolved send-started receipts remain fenced. |
+| F1 — settled receipt capacity exhaustion | Fixed: settled receipts are collected after proof expiry and acknowledgement or 24-hour terminal retention. Aged unresolved sends compact from the bounded detail table into permanent protected tombstone files after proof expiry and 24-hour reconciliation retention. |
 | F2 — “unknown” before final no-I/O checks | Fixed: claimed_pre_send and send_started are separate durable states; the latter follows final checks under the pre-send lock. Orphaned pre-send claims recover as not_sent only once the process lock is free. |
 | F3 — no safe recovery surface | Fixed: active pairing capability plus persisted exact origin, connection revision, dispatch identity and fingerprint scope reconcile/terminal acknowledgement. After restart and re-pairing to the same origin/revision, a caller can recover terminal status without resending; another allowed origin cannot read that receipt. Status only is returned. |
 | F4 — terminal parsing waits for EOF | Fixed: a validated Responses terminal is emitted immediately and closes the stream. |
@@ -109,9 +120,11 @@ No unrelated cleanup was added.
 | F10 — no safe account label | Fixed: a bounded verified email/name label has a short connection suffix; subject and credential values remain private. |
 | F11 — consent and OAuth retry recovery | Fixed: plan-use scope can be requested only through explicit operator action with prompt=consent; transient revocation has bounded retries; invalid_client becomes non-retrying configuration_error. |
 | F12 — stale pairing could read /connection | Fixed: connection reads enforce the paired revision and return bridge_connection_changed when it is stale. |
-| F13 — no receipt schema migration | Fixed: v1 state migrates atomically to v2; legacy unknown statuses remain send_started and credentials/terminal facts are retained. |
+| F13 — no receipt schema migration | Fixed: v1/v2 state migrates atomically to v3; legacy unknown statuses remain send_started and credentials/terminal facts are retained. |
 | F14 — receipt state was untyped | Fixed: LocalState receipts validate a typed DispatchReceipt with explicit status, scope, claim, proof-expiry, terminal, and acknowledgement fields. |
 | F15 — fake implied integration authority | Fixed: FakeChatGPTPlanBridge is documented as an output-contract-only fake; authorization integration uses LocalChatGPTBridge with synthetic I/O. |
+| Review M4 — provider-error metadata can echo local credentials | Fixed: every retained provider-controlled code, parameter, and request-ID string passes LocalOutputGuard before bridge IPC; echoed values are dropped without appearing in the guard error. |
+| Review S5 — unresolved send receipts can exhaust bounded detail capacity | Fixed locally: aged `send_started` details compact to permanent hash-named tombstones while authorized reconciliation continues to return `unknown`. Host-filesystem exhaustion remains a fail-closed operational limit. |
 
 The additional pass found one consequential edge within F3: receipt lookup originally
 used the random per-process caller ID, which prevented a fresh pairing from recovering

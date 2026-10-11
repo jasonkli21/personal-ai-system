@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from typing import Literal
 
@@ -53,6 +54,35 @@ class ContextPermissionDependency(BaseModel):
         return self
 
 
+class ContextAuthorityReference(BaseModel):
+    """Durable-safe reference projection; raw IDs and retrieval URIs stay transient."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal["record", "conversation_message", "evidence", "url", "tool_invocation"]
+    reference_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def redact_legacy_reference(cls, value):
+        # Old canonical snapshots stored raw ContextSourceReference objects. Hydration
+        # remains backward-compatible while every subsequent serialization is safe.
+        if isinstance(value, ContextSourceReference):
+            value = value.model_dump()
+        if isinstance(value, dict) and "reference_digest" not in value:
+            reference_id = value.get("reference_id")
+            kind = value.get("kind")
+            if isinstance(reference_id, str) and isinstance(kind, str):
+                return {
+                    "kind": kind,
+                    "reference_digest": hashlib.sha256(
+                        f"{kind}\0{reference_id}".encode()
+                    ).hexdigest(),
+                    "fingerprint": value.get("fingerprint"),
+                }
+        return value
+
+
 class ContextSourceSnapshot(BaseModel):
     """Payload-free frozen identity for final authority rechecks, not a source store."""
 
@@ -66,7 +96,7 @@ class ContextSourceSnapshot(BaseModel):
     workspace_id: str | None = Field(default=None, max_length=100)
     operation: Literal["profile", "current", "entity", "history", "search"] | None = None
     content_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
-    source_refs: tuple[ContextSourceReference, ...] = Field(default=(), max_length=200)
+    source_refs: tuple[ContextAuthorityReference, ...] = Field(default=(), max_length=200)
     permission_dependencies: tuple[ContextPermissionDependency, ...] = Field(
         default=(), max_length=16
     )

@@ -51,8 +51,12 @@ Local atomic JSON is the canonical store for credentials and send receipts. POSI
 owner-only directory/files, no symlinks, cross-process flock, atomic replacement and
 fsync protect updates. Unsupported platforms/storage protections fail explicitly.
 Local receipts store hashes/status only, never prompt/output. They are transport
-replay fences, not a second cloud conversation ledger or quota system. Capacity
-exhaustion fails closed rather than evicting an uncertain send.
+replay fences, not a second cloud conversation ledger or quota system. The bounded
+receipt table retains reconciliation detail; after proof expiry and one day, an
+unresolved `send_started` receipt compacts into a protected hash-named tombstone
+that remains a permanent resend fence and continues to reconcile as `unknown`.
+Terminal detail collection still follows proof expiry and its acknowledgement or
+retention rule. Fence persistence failures fail closed.
 
 ## State and external effects
 

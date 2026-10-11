@@ -23,6 +23,7 @@ from personal_ai.applications.contracts import (
 )
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.contracts.context_references import (
+    ContextAuthorityReference,
     ContextEntityReference,
     ContextPermissionDependency,
     ContextSourceReference,
@@ -100,7 +101,17 @@ class ContextItem(BaseModel, Generic[PayloadT]):
             item_id=self.item_id, owner_id=self.owner_id, application_id=self.application_id,
             workspace_id=self.workspace_id, operation=self.selected_operation,
             content_fingerprint=hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
-            source_refs=self.source_refs, permission_dependencies=self.permission_dependencies, expires_at=self.expires_at,
+            source_refs=tuple(
+                ContextAuthorityReference(
+                    kind=reference.kind,
+                    reference_digest=hashlib.sha256(
+                        f"{reference.kind}\0{reference.reference_id}".encode()
+                    ).hexdigest(),
+                    fingerprint=reference.fingerprint,
+                )
+                for reference in self.source_refs
+            ),
+            permission_dependencies=self.permission_dependencies, expires_at=self.expires_at,
         )
 
     @field_validator("payload", mode="before")

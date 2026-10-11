@@ -392,6 +392,61 @@ def test_collected_terminal_receipt_cannot_replay_expired_proof_after_clock_roll
         )
 
 
+def test_stale_unknown_receipts_compact_to_durable_non_resend_fences(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    now = 2_000_000
+    uncertain = {f"{index:064x}" for index in range(2)}
+    with lifecycle.store.transaction() as tx:
+        tx.state.receipts = {
+            f"{index:064x}": DispatchReceipt(
+                fingerprint=hashlib.sha256(f"{index}".encode()).hexdigest(),
+                status="send_started" if index < 2 else "success",
+                connection_id=safe.connection_id,
+                connection_revision=safe.revision,
+                created_at=now - 86402,
+                updated_at=now - 86402,
+                proof_expires_at=now - 2,
+                terminal_at=None if index < 2 else now - 86402,
+            )
+            for index in range(4096)
+        }
+        tx.save()
+
+    assert lifecycle.store.maintain(now=now) == 4096
+    with lifecycle.store.transaction() as tx:
+        assert not tx.state.receipts
+    assert len(list((lifecycle.store.directory / "send-fences").iterdir())) == 2
+
+    new_identity, new_fingerprint = "f" * 64, "e" * 64
+    token = lifecycle.store.claim(
+        new_identity,
+        new_fingerprint,
+        safe.connection_id,
+        safe.revision,
+        now + 60,
+        now=now,
+    )
+    lifecycle.store.release_pre_send(new_identity, new_fingerprint, token)
+
+    old_identity = min(uncertain)
+    old_fingerprint = hashlib.sha256(f"{int(old_identity, 16)}".encode()).hexdigest()
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        lifecycle.store.claim(
+            old_identity,
+            old_fingerprint,
+            safe.connection_id,
+            safe.revision,
+            now + 60,
+            now=now,
+        )
+    assert lifecycle.store.reconcile(
+        old_identity,
+        old_fingerprint,
+        safe.connection_id,
+        safe.revision,
+    ) == "unknown"
+
+
 @pytest.mark.parametrize("confirmed", [True, False])
 def test_disconnect_stops_locally_clears_tokens_retains_mapping_and_reports_revocation(
     tmp_path, confirmed
@@ -508,13 +563,48 @@ def test_v1_state_migration_preserves_unknown_send_fence_and_credentials(tmp_pat
     migrated = ProtectedLocalStore(lifecycle.store.directory)
     with migrated.transaction() as tx:
         receipt = tx.state.receipts[identity]
-        assert tx.state.schema_version == 2
+        assert tx.state.schema_version == 3
         assert receipt.status == "send_started"
         assert receipt.fingerprint == fingerprint
         assert (
             tx.state.registrations[safe.connection_id].credentials.refresh_token
             == "synthetic-refresh"
         )
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        migrated.claim(
+            identity, fingerprint, safe.connection_id, safe.revision, int(time.time()) + 60
+        )
+
+
+def test_v2_state_migration_preserves_receipt_details(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    state_path = lifecycle.store.directory / "state.json"
+    legacy = json.loads(state_path.read_text())
+    legacy["schema_version"] = 2
+    identity, fingerprint = "c" * 64, "d" * 64
+    legacy["receipts"] = {
+        identity: {
+            "fingerprint": fingerprint,
+            "status": "send_started",
+            "origin": "http://localhost:3000",
+            "connection_id": safe.connection_id,
+            "connection_revision": safe.revision,
+            "created_at": 100,
+            "updated_at": 100,
+            "proof_expires_at": 220,
+            "terminal_at": None,
+            "acknowledged_at": None,
+            "claim_token": None,
+        }
+    }
+    state_path.write_text(json.dumps(legacy))
+    os.chmod(state_path, 0o600)
+
+    migrated = ProtectedLocalStore(lifecycle.store.directory)
+    with migrated.transaction() as tx:
+        assert tx.state.schema_version == 3
+        assert tx.state.receipts[identity].status == "send_started"
+        assert tx.state.receipts[identity].origin == "http://localhost:3000"
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         migrated.claim(
             identity, fingerprint, safe.connection_id, safe.revision, int(time.time()) + 60

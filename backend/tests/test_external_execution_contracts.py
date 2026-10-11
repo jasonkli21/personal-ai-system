@@ -1,7 +1,9 @@
 """Prepared-execution proof and provenance foundations; no cloud issuance/UX."""
 
 import base64
+import re
 from dataclasses import asdict
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -14,6 +16,7 @@ from personal_ai.auth.dispatch_grants import (
     InvalidDispatchGrant,
     SignedDispatchGrant,
 )
+from personal_ai.contracts.execution import ExternalFailureCode, normalize_external_failure
 from personal_ai.llm.client import (
     ExecutionProvenance,
     ExternalCompletion,
@@ -105,6 +108,27 @@ def test_connected_completion_requires_matching_terminal_generation():
         )
     with pytest.raises(ValueError):
         ExternalCompletion("output", provenance)
+
+
+def test_every_bridge_error_literal_normalizes_to_the_shared_failure_contract():
+    backend_root = Path(__file__).parents[1]
+    source_files = [
+        *sorted((backend_root / "src/personal_ai/local_bridge").glob("*.py")),
+        backend_root / "src/personal_ai/llm/chatgpt/responses.py",
+    ]
+    observable_codes = {
+        code
+        for path in source_files
+        for code in re.findall(r'"(bridge_[a-z0-9_]+)"', path.read_text())
+        if code != "bridge_observed"
+    }
+    assert observable_codes
+    supported_codes = {item.value for item in ExternalFailureCode}
+    for code in observable_codes:
+        normalized = normalize_external_failure(code)
+        assert isinstance(normalized, ExternalFailureCode)
+        if code not in supported_codes:
+            assert normalized is ExternalFailureCode.EXECUTION_INTERRUPTED
 
 
 def test_pinned_proof_verification_and_scoped_idempotency_are_independent_of_proof_id():

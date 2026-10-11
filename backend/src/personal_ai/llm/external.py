@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.auth.scope import ApplicationScope
+from personal_ai.entities.conversation import MAX_MESSAGE_CONTENT_CHARS
 from personal_ai.llm.client import ChatMessage, InferenceContext
 from personal_ai.routing.contracts import EndpointRef
 
@@ -48,7 +49,7 @@ class PreparedExecution(ApplicationScope):
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     owner_id: str = Field(min_length=1, max_length=200)
     conversation_id: UUID
     reservation_id: UUID
@@ -64,6 +65,12 @@ class PreparedExecution(ApplicationScope):
     maximum_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
     policy_version: str = Field(min_length=1, max_length=200)
     max_output_bytes: int = Field(ge=1, le=262144, strict=True)
+    max_output_chars: int = Field(
+        default=MAX_MESSAGE_CONTENT_CHARS,
+        ge=1,
+        le=MAX_MESSAGE_CONTENT_CHARS,
+        strict=True,
+    )
     timeout_seconds: int = Field(ge=1, le=120, strict=True)
 
     @model_validator(mode="after")

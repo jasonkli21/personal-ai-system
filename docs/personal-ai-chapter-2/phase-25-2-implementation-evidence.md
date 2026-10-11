@@ -1,99 +1,104 @@
 # Phase 25.2 implementation and verification evidence
 
-Date: 2026-10-10. Baseline: `a7294ed55c9ba5f1fcb61077ef17950910b85adb`.
-Tested source revision: `2c9db878b5c4f504bd172be9fb966449a5b16ace`, following
-contract/state commit `c243a46`. The subsequent closeout commit changes documentation
-only, including a serialization docstring clarification. Existing untracked
-independent-review documents were preserved.
+Date: 2026-10-10. Review set: `a7294ed55c9ba5f1fcb61077ef17950910b85adb`,
+`c243a46f8bffd75085ba07bec2b4be9e3cae5608`,
+`2c9db878b5c4f504bd172be9fb966449a5b16ace`, and
+`60c261a2df59148049fa3566ab863c1175710f94`. The focused review-fix tests recorded
+here ran against source revision `03fa8c4188c6f2d57132fc2d01de059f2d91505f`. The
+final commit is a documentation-only closeout amendment that records this tested
+source revision.
 
-**Disposition: internal implementation verified locally; full external execution
-acceptance remains open.** No HTTP issuer, provider selector, manual-import UI,
-consumer website automation, cloud resource, real account, credential, or live
-provider request was enabled or used. External execution defaults deny.
+**Disposition: Phase 25.2 remains incomplete.** The local review fixes below are
+implemented and offline-verified, but Phase 15 has no production pre-retrieval
+membership/source/revocation authority, and the canonical DynamoDB transaction
+suite could not run without an isolated engine. The current `ExternalTurnAuthority`
+callback is still a required integration point, not an implementation, and its
+post-assembly check cannot satisfy pre-retrieval authorization. Do not compose an
+HTTP issuer or begin Phase 25.3 UI/API work on this seam. No provider, account,
+browser, cloud, or physical execution was enabled.
 
-## Model, seams, and requirement coverage
+## Review fixes implemented
 
-Read the [architecture and rewrite-risk review](phase-25-2-architecture.md) and
-[composition guide](phase-25-2-implementation-guide.md). Inspection covered current
-conversation/context/authorization/storage contracts, P16 inference, P18 immutable
-profiles, P19/P21 accounting/routing, the P25.1 implementation and review fixes,
-and downstream P25.3/P25.4/P30/P31 boundaries. This phase extends those seams rather
-than introducing another store, ledger, provider registry, or conversation pipeline.
+- Continuation intent uses a canonical digest across automatic and external modes.
+  A same-key retry resumes the persisted trailing user message after partial
+  preparation or repository restart; changed input conflicts; completed automatic
+  retries replay. A later new request safely supersedes a failed orphan user turn.
+- Completed-result replay rechecks current authority, sensitivity, policy and
+  profile state in both normal and lost-CAS-response paths, without requiring the
+  original dispatch TTL. Real Phase 15 authority/revocation is still missing.
+- Bridge provider error fields pass the local credential-echo guard before IPC.
+  Canonical persistence enforces reservation-bound provenance, package/profile,
+  connection and source snapshots. External completions use the same eligible
+  post-completion hook as automatic turns after the winning CAS.
+- Connected model selection is per paired account and separate from the stable P18
+  endpoint profile. Packages enforce both canonical character and transport-byte
+  output bounds. Manual producer labels are supplied at import; manual reservation
+  lifetime is separate from the short connected dispatch proof lifetime.
+- External failures use a shared bounded taxonomy and persist safe client-reported
+  status/latency observations. Generic HTTP 429 no longer claims ChatGPT-plan
+  exhaustion. Explicit endpoint choices use shared fact-based registry admission.
+- Durable source snapshots retain a hash of provider reference identity, not raw
+  IDs or URIs, so signed URLs and secret-bearing references do not enter message
+  reservations or attribution.
 
-| Work package | Implemented boundary and local evidence |
+No new external-turn store, permission registry, credential path, automatic
+ChatGPT routing, or P19 quota path was added. Uncertain physical-send behavior
+remains conservative. After proof expiry and one day of retained reconciliation
+detail, unresolved sends compact into protected hash-named tombstones. These remain
+permanent resend fences and reconcile as `unknown`; new sends can use the bounded
+detail table after compaction. The local-store format migrates forward from schema
+versions 1 and 2 to version 3.
+
+## Verification
+
+Python 3.11 tests use `backend/.venv`, synthetic fixtures, fake providers, and
+in-memory repositories. These checks establish local contracts only.
+
+| Check | Result |
 | --- | --- |
-| P25_2.0 | P18 `ProviderAccessPolicy` and frozen schema-3 definitions express authentication, explicit selection, local credentials, account discovery, automation exclusion and hosted-history policy. ChatGPT cannot enter automatic candidates even under misleading cost/free configuration. Existing profiles retain schema-2 identity. Application policy separately permits external modes; default deny and sensitivity/profile checks precede disclosure. |
-| P25_2.1 | `ExternalTurnService` delegates preparation to `ChatTurnService` and persists a bounded reservation in the canonical assistant message. Expected-message/branch CAS extends the existing repository transaction. Connected proof issuance fences before delivery; manual import has no proof/connection. Tests cover exact proof binding, profile churn, expiry, authority/source freshness, foreign scope, supersession, duplicate/changed replay, concurrent import and committed-write response loss. |
-| P25_2.2 | `TurnAttribution` distinguishes observed, client-reported and user-declared facts. Manual imports reject generation/latency/usage/connection claims. Safe failures and empty uncertain outcomes remain in the canonical message. Coarse usage and recovery hooks extend the protected local registration/projection; there are no reset guesses, account payloads, or P19 updates. Existing credential/redaction tests remain included. |
-| P25_2.3 | Neutral continuation requests select automatic, registered connected, or manual mode and optionally narrow complete active-turn candidates. All reuse shared authorization/planning/budgeting, preserve producer attribution, and create new turns. Tests cover connected→automatic, automatic→connected, manual→connected, connected→manual, same-provider and another registered provider, revocation and narrowing. |
+| Focused external-turn, bridge transport, local lifecycle, execution-contract, and persistence tests | 177 passed, 2 skipped |
+| Full backend pytest suite | 1,312 passed, 78 skipped, 1 failed; the single provider-matrix assertion is described below (the full run began before three final focused regression cases were added) |
+| Isolated provider-matrix failure case | Passed (1 test) |
+| Ruff | Passed (`.venv/bin/python -m ruff check .`) |
+| `git diff --check` | Passed for the review-fix source and documentation |
+| DynamoDB external-turn transaction/race/restart tests | 2 skipped; unverified |
 
-Source identity contracts now live in `contracts.context_references`, re-exported
-from their original context path. This dependency extraction preserves old contracts
-and avoids an entity/context/repository cycle. No canonical store ownership changed.
-Reservations and attribution contain payload-free source/version/reference/grant
-snapshots and hashes, never copied context payloads or reusable credentials.
+The full backend run began before the final three focused regression cases and the
+last taxonomy values were added. Its one failure was
+`tests/test_provider_matrix.py::test_matrix_uses_generic_profiles_task_contract_and_p21_p19_seams`:
+the full suite produced 77 synthetic cases where the fixture expected 80. The
+isolated rerun passed. This test's provider profiles do not include ChatGPT-plan;
+the failure was not reproduced outside the full suite and remains a suite-level
+verification gap. The final focused rerun included the added local-store schema-2
+migration case, which landed after collection began for the full run.
 
-## Verification configuration and results
+The skipped DynamoDB tests require `PERSISTENCE_TEST_DYNAMODB_ENDPOINT`. Docker and
+an isolated DynamoDB-compatible engine were unavailable, so transaction/catalog
+CAS, concurrent finalize, stale recovery, restart/hydration and the new direct
+provenance checks have not been verified against a real engine. Fakes and JSON
+hydration do not establish this behavior. The Makefile backend targets also assume
+a `python` executable on `PATH`; this host lacks it, so checks were run through
+`backend/.venv/bin/python` instead.
 
-Tests used Python 3.11 in `backend/.venv`, synthetic public fixtures, fake inference,
-in-memory repositories, generated ephemeral Ed25519 keys and protected temporary
-bridge stores. Frontend commands used the bundled Node runtime. `UV_CACHE_DIR` was
-set to `/tmp/personal-ai-uv-cache` for the build because the default uv cache was
-outside writable roots. No dependency or lockfile change was required. No backend
-typecheck target exists; frontend typecheck is recorded below.
+## Required gates and remaining acceptance gaps
 
-| Command | Result |
-| --- | --- |
-| `make backend-test` | 1,296 passed, 78 skipped, 2 existing dependency warnings; 75.84 seconds. |
-| `make backend-lint` | Ruff passed. |
-| `make backend-build` | Source distribution and wheel built successfully. |
-| Focused external-turn suite | 30 tests passed, including final hardening of context identity, superseded replay and empty failure transitions. |
-| `make frontend-test` | 19 files / 98 tests passed. |
-| `make frontend-lint frontend-typecheck frontend-build` | ESLint, both TypeScript configurations and Next.js production build passed. |
-| `make context-eval context-plan-eval quota-scarcity-eval cascade-eval` | Passed with synthetic/offline fixtures. Cascade baseline remained 20 accepted, 7 rejected, 54 physical attempts versus direct baseline 20 accepted and 40 attempts; these are simulation results. |
-| `git diff --check` | Passed for source and documentation closeout; Phase 25.2 relative documentation links resolve. |
+- Phase 15 must provide one authoritative authorization path that denies before
+  context, memory, source, summary, count, or generation reads, and that rechecks
+  current relevant grants/dependencies before disclosure and completed replay.
+  Negative tests must prove denial occurs before those calls. Do not replace this
+  dependency with a permissive Phase-25-only implementation.
+- Run the external-turn persistence suite against DynamoDB Local or an equivalent
+  isolated engine, including transaction/race/restart and reservation-provenance
+  cases, before describing Phase 25.2 as complete.
+- Phase 25.1 distribution approval, real OAuth/Responses compatibility,
+  account/model plan-only eligibility, native browser transport, signing-key
+  operations, deployed identity and cloud acceptance remain external gates.
+- The compact tombstone directory is durable local filesystem state. File-system
+  exhaustion remains a host-level limit; failures creating a fence fail closed.
+- Phase 25.3 still owns authenticated HTTP/UI composition and visible trust/recovery;
+  Phase 25.4 owns domain integration. Imported or connected content grants no
+  mutation rights.
 
-The backend suite retains the existing Starlette/httpx deprecation and Pydantic
-ReadOnly warning. Neither is proof of a provider or deployed behavior. Evaluations
-are local evidence only and do not change candidate qualification or enable gates.
-
-## Failure, concurrency, and persistence evidence
-
-The canonical reservation states are prepared→dispatched→completed for connected
-execution and prepared→completed for explicit manual import. Prepared abandonment
-cancels; dispatched abandonment/failure/expiry becomes unknown, with empty content.
-Dispatch means durable grant issuance, not a server-observed physical send. The
-P25.1 local receipt remains the transport authority. A lost grant is never silently
-reissued; explicit new preparation creates a new identity. Completed replay rechecks
-current authority and compares a full completion digest without another send/write.
-Superseded replay fails; historical producer attribution stays immutable.
-
-Offline tests exercise concurrent identical finalization and reply loss after a
-committed write. `tests/persistence/test_external_turns.py` adds opt-in actual
-DynamoDB transaction/race/restart and issued-dispatch expiry recovery tests. Docker
-is unavailable here and no isolated engine endpoint is configured, so these and
-the existing opt-in engine/cloud tests remain skipped and **unverified**. Fakes and
-JSON hydration do not establish DynamoDB transaction or deployment acceptance.
-
-## Disabled gates and remaining acceptance gaps
-
-- `ExternalTurnAuthority` is a required policy integration with no permissive
-  implementation. Authoritative principal membership, paired runtime/caller/current
-  connection revision, source/fingerprint/grant history, derived-memory/summary
-  revocation, and atomic cross-store freshness must be established before HTTP
-  composition. Existing P14/P15/P30 acceptance gaps remain open.
-- Real DynamoDB race/CAS/catalog behavior, immutable Postgres source/policy history,
-  signing-key custody/rotation and deployed private API identity remain unverified.
-- P25.1 distribution approval, supported OAuth/Responses compatibility, account/model
-  eligibility with enforceable plan-only billing, native browser transport and mobile
-  remain open. Coarse usage observations prove none of these facts.
-- P25.3 owns authenticated UI/HTTP composition and user-visible trust/recovery;
-  P25.4 owns host integration. P31 domain Apply must independently validate proposals
-  and authority. No imported/connected text confers mutation rights.
-
-Root README was reviewed and updated to distinguish the new internal lifecycle from
-enabled end-user execution. The documentation router, API contract and single living
-current-state snapshot link this record. An independent reviewer should challenge
-authority/source coverage, real transactional fences, expiry/clock semantics,
-grant-delivery uncertainty and provenance labels most aggressively; see the detailed
-[rewrite-risk review](phase-25-2-architecture.md#independent-review-challenges).
+See the [architecture and rewrite-risk review](phase-25-2-architecture.md) and
+[composition guide](phase-25-2-implementation-guide.md). The living status is in
+[`docs/current-state.md`](../current-state.md).

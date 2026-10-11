@@ -7,7 +7,7 @@ import hashlib
 import secrets
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 from typing import Literal, Protocol
 from urllib.parse import urlsplit
@@ -27,6 +27,7 @@ from personal_ai.llm.client import (
     ExecutionProvenance,
     GenerationEvent,
     GenerationMetadata,
+    ProviderErrorObservation,
     ProviderIdentity,
 )
 from personal_ai.llm.external import ExecutionProfileIdentity, PreparedExecution
@@ -331,6 +332,7 @@ class LocalChatGPTBridge:
                     invocation_id=str(package.reservation_id),
                     execution_profile=package.execution_profile,
                     max_output_bytes=package.max_output_bytes,
+                    max_output_chars=package.max_output_chars,
                     timeout_seconds=package.timeout_seconds,
                 )
                 try:
@@ -350,7 +352,8 @@ class LocalChatGPTBridge:
                             safe_tail = guard.finish()
                             if safe_tail:
                                 yield GenerationEvent.text_delta(safe_tail)
-                            metadata = event.metadata
+                            metadata = _sanitize_provider_error(event.metadata, guard)
+                            event = GenerationEvent.terminal(metadata)
                             await anyio.to_thread.run_sync(
                                 self.lifecycle.observe_usage, snapshot.connection_id,
                                 snapshot.revision, metadata.error_code, metadata.status == "success",
@@ -431,7 +434,10 @@ class FakeChatGPTPlanBridge:
             package.model_id,
             str(package.connection_id),
         )
-        if len(self.text.encode()) > package.max_output_bytes:
+        if (
+            len(self.text.encode()) > package.max_output_bytes
+            or len(self.text) > package.max_output_chars
+        ):
             yield GenerationEvent.terminal(
                 GenerationMetadata(
                     "incomplete",
@@ -450,3 +456,27 @@ class FakeChatGPTPlanBridge:
                 provenance=provenance,
             )
         )
+
+
+def _sanitize_provider_error(metadata: GenerationMetadata, guard: LocalOutputGuard):
+    observation = metadata.provider_error
+    if observation is None:
+        return metadata
+
+    def safe(value):
+        if value is None:
+            return None
+        try:
+            guard.check(value)
+        except CredentialEcho:
+            return None
+        return value
+
+    sanitized = ProviderErrorObservation(
+        status=observation.status,
+        code=safe(observation.code),
+        param=safe(observation.param),
+        request_id=safe(observation.request_id),
+        shape=observation.shape,
+    )
+    return replace(metadata, provider_error=sanitized)

@@ -26,6 +26,7 @@ from personal_ai.local_bridge.runtime import (
     FakeChatGPTPlanBridge,
     LocalChatGPTBridge,
 )
+from personal_ai.local_bridge.status import usage_observation
 from personal_ai.local_bridge.store import LocalStoreError
 from personal_ai.routing.contracts import EndpointRef
 from tests.test_chatgpt_local_lifecycle import connected_lifecycle
@@ -78,6 +79,7 @@ class ProviderFixture:
         ]
         self.status = 200
         self.error = {}
+        self.request_id = "req_synthetic_123"
         self.stream = None
         self.provider = ChatGPTResponses(transport=httpx.MockTransport(self.handle))
 
@@ -91,7 +93,7 @@ class ProviderFixture:
             return httpx.Response(
                 self.status,
                 json=self.error,
-                headers={"x-request-id": "req_synthetic_123"},
+                headers={"x-request-id": self.request_id},
             )
         return httpx.Response(
             200,
@@ -407,6 +409,36 @@ def test_provider_error_observation_drops_unbounded_or_invalid_fields():
     assert "private text" not in str(asdict(event))
 
 
+def test_local_bridge_drops_provider_error_fields_that_echo_credentials(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    provider.status = 400
+    provider.error = {
+        "error": {
+            "code": "synthetic-access",
+            "param": "synthetic-subject",
+            "message": "private diagnostic",
+        }
+    }
+    provider.request_id = "oaiapp_synthetic"
+    result = run_bridge(bridge, session, package, proof)
+    observation = result[-1].metadata.provider_error
+    assert result[-1].metadata.error_code == "bridge_unsupported_request"
+    assert observation.status == 400
+    assert observation.code is None and observation.param is None and observation.request_id is None
+    assert "synthetic-access" not in str(asdict(result[-1]))
+    assert "synthetic-subject" not in str(asdict(result[-1]))
+    assert "oaiapp_synthetic" not in str(asdict(result[-1]))
+
+
+def test_generic_rate_limit_is_not_recorded_as_plan_usage_limit():
+    fixture = ProviderFixture()
+    fixture.status = 429
+    fixture.error = {"error": {"code": "edge_throttle", "message": "temporarily limited"}}
+    result = transport_events(fixture)
+    assert result[-1].metadata.error_code == "bridge_rate_limited"
+    assert usage_observation(result[-1].metadata.error_code, now=10).state == "unknown"
+
+
 def test_usage_failure_after_deltas_is_not_completion_or_reset_timestamp():
     fixture = ProviderFixture()
     fixture.events = [
@@ -535,6 +567,15 @@ def test_local_output_bound_is_not_provider_token_bound():
     assert result[-1].metadata.status == "incomplete"
     assert all(event.kind != "delta" for event in result)
     assert "max_output_tokens" not in json.loads(fixture.sends()[0].content)
+
+
+def test_character_bound_rejects_ascii_output_that_cannot_persist():
+    fixture = ProviderFixture()
+    fixture.events = [created(), delta("x" * 20001)]
+    result = transport_events(fixture, max_output_bytes=80000, max_output_chars=20000)
+    assert result[-1].kind == "terminal"
+    assert result[-1].metadata.error_code == "bridge_output_bound"
+    assert all(event.kind != "delta" for event in result)
 
 
 @pytest.mark.parametrize(

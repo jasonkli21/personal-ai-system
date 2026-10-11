@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal, Protocol
 from uuid import UUID, uuid5
 
-from personal_ai.applications.contracts import SENSITIVITY_RANK, ApplicationContextRequest
+from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner, SignedDispatchGrant
 from personal_ai.auth.scope import scope_matches
 from personal_ai.context.authorization import (
@@ -25,13 +25,17 @@ from personal_ai.context.contracts import fingerprint
 from personal_ai.contracts.context_references import (
     ContextSourceSnapshot,
 )
-from personal_ai.contracts.execution import ContinuationRequest, ExecutionChoice
+from personal_ai.contracts.execution import (
+    ContinuationRequest,
+    ExecutionChoice,
+    ExternalFailureCode,
+)
 from personal_ai.entities import Message, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
 from personal_ai.llm.client import ExternalCompletion
 from personal_ai.llm.external import ExecutionProfileIdentity, PreparedExecution, PreparedMessage
 from personal_ai.routing.contracts import EndpointRef
-from personal_ai.routing.registry import EndpointRegistry
+from personal_ai.routing.registry import EndpointRegistry, EndpointRegistryError
 from personal_ai.services.chat_turns import ChatTurnService
 from personal_ai.storage.errors import ConversationConflictError, ResourceNotFoundError
 
@@ -89,25 +93,14 @@ class ExternalTurnService:
         self.authority, self.signer, self.clock = authority, signer, clock
 
     def _profile(self, choice: ExecutionChoice, sensitivity: str):
-        profile = next(
-            (p for p in self.registry.refresh().profiles if p.ref == choice.endpoint), None
-        )
-        if (
-            profile is None
-            or not profile.enabled
-            or profile.access_policy is None
-            or profile.access_policy.selection_mode != "explicit_only"
-            or profile.access_policy.credential_runtime != "user_local"
-            or "streaming" not in profile.capabilities
-        ):
+        try:
+            return self.registry.revalidate_explicit(
+                choice.endpoint,
+                sensitivity=sensitivity,
+                required_capabilities=frozenset({"streaming"}),
+            )
+        except (EndpointRegistryError, ValueError):
             raise ConversationConflictError("explicit_endpoint_unavailable")
-        policy = profile.data_use_policy
-        if (
-            SENSITIVITY_RANK[sensitivity] > SENSITIVITY_RANK[policy.max_sensitivity]
-            or policy.status != "approved"
-        ):
-            raise ConversationConflictError("provider_disclosure_denied")
-        return profile
 
     def _snapshot(self, conversation_id, choice, sources, snapshots=()):
         self.chat.require_context(self.context)
@@ -139,7 +132,7 @@ class ExternalTurnService:
             conversation_id,
             f"{self.context.scope.owner_id}:{self.context.scope.application_id}:{self.context.scope.workspace_id}:{request.idempotency_key}",
         )
-        request_hash = digest(request.model_dump(mode="json"))
+        request_hash = request.intent_digest
         try:
             existing = self.chat.get_message(conversation_id, identity)
         except ResourceNotFoundError:
@@ -178,7 +171,7 @@ class ExternalTurnService:
             )
             package = None
             profile = None
-            provider, model = choice.declared_provider, choice.declared_model
+            provider, model = None, None
             if choice.mode == "connected_provider":
                 profile = self._profile(choice, inference.effective_sensitivity)
                 if (
@@ -188,7 +181,7 @@ class ExternalTurnService:
                     raise ConversationConflictError(
                         "provider_context_budget_unavailable_or_exceeded"
                     )
-                provider, model = profile.provider_id, profile.model_id
+                provider, model = profile.provider_id, choice.model_id
                 package = PreparedExecution(
                     owner_id=self.context.scope.owner_id,
                     application_id=self.context.scope.application_id,
@@ -213,6 +206,7 @@ class ExternalTurnService:
                     maximum_sensitivity=inference.maximum_sensitivity,
                     policy_version=inference.policy_version,
                     max_output_bytes=80000,
+                    max_output_chars=20000,
                     timeout_seconds=120,
                 )
             package_hash = (
@@ -229,6 +223,7 @@ class ExternalTurnService:
                         "policy": inference.policy_version,
                         "sensitivity": inference.effective_sensitivity,
                         "max_output_bytes": 80000,
+                        "max_output_chars": 20000,
                     }
                 )
             )
@@ -241,8 +236,13 @@ class ExternalTurnService:
                 authority_digest=authority,
                 policy_version=inference.policy_version,
                 effective_sensitivity=inference.effective_sensitivity,
-                expires_at=now + timedelta(seconds=120),
+                expires_at=now + (
+                    timedelta(minutes=15)
+                    if choice.mode == "connected_provider"
+                    else timedelta(hours=24)
+                ),
                 max_output_bytes=80000,
+                max_output_chars=20000,
                 provider_id=provider,
                 model_id=model,
                 connection_id=choice.connection_id,
@@ -251,6 +251,7 @@ class ExternalTurnService:
                 audience=choice.audience,
                 source_message_ids=selected,
                 source_snapshots=snapshots,
+                selected_memory_ids=assembled.selected_memory_ids,
                 endpoint_profile_id=profile.endpoint_profile_id if profile else None,
                 profile_version=profile.profile_version if profile else None,
                 profile_digest=digest(profile.model_dump(mode="json")) if profile else None,
@@ -269,6 +270,7 @@ class ExternalTurnService:
             preparation_hook=bind,
             candidate_message_ids=request.candidate_message_ids,
             history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
+            continuation_digest=request_hash,
         )
         return result[0]
 
@@ -335,12 +337,13 @@ class ExternalTurnService:
         if self.signer is None:
             raise ConversationConflictError("dispatch_signer_unavailable")
         # Sign before CAS but return only after durable dispatch fencing. Failed writes never expose a grant.
+        grant_now = self.clock()
         proof = self.signer.sign(
             prepared.connected_package,
             caller_id=reservation.caller_id,
             audience=reservation.audience,
-            now=self.clock(),
-            expires_at=reservation.expires_at,
+            now=grant_now,
+            expires_at=min(reservation.expires_at, grant_now + timedelta(seconds=120)),
         )
         self.chat.transition(
             message,
@@ -364,8 +367,8 @@ class ExternalTurnService:
         provenance = completion.provenance
         if (
             provenance.mode != reservation.mode
-            or provenance.provider_id != reservation.provider_id
-            or provenance.model_id != reservation.model_id
+            or (reservation.provider_id is not None and provenance.provider_id != reservation.provider_id)
+            or (reservation.model_id is not None and provenance.model_id != reservation.model_id)
             or (
                 reservation.mode == "manual_external"
                 and (not explicit_import or latency_ms is not None)
@@ -376,10 +379,14 @@ class ExternalTurnService:
             )
         ):
             raise ConversationConflictError("completion_provenance_mismatch")
+        try:
+            completion_bytes = len(completion.text.encode("utf-8", errors="strict"))
+        except UnicodeEncodeError:
+            raise ConversationConflictError("completion_output_invalid") from None
         if (
             not completion.text.strip()
-            or len(completion.text) > 20000
-            or len(completion.text.encode()) > reservation.max_output_bytes
+            or len(completion.text) > reservation.max_output_chars
+            or completion_bytes > reservation.max_output_bytes
         ):
             raise ConversationConflictError("completion_output_invalid")
         completion_hash = digest(
@@ -406,14 +413,11 @@ class ExternalTurnService:
             }
         )
         if reservation.state == "completed":
-            self._snapshot(
-                conversation_id,
-                self._choice(reservation),
-                reservation.source_message_ids,
-                reservation.source_snapshots,
-            )
             if reservation.completion_digest != completion_hash:
                 raise ConversationConflictError("completion_replay_changed")
+            self._authorize_completed_replay(
+                conversation_id, message, reservation, self._choice(reservation)
+            )
             return message
         if message.status != MessageStatus.PENDING or reservation.state != (
             "prepared" if reservation.mode == "manual_external" else "dispatched"
@@ -430,8 +434,11 @@ class ExternalTurnService:
             fact_source="user_declared"
             if reservation.mode == "manual_external"
             else "client_reported",
-            provider_id=reservation.provider_id,
-            model_id=reservation.model_id,
+            execution_origin="manual_import"
+            if reservation.mode == "manual_external"
+            else "connected_local",
+            provider_id=provenance.provider_id,
+            model_id=provenance.model_id,
             recorded_at=self.clock(),
             latency_ms=latency_ms,
             usage_source=usage.source if usage else None,
@@ -439,28 +446,62 @@ class ExternalTurnService:
             input_tokens=usage.input_tokens if usage else None,
             output_tokens=usage.output_tokens if usage else None,
             package_fingerprint=package_hash,
+            connection_id=reservation.connection_id,
+            connection_revision=reservation.connection_revision,
             source_message_ids=reservation.source_message_ids,
             source_snapshots=reservation.source_snapshots,
         )
-        return self._finalize_cas(
+        completed, newly_committed = self._finalize_cas(
             completion_hash,
             message,
             message.model_copy(
                 update={
                     "status": MessageStatus.COMPLETED,
                     "content": completion.text,
-                    "model": reservation.model_id,
+                    "model": attribution.model_id,
                     "attribution": attribution,
                     "execution": reservation.model_copy(
                         update={"state": "completed", "completion_digest": completion_hash}
                     ),
                 }
             ),
+            choice=self._choice(reservation),
         )
+        if newly_committed:
+            self.chat.schedule_post_completion(
+                completed,
+                reservation.selected_memory_ids,
+                request_id=str(reservation.reservation_id),
+            )
+        return completed
 
-    def _finalize_cas(self, completion_hash, current, candidate):
+    def _authorize_completed_replay(self, conversation_id, message, reservation, choice):
+        if message.status != MessageStatus.COMPLETED:
+            raise ConversationConflictError("completed_result_not_visible")
+        authorize_effective_sensitivity(self.context, reservation.effective_sensitivity)
+        if (
+            self.context.definition.context_policy.version != reservation.policy_version
+            or any(
+                snapshot.expires_at is not None and self.clock() >= snapshot.expires_at
+                for snapshot in reservation.source_snapshots
+            )
+            or self._snapshot(
+                conversation_id,
+                choice,
+                reservation.source_message_ids,
+                reservation.source_snapshots,
+            )
+            != reservation.authority_digest
+        ):
+            raise ConversationConflictError("source_authority_changed")
+        if reservation.mode == "connected_provider":
+            profile = self._profile(choice, reservation.effective_sensitivity)
+            if digest(profile.model_dump(mode="json")) != reservation.profile_digest:
+                raise ConversationConflictError("endpoint_changed")
+
+    def _finalize_cas(self, completion_hash, current, candidate, *, choice):
         try:
-            return self.chat.transition(current, candidate)
+            return self.chat.transition(current, candidate), True
         except ConversationConflictError:
             latest = self.chat.get_message(current.conversation_id, current.id)
             if (
@@ -468,23 +509,23 @@ class ExternalTurnService:
                 and latest.execution is not None
                 and latest.execution.completion_digest == completion_hash
             ):
-                return latest
+                self._authorize_completed_replay(
+                    current.conversation_id, latest, latest.execution, choice
+                )
+                return latest, False
             raise
 
     def _choice(self, reservation):
         # Retained exact identity also supports historical replay after a provider disappears.
         if reservation.mode == "manual_external":
-            return ExecutionChoice(
-                mode="manual_external",
-                declared_provider=reservation.provider_id,
-                declared_model=reservation.model_id,
-            )
+            return ExecutionChoice(mode="manual_external")
         return ExecutionChoice(
             mode="connected_provider",
             endpoint=EndpointRef(
                 endpoint_profile_id=reservation.endpoint_profile_id,
                 profile_version=reservation.profile_version,
             ),
+            model_id=reservation.model_id,
             connection_id=reservation.connection_id,
             connection_revision=reservation.connection_revision,
             caller_id=reservation.caller_id,
@@ -496,31 +537,20 @@ class ExternalTurnService:
         conversation_id: UUID,
         message_id: UUID,
         package_hash: str,
-        code: Literal[
-            "bridge_usage_limit",
-            "bridge_usage_unavailable",
-            "bridge_auth_required",
-            "bridge_ineligible",
-            "bridge_unavailable",
-            "bridge_permission_denied",
-            "bridge_model_unavailable",
-            "bridge_transport_unknown",
-            "bridge_timeout_unknown",
-        ],
+        code: ExternalFailureCode,
+        *,
+        status: int | None = None,
+        latency_ms: int | None = None,
     ):
         # Browser reports are safe recovery hints, never proof of a known no-send.
-        allowed = {
-            "bridge_usage_limit",
-            "bridge_usage_unavailable",
-            "bridge_auth_required",
-            "bridge_ineligible",
-            "bridge_unavailable",
-            "bridge_permission_denied",
-            "bridge_model_unavailable",
-            "bridge_transport_unknown",
-            "bridge_timeout_unknown",
-        }
-        if code not in allowed:
+        if (status is not None and (type(status) is not int or not 100 <= status <= 599)) or (
+            latency_ms is not None
+            and (type(latency_ms) is not int or not 0 <= latency_ms <= 3_600_000)
+        ):
+            raise ConversationConflictError("external_failure_observation_invalid")
+        try:
+            safe_code = ExternalFailureCode(code)
+        except (TypeError, ValueError):
             raise ConversationConflictError("external_error_code_invalid")
         message, reservation = self._current(conversation_id, message_id, package_hash)
         if reservation.mode != "connected_provider" or reservation.state != "dispatched":
@@ -531,8 +561,10 @@ class ExternalTurnService:
                 update={
                     "status": MessageStatus.FAILED,
                     "content": "",
-                    "error_code": code,
+                    "error_code": safe_code.value,
                     "error_fact_source": "client_reported",
+                    "failure_status": status,
+                    "failure_latency_ms": latency_ms,
                 }
             ),
         )
@@ -547,7 +579,7 @@ class ExternalTurnService:
                 update={
                     "status": MessageStatus.FAILED,
                     "content": "",
-                    "error_code": "external_turn_interrupted",
+                    "error_code": ExternalFailureCode.EXECUTION_INTERRUPTED.value,
                     "error_fact_source": "server_observed",
                 }
             ),

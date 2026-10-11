@@ -141,12 +141,11 @@ def setup():
 
 def choice(mode, provider="openai_chatgpt_plan"):
     if mode == "manual_external":
-        return ExecutionChoice(
-            mode=mode, declared_provider="Optional service", declared_model="Optional model"
-        )
+        return ExecutionChoice(mode=mode)
     return ExecutionChoice(
         mode=mode,
         endpoint=profile(provider).ref,
+        model_id="account-visible-model",
         connection_id=uuid4(),
         connection_revision=1,
         caller_id=uuid4(),
@@ -168,13 +167,13 @@ def prepare(
     return service.prepare(cid, request), selected, request
 
 
-def completion(prepared, text="External answer"):
+def completion(prepared, text="External answer", *, provider=None, model=None):
     r = prepared.reservation
     p = ExecutionProvenance(
         mode=r.mode,
         fact_source="user_declared" if r.mode == "manual_external" else "bridge_observed",
-        provider_id=r.provider_id,
-        model_id=r.model_id,
+        provider_id=provider if r.mode == "manual_external" else r.provider_id,
+        model_id=model if r.mode == "manual_external" else r.model_id,
         connection_id=str(r.connection_id) if r.connection_id else None,
     )
     g = (
@@ -246,6 +245,8 @@ def test_connected_dispatch_bound_proof_and_fence(setup):
             cid, prepared.message_id, prepared.reservation.package_fingerprint, completion(prepared)
         )
     proof = service.dispatch(cid, prepared, selected)
+    assert prepared.reservation.expires_at - clock[0] == timedelta(minutes=15)
+    assert proof.claims.expires_at - proof.claims.issued_at <= 120
     verifier = DispatchGrantVerifier(
         issuer="fixture", keys={"key": key.public_key()}, audience=selected.audience
     )
@@ -266,6 +267,45 @@ def test_connected_dispatch_bound_proof_and_fence(setup):
     )
     assert result.attribution.fact_source == "client_reported"
     assert result.attribution.latency_ms == 10
+
+
+def test_manual_import_lifetime_is_separate_from_dispatch_grant_ttl(setup):
+    service, cid, _, _, _, clock = setup
+    prepared, _, _ = prepare(setup, "manual_external")
+    assert prepared.reservation.expires_at - clock[0] == timedelta(hours=24)
+    clock[0] += timedelta(minutes=2)
+    result = service.finalize(
+        cid,
+        prepared.message_id,
+        prepared.reservation.package_fingerprint,
+        completion(prepared),
+        explicit_import=True,
+    )
+    assert result.status is MessageStatus.COMPLETED
+
+
+def test_bridge_output_chars_match_canonical_message_limit(setup):
+    service, cid, *_ = setup
+    prepared, selected, _ = prepare(setup, "connected_provider")
+    assert prepared.connected_package.max_output_chars == prepared.reservation.max_output_chars == 20000
+    service.dispatch(cid, prepared, selected)
+    too_long = completion(prepared, "x" * 20001)
+    with pytest.raises(ConversationConflictError, match="completion_output_invalid"):
+        service.finalize(
+            cid,
+            prepared.message_id,
+            prepared.reservation.package_fingerprint,
+            too_long,
+        )
+
+    unicode_text = "🙂" * 20000
+    result = service.finalize(
+        cid,
+        prepared.message_id,
+        prepared.reservation.package_fingerprint,
+        completion(prepared, unicode_text),
+    )
+    assert len(result.content) == 20000 and len(result.content.encode()) == 80000
 
 
 @pytest.mark.parametrize(
@@ -317,10 +357,11 @@ def test_foreign_expired_edited_revoked_and_superseded(setup, mode):
     with pytest.raises(ConversationConflictError, match="authority_changed"):
         finish(setup, prepared, selected)
     authority.version = "a" * 64
-    clock[0] += timedelta(seconds=121)
+    original_time = clock[0]
+    clock[0] = prepared.reservation.expires_at + timedelta(seconds=1)
     with pytest.raises(ConversationConflictError, match="expired"):
         finish(setup, prepared, selected)
-    clock[0] -= timedelta(seconds=121)
+    clock[0] = original_time
     messages.supersede_path(
         owner_id="local", conversation_id=cid, message_id=prepared.message_id, updated_at=clock[0]
     )
@@ -415,6 +456,38 @@ def test_manual_without_labels_and_output_bound(setup):
     assert result.attribution.provider_id is None and result.model is None
 
 
+def test_manual_producer_labels_are_supplied_at_import(setup):
+    service, cid, *_ = setup
+    prepared, _, _ = prepare(setup, "manual_external")
+    result = service.finalize(
+        cid,
+        prepared.message_id,
+        prepared.reservation.package_fingerprint,
+        completion(prepared, provider="Local Model Host", model="model-after-copy"),
+        explicit_import=True,
+    )
+    assert prepared.reservation.provider_id is None and prepared.reservation.model_id is None
+    assert result.attribution.provider_id == "Local Model Host"
+    assert result.attribution.model_id == result.model == "model-after-copy"
+
+
+def test_connected_model_selection_is_separate_from_endpoint_profile(setup):
+    service, cid, *_ = setup
+    selected = choice("connected_provider")
+    selected = selected.model_copy(update={"model_id": "account-visible-model-v2"})
+    prepared = service.prepare(
+        cid,
+        ContinuationRequest(
+            content="Choose visible model",
+            idempotency_key=uuid4(),
+            choice=selected,
+        ),
+    )
+    assert prepared.connected_package.model_id == "account-visible-model-v2"
+    assert prepared.connected_package.execution_profile.endpoint == selected.endpoint
+    assert service.registry.profiles[0].model_id == "model-1"
+
+
 def test_plan_never_automatic_candidate_or_free_quota(setup):
     service, *_ = setup
     requirements = EndpointCandidateRequirements(
@@ -466,6 +539,8 @@ def test_external_to_automatic_to_connected_reuses_shared_context(setup, first):
     automatic = messages.list_active(owner_id="local", conversation_id=cid)[-1]
     assert automatic.attribution.provider_id == "automatic-fixture"
     assert automatic.attribution.fact_source == "server_observed"
+    assert automatic.attribution.execution_origin == "automatic_managed"
+    assert automatic.model == automatic.attribution.model_id
     assert automatic.attribution.usage_confidence == "estimated"
     next_turn, selected, _ = prepare(setup, "connected_provider", candidates=(automatic.id,))
     finish(setup, next_turn, selected)
@@ -490,6 +565,123 @@ def test_narrowing_excludes_history_and_changed_idempotency_rejected(setup):
     with pytest.raises(ConversationConflictError, match="idempotency_input_changed"):
         service.prepare(cid, request.model_copy(update={"content": "Changed"}))
     service.abandon(cid, next_turn.message_id, next_turn.reservation.package_fingerprint)
+
+
+@pytest.mark.parametrize("failure_call", [2, 3])
+def test_external_same_key_resumes_after_post_append_preparation_failure(
+    setup, monkeypatch, failure_call
+):
+    service, cid, messages, *_ = setup
+    request = ContinuationRequest(
+        content="Resume this request", idempotency_key=uuid4(), choice=ExecutionChoice(mode="manual_external")
+    )
+    original = service._snapshot
+    calls = 0
+
+    def fail_during_bound_context(conversation_id, selected, sources, snapshots=()):
+        nonlocal calls
+        calls += 1
+        if calls == failure_call:
+            raise ConversationConflictError("synthetic preparation authority failure")
+        return original(conversation_id, selected, sources, snapshots)
+
+    monkeypatch.setattr(service, "_snapshot", fail_during_bound_context)
+    with pytest.raises(ConversationConflictError, match="authority failure"):
+        service.prepare(cid, request)
+    active = messages.list_active(owner_id="local", conversation_id=cid)
+    assert len(active) == 1 and active[0].role.value == "user"
+    monkeypatch.setattr(service, "_snapshot", original)
+
+    restarted_chat = ChatTurnService(
+        service.chat._conversations,
+        messages,
+        None,
+        owner_id="local",
+        model="fixture",
+        application_context=service.context,
+        context_assembler=service.chat._context,
+    )
+    restarted = ExternalTurnService(
+        chat=restarted_chat,
+        context=service.context,
+        registry=service.registry,
+        authority=service.authority,
+        signer=service.signer,
+        clock=service.clock,
+    )
+    with pytest.raises(ConversationConflictError, match="idempotency_input_changed"):
+        restarted.prepare(cid, request.model_copy(update={"content": "changed"}))
+    prepared = restarted.prepare(cid, request)
+    active = messages.list_active(owner_id="local", conversation_id=cid)
+    assert [message.role.value for message in active] == ["user", "assistant"]
+    assert active[-1].execution.reservation_id == prepared.reservation.reservation_id
+
+
+def test_new_external_key_terminalizes_abandoned_partial_user(setup, monkeypatch):
+    service, cid, messages, *_ = setup
+    original = service._snapshot
+    calls = 0
+
+    def fail_once(conversation_id, selected, sources, snapshots=()):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise ConversationConflictError("synthetic preparation failure")
+        return original(conversation_id, selected, sources, snapshots)
+
+    monkeypatch.setattr(service, "_snapshot", fail_once)
+    with pytest.raises(ConversationConflictError):
+        prepare(setup, "manual_external")
+    abandoned = messages.list_active(owner_id="local", conversation_id=cid)[-1]
+    monkeypatch.setattr(service, "_snapshot", original)
+    resumed = service.prepare(
+        cid,
+        ContinuationRequest(
+            content="A fresh explicit turn",
+            idempotency_key=uuid4(),
+            choice=ExecutionChoice(mode="manual_external"),
+        ),
+    )
+    active = messages.list_active(owner_id="local", conversation_id=cid)
+    assert abandoned.id not in {message.id for message in active}
+    assert messages.get(owner_id="local", conversation_id=cid, message_id=abandoned.id).status is MessageStatus.SUPERSEDED
+    assert active[-1].execution.reservation_id == resumed.reservation.reservation_id
+
+
+def test_automatic_continuation_resumes_and_replays_same_key(setup, monkeypatch):
+    from personal_ai.context.providers import ContextPreparationError
+    from personal_ai.llm.fake import FakeLLMClient
+
+    service, cid, _, *_ = setup
+    llm = FakeLLMClient(["Recovered automatic answer"], provider_id="automatic-fixture")
+    service.chat._llm = llm
+    request = ContinuationRequest(content="Automatic request", idempotency_key=uuid4())
+    original = service.chat._context.plan_context
+    calls = 0
+
+    def fail_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ContextPreparationError("synthetic planner failure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service.chat._context, "plan_context", fail_once)
+    with pytest.raises(ContextPreparationError, match="planner failure"):
+        service.chat.continue_turn(cid, request)
+    monkeypatch.setattr(service.chat._context, "plan_context", original)
+
+    async def collect(stream):
+        return [event async for event in stream]
+
+    first = asyncio.run(collect(service.chat.continue_turn(cid, request)))
+    replay = asyncio.run(collect(service.chat.continue_turn(cid, request)))
+    assert any("Recovered automatic answer" in event for event in first)
+    assert any('"delta":"Recovered automatic answer"' in event for event in replay)
+    assert any("response.completed" in event for event in replay)
+    assert len(llm.requests) == 1
+    with pytest.raises(ConversationConflictError, match="idempotency_input_changed"):
+        service.chat.continue_turn(cid, request.model_copy(update={"content": "Changed"}))
 
 
 def test_dispatch_signing_failure_leaves_prepared_and_tampering_fails(setup):
@@ -575,6 +767,37 @@ def test_completed_replay_rejects_superseded_reservation(setup):
         finish(setup, prepared, selected)
 
 
+def test_completed_replay_rechecks_authority_digest(setup):
+    service, cid, _, authority, *_ = setup
+    prepared, _, _ = prepare(setup)
+    result = finish(setup, prepared, choice("manual_external"))
+    authority.version = "b" * 64
+    with pytest.raises(ConversationConflictError, match="source_authority_changed"):
+        service.finalize(
+            cid,
+            result.id,
+            prepared.reservation.package_fingerprint,
+            completion(prepared),
+            explicit_import=True,
+        )
+
+
+def test_cas_lost_response_replay_rechecks_authority(setup, monkeypatch):
+    service, _, _, authority, *_ = setup
+    prepared, selected, _ = prepare(setup)
+    original = service.chat.transition
+
+    def commit_then_report_conflict(current, replacement):
+        original(current, replacement)
+        authority.version = "b" * 64
+        raise ConversationConflictError("synthetic lost response")
+
+    monkeypatch.setattr(service.chat, "transition", commit_then_report_conflict)
+    with pytest.raises(ConversationConflictError, match="source_authority_changed"):
+        finish(setup, prepared, selected)
+    monkeypatch.setattr(service.chat, "transition", original)
+
+
 @pytest.mark.parametrize("mode", ["manual_external", "connected_provider"])
 def test_repository_rejects_failed_execution_with_retained_output(setup, mode):
     from personal_ai.entities.turn_execution import transition_message
@@ -593,6 +816,168 @@ def test_repository_rejects_failed_execution_with_retained_output(setup, mode):
         transition_message(current, invalid)
 
 
+@pytest.mark.parametrize("mode", ["manual_external", "connected_provider"])
+def test_canonical_completion_rejects_mismatched_reserved_provenance(setup, mode):
+    from personal_ai.entities.turn_execution import transition_message
+
+    service, cid, messages, *_ = setup
+    prepared, selected, _ = prepare(setup, mode)
+    if mode == "connected_provider":
+        service.dispatch(cid, prepared, selected)
+    current = service.chat.get_message(cid, prepared.message_id)
+    reservation = current.execution
+    attribution = TurnAttribution(
+        mode=mode,
+        fact_source="user_declared" if mode == "manual_external" else "client_reported",
+        execution_origin="manual_import" if mode == "manual_external" else "connected_local",
+        provider_id=reservation.provider_id,
+        model_id=reservation.model_id,
+        recorded_at=datetime.now(UTC),
+        package_fingerprint=reservation.package_fingerprint,
+        connection_id=reservation.connection_id,
+        connection_revision=reservation.connection_revision,
+        source_message_ids=reservation.source_message_ids,
+        source_snapshots=reservation.source_snapshots,
+    )
+    invalid_attribution = attribution.model_copy(
+        update={
+            "package_fingerprint": "b" * 64
+            if mode == "manual_external"
+            else attribution.package_fingerprint,
+            "provider_id": "forged-provider"
+            if mode == "connected_provider"
+            else attribution.provider_id,
+        }
+    )
+    invalid = current.model_copy(
+        update={
+            "status": MessageStatus.COMPLETED,
+            "content": "A canonical answer",
+            "model": invalid_attribution.model_id,
+            "attribution": invalid_attribution,
+            "execution": reservation.model_copy(
+                update={"state": "completed", "completion_digest": "c" * 64}
+            ),
+        }
+    )
+    with pytest.raises(ValueError, match="completion_attribution_mismatches_reservation"):
+        transition_message(current, invalid)
+    with pytest.raises(ValueError, match="completion_attribution_mismatches_reservation"):
+        messages.update_status(
+            owner_id="local",
+            conversation_id=cid,
+            message_id=current.id,
+            status=MessageStatus.COMPLETED,
+            replacement=invalid,
+            expected_message=current,
+            updated_at=datetime.now(UTC),
+        )
+
+
+def test_canonical_connected_completion_rejects_server_observed_client_facts(setup):
+    from personal_ai.entities.turn_execution import transition_message
+
+    service, cid, messages, *_ = setup
+    prepared, selected, _ = prepare(setup, "connected_provider")
+    service.dispatch(cid, prepared, selected)
+    current = service.chat.get_message(cid, prepared.message_id)
+    reservation = current.execution
+    attribution = TurnAttribution(
+        mode="connected_provider",
+        fact_source="server_observed",
+        execution_origin="connected_local",
+        provider_id=reservation.provider_id,
+        model_id=reservation.model_id,
+        recorded_at=datetime.now(UTC),
+        package_fingerprint=reservation.package_fingerprint,
+        connection_id=reservation.connection_id,
+        connection_revision=reservation.connection_revision,
+        source_message_ids=reservation.source_message_ids,
+        source_snapshots=reservation.source_snapshots,
+    )
+    invalid = current.model_copy(
+        update={
+            "status": MessageStatus.COMPLETED,
+            "content": "A client-reported answer",
+            "model": attribution.model_id,
+            "attribution": attribution,
+            "execution": reservation.model_copy(
+                update={"state": "completed", "completion_digest": "c" * 64}
+            ),
+        }
+    )
+    with pytest.raises(ValueError, match="completion_attribution_mismatches_reservation"):
+        transition_message(current, invalid)
+    with pytest.raises(ValueError, match="completion_attribution_mismatches_reservation"):
+        messages.update_status(
+            owner_id="local",
+            conversation_id=cid,
+            message_id=current.id,
+            status=MessageStatus.COMPLETED,
+            replacement=invalid,
+            expected_message=current,
+            updated_at=datetime.now(UTC),
+        )
+
+
+def test_external_completions_use_shared_post_completion_lifecycle_once(setup):
+    service, cid, *_ = setup
+
+    class LifecycleSpy:
+        def __init__(self):
+            self.completed = []
+
+        def after_completed(self, message, selected_memory_ids, *, application_context):
+            self.completed.append((message.id, tuple(selected_memory_ids), application_context))
+
+    spy = LifecycleSpy()
+    service.chat._memory_lifecycle = spy
+
+    async def drain():
+        pending = tuple(service.chat._post_completion_tasks)
+        if pending:
+            await asyncio.gather(*pending)
+
+    manual, _, _ = prepare(setup, "manual_external")
+    imported = finish(setup, manual, choice("manual_external"))
+    asyncio.run(drain())
+    service.finalize(
+        cid,
+        imported.id,
+        manual.reservation.package_fingerprint,
+        completion(manual),
+        explicit_import=True,
+    )
+    asyncio.run(drain())
+    assert [entry[0] for entry in spy.completed] == [imported.id]
+
+    connected, selected, _ = prepare(setup, "connected_provider")
+    completed = finish(setup, connected, selected)
+    asyncio.run(drain())
+    assert [entry[0] for entry in spy.completed] == [imported.id, completed.id]
+
+    from personal_ai.llm.fake import FakeLLMClient
+
+    service.chat._llm = FakeLLMClient(["Automatic lifecycle answer"], provider_id="automatic")
+
+    async def automatic_turn():
+        events = [
+            event
+            async for event in service.chat.continue_turn(
+                cid, ContinuationRequest(content="Automatic completion", idempotency_key=uuid4())
+            )
+        ]
+        pending = tuple(service.chat._post_completion_tasks)
+        if pending:
+            await asyncio.gather(*pending)
+        return events
+
+    events = asyncio.run(automatic_turn())
+    automatic_message = service.chat._messages.list_active(owner_id="local", conversation_id=cid)[-1]
+    assert any("response.completed" in event for event in events)
+    assert [entry[0] for entry in spy.completed] == [imported.id, completed.id, automatic_message.id]
+
+
 def test_safe_failure_hint_never_releases_send_or_creates_usage_claims(setup):
     service, cid, messages, *_ = setup
     prepared, selected, _ = prepare(setup, "connected_provider")
@@ -602,10 +987,16 @@ def test_safe_failure_hint_never_releases_send_or_creates_usage_claims(setup):
             cid, prepared.message_id, prepared.reservation.package_fingerprint, "Bearer SECRET"
         )
     failed = service.report_failure(
-        cid, prepared.message_id, prepared.reservation.package_fingerprint, "bridge_usage_limit"
+        cid,
+        prepared.message_id,
+        prepared.reservation.package_fingerprint,
+        "bridge_usage_limit",
+        status=429,
+        latency_ms=250,
     )
     assert failed.error_code == "bridge_usage_limit"
     assert failed.error_fact_source == "client_reported"
+    assert failed.failure_status == 429 and failed.failure_latency_ms == 250
     assert failed.execution.state == "unknown" and failed.attribution is None
     assert "reset" not in failed.model_dump_json() and "SECRET" not in failed.model_dump_json()
     assert messages.get(owner_id="local", conversation_id=cid, message_id=failed.id) == failed
@@ -694,7 +1085,13 @@ def test_registered_source_snapshot_survives_prepare_and_rejects_stale_source(se
                     sensitivity="personal",
                     observed_at=clock[0],
                     expires_at=clock[0] + timedelta(seconds=30),
-                    source_refs=(ContextSourceReference(kind="record", reference_id="record-1"),),
+                    source_refs=(
+                        ContextSourceReference(
+                            kind="url",
+                            reference_id="source-record-1",
+                            uri="https://source.example/item?access_token=synthetic-signed-secret#private",
+                        ),
+                    ),
                     payload=Payload(value="Authorized source body"),
                 ),
             )
@@ -753,8 +1150,14 @@ def test_registered_source_snapshot_survives_prepare_and_rejects_stale_source(se
     assert "Authorized source body" in prepared.portable_prompt
     snapshot = prepared.reservation.source_snapshots[0]
     assert snapshot.provider_id == "synthetic.source" and snapshot.source_version == "fixture-v1"
-    assert snapshot.source_refs[0].reference_id == "record-1"
-    assert "Authorized source body" not in prepared.reservation.model_dump_json()
+    assert snapshot.source_refs[0].reference_digest != "source-record-1"
+    serialized = prepared.reservation.model_dump_json()
+    assert "Authorized source body" not in serialized
+    assert "synthetic-signed-secret" not in serialized
+    assert "access_token" not in serialized
+    assert "source-record-1" not in serialized
+    pending = service.chat.get_message(_cid, prepared.message_id)
+    assert "synthetic-signed-secret" not in pending.model_dump_json()
     clock[0] += timedelta(seconds=31)
     with pytest.raises(ConversationConflictError, match="source_expired"):
         finish(setup, prepared, selected)

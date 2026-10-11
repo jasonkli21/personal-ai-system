@@ -196,6 +196,47 @@ class EndpointRegistry:
             raise EndpointNotAdmissibleError(assessment.rejection_reasons)
         return current
 
+    def revalidate_explicit(
+        self,
+        ref: EndpointRef,
+        *,
+        sensitivity: str,
+        required_capabilities: frozenset[str],
+        credential_runtime: str = "user_local",
+        model_discovery: str = "account_specific",
+    ) -> EndpointProfile:
+        """Apply shared hard admission to an explicitly selected local endpoint."""
+        snapshot = self.refresh()
+        current = next((profile for profile in snapshot.profiles if profile.ref == ref), None)
+        if current is None:
+            raise RegistryRevisionChangedError("endpoint_profile_version_changed")
+        policy = current.access_policy
+        reasons: list[str] = []
+        if not current.enabled:
+            reasons.append("endpoint_disabled_or_unconfigured")
+        if (
+            policy is None
+            or policy.selection_mode != "explicit_only"
+            or policy.automation_eligible
+        ):
+            reasons.append("endpoint_not_explicitly_selectable")
+        if policy is None or policy.credential_runtime != credential_runtime:
+            reasons.append("endpoint_credential_runtime_mismatch")
+        if policy is None or policy.model_discovery != model_discovery:
+            reasons.append("endpoint_model_discovery_mismatch")
+        if policy is not None and policy.hosted_conversation_state:
+            reasons.append("endpoint_hosted_history_forbidden")
+        for capability in sorted(required_capabilities - current.capabilities):
+            reasons.append(f"capability_missing:{capability}")
+        data_use = current.data_use_policy
+        if data_use.status != "approved":
+            reasons.append("provider_data_use_not_approved")
+        elif sensitivity_exceeds(sensitivity, data_use.max_sensitivity):
+            reasons.append("sensitivity_exceeds_provider_approval")
+        if reasons:
+            raise EndpointNotAdmissibleError(tuple(reasons))
+        return current
+
     def upsert(self, profile: EndpointProfile) -> EndpointRegistrySnapshot:
         """Add a profile or replace it at a strictly higher profile version."""
         (profile,) = self._validate_profiles((profile,))
@@ -373,12 +414,9 @@ def _assess(
     now: datetime,
 ) -> CandidateAssessment:
     reasons: list[str] = []
-    if profile.provider_id == "openai_chatgpt_plan" or (
-        profile.access_policy is not None
-        and (
-            not profile.access_policy.automation_eligible
-            or profile.access_policy.selection_mode == "explicit_only"
-        )
+    if profile.access_policy is not None and (
+        not profile.access_policy.automation_eligible
+        or profile.access_policy.selection_mode == "explicit_only"
     ):
         reasons.append("explicit_only_endpoint")
     if requirements.execution_mode != "STRICT_FREE":

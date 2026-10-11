@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from personal_ai.entities.conversation import MAX_MESSAGE_CONTENT_CHARS
 from personal_ai.llm.chatgpt.oauth import RESOURCE
 from personal_ai.llm.chatgpt.wire import decode_json
 from personal_ai.llm.client import (
@@ -75,7 +76,7 @@ def classify_error(data, status=None, *, request_id=None):
         normalized = {
             401: "bridge_auth_required",
             403: "bridge_admission_denied",
-            429: "bridge_usage_limit",
+            429: "bridge_rate_limited",
             400: "bridge_unsupported_request",
         }.get(status, "bridge_unavailable")
     safe_request_id = (
@@ -258,6 +259,7 @@ class ChatGPTResponses:
         invocation_id: str,
         execution_profile: ExecutionProfileIdentity = CHATGPT_PLAN_PROFILE,
         max_output_bytes: int,
+        max_output_chars: int = MAX_MESSAGE_CONTENT_CHARS,
         timeout_seconds: float,
     ) -> AsyncIterator[GenerationEvent]:
         if not self.supports_profile(execution_profile):
@@ -282,6 +284,7 @@ class ChatGPTResponses:
             )
 
         emitted_bytes = 0
+        emitted_chars = 0
         terminal_event = None
         response_id = None
         text_parts = []
@@ -347,7 +350,8 @@ class ChatGPTResponses:
                         if response_id is None or not isinstance(delta, str) or not delta:
                             raise LLMInvalidResponseError("bridge_delta_invalid")
                         emitted_bytes += len(delta.encode())
-                        if emitted_bytes > max_output_bytes:
+                        emitted_chars += len(delta)
+                        if emitted_bytes > max_output_bytes or emitted_chars > max_output_chars:
                             yield terminal("incomplete", "bridge_output_bound")
                             return
                         text_parts.append(delta)
@@ -458,7 +462,8 @@ class ChatGPTResponses:
                         if not isinstance(delta, str):
                             raise LLMInvalidResponseError("bridge_refusal_invalid")
                         emitted_bytes += len(delta.encode())
-                        if emitted_bytes > max_output_bytes:
+                        emitted_chars += len(delta)
+                        if emitted_bytes > max_output_bytes or emitted_chars > max_output_chars:
                             terminal_event = terminal("incomplete", "bridge_output_bound")
                         elif delta:
                             refusal_parts.append(delta)
@@ -472,7 +477,8 @@ class ChatGPTResponses:
                             raise LLMInvalidResponseError("bridge_refusal_mismatch")
                         if not refusal_parts and refusal:
                             emitted_bytes += len(refusal.encode())
-                            if emitted_bytes > max_output_bytes:
+                            emitted_chars += len(refusal)
+                            if emitted_bytes > max_output_bytes or emitted_chars > max_output_chars:
                                 terminal_event = terminal("incomplete", "bridge_output_bound")
                             else:
                                 text_parts.append(refusal)

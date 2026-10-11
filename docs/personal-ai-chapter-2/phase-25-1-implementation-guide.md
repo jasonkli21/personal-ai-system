@@ -162,13 +162,18 @@ with the dispatch identity and package fingerprint to read only `pre_send_active
 `POST /receipt/acknowledge`. Both endpoints are scoped to the active caller, origin,
 connection revision, identity and fingerprint and never return output.
 
-Receipts are typed and capped at 4,096 and 2 MiB of state. Pre-send claims can be
-recovered only after the process lock proves no active send-start transition owns
-them. `send_started` uncertainty is never pruned. Settled receipts become eligible
-for collection only after proof expiry and either caller acknowledgement or 24 hours
-since terminal completion. A persisted high-water clock prevents wall-clock rollback
-from making an expired proof replayable. Capacity still fails closed if unresolved
-receipts fill the store.
+Receipt detail is typed and capped at 4,096 entries and 2 MiB of state. Pre-send
+claims can be recovered only after the process lock proves no active send-start
+transition owns them. `send_started` uncertainty is never discarded: after proof
+expiry and one day of reconciliation retention, the detailed entry is replaced by
+a protected hash-named tombstone containing only the dispatch/fingerprint hashes,
+connection revision and origin digest. The tombstone remains permanent, denies any
+replay of that identity, and returns `unknown` for authorized reconciliation.
+Settled receipts become eligible for collection only after proof expiry and either
+caller acknowledgement or 24 hours since terminal completion. Schema versions 1
+and 2 migrate forward to version 3; legacy uncertain entries retain their fence.
+A persisted high-water clock prevents wall-clock rollback from making an expired
+proof replayable. Failure to persist or validate a tombstone fails closed.
 
 Refresh records an in-flight marker before IO under the same cross-process lock and
 atomically replaces the token set. Confirmed terminal refresh errors clear unusable
