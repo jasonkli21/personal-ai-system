@@ -48,7 +48,9 @@ def client() -> Iterator[TestClient]:
         get_summary_repository: lambda: summaries,
         get_context_trace_repository: lambda: traces,
         get_context_assembler: lambda: ContextAssembler(
-            app.dependency_overrides[get_settings](), EstimatedTokenCounter(), summaries,
+            app.dependency_overrides[get_settings](),
+            EstimatedTokenCounter(),
+            summaries,
         ),
         get_conversation_repository: lambda: conversations,
         get_message_repository: lambda: messages,
@@ -66,7 +68,10 @@ def client() -> Iterator[TestClient]:
 def _sse_events(body: str) -> list[tuple[str, dict[str, object]]]:
     blocks = [block for block in body.strip().split("\n\n") if block]
     return [
-        (block.split("\n", 1)[0].removeprefix("event: "), __import__("json").loads(block.split("\n", 1)[1].removeprefix("data: ")))
+        (
+            block.split("\n", 1)[0].removeprefix("event: "),
+            __import__("json").loads(block.split("\n", 1)[1].removeprefix("data: ")),
+        )
         for block in blocks
     ]
 
@@ -92,6 +97,33 @@ def test_create_list_and_get_empty_conversation(client: TestClient) -> None:
     assert detail.json() == {"conversation": conversation, "messages": []}
 
 
+def test_conversation_creation_replays_stable_key_and_rejects_changed_input(
+    client: TestClient,
+) -> None:
+    key = str(uuid4())
+    first = client.post(
+        "/v1/conversations",
+        json={"title": "Travel assistant", "idempotency_key": key},
+        headers={"X-Application-ID": "travel"},
+    )
+    retry = client.post(
+        "/v1/conversations",
+        json={"title": "Travel assistant", "idempotency_key": key},
+        headers={"X-Application-ID": "travel"},
+    )
+    changed = client.post(
+        "/v1/conversations",
+        json={"title": "Another title", "idempotency_key": key},
+        headers={"X-Application-ID": "travel"},
+    )
+
+    assert first.status_code == retry.status_code == 201
+    assert first.json()["id"] == retry.json()["id"]
+    assert first.json()["workspace_id"] is None
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "conversation_conflict"
+
+
 def test_application_scope_isolated_and_client_owner_context_is_not_authority(
     client: TestClient,
 ) -> None:
@@ -113,24 +145,26 @@ def test_application_scope_isolated_and_client_owner_context_is_not_authority(
     assert travel["application_id"] == "travel"
     assert client.get("/v1/conversations").json()["conversations"] == [standalone]
     assert client.get(f"/v1/conversations/{travel['id']}").status_code == 404
-    assert client.get(
-        f"/v1/conversations/{travel['id']}", headers={"X-Application-ID": "travel"}
-    ).status_code == 200
+    assert (
+        client.get(
+            f"/v1/conversations/{travel['id']}", headers={"X-Application-ID": "travel"}
+        ).status_code
+        == 200
+    )
 
 
 def test_unknown_registered_application_is_denied_with_a_stable_error(
     client: TestClient,
 ) -> None:
-    response = client.get(
-        "/v1/conversations", headers={"X-Application-ID": "not-registered"}
-    )
+    response = client.get("/v1/conversations", headers={"X-Application-ID": "not-registered"})
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "application_not_registered"
 
 
 def test_registered_synthetic_application_reaches_scoped_context_without_core_branching(
-    client: TestClient, monkeypatch,
+    client: TestClient,
+    monkeypatch,
 ) -> None:
     definition = ApplicationDefinition(
         application_id="synthetic",
@@ -188,14 +222,14 @@ def test_chat_creation_and_terminal_events_use_the_persisted_scope(client: TestC
     terminal = [payload["message"] for name, payload in events if name == "response.completed"]
     assert len(created) == 2
     assert len(terminal) == 1
-    assert all(item["application_id"] == "travel" and item["scope_version"] == 2
-               for item in (*created, *terminal))
+    assert all(
+        item["application_id"] == "travel" and item["scope_version"] == 2
+        for item in (*created, *terminal)
+    )
 
 
 def test_workspace_scope_fails_closed_without_membership_authority(client: TestClient) -> None:
-    response = client.post(
-        "/v1/conversations", json={}, headers={"X-Workspace-ID": "team-a"}
-    )
+    response = client.post("/v1/conversations", json={}, headers={"X-Workspace-ID": "team-a"})
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "workspace_not_authorized"
@@ -307,14 +341,20 @@ def test_storage_failures_have_safe_json_error_response(client: TestClient) -> N
 def test_message_turn_streams_and_persists_completed_response(client: TestClient) -> None:
     conversation = client.post("/v1/conversations", json={}).json()
 
-    response = client.post(f"/v1/conversations/{conversation['id']}/messages", json={"content": "Hi"})
+    response = client.post(
+        f"/v1/conversations/{conversation['id']}/messages", json={"content": "Hi"}
+    )
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.headers["x-accel-buffering"] == "no"
     events = _sse_events(response.text)
     assert [event for event, _ in events] == [
-        "message.created", "message.created", "response.delta", "response.delta", "response.completed"
+        "message.created",
+        "message.created",
+        "response.delta",
+        "response.delta",
+        "response.completed",
     ]
     completed = events[-1][1]["message"]
     assert completed["content"] == "Hello there"
@@ -329,9 +369,14 @@ def test_regenerate_and_edit_retry_replace_the_active_path(client: TestClient) -
     first_events = _sse_events(first.text)
     assistant_id = first_events[-1][1]["message"]["id"]
 
-    regenerated = client.post(f"/v1/conversations/{conversation_id}/messages/{assistant_id}/regenerate")
+    regenerated = client.post(
+        f"/v1/conversations/{conversation_id}/messages/{assistant_id}/regenerate"
+    )
     assert [event for event, _ in _sse_events(regenerated.text)] == [
-        "message.created", "response.delta", "response.delta", "response.completed"
+        "message.created",
+        "response.delta",
+        "response.delta",
+        "response.completed",
     ]
     user_id = client.get(f"/v1/conversations/{conversation_id}").json()["messages"][0]["id"]
     retried = client.post(
@@ -339,7 +384,11 @@ def test_regenerate_and_edit_retry_replace_the_active_path(client: TestClient) -
         json={"content": "edited"},
     )
     assert [event for event, _ in _sse_events(retried.text)] == [
-        "message.created", "message.created", "response.delta", "response.delta", "response.completed"
+        "message.created",
+        "message.created",
+        "response.delta",
+        "response.delta",
+        "response.completed",
     ]
     detail = client.get(f"/v1/conversations/{conversation_id}").json()
     assert [message["content"] for message in detail["messages"]] == ["edited", "Hello there"]
@@ -366,7 +415,11 @@ def test_model_failure_is_streamed_once_and_persisted(client: TestClient) -> Non
     response = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "Hi"})
 
     events = _sse_events(response.text)
-    assert [event for event, _ in events] == ["message.created", "message.created", "response.error"]
+    assert [event for event, _ in events] == [
+        "message.created",
+        "message.created",
+        "response.error",
+    ]
     assert events[-1][1]["code"] == "llm_timeout"
     detail = client.get(f"/v1/conversations/{conversation_id}").json()
     assert detail["messages"][-1]["status"] == "failed"
@@ -387,9 +440,7 @@ def test_oversized_model_response_is_rejected_without_persisting_it(
     )
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
 
-    response = client.post(
-        f"/v1/conversations/{conversation_id}/messages", json={"content": "Hi"}
-    )
+    response = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "Hi"})
 
     events = _sse_events(response.text)
     assert [event for event, _ in events][-1] == "response.error"
@@ -403,11 +454,15 @@ def test_oversized_model_response_is_rejected_without_persisting_it(
 
 def test_message_count_cap_is_replaced_by_context_budget(client: TestClient) -> None:
     app.dependency_overrides[get_settings] = lambda: Settings(
-        ai_provider="gemini", ai_model="test-model", max_phase_1_history_messages=1,
+        ai_provider="gemini",
+        ai_model="test-model",
+        max_phase_1_history_messages=1,
     )
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
     for content in ("first", "second"):
-        response = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": content})
+        response = client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"content": content}
+        )
         assert response.status_code == 200
         assert _sse_events(response.text)[-1][0] == "response.completed"
 
@@ -420,9 +475,7 @@ def test_empty_or_whitespace_model_output_fails_and_keeps_next_turn_usable(
     app.dependency_overrides[get_llm_client] = lambda: llm
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
 
-    first = client.post(
-        f"/v1/conversations/{conversation_id}/messages", json={"content": "first"}
-    )
+    first = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "first"})
 
     events = _sse_events(first.text)
     assert events[-1][0] == "response.error"
@@ -438,11 +491,7 @@ def test_empty_or_whitespace_model_output_fails_and_keeps_next_turn_usable(
         f"/v1/conversations/{conversation_id}/messages", json={"content": "second"}
     )
     assert _sse_events(second.text)[-1][0] == "response.completed"
-    assert next_llm.requests == [
-        (
-            ChatMessage(role=MessageRole.USER, content="second"),
-        )
-    ]
+    assert next_llm.requests == [(ChatMessage(role=MessageRole.USER, content="second"),)]
 
 
 def test_regenerate_and_edit_retry_send_only_the_replacement_active_prefix(
@@ -451,13 +500,9 @@ def test_regenerate_and_edit_retry_send_only_the_replacement_active_prefix(
     llm = FakeLLMClient(["answer"])
     app.dependency_overrides[get_llm_client] = lambda: llm
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
-    first = client.post(
-        f"/v1/conversations/{conversation_id}/messages", json={"content": "first"}
-    )
+    first = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "first"})
     first_assistant_id = _sse_events(first.text)[-1][1]["message"]["id"]
-    client.post(
-        f"/v1/conversations/{conversation_id}/messages", json={"content": "second"}
-    )
+    client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "second"})
     assert len(llm.requests) == 2
 
     regenerated = client.post(
@@ -483,13 +528,9 @@ def test_edit_and_retry_capacity_uses_the_replacement_prefix(client: TestClient)
         max_phase_1_history_messages=3,
     )
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
-    first = client.post(
-        f"/v1/conversations/{conversation_id}/messages", json={"content": "first"}
-    )
+    first = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "first"})
     first_user_id = _sse_events(first.text)[0][1]["message"]["id"]
-    client.post(
-        f"/v1/conversations/{conversation_id}/messages", json={"content": "second"}
-    )
+    client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "second"})
 
     edited = client.post(
         f"/v1/conversations/{conversation_id}/messages/{first_user_id}/edit-and-retry",

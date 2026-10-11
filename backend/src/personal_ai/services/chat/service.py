@@ -15,16 +15,18 @@ import anyio
 from personal_ai.applications.contracts import ApplicationContextRequest, ContextSensitivity
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
-from personal_ai.context.authorization import make_inference_context
+from personal_ai.context.authorization import authorize_base_disclosure, make_inference_context
 from personal_ai.context.contracts import ContextError
 from personal_ai.context.deadline import remaining
 from personal_ai.context.history import (
     conversation_context_messages,
     manual_import_is_reusable,
+    source_snapshots_for_message,
+    summary_authority_snapshot,
 )
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
-from personal_ai.contracts.context_references import ContextEntityReference
+from personal_ai.contracts.context_references import ContextEntityReference, ContextSourceSnapshot
 from personal_ai.entities import MAX_MESSAGE_CONTENT_CHARS, Message, MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.llm import (
@@ -82,6 +84,8 @@ class _PreparedTurn:
     deadline: float
     selected_memory_ids: tuple[UUID, ...] = ()
     selected_message_ids: tuple[UUID, ...] = ()
+    source_snapshots: tuple[ContextSourceSnapshot, ...] = ()
+    effective_context_sensitivity: ContextSensitivity | None = None
     inference_context: InferenceContext | None = None
 
 
@@ -265,6 +269,57 @@ class ChatTurnService:
         context_assembler: ContextAssembler | None = None,
     ):
         """Return a read-only planner projection without reservation or provider work."""
+        return self._preview_context(
+            conversation_id,
+            content,
+            candidate_message_ids=candidate_message_ids,
+            candidate_entities=candidate_entities,
+            history_authorizer=history_authorizer,
+            excluded_source_classes=excluded_source_classes,
+            maximum_context_sensitivity=maximum_context_sensitivity,
+            context_assembler=context_assembler,
+            external_lane=True,
+        )
+
+    def preview_context(
+        self,
+        conversation_id: UUID,
+        content: str,
+        *,
+        candidate_message_ids=None,
+        candidate_entities: Sequence[ContextEntityReference] = (),
+        history_authorizer=None,
+        excluded_source_classes=frozenset(),
+        maximum_context_sensitivity: ContextSensitivity | None = None,
+        context_assembler: ContextAssembler | None = None,
+    ):
+        """Return the automatic lane's planner projection without provider reads."""
+        return self._preview_context(
+            conversation_id,
+            content,
+            candidate_message_ids=candidate_message_ids,
+            candidate_entities=candidate_entities,
+            history_authorizer=history_authorizer,
+            excluded_source_classes=excluded_source_classes,
+            maximum_context_sensitivity=maximum_context_sensitivity,
+            context_assembler=context_assembler,
+            external_lane=False,
+        )
+
+    def _preview_context(
+        self,
+        conversation_id: UUID,
+        content: str,
+        *,
+        candidate_message_ids=None,
+        candidate_entities: Sequence[ContextEntityReference] = (),
+        history_authorizer=None,
+        excluded_source_classes=frozenset(),
+        maximum_context_sensitivity: ContextSensitivity | None = None,
+        context_assembler: ContextAssembler | None = None,
+        external_lane: bool,
+    ):
+        """Share history policy and planner projection across execution lanes."""
         if self._application_context is None:
             raise ContextPreparationError("application_context_required")
         context = context_assembler or self._context
@@ -286,11 +341,22 @@ class ChatTurnService:
                 if any(message.id in requested for message in turn)
                 for message in turn
             ]
+        authorize_base_disclosure(self._application_context)
+        plan = context.plan_context(
+            content,
+            self._application_context,
+            candidate_entities=candidate_entities,
+            excluded_source_classes=(
+                frozenset(excluded_source_classes) | ({"ai_memory"} if external_lane else set())
+            ),
+            maximum_sensitivity=maximum_context_sensitivity,
+        )
+        history_exclusions = {}
+        reuse_policy = self._application_context.definition.context_policy.sidecar.manual_import_reuse
         history = conversation_context_messages(
             history,
-            manual_import_reuse=(
-                self._application_context.definition.context_policy.sidecar.manual_import_reuse
-            ),
+            manual_import_reuse=reuse_policy,
+            exclusions=history_exclusions,
         )
         if candidate_message_ids is not None and set(candidate_message_ids) - {
             message.id for message in history
@@ -298,13 +364,17 @@ class ChatTurnService:
             raise ContextPreparationError("continuation_source_policy_denied")
         if history_authorizer is not None:
             history_authorizer(tuple(message.id for message in history))
-        plan = context.plan_context(
-            content,
-            self._application_context,
-            candidate_entities=candidate_entities,
-            excluded_source_classes=frozenset(excluded_source_classes) | {"ai_memory"},
-            maximum_sensitivity=maximum_context_sensitivity,
+        history = conversation_context_messages(
+            history,
+            manual_import_reuse=reuse_policy,
+            permission_revalidator=context.permission_revalidator,
+            check_source_permissions=True,
+            exclusions=history_exclusions,
         )
+        if candidate_message_ids is not None and set(candidate_message_ids) - {
+            message.id for message in history
+        }:
+            raise ContextPreparationError("continuation_source_policy_denied")
         return plan, len(history)
 
     def continue_turn(self, conversation_id: UUID, request) -> AsyncIterator[TurnEvent]:
@@ -517,13 +587,24 @@ class ChatTurnService:
                 history_for_context = [
                     m for pair in eligible if any(m.id in requested for m in pair) for m in pair
                 ]
+            context_plan = None
+            use_planned_memory = False
+            history_exclusions = {}
             if self._application_context is not None:
+                authorize_base_disclosure(self._application_context)
+                context_plan = context.plan_context(
+                    user.content,
+                    self._application_context,
+                    candidate_entities=candidate_entities,
+                    excluded_source_classes=excluded_source_classes,
+                    maximum_sensitivity=maximum_context_sensitivity,
+                )
+                reuse_policy = self._application_context.definition.context_policy.sidecar.manual_import_reuse
                 history_for_context = list(
                     conversation_context_messages(
                         history_for_context,
-                        manual_import_reuse=(
-                            self._application_context.definition.context_policy.sidecar.manual_import_reuse
-                        ),
+                        manual_import_reuse=reuse_policy,
+                        exclusions=history_exclusions,
                     )
                 )
                 if candidate_message_ids is not None and set(candidate_message_ids) - {
@@ -532,16 +613,21 @@ class ChatTurnService:
                     raise ContextPreparationError("continuation_source_policy_denied")
             if history_authorizer is not None:
                 history_authorizer(tuple(m.id for m in history_for_context))
-            context_plan = None
-            use_planned_memory = False
             if self._application_context is not None:
-                context_plan = context.plan_context(
-                    user.content,
-                    self._application_context,
-                    candidate_entities=candidate_entities,
-                    excluded_source_classes=excluded_source_classes,
-                    maximum_sensitivity=maximum_context_sensitivity,
+                history_for_context = list(
+                    conversation_context_messages(
+                        history_for_context,
+                        manual_import_reuse=reuse_policy,
+                        permission_revalidator=context.permission_revalidator,
+                        check_source_permissions=True,
+                        now=datetime.now(UTC),
+                        exclusions=history_exclusions,
+                    )
                 )
+                if candidate_message_ids is not None and set(candidate_message_ids) - {
+                    message.id for message in history_for_context
+                }:
+                    raise ContextPreparationError("continuation_source_policy_denied")
                 use_planned_memory = any(
                     selection.provider_id == "ai_memory" and selection.operation == "search"
                     for selection in context_plan.selections
@@ -575,6 +661,7 @@ class ChatTurnService:
                 refresh=not external,
                 application_context=self._application_context,
                 context_plan=context_plan,
+                history_exclusions=history_exclusions,
                 expected_counter_identity=(
                     self._llm.identity
                     if not external and getattr(self._llm, "requires_inference_context", False)
@@ -611,6 +698,38 @@ class ChatTurnService:
                 remaining(deadline)
             if assembled.manifest is None:
                 raise ContextError("actual_context_manifest_unavailable")
+            injected_source_keys = {
+                (item.provider_id, item.source_id, item.item_id)
+                for item in assembled.manifest.items
+                if item.injected
+            }
+            context_snapshots = [
+                item.authority_snapshot()
+                for item in assembled.source_items
+                if (item.provider_id, item.source_id, item.item_id) in injected_source_keys
+            ]
+            history_by_id = {message.id: message for message in history_for_context}
+            if assembled.summary is not None:
+                summary_snapshot = summary_authority_snapshot(
+                    assembled.summary, history_for_context
+                )
+                if summary_snapshot is not None:
+                    context_snapshots.append(summary_snapshot)
+            for message_id in assembled.selected_message_ids:
+                message = history_by_id.get(message_id)
+                if message is not None and message.role is MessageRole.ASSISTANT:
+                    context_snapshots.extend(source_snapshots_for_message(message))
+            unique_snapshots = tuple(
+                {
+                    snapshot.model_dump_json(): snapshot
+                    for snapshot in context_snapshots
+                }.values()
+            )
+            if len(unique_snapshots) > 512 or sum(
+                len(snapshot.model_dump_json().encode("utf-8"))
+                for snapshot in unique_snapshots
+            ) > 56_000:
+                raise ContextPreparationError("context_authority_exceeds_bound")
             inference_context = (
                 make_inference_context(
                     self._application_context, assembled.manifest.effective_sensitivity
@@ -673,6 +792,8 @@ class ChatTurnService:
             assembled.selected_memory_ids,
             inference_context=inference_context,
             selected_message_ids=assembled.selected_message_ids,
+            source_snapshots=unique_snapshots,
+            effective_context_sensitivity=assembled.manifest.effective_sensitivity,
         )
 
     def _stream(self, turn: _PreparedTurn) -> AsyncIterator[TurnEvent]:
@@ -824,7 +945,9 @@ class ChatTurnService:
                             provider_id=generation_metadata.identity.provider_id,
                             model_id=generation_metadata.identity.model_id,
                             recorded_at=datetime.now(UTC),
+                            effective_context_sensitivity=turn.effective_context_sensitivity,
                             source_message_ids=turn.selected_message_ids,
+                            source_snapshots=turn.source_snapshots,
                             latency_ms=int((monotonic() - started_at) * 1000),
                             usage_source=generation_metadata.usage.source
                             if generation_metadata.usage
@@ -952,6 +1075,16 @@ class ChatTurnService:
             id=message_id or uuid4(),
             conversation_id=conversation_id,
             owner_id=self._owner_id,
+            application_id=(
+                self._application_context.scope.application_id
+                if self._application_context is not None
+                else "personal_ai"
+            ),
+            workspace_id=(
+                self._application_context.scope.workspace_id
+                if self._application_context is not None
+                else None
+            ),
             role=role,
             content=content,
             status=status,
@@ -972,5 +1105,3 @@ class ChatTurnService:
             yield TurnCompleted(message=assistant)
 
         return replay()
-
-

@@ -367,6 +367,7 @@ class ContextBuilder:
         class_counts: dict[ContextSourceClass, int] = {}
         memory_count_failed = False
         represented_memory_ids: set[str] = set()
+        permission_results: dict[ContextPermissionDependency, bool] = {}
         now = self.clock().astimezone(UTC)
 
         def omit_group(
@@ -407,13 +408,19 @@ class ContextBuilder:
                     if self.permission_revalidator is None:
                         reason = "permission_unverified"
                         break
-                    try:
-                        permissions_current = all(
-                            self.permission_revalidator.is_current(dependency)
-                            for dependency in item.permission_dependencies
-                        )
-                    except Exception:  # noqa: BLE001 - permission recheck fails closed
-                        permissions_current = False
+                    for dependency in item.permission_dependencies:
+                        if dependency in permission_results:
+                            continue
+                        try:
+                            permission_results[dependency] = bool(
+                                self.permission_revalidator.is_current(dependency)
+                            )
+                        except Exception:  # noqa: BLE001 - permission recheck fails closed
+                            permission_results[dependency] = False
+                    permissions_current = all(
+                        permission_results[dependency]
+                        for dependency in item.permission_dependencies
+                    )
                     if not permissions_current:
                         reason = "permission_revoked"
                         break

@@ -9,6 +9,7 @@ from pydantic import Field
 
 from personal_ai.api.dependencies import (
     get_application_context,
+    get_chat_turn_service,
     get_endpoint_registry,
     get_external_dispatch_signer,
     get_external_turn_service,
@@ -20,11 +21,13 @@ from personal_ai.applications.contracts import (
     ApplicationSidecarPolicy,
 )
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner, SignedDispatchGrant
+from personal_ai.context.authorization import authorize_base_disclosure
 from personal_ai.contracts.execution import ContinuationRequest, ExternalFailureCode
 from personal_ai.entities import Message
 from personal_ai.llm.external import PreparedExecution
 from personal_ai.routing.contracts import EndpointRef
 from personal_ai.routing.registry import EndpointRegistry
+from personal_ai.services.chat import ChatTurnService
 from personal_ai.services.external_turns import (
     ContextPackage,
     ExternalTurnService,
@@ -115,6 +118,7 @@ class FailureRequest(AbandonRequest):
 
 class ContextPreviewSource(APIModel):
     category: str = Field(min_length=1, max_length=48)
+    source_class: str | None = Field(default=None, min_length=1, max_length=48)
     operation: str = Field(min_length=1, max_length=32)
     fields: tuple[str, ...] = Field(default=(), max_length=32)
     max_results: int = Field(ge=1, le=50)
@@ -132,10 +136,72 @@ class ContextPreviewResponse(APIModel):
     excluded_sources: tuple[ContextPreviewExclusion, ...] = Field(default=(), max_length=64)
 
 
+@router.post(
+    "/{conversation_id}/context-preview",
+    response_model=ContextPreviewResponse,
+)
+def preview_automatic_context(
+    conversation_id: UUID,
+    request: ContinuationRequest,
+    context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
+    service: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
+) -> ContextPreviewResponse:
+    """Show the shared automatic planner's bounded source choices before a turn."""
+    if request.choice.mode != "automatic":
+        raise HTTPException(status_code=422, detail="context_preview_requires_automatic_mode")
+    if request.launch_context is not None:
+        try:
+            request.launch_context.validate_for(context.scope, conversation_id)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=422, detail="application_launch_scope_mismatch"
+            ) from error
+    service.require_context(context)
+    authorize_base_disclosure(context)
+    plan, selected_count = service.preview_context(
+        conversation_id,
+        request.content,
+        candidate_entities=request.entity_refs,
+        excluded_source_classes=frozenset(request.excluded_source_classes),
+    )
+    selections = {(item.provider_id, item.operation): item for item in plan.selections}
+    planned = tuple(
+        {
+            "category": decision.category,
+            "source_class": decision.source_class,
+            "operation": decision.operation or "current",
+            "fields": decision.fields,
+            "max_results": selections[(decision.provider_id, decision.operation)].max_results,
+            "max_tokens": selections[(decision.provider_id, decision.operation)].max_tokens,
+        }
+        for decision in plan.decisions
+        if decision.disposition == "selected"
+        and decision.provider_id is not None
+        and decision.operation is not None
+        and (decision.provider_id, decision.operation) in selections
+    )
+    excluded = tuple(
+        {"category": item.category, "reason": item.reason}
+        for item in plan.decisions
+        if item.disposition == "omitted"
+    )
+    return ContextPreviewResponse(
+        selected_message_count=selected_count,
+        planned_sources=planned,
+        excluded_sources=excluded,
+    )
+
+
 class ReconciliationResponse(APIModel):
     state: Literal[
-        "not_found", "not_external", "prepared", "prepared_stale", "dispatched",
-        "completed", "cancelled", "unknown",
+        "not_found",
+        "not_external",
+        "prepared",
+        "prepared_stale",
+        "dispatched",
+        "completed",
+        "cancelled",
+        "unknown",
     ]
     message_id: UUID | None = None
     package_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
@@ -152,9 +218,7 @@ def execution_options(
     """Project only explicitly selectable, current P18 profiles and app policy modes."""
     sidecar = context.definition.context_policy.sidecar
     if not settings.external_turn_acceptance_enabled:
-        return ExecutionOptionsResponse(
-            modes=("automatic",), explicit_profiles=(), sidecar=sidecar
-        )
+        return ExecutionOptionsResponse(modes=("automatic",), explicit_profiles=(), sidecar=sidecar)
     allowed = set(context.definition.context_policy.external_execution_modes)
     policy = context.definition.context_policy.sidecar
     signer: DispatchGrantSigner | None = get_external_dispatch_signer(settings)
@@ -202,9 +266,7 @@ def execution_options(
         and policy.copy_allowed
     ):
         modes.append("manual_external")
-    return ExecutionOptionsResponse(
-        modes=tuple(modes), explicit_profiles=profiles, sidecar=sidecar
-    )
+    return ExecutionOptionsResponse(modes=tuple(modes), explicit_profiles=profiles, sidecar=sidecar)
 
 
 @router.post(
@@ -230,7 +292,9 @@ def reconcile_external_turn(
     idempotency_key: UUID,
     service: Annotated[ExternalTurnService, Depends(get_external_turn_service)],
 ) -> ReconciliationResponse:
-    return ReconciliationResponse.model_validate(service.reconcile(conversation_id, idempotency_key))
+    return ReconciliationResponse.model_validate(
+        service.reconcile(conversation_id, idempotency_key)
+    )
 
 
 @router.post(
@@ -284,9 +348,7 @@ def dispatch_external_turn(
     request: DispatchRequest,
     service: Annotated[ExternalTurnService, Depends(get_external_turn_service)],
 ) -> DispatchResponse:
-    proof = service.dispatch_package(
-        conversation_id, message_id, request.connected_execution
-    )
+    proof = service.dispatch_package(conversation_id, message_id, request.connected_execution)
     return DispatchResponse(proof=proof)
 
 
@@ -344,9 +406,7 @@ def abandon_external_turn(
     request: AbandonRequest,
     service: Annotated[ExternalTurnService, Depends(get_external_turn_service)],
 ) -> Message:
-    return service.abandon(
-        conversation_id, message_id, request.package_fingerprint
-    )
+    return service.abandon(conversation_id, message_id, request.package_fingerprint)
 
 
 @router.post(

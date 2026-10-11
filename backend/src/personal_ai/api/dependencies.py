@@ -35,6 +35,7 @@ from personal_ai.context.profile import GlobalProfileContextProviderFactory
 from personal_ai.context.providers import ContextProviderCoordinator
 from personal_ai.context.runtime import (
     EMPTY_CONTEXT_RUNTIME_REGISTRY,
+    ContextPermissionRevalidatorRegistry,
     ContextRuntimeRegistry,
 )
 from personal_ai.context.tokens import EstimatedTokenCounter
@@ -192,11 +193,16 @@ def get_context_trace_repository(
     repository = factory.context_trace_repository()
     if settings.artifacts_enabled:
         from personal_ai.artifacts.consumers import ArtifactContextTraceRepository
-        return ArtifactContextTraceRepository(repository, lambda: factory.artifact_service(settings))
+
+        return ArtifactContextTraceRepository(
+            repository, lambda: factory.artifact_service(settings)
+        )
     return repository
 
 
-def get_context_runtime_registry(request: Request) -> ContextRuntimeRegistry:
+def get_context_runtime_registry(
+    request: Request,
+) -> ContextRuntimeRegistry:
     """Return deployment-installed adapters/rules, separate from app permissions."""
     return getattr(
         request.app.state,
@@ -239,8 +245,11 @@ def get_context_assembler(
         GeminiConversationSummarizer(settings, usage_accounting=usage),
         context_provider_coordinator=providers,
         context_planner=ContextPlanner(runtime.planning_rules),
-        permission_revalidator=BuiltInContextPermissionRevalidator(
-            settings, profile_repository
+        permission_revalidator=ContextPermissionRevalidatorRegistry(
+            (
+                BuiltInContextPermissionRevalidator(settings, profile_repository),
+                *runtime.permission_revalidators,
+            )
         ),
     )
 
@@ -299,21 +308,35 @@ def get_chat_turn_service(
     """Compose the durable streaming chat lifecycle."""
     retriever = extraction = lifecycle_coordinator = None
     if settings.memory_enabled and memory_repository is not None:
-        lifecycle_repository = lifecycle_repository or persistence_factory(settings).memory_lifecycle_repository(
-            memory_repository, messages
-        )
+        lifecycle_repository = lifecycle_repository or persistence_factory(
+            settings
+        ).memory_lifecycle_repository(memory_repository, messages)
         retriever = MemoryRetriever(
-            settings, memory_repository, messages, memory_adapter, lifecycle_repository
+            settings,
+            memory_repository,
+            messages,
+            memory_adapter,
+            lifecycle_repository,
+            permission_revalidator=context.permission_revalidator,
         )
         if settings.memory_extraction_enabled:
             extraction = MemoryExtractionService(
-                settings, memory_repository, messages, memory_adapter, memory_adapter,
+                settings,
+                memory_repository,
+                messages,
+                memory_adapter,
+                memory_adapter,
             )
         if settings.memory_lifecycle_worker_enabled:
-            publisher = PubSubMemoryJobPublisher(settings) if settings.memory_lifecycle_topic else None
+            publisher = (
+                PubSubMemoryJobPublisher(settings) if settings.memory_lifecycle_topic else None
+            )
             lifecycle_coordinator = MemoryLifecycleCoordinator(
-                settings, lifecycle_repository, memory_repository,
-                extraction=extraction, publisher=publisher,
+                settings,
+                lifecycle_repository,
+                memory_repository,
+                extraction=extraction,
+                publisher=publisher,
             )
     return ChatTurnService(
         conversations,
@@ -355,7 +378,9 @@ def get_endpoint_registry(settings: Annotated[Settings, Depends(get_settings)]) 
     try:
         return factory.endpoint_profile_resolver(settings).endpoint_registry
     except Exception:  # noqa: BLE001 - unavailable routing authority fails closed.
-        raise HTTPException(status_code=503, detail="external_endpoint_registry_unavailable") from None
+        raise HTTPException(
+            status_code=503, detail="external_endpoint_registry_unavailable"
+        ) from None
 
 
 def get_external_turn_service(
@@ -380,8 +405,7 @@ def get_external_turn_service(
         permission_revalidator=context_assembler.permission_revalidator,
         workspace_authorizer=workspace_authorizer,
         allow_development_principal=(
-            settings.auth_mode == "development"
-            and settings.app_environment in {"local", "test"}
+            settings.auth_mode == "development" and settings.app_environment in {"local", "test"}
         ),
     )
     return ExternalTurnService(

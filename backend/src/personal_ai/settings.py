@@ -101,7 +101,9 @@ class Settings(BaseSettings):
     inference_additional_endpoint_profiles: tuple[dict[str, object], ...] = Field(
         default=(), max_length=32
     )
-    external_dispatch_grant_issuer: str = Field(default="personal-ai-api", min_length=1, max_length=200)
+    external_dispatch_grant_issuer: str = Field(
+        default="personal-ai-api", min_length=1, max_length=200
+    )
     external_dispatch_grant_key_id: str = Field(default="", max_length=100)
     # Raw Ed25519 private key as unpadded base64url. Store in Secret Manager or
     # an untracked local environment file; never expose it to browser or bridge.
@@ -124,7 +126,9 @@ class Settings(BaseSettings):
     p10_neon_runtime_dsn: SecretStr = Field(default=SecretStr(""))
     p10_neon_pool_max_size: int = Field(default=4, ge=1, le=4)
     p10_dynamodb_region: str = Field(default="us-east-1", min_length=1, max_length=32)
-    p10_dynamodb_table_name: str = Field(default="personal-ai-runtime-v1", min_length=3, max_length=255)
+    p10_dynamodb_table_name: str = Field(
+        default="personal-ai-runtime-v1", min_length=3, max_length=255
+    )
     p10_dynamodb_role_arn: str = Field(default="", max_length=600)
     p10_dynamodb_identity_token_audience: str = Field(default="", max_length=500)
     auth_mode: str = Field(default="development", pattern=r"^(development|google_oidc)$")
@@ -134,6 +138,14 @@ class Settings(BaseSettings):
     auth_allowed_emails: tuple[str, ...] = Field(default=(), max_length=1)
     auth_hosted_domain: str = Field(default="", max_length=253)
     auth_recent_token_seconds: int = Field(default=300, ge=60, le=900)
+    # Travel context reads are a separate opt-in integration. In hosted mode
+    # both the Travel service audience/account and verified user identity are
+    # required; local/test mode may use the explicit local owner fixture.
+    travel_context_enabled: bool = False
+    travel_context_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    travel_context_service_audience: str = Field(default="", max_length=500)
+    travel_context_service_account: str = Field(default="", max_length=254)
+    travel_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
     worker_push_auth_required: bool = False
     worker_push_audience: str = Field(default="", max_length=500)
     worker_push_service_account: str = Field(default="", max_length=254)
@@ -314,6 +326,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_context_budget(self) -> "Settings":
+        if self.travel_context_enabled:
+            travel_url = str(self.travel_context_base_url)
+            if self.auth_mode == "google_oidc":
+                if (
+                    not self.auth_required
+                    or not travel_url.startswith("https://")
+                    or not self.travel_context_service_audience.startswith("https://")
+                    or not self.travel_context_service_account.strip()
+                ):
+                    raise ValueError("travel_context_identity_configuration_required")
+            elif self.app_environment not in {"local", "test"}:
+                raise ValueError("travel_context_development_identity_local_only")
         signer_key = self.external_dispatch_grant_private_key.get_secret_value().strip()
         signer_configured = bool(
             signer_key
@@ -352,9 +376,8 @@ class Settings(BaseSettings):
         if self.provider_usage_stale_attempt_seconds < minimum_stale_seconds:
             raise ValueError("provider_usage_stale_attempt_timeout_unsafe")
         for aliases in (self.groq_approved_model_aliases, self.cloudflare_approved_model_aliases):
-            if (
-                len(set(aliases)) != len(aliases)
-                or any(not alias or alias != alias.strip() or len(alias) > 200 for alias in aliases)
+            if len(set(aliases)) != len(aliases) or any(
+                not alias or alias != alias.strip() or len(alias) > 200 for alias in aliases
             ):
                 raise ValueError("provider_model_aliases_invalid")
         if self.gemini_free_tier_verified and (
@@ -414,7 +437,8 @@ class Settings(BaseSettings):
 
             dsn = self.p10_neon_runtime_dsn.get_secret_value()
             NeonRuntimeDatabase(
-                dsn, environment=self.app_environment,
+                dsn,
+                environment=self.app_environment,
                 max_size=self.p10_neon_pool_max_size,
             )
             FederatedDynamoDBConfig(

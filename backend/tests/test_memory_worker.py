@@ -12,6 +12,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from personal_ai.api.dependencies import get_settings
 from personal_ai.entities import Message
 from personal_ai.main import app as public_app
 from personal_ai.memory.lifecycle import MemoryJob
@@ -40,7 +41,8 @@ def push_body(job_id=None):
     return {"message": {"data": base64.b64encode(payload).decode(), "messageId": "synthetic"}}
 
 
-def test_lifecycle_push_route_is_absent_from_public_api():
+def test_lifecycle_push_route_is_absent_from_public_api(monkeypatch):
+    monkeypatch.setitem(public_app.dependency_overrides, get_settings, lambda: settings())
     with TestClient(public_app) as client:
         assert client.post("/tasks/research", json={}).status_code == 404
         assert client.post("/tasks/memory", json={}).status_code == 404

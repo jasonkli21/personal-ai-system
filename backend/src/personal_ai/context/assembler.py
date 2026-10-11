@@ -37,7 +37,7 @@ from personal_ai.context.contracts import (
     complete_turns,
     fingerprint,
 )
-from personal_ai.context.history import conversation_context_messages
+from personal_ai.context.history import conversation_context_messages, message_context_authority
 from personal_ai.context.planner import ContextPlan, ContextPlanner
 from personal_ai.context.providers import (
     ContextPreparationError,
@@ -166,27 +166,22 @@ class ContextAssembler:
         manifest_view_kind: str = "actual_build",
         clock=None,
         emit_manifest: bool = True,
+        history_exclusions: Mapping[UUID, str] | None = None,
     ) -> AssembledContext:
         from personal_ai.context.deadline import DeadlineCounter, DeadlineSummarizer
 
         if application_context is not None:
             scope = application_context.scope
             authorize_base_disclosure(application_context)
-            active_messages = conversation_context_messages(
-                active_messages,
-                manual_import_reuse=(
-                    application_context.definition.context_policy.sidecar
-                    .manual_import_reuse
-                ),
-            )
-            messages = (*active_messages, pending_user_message)
+            raw_active_messages = tuple(active_messages)
             if any(
                 message.owner_id != scope.owner_id
                 or message.application_id != scope.application_id
                 or message.workspace_id != scope.workspace_id
-                for message in messages
+                for message in (*raw_active_messages, pending_user_message)
             ):
                 raise ContextError("application_context_scope_mismatch")
+            active_messages = raw_active_messages
         elif context_selections or context_plan is not None:
             raise ContextPreparationError("application_context_required")
 
@@ -210,11 +205,39 @@ class ContextAssembler:
             # retrieval adapters, or provider factories can perform work.
             authorize_context_selections(application_context, effective_selections)
 
-        counter_context = (
-            make_context_inference_context(application_context, effective_selections)
-            if application_context is not None
-            else None
-        )
+        history_exclusion_reasons = dict(history_exclusions or {})
+        if application_context is not None:
+            active_messages = conversation_context_messages(
+                active_messages,
+                manual_import_reuse=(
+                    application_context.definition.context_policy.sidecar.manual_import_reuse
+                ),
+                permission_revalidator=self.permission_revalidator,
+                check_source_permissions=True,
+                now=clock() if clock is not None else None,
+                exclusions=history_exclusion_reasons,
+            )
+
+        counter_context = None
+        if application_context is not None:
+            policy_context = make_context_inference_context(
+                application_context, effective_selections
+            )
+            history_sensitivity = max(
+                (
+                    message_context_authority(message)[2]
+                    for message in active_messages
+                    if message.role is MessageRole.ASSISTANT
+                ),
+                key=SENSITIVITY_RANK.__getitem__,
+                default=policy_context.effective_sensitivity,
+            )
+            counter_sensitivity = max(
+                (policy_context.effective_sensitivity, history_sensitivity),
+                key=SENSITIVITY_RANK.__getitem__,
+            )
+            authorize_effective_sensitivity(application_context, counter_sensitivity)
+            counter_context = make_inference_context(application_context, counter_sensitivity)
         scoped = ContextAssembler(
             self.settings,
             DeadlineCounter(
@@ -232,6 +255,7 @@ class ContextAssembler:
                 pending_user_message,
                 refresh=refresh,
                 application_context=application_context,
+                history_exclusions=history_exclusion_reasons,
             )
             if effective_selections:
                 if scoped.context_provider_coordinator is None or application_context is None:
@@ -316,6 +340,19 @@ class ContextAssembler:
             if application_context is not None
             else "personal"
         )
+        if application_context is not None:
+            base_sensitivity = max(
+                (
+                    base_sensitivity,
+                    *(
+                        message_context_authority(message)[2]
+                        for message in active_messages
+                        if message.role is MessageRole.ASSISTANT
+                    ),
+                ),
+                key=SENSITIVITY_RANK.__getitem__,
+            )
+            authorize_effective_sensitivity(application_context, base_sensitivity)
         required_selections = {
             (selection.provider_id, selection.operation)
             for selection in context_selections
@@ -550,6 +587,7 @@ class ContextAssembler:
         *,
         refresh: bool = True,
         application_context: ApplicationContextRequest | None = None,
+        history_exclusions: Mapping | None = None,
     ) -> AssembledContext:
         pending = pending_user_message
         if pending.role is not MessageRole.USER or pending.status is not MessageStatus.COMPLETED:
@@ -571,6 +609,11 @@ class ContextAssembler:
             except StorageError:
                 diagnostics.append("summary_unavailable")
         result = self._select(history, pending, summary, diagnostics)
+        if history_exclusions:
+            excluded = dict(result.excluded)
+            for message_id, reason in history_exclusions.items():
+                excluded.setdefault(message_id, reason)
+            result = replace(result, excluded=tuple(excluded.items()))
         if refresh and self.summarizer and self.summaries:
             refreshed = self._refresh(
                 history,

@@ -63,6 +63,8 @@ class ContextPlanningRule(BaseModel):
     window_seconds: int | None = Field(default=None, ge=1, le=31_536_000)
     use_candidate_entities: bool = False
     require_candidate_entities: bool = False
+    trigger_on_selected_entities: bool = False
+    candidate_entity_types: tuple[str, ...] = Field(default=(), max_length=16)
     required: bool = False
     priority: int = Field(default=100, ge=0, le=10_000)
     exclusive_group: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.-]{1,63}$")
@@ -88,10 +90,23 @@ class ContextPlanningRule(BaseModel):
             raise ValueError("context_planning_fields_invalid")
         return fields
 
+    @field_validator("candidate_entity_types")
+    @classmethod
+    def validate_candidate_entity_types(cls, entity_types: tuple[str, ...]) -> tuple[str, ...]:
+        if len(entity_types) != len(set(entity_types)) or any(
+            not re.fullmatch(r"[a-z][a-z0-9_.-]{0,79}", item) for item in entity_types
+        ):
+            raise ValueError("context_planning_entity_types_invalid")
+        return entity_types
+
     @model_validator(mode="after")
     def entity_settings_are_consistent(self) -> ContextPlanningRule:
         if self.require_candidate_entities and not self.use_candidate_entities:
             raise ValueError("context_planning_entity_requirement_invalid")
+        if self.trigger_on_selected_entities and not self.use_candidate_entities:
+            raise ValueError("context_planning_entity_trigger_invalid")
+        if self.candidate_entity_types and not self.use_candidate_entities:
+            raise ValueError("context_planning_entity_types_require_entity_scope")
         if len(self.application_ids) != len(set(self.application_ids)):
             raise ValueError("context_planning_application_ids_must_be_unique")
         return self
@@ -302,12 +317,28 @@ class ContextPlanner:
             and reference.workspace_id == scope.workspace_id
         )
 
+        def entities_for_rule(rule: ContextPlanningRule) -> tuple[ContextEntityReference, ...]:
+            if not rule.candidate_entity_types:
+                return eligible_entities
+            accepted_types = frozenset(rule.candidate_entity_types)
+            return tuple(
+                reference
+                for reference in eligible_entities
+                if reference.entity_type in accepted_types
+            )
+
         matched: list[ContextPlanningRule] = []
         decisions: list[ContextPlanDecision] = []
         for rule in self.rules:
             if rule.application_ids and scope.application_id not in rule.application_ids:
                 continue
-            if not any(self._contains_phrase(bounded_intent, phrase) for phrase in rule.phrases):
+            phrase_matches = any(
+                self._contains_phrase(bounded_intent, phrase) for phrase in rule.phrases
+            )
+            selected_entities_match = rule.trigger_on_selected_entities and bool(
+                entities_for_rule(rule)
+            )
+            if not phrase_matches and not selected_entities_match:
                 continue
             matched.append(rule)
 
@@ -370,7 +401,9 @@ class ContextPlanner:
                 excluded_fields = ()
             else:
                 fields = tuple(field for field in rule.fields if field in allowed_fields)
-                excluded_fields = tuple(field for field in rule.fields if field not in allowed_fields)
+                excluded_fields = tuple(
+                    field for field in rule.fields if field not in allowed_fields
+                )
             if operation_spec.fields_required and not fields:
                 if rule.required:
                     raise ContextPreparationError("required_context_fields_unavailable")
@@ -409,16 +442,21 @@ class ContextPlanner:
                     raise ContextPreparationError("required_context_entity_scope_unsupported")
                 decisions.append(self._omitted(rule, "entity_scope_unsupported", spec.source_class))
                 continue
-            if rule.require_candidate_entities and not eligible_entities:
+            rule_entities = entities_for_rule(rule)
+            if rule.require_candidate_entities and not rule_entities:
                 if rule.required:
                     raise ContextPreparationError("required_context_entity_scope_unavailable")
-                decisions.append(self._omitted(rule, "entity_reference_required", spec.source_class))
+                decisions.append(
+                    self._omitted(rule, "entity_reference_required", spec.source_class)
+                )
                 continue
             if rule.required and operation_spec.maximum_results < 1:
-                decisions.append(self._omitted(rule, "required_source_unbounded", spec.source_class))
+                decisions.append(
+                    self._omitted(rule, "required_source_unbounded", spec.source_class)
+                )
                 continue
 
-            entity_refs = eligible_entities if rule.use_candidate_entities else ()
+            entity_refs = rule_entities if rule.use_candidate_entities else ()
             start = end = None
             if rule.window_seconds is not None:
                 duration = min(rule.window_seconds, operation_spec.maximum_window_seconds)
@@ -546,21 +584,17 @@ class ContextPlanner:
             source_class = rows[0].spec.source_class
             operation_spec = rows[0].operation_spec
             requested_fields = merged_fields(rows)
-            excluded_fields = tuple(dict.fromkeys(
-                field for row in rows for field in row.excluded_fields
-            ))
-            row_entities = tuple(dict.fromkeys(
-                entity for row in rows for entity in row.entity_refs
-            ))[: self.MAX_CANDIDATE_ENTITIES]
+            excluded_fields = tuple(
+                dict.fromkeys(field for row in rows for field in row.excluded_fields)
+            )
+            row_entities = tuple(
+                dict.fromkeys(entity for row in rows for entity in row.entity_refs)
+            )[: self.MAX_CANDIDATE_ENTITIES]
             ends = [row.window_end for row in rows if row.window_end is not None]
             starts = [row.window_start for row in rows if row.window_start is not None]
             window_end = min(ends) if ends else None
             window_start = max(starts) if starts else None
-            if (
-                window_start is not None
-                and window_end is not None
-                and window_start >= window_end
-            ):
+            if window_start is not None and window_end is not None and window_start >= window_end:
                 raise ContextPreparationError("context_planner_window_merge_invalid")
             if (
                 window_start is not None
@@ -568,9 +602,7 @@ class ContextPlanner:
                 and (window_end - window_start).total_seconds()
                 > operation_spec.maximum_window_seconds
             ):
-                window_start = window_end - timedelta(
-                    seconds=operation_spec.maximum_window_seconds
-                )
+                window_start = window_end - timedelta(seconds=operation_spec.maximum_window_seconds)
             selection = ContextSelection(
                 provider_id=provider_id,
                 operation=operation,

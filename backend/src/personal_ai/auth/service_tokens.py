@@ -16,6 +16,19 @@ class ServiceTokenVerificationUnavailable(RuntimeError):
     """Google signing certificates could not be checked."""
 
 
+def fetch_google_service_token(*, audience: str, service_account: str) -> str:
+    """Fetch the current runtime identity token and verify its configured identity."""
+    if not audience.startswith("https://") or not service_account.strip():
+        raise InvalidServiceToken
+    try:
+        with signing_key_request() as request:
+            token = id_token.fetch_id_token(request, audience)
+    except Exception as error:
+        raise ServiceTokenVerificationUnavailable from error
+    verify_google_service_token(token, audience=audience, service_account=service_account)
+    return token
+
+
 def verify_google_service_token(token: str, *, audience: str, service_account: str) -> None:
     if not token or len(token) > 8192 or any(char.isspace() for char in token):
         raise InvalidServiceToken

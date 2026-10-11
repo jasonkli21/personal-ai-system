@@ -75,6 +75,7 @@ class ContextItem(BaseModel, Generic[PayloadT]):
     expires_at: datetime | None = None
     sensitivity: ContextSensitivity = "unknown"
     source_refs: tuple[ContextSourceReference, ...] = Field(default=(), max_length=200)
+    inherited_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
     represented_item_ids: tuple[str, ...] = Field(default=(), max_length=32)
     permission_dependencies: tuple[ContextPermissionDependency, ...] = Field(
         default=(), max_length=16
@@ -88,7 +89,9 @@ class ContextItem(BaseModel, Generic[PayloadT]):
         payload = (self.disclosed_payload or self.payload).model_dump(mode="json")
         return ContextSourceSnapshot(
             provider_id=self.provider_id, source_id=self.source_id, source_version=self.source_version,
-            item_id=self.item_id, owner_id=self.owner_id, application_id=self.application_id,
+            item_id=self.item_id,
+            source_classes=tuple(dict.fromkeys((self.source_class, *self.inherited_source_classes))),
+            owner_id=self.owner_id, application_id=self.application_id,
             workspace_id=self.workspace_id, operation=self.selected_operation,
             content_fingerprint=hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
             source_refs=tuple(
@@ -136,6 +139,8 @@ class ContextItem(BaseModel, Generic[PayloadT]):
             raise ValueError("context_entity_refs_must_be_unique")
         if len(set(self.represented_item_ids)) != len(self.represented_item_ids):
             raise ValueError("context_represented_item_ids_must_be_unique")
+        if len(set(self.inherited_source_classes)) != len(self.inherited_source_classes):
+            raise ValueError("context_inherited_source_classes_must_be_unique")
         if self.represented_item_ids and (
             self.source_class != "ai_memory"
             or self.provider_id != "ai_memory"

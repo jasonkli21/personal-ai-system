@@ -13,7 +13,22 @@ from personal_ai.auth.scope import WorkspaceAuthorizer
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.contracts.execution import ExecutionChoice
 from personal_ai.entities import MessageStatus
+from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.storage.errors import ConversationConflictError
+
+
+def _authority_model_dump(value):
+    """Keep authority digests stable for records written before additive context facts."""
+    payload = value.model_dump(mode="json")
+    if isinstance(value, ContextSourceSnapshot) and not value.source_classes:
+        payload.pop("source_classes", None)
+    elif isinstance(value, TurnAttribution):
+        if value.effective_context_sensitivity is None:
+            payload.pop("effective_context_sensitivity", None)
+        payload["source_snapshots"] = [
+            _authority_model_dump(snapshot) for snapshot in value.source_snapshots
+        ]
+    return payload
 
 
 class PrincipalBoundExternalTurnAuthority:
@@ -104,7 +119,7 @@ class PrincipalBoundExternalTurnAuthority:
                     "id": str(message.id),
                     "content": hashlib.sha256(message.content.encode()).hexdigest(),
                     "attribution": (
-                        message.attribution.model_dump(mode="json")
+                        _authority_model_dump(message.attribution)
                         if message.attribution is not None
                         else None
                     ),
@@ -113,6 +128,7 @@ class PrincipalBoundExternalTurnAuthority:
 
         now = self.clock()
         source_digests = []
+        permission_results = {}
         for snapshot in source_snapshots:
             if (
                 snapshot.owner_id != scope.owner_id
@@ -124,16 +140,22 @@ class PrincipalBoundExternalTurnAuthority:
             if snapshot.permission_dependencies:
                 if self.permission_revalidator is None:
                     raise ConversationConflictError("external_permission_revalidator_unavailable")
-                try:
-                    current = all(
-                        self.permission_revalidator.is_current(dependency)
-                        for dependency in snapshot.permission_dependencies
-                    )
-                except Exception:  # noqa: BLE001 - revalidation failures deny stale sources.
-                    current = False
+                for dependency in snapshot.permission_dependencies:
+                    if dependency in permission_results:
+                        continue
+                    try:
+                        permission_results[dependency] = bool(
+                            self.permission_revalidator.is_current(dependency)
+                        )
+                    except Exception:  # noqa: BLE001 - revalidation failures deny stale sources.
+                        permission_results[dependency] = False
+                current = all(
+                    permission_results[dependency]
+                    for dependency in snapshot.permission_dependencies
+                )
                 if not current:
                     raise ConversationConflictError("external_source_permission_revoked")
-            source_digests.append(snapshot.model_dump(mode="json"))
+            source_digests.append(_authority_model_dump(snapshot))
 
         principal_digest = hashlib.sha256(
             f"{self.principal.issuer}\0{self.principal.subject}".encode()

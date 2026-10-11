@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from personal_ai.contracts.context_categories import ContextSourceClass
+
 
 class ContextEntityReference(BaseModel):
     """An exact entity reference that keeps its application/workspace scope."""
@@ -91,6 +93,7 @@ class ContextSourceSnapshot(BaseModel):
     source_id: str = Field(min_length=1, max_length=200)
     source_version: str = Field(min_length=1, max_length=100)
     item_id: str = Field(min_length=1, max_length=200)
+    source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
     owner_id: str = Field(min_length=1, max_length=200)
     application_id: str = Field(min_length=2, max_length=42)
     workspace_id: str | None = Field(default=None, max_length=100)
@@ -101,6 +104,12 @@ class ContextSourceSnapshot(BaseModel):
         default=(), max_length=16
     )
     expires_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def source_classes_are_unique(self) -> ContextSourceSnapshot:
+        if len(set(self.source_classes)) != len(self.source_classes):
+            raise ValueError("context_source_classes_must_be_unique")
+        return self
 
     @model_validator(mode="after")
     def aware_expiry(self) -> ContextSourceSnapshot:

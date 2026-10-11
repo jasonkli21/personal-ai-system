@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.applications.contracts import CapabilityRegistration
 from personal_ai.auth.scope import RequestScope, current_request_scope
+from personal_ai.context.history import message_context_authority
 from personal_ai.context.providers import (
     ContextItem,
     ContextOperationSpec,
@@ -109,6 +110,11 @@ class ConversationContextProvider:
             return selected_turns
 
         def message_item(message):
+            dependencies, expires_at, sensitivity, source_classes = message_context_authority(
+                message
+            )
+            if len(dependencies) > 16:
+                raise ContextProviderError("conversation_context_dependency_limit")
             return ContextItem(
                 source_class="conversation",
                 provider_id=self.spec.provider_id,
@@ -120,7 +126,10 @@ class ConversationContextProvider:
                 workspace_id=scope.workspace_id,
                 authority="unknown",
                 observed_at=message.created_at,
-                sensitivity="personal",
+                sensitivity=sensitivity,
+                expires_at=expires_at,
+                permission_dependencies=dependencies,
+                inherited_source_classes=source_classes,
                 source_refs=(
                     ContextSourceReference(
                         kind="conversation_message", reference_id=str(message.id)
@@ -146,6 +155,36 @@ class ConversationContextProvider:
         )
         records = records_for(selected_turns)
         if compatible_summary:
+            covered_ids = set(summary.source_message_ids)
+            covered = tuple(
+                message for message in messages if message.id in covered_ids
+            )
+            covered_assistants = tuple(
+                message for message in covered if message.role.value == "assistant"
+            )
+            authorities = tuple(message_context_authority(message) for message in covered_assistants)
+            dependencies = tuple(
+                dict.fromkeys(
+                    dependency
+                    for item_dependencies, _expiry, _sensitivity, _classes in authorities
+                    for dependency in item_dependencies
+                )
+            )
+            expiries = [expiry for _dependencies, expiry, _sensitivity, _classes in authorities]
+            expiries = [expiry for expiry in expiries if expiry is not None]
+            sensitivities = [sensitivity for _deps, _expiry, sensitivity, _classes in authorities]
+            source_classes = tuple(
+                dict.fromkeys(
+                    source_class
+                    for _deps, _expiry, _sensitivity, classes in authorities
+                    for source_class in classes
+                )
+            )
+            rank = {"public": 0, "personal": 1, "sensitive": 2, "restricted": 3, "unknown": 4}
+            if len(dependencies) > 16:
+                raise ContextProviderError("conversation_context_dependency_limit")
+            summary_expiry = min(expiries) if expiries else None
+            summary_sensitivity = max(sensitivities, key=rank.__getitem__) if sensitivities else "personal"
             summary_record = ContextItem(
                 source_class="conversation",
                 provider_id=self.spec.provider_id,
@@ -157,7 +196,10 @@ class ConversationContextProvider:
                 workspace_id=scope.workspace_id,
                 authority="derived",
                 observed_at=summary.created_at,
-                sensitivity="personal",
+                sensitivity=summary_sensitivity,
+                expires_at=summary_expiry,
+                permission_dependencies=dependencies,
+                inherited_source_classes=source_classes,
                 source_refs=tuple(
                     ContextSourceReference(
                         kind="conversation_message", reference_id=str(message_id)
@@ -277,7 +319,9 @@ class MemoryContextProvider:
                     application_id=scope.application_id,
                     workspace_id=scope.workspace_id,
                     authority="derived" if is_derived else "user_asserted",
-                    observed_at=memory.observed_at if hasattr(memory, "observed_at") else memory.created_at,
+                    observed_at=memory.observed_at
+                    if hasattr(memory, "observed_at")
+                    else memory.created_at,
                     effective_at=memory.effective_at,
                     sensitivity="personal",
                     represented_item_ids=(
@@ -324,9 +368,13 @@ class MemoryContextProvider:
                         record_kind=(
                             "derived_memory" if hasattr(memory, "source_memory_ids") else "memory"
                         ),
-                        memory_type=memory.memory_type if "memory_type" in selection.fields else None,
+                        memory_type=memory.memory_type
+                        if "memory_type" in selection.fields
+                        else None,
                         content=memory.content if "content" in selection.fields else None,
-                        effective_at=memory.effective_at if "effective_at" in selection.fields else None,
+                        effective_at=memory.effective_at
+                        if "effective_at" in selection.fields
+                        else None,
                     ),
                 )
             )
@@ -397,8 +445,7 @@ class ResearchEvidenceContextProvider:
             )
             if (
                 evidence.status != "eligible"
-                or len(set(evidence.source_observation_ids))
-                != len(evidence.source_observation_ids)
+                or len(set(evidence.source_observation_ids)) != len(evidence.source_observation_ids)
                 or len(ordered) != len(evidence.source_observation_ids)
                 or any(
                     observation.status != "accepted"
@@ -443,8 +490,12 @@ class ResearchEvidenceContextProvider:
                     payload=ResearchEvidencePayload(
                         evidence_id=str(evidence.id),
                         passage=evidence.passage if "passage" in selection.fields else None,
-                        observed_at=evidence.observed_at if "observed_at" in selection.fields else None,
-                        expires_at=evidence.expires_at if "expires_at" in selection.fields else None,
+                        observed_at=evidence.observed_at
+                        if "observed_at" in selection.fields
+                        else None,
+                        expires_at=evidence.expires_at
+                        if "expires_at" in selection.fields
+                        else None,
                         source_observation_ids=tuple(str(item.id) for item in ordered),
                     ),
                 )
@@ -548,11 +599,14 @@ class BuiltInContextPermissionRevalidator:
         self.settings = settings
         self.profile_repository = profile_repository
 
+    @staticmethod
+    def supports(dependency) -> bool:
+        return dependency.permission_id == "ai_memory_read" or dependency.permission_id.startswith(
+            "global_profile_share:"
+        )
+
     def is_current(self, dependency) -> bool:
-        if (
-            dependency.permission_id == "ai_memory_read"
-            and dependency.version == "memory-v1"
-        ):
+        if dependency.permission_id == "ai_memory_read" and dependency.version == "memory-v1":
             return bool(self.settings.memory_enabled)
         parts = dependency.permission_id.split(":")
         if (

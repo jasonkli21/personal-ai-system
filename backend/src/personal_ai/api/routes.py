@@ -62,7 +62,7 @@ def create_conversation(
     service: Annotated[ConversationService, Depends(get_conversation_service)],
 ) -> Conversation:
     """Create an empty conversation for the Phase 1 owner."""
-    return service.create_conversation(title=request.title)
+    return service.create_conversation(title=request.title, idempotency_key=request.idempotency_key)
 
 
 @router.get("", response_model=ConversationListResponse)
@@ -219,9 +219,7 @@ def edit_and_retry_message(
     """Replace a user message and stream its new assistant response."""
     request_id = _request_id(http_request)
     return _sse_response(
-        service.edit_and_retry(
-            conversation_id, message_id, request.content, request_id=request_id
-        ),
+        service.edit_and_retry(conversation_id, message_id, request.content, request_id=request_id),
         request_id=request_id,
     )
 

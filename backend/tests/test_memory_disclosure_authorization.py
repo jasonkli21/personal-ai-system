@@ -1,6 +1,7 @@
 """Memory auxiliary calls inherit server-owned application disclosure policy."""
 
 import json
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
@@ -10,7 +11,9 @@ from pydantic import SecretStr
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import RequestScope
-from personal_ai.context.providers import ContextPreparationError
+from personal_ai.context.providers import ContextPermissionDependency, ContextPreparationError
+from personal_ai.contracts.context_references import ContextSourceSnapshot
+from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.evaluation.memory import build_fixture, fixture_settings, load_fixtures
 from personal_ai.llm.memory import GeminiMemoryAdapter
 from personal_ai.memory.lifecycle import MemoryJob
@@ -169,6 +172,61 @@ def test_allowed_policy_reaches_count_structured_generation_and_embedding_with_a
     assert [kind for kind, _ in requests] == ["count", "generation", "embedding"]
     assert result.attributions[0].status == "success"
     assert result.attributions[0].usage.total_tokens == 230
+
+
+def test_context_sourced_assistant_turn_is_not_promoted_to_durable_memory():
+    settings, _, _messages, memories, turns, _, _, _ = _fixture()
+    settings.memory_enabled = settings.memory_extraction_enabled = True
+    user, assistant = turns[0]
+    snapshot = ContextSourceSnapshot(
+        provider_id="travel.context",
+        source_id="opaque-source",
+        source_version="8",
+        item_id="opaque-item",
+        source_classes=("domain_current",),
+        owner_id=assistant.owner_id,
+        application_id=assistant.application_id,
+        workspace_id=assistant.workspace_id,
+        content_fingerprint="c" * 64,
+        permission_dependencies=(
+            ContextPermissionDependency(
+                permission_id="travel_context_read:opaque-trip",
+                version="8",
+                purpose="revalidate current owner access",
+            ),
+        ),
+    )
+    sourced_assistant = assistant.model_copy(
+        update={
+            "attribution": TurnAttribution(
+                fact_source="server_observed",
+                execution_origin="automatic_managed",
+                provider_id="fake",
+                model_id="fake-model",
+                recorded_at=datetime.now(UTC),
+                effective_context_sensitivity="sensitive",
+                source_snapshots=(snapshot,),
+            )
+        }
+    )
+
+    class SourcedMessageRepository:
+        @staticmethod
+        def list_active(*, owner_id, conversation_id, timeout=None):
+            del owner_id, conversation_id, timeout
+            return [user, sourced_assistant]
+
+    remote = _RemoteSpy()
+    result = MemoryExtractionService(
+        settings,
+        memories,
+        SourcedMessageRepository(),
+        remote,
+        remote,
+    ).run(sourced_assistant, application_context=_context(sourced_assistant))
+
+    assert result.reasons == ("context_source_not_reusable",)
+    assert remote.calls == []
 
 
 def test_background_consolidation_reresolves_scope_policy_before_remote_embedding():

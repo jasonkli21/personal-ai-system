@@ -449,7 +449,8 @@ def test_disabled_account_actions_do_not_initialize_persistence(authenticated_ac
     assert client.get(f"/v1/account/deletion/{uuid4()}", headers=headers).status_code == 404
 
 
-def test_untrusted_request_id_cannot_insert_log_control_characters():
+def test_untrusted_request_id_cannot_insert_log_control_characters(monkeypatch):
+    monkeypatch.setitem(app.dependency_overrides, get_settings, lambda: settings())
     with TestClient(app) as client:
         response = client.get("/health", headers={"X-Request-ID": "unsafe\x1b[31m"})
     assert response.status_code == 200

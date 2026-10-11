@@ -839,6 +839,37 @@ def test_completed_replay_rechecks_authority_digest(setup):
         )
 
 
+def test_authority_digest_payload_preserves_legacy_attribution_shape():
+    from personal_ai.contracts.context_references import ContextSourceSnapshot
+    from personal_ai.services.external_turns.authority import _authority_model_dump
+
+    snapshot = ContextSourceSnapshot(
+        provider_id="synthetic.source",
+        source_id="record-1",
+        source_version="v1",
+        item_id="item-1",
+        owner_id="local",
+        application_id="travel",
+        workspace_id=None,
+        operation="current",
+        content_fingerprint="a" * 64,
+    )
+    attribution = TurnAttribution(
+        fact_source="server_observed",
+        execution_origin="automatic_managed",
+        provider_id="synthetic-provider",
+        model_id="synthetic-model",
+        recorded_at=datetime.now(UTC),
+        source_snapshots=(snapshot,),
+    )
+
+    legacy_payload = attribution.model_dump(mode="json")
+    legacy_payload.pop("effective_context_sensitivity")
+    legacy_payload["source_snapshots"][0].pop("source_classes")
+
+    assert _authority_model_dump(attribution) == legacy_payload
+
+
 def test_cas_lost_response_replay_rechecks_authority(setup, monkeypatch):
     service, _, _, authority, *_ = setup
     prepared, selected, _ = prepare(setup)
@@ -1428,6 +1459,71 @@ def test_principal_bound_authority_requires_verified_owner_and_rechecks_source_g
             (),
             (snapshot,),
         )
+
+
+def test_external_authority_revalidates_repeated_permission_once_per_snapshot(setup):
+    from personal_ai.auth.contracts import AuthenticatedPrincipal
+    from personal_ai.contracts.context_references import (
+        ContextPermissionDependency,
+        ContextSourceSnapshot,
+    )
+    from personal_ai.services.external_turns.authority import PrincipalBoundExternalTurnAuthority
+
+    service, conversation_id, messages, *_ = setup
+    principal = AuthenticatedPrincipal(
+        issuer="https://accounts.google.com",
+        subject="subject-123",
+        owner_id="local",
+        email=None,
+        issued_at=1,
+        authenticated=True,
+    )
+    dependency = ContextPermissionDependency(
+        permission_id="travel_context_read:trip",
+        version="8",
+        purpose="manual external disclosure",
+    )
+    snapshots = tuple(
+        ContextSourceSnapshot(
+            provider_id="synthetic.source",
+            source_id="source-1",
+            source_version="v1",
+            item_id=f"item-{index}",
+            owner_id="local",
+            application_id=service.context.scope.application_id,
+            workspace_id=None,
+            content_fingerprint=f"{index:x}" * 64,
+            permission_dependencies=(dependency,),
+        )
+        for index in range(1, 4)
+    )
+
+    class CurrentPermission:
+        def __init__(self):
+            self.calls = 0
+
+        def is_current(self, _dependency):
+            self.calls += 1
+            return True
+
+    permission = CurrentPermission()
+    authority = PrincipalBoundExternalTurnAuthority(
+        principal=principal,
+        conversations=service.chat._conversations,
+        messages=messages,
+        permission_revalidator=permission,
+    )
+
+    assert len(
+        authority.snapshot(
+            service.context,
+            conversation_id,
+            choice("manual_external"),
+            (),
+            snapshots,
+        )
+    ) == 64
+    assert permission.calls == 1
 
 
 def test_execution_options_follow_application_policy_and_current_explicit_profiles(setup, monkeypatch):

@@ -109,24 +109,22 @@
       "source_class": "domain_current",
       "operation": "current",
       "allowed_fields": [
-        "city",
+        "trip_title",
         "start_date",
         "end_date",
-        "payment_details"
+        "timezone",
+        "itinerary_overview",
+        "trip_revision"
       ],
       "rule_fields": [
-        "city",
         "start_date",
         "end_date"
       ],
       "expected_fields": [
-        "city",
         "start_date",
         "end_date"
       ],
-      "excluded_fields": [
-        "payment_details"
-      ],
+      "excluded_fields": [],
       "answer_support_needs": [
         "start_date",
         "end_date"
@@ -135,12 +133,10 @@
       "phrase": "hotel booking",
       "max_tokens": 256,
       "expected_retrieved_fields": [
-        "city",
         "start_date",
         "end_date"
       ],
       "expected_injected_fields": [
-        "city",
         "start_date",
         "end_date"
       ],
@@ -149,7 +145,6 @@
           "provider_id": "travel.trip_context",
           "operation": "current",
           "fields": [
-            "city",
             "end_date",
             "start_date"
           ],

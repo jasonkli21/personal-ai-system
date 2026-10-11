@@ -273,6 +273,122 @@ def _context_for_providers(providers, application_id: str) -> ApplicationContext
     )
 
 
+def test_rule_can_select_current_entity_context_without_phrase_match():
+    provider = FixtureProvider(
+        "travel.trip_context",
+        "domain_current",
+        ContextOperationSpec(
+            operation="current",
+            allowed_fields=("trip_title",),
+            accepts_entity_refs=True,
+            maximum_results=4,
+        ),
+    )
+    context = _context(provider, "travel")
+    reference = ContextEntityReference(
+        entity_type="trip",
+        entity_id="trip-1",
+        application_id="travel",
+        workspace_id="workspace-1",
+    )
+    rule = ContextPlanningRule(
+        rule_id="travel.selected-trip:v1",
+        category="travel_current_trip",
+        phrases=("this trip",),
+        provider_id=provider.spec.provider_id,
+        operation="current",
+        fields=("trip_title",),
+        use_candidate_entities=True,
+        require_candidate_entities=True,
+        trigger_on_selected_entities=True,
+        application_ids=("travel",),
+        explanation="Read only the selected trip.",
+    )
+
+    plan = ContextPlanner((rule,), include_default_rules=False).plan(
+        "What should I consider?",
+        context,
+        {
+            provider.spec.provider_id: ContextPlanningCapability(
+                status="available",
+                spec=provider.spec,
+            )
+        },
+        input_token_budget=2_000,
+        candidate_entities=(reference,),
+    )
+
+    assert len(plan.selections) == 1
+    assert plan.selections[0].entity_refs == (reference,)
+    assert plan.decisions[0].disposition == "selected"
+
+
+def test_selected_entity_trigger_and_scope_filter_by_declared_entity_types():
+    provider = FixtureProvider(
+        "host.record_context",
+        "domain_current",
+        ContextOperationSpec(
+            operation="entity",
+            allowed_fields=("title",),
+            accepts_entity_refs=True,
+            maximum_results=4,
+        ),
+    )
+    context = _context(provider, "travel")
+    trip = ContextEntityReference(
+        entity_type="trip",
+        entity_id="trip-1",
+        application_id="travel",
+        workspace_id="workspace-1",
+    )
+    day = ContextEntityReference(
+        entity_type="day",
+        entity_id="day-1",
+        application_id="travel",
+        workspace_id="workspace-1",
+    )
+    rule = ContextPlanningRule(
+        rule_id="host.selected-day:v1",
+        category="selected_day",
+        phrases=("selected day",),
+        provider_id=provider.spec.provider_id,
+        operation="entity",
+        fields=("title",),
+        use_candidate_entities=True,
+        require_candidate_entities=True,
+        trigger_on_selected_entities=True,
+        candidate_entity_types=("day",),
+        application_ids=("travel",),
+        explanation="Read only a selected day.",
+    )
+    capabilities = {
+        provider.spec.provider_id: ContextPlanningCapability(
+            status="available",
+            spec=provider.spec,
+        )
+    }
+    planner = ContextPlanner((rule,), include_default_rules=False)
+
+    unrelated_plan = planner.plan(
+        "What should I consider?",
+        context,
+        capabilities,
+        input_token_budget=2_000,
+        candidate_entities=(trip,),
+    )
+    selected_plan = planner.plan(
+        "What should I consider?",
+        context,
+        capabilities,
+        input_token_budget=2_000,
+        candidate_entities=(trip, day),
+    )
+
+    assert unrelated_plan.selections == ()
+    assert len(selected_plan.selections) == 1
+    assert selected_plan.selections[0].entity_refs == (day,)
+
+
 def _rule(
     *,
     application_id: str,

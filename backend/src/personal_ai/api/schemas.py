@@ -27,9 +27,10 @@ class ErrorResponse(APIModel):
 
 
 class CreateConversationRequest(APIModel):
-    """Optional initial title for a new conversation."""
+    """Optional initial title and retry identity for conversation creation."""
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    idempotency_key: UUID | None = None
 
 
 class ConversationListResponse(APIModel):

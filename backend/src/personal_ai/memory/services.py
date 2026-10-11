@@ -8,7 +8,11 @@ from time import monotonic
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.authorization import authorize_memory_disclosure
 from personal_ai.context.contracts import complete_turns, fingerprint
-from personal_ai.context.history import manual_import_is_reusable
+from personal_ai.context.history import (
+    manual_import_is_reusable,
+    memory_extraction_context_reason,
+    message_context_authority,
+)
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.llm.client import EmbeddingResult
 from personal_ai.memory.contracts import (
@@ -42,10 +46,16 @@ def source_messages(memory, messages, *, timeout=5):
     return source if set(memory.source_message_ids) <= completed_users else None
 
 
-def source_turn_reuse_reason(memory, messages, application_context, *, timeout=5):
-    """Revalidate manual-import reuse against the source turn's current policy."""
-    if application_context is None:
-        return None
+def source_turn_reuse_reason(
+    memory,
+    messages,
+    application_context,
+    *,
+    timeout=5,
+    permission_revalidator=None,
+    now=None,
+):
+    """Revalidate source authority and manual-import reuse for a memory's source turn."""
     active = messages.list_active(
         owner_id=memory.owner_id,
         conversation_id=memory.source_conversation_id,
@@ -57,6 +67,25 @@ def source_turn_reuse_reason(memory, messages, application_context, *, timeout=5
     )
     if turn is None:
         return "branch_mismatch"
+    context_reason = memory_extraction_context_reason(turn[1])
+    if context_reason is not None:
+        return context_reason
+    dependencies, expires_at, _sensitivity, _source_classes = message_context_authority(turn[1])
+    checked_at = (now or datetime.now(UTC)).astimezone(UTC)
+    if expires_at is not None and expires_at <= checked_at:
+        return "source_expired"
+    if dependencies and permission_revalidator is None:
+        return "source_permission_unverified"
+    try:
+        permissions_current = all(
+            permission_revalidator.is_current(dependency) for dependency in dependencies
+        )
+    except Exception:  # noqa: BLE001 - source authority fails closed
+        permissions_current = False
+    if not permissions_current:
+        return "source_permission_revoked"
+    if application_context is None:
+        return None
     policy = application_context.definition.context_policy.sidecar.manual_import_reuse
     return None if manual_import_is_reusable(turn[1], policy) else "source_policy_denied"
 
@@ -134,6 +163,9 @@ class MemoryExtractionService:
             turn = next((t for t in complete_turns(active) if t[1].id == completed.id), None)
             if turn is None:
                 return ExtractionResult(reasons=("branch_mismatch",))
+            context_reason = memory_extraction_context_reason(turn[1])
+            if context_reason is not None:
+                return ExtractionResult(reasons=(context_reason,))
             if any(
                 content_reason(m.content, self.settings) for m in turn if m.role.value == "user"
             ):
@@ -231,11 +263,20 @@ class MemoryExtractionService:
 
 class MemoryRetriever:
     def __init__(
-        self, settings, repository, messages, embedder, lifecycle_repository=None, *, clock=None
+        self,
+        settings,
+        repository,
+        messages,
+        embedder,
+        lifecycle_repository=None,
+        *,
+        permission_revalidator=None,
+        clock=None,
     ):
         self.settings, self.repository, self.messages = settings, repository, messages
         self.embedder = embedder
         self.lifecycle = lifecycle_repository
+        self.permission_revalidator = permission_revalidator
         self.clock = clock or (lambda: datetime.now(UTC))
 
     def _state(self, owner_id, memory_id):
@@ -285,6 +326,8 @@ class MemoryRetriever:
                 self.messages,
                 application_context,
                 timeout=max(0.001, deadline - monotonic()),
+                permission_revalidator=self.permission_revalidator,
+                now=self.clock(),
             )
             if reuse_reason is not None:
                 return False, reuse_reason
@@ -453,6 +496,8 @@ class MemoryRetriever:
                             self.messages,
                             application_context,
                             timeout=max(0.001, deadline - monotonic()),
+                            permission_revalidator=self.permission_revalidator,
+                            now=self.clock(),
                         )
                     )
                     if reason is None:

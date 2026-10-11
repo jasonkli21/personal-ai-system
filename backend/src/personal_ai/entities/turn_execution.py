@@ -1,5 +1,6 @@
 """Canonical safe turn state; credentials and provider account state live elsewhere."""
 
+import json
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -11,6 +12,26 @@ from personal_ai.contracts.context_references import (
 )
 
 
+def _turn_metadata_size(model: BaseModel) -> int:
+    """Bound the durable shape without charging legacy rows for new empty facts."""
+    payload = model.model_dump(mode="json")
+
+    def remove_empty_additions(value):
+        if isinstance(value, dict):
+            if value.get("effective_context_sensitivity") is None:
+                value.pop("effective_context_sensitivity", None)
+            if not value.get("source_classes"):
+                value.pop("source_classes", None)
+            for nested in value.values():
+                remove_empty_additions(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                remove_empty_additions(nested)
+
+    remove_empty_additions(payload)
+    return len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
 class TurnAttribution(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     fact_source: Literal["server_observed", "client_reported", "user_declared"]
@@ -20,6 +41,9 @@ class TurnAttribution(BaseModel):
     task: Literal["chat"] = "chat"
     status: Literal["success"] = "success"
     recorded_at: datetime
+    effective_context_sensitivity: Literal[
+        "public", "personal", "sensitive", "restricted", "unknown"
+    ] | None = None
     latency_ms: int | None = Field(default=None, ge=0, le=3_600_000)
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
@@ -85,7 +109,7 @@ class TurnAttribution(BaseModel):
             raise ValueError("local_connection_attribution_required")
         if self.execution_origin == "automatic_managed" and self.connection_id is not None:
             raise ValueError("automatic_attribution_cannot_claim_local_connection")
-        if len(self.model_dump_json().encode()) > 65536:
+        if _turn_metadata_size(self) > 65536:
             raise ValueError("turn_metadata_exceeds_bound")
         return self
 
@@ -143,7 +167,7 @@ class TurnReservation(BaseModel):
             raise ValueError("manual_labels_belong_to_import")
         if (self.state == "completed") != (self.completion_digest is not None):
             raise ValueError("completion_digest_requires_terminal_success")
-        if len(self.model_dump_json().encode()) > 65536:
+        if _turn_metadata_size(self) > 65536:
             raise ValueError("turn_metadata_exceeds_bound")
         return self
 

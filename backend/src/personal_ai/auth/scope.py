@@ -13,9 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 
 STANDALONE_APPLICATION_ID = "personal_ai"
-CANONICAL_APPLICATION_IDS = frozenset(
-    {"personal_ai", "travel", "shopping", "finance", "health"}
-)
+CANONICAL_APPLICATION_IDS = frozenset({"personal_ai", "travel", "shopping", "finance", "health"})
 ApplicationId = str
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 _APPLICATION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,40}$")
@@ -118,20 +116,44 @@ class WorkspaceAuthorizer(Protocol):
 class DenyWorkspaceAuthorizer:
     """Fail-closed default until an application supplies membership authority."""
 
-    def is_member(self, principal: AuthenticatedPrincipal, application_id: str, workspace_id: str) -> bool:
+    def is_member(
+        self, principal: AuthenticatedPrincipal, application_id: str, workspace_id: str
+    ) -> bool:
         del principal, application_id, workspace_id
         return False
 
 
-_request_scope: ContextVar[RequestScope | None] = ContextVar("personal_ai_request_scope", default=None)
+_request_scope: ContextVar[RequestScope | None] = ContextVar(
+    "personal_ai_request_scope", default=None
+)
 _application_scope: ContextVar[ApplicationScope | None] = ContextVar(
     "personal_ai_application_scope", default=None
+)
+_verified_user_identity_token: ContextVar[str | None] = ContextVar(
+    "personal_ai_verified_user_identity_token", default=None
 )
 _DEFAULT_APPLICATION_SCOPE = ApplicationScope()
 
 
 def current_request_scope() -> RequestScope | None:
     return _request_scope.get()
+
+
+def current_verified_user_identity_token() -> str | None:
+    """Return the verified request token only for an authorized server adapter.
+
+    This short-lived credential is never part of ``RequestScope`` and must not be
+    serialized into context, traces, persistence, or model input.
+    """
+    return _verified_user_identity_token.get()
+
+
+def bind_verified_user_identity_token(token: str | None):
+    return _verified_user_identity_token.set(token)
+
+
+def reset_verified_user_identity_token(token) -> None:
+    _verified_user_identity_token.reset(token)
 
 
 def current_application_scope() -> ApplicationScope:
@@ -237,6 +259,7 @@ def preserve_legacy_child_scope(current, candidate):
     The aggregate root may advance to the active scope. Historical embedded
     records keep their original absent/v1 envelope and payload.
     """
+
     def preserve(old, new, *, include_self: bool):
         if isinstance(old, BaseModel) and isinstance(new, type(old)):
             updates = {}
@@ -255,14 +278,19 @@ def preserve_legacy_child_scope(current, candidate):
             return new.model_copy(update=updates) if updates else new
         if isinstance(old, (tuple, list)) and isinstance(new, type(old)):
             values = [
-                preserve(old[index], item, include_self=True)
-                if index < len(old) else item
+                preserve(old[index], item, include_self=True) if index < len(old) else item
                 for index, item in enumerate(new)
             ]
-            return type(new)(values) if any(a is not b for a, b in zip(values, new, strict=True)) else new
+            return (
+                type(new)(values)
+                if any(a is not b for a, b in zip(values, new, strict=True))
+                else new
+            )
         if isinstance(old, dict) and isinstance(new, dict):
-            values = {key: preserve(old[key], value, include_self=True)
-                      if key in old else value for key, value in new.items()}
+            values = {
+                key: preserve(old[key], value, include_self=True) if key in old else value
+                for key, value in new.items()
+            }
             return values if any(values[key] is not new[key] for key in values) else new
         return new
 

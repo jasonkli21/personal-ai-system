@@ -47,7 +47,9 @@ from personal_ai.auth.scope import (
     DenyWorkspaceAuthorizer,
     RequestScope,
     bind_request_scope,
+    bind_verified_user_identity_token,
     reset_request_scope,
+    reset_verified_user_identity_token,
 )
 from personal_ai.auth.verification import (
     IdentityProviderUnavailable,
@@ -277,6 +279,7 @@ async def authenticate_request(request: Request) -> Response | None:
             return _harden_response(response, request, correlation_id)
         request.state.allowed_origin = origin
 
+    verified_user_token: str | None = None
     if request.url.path not in PUBLIC_PATHS:
         if settings.auth_mode == "development" and settings.app_environment in {"local", "test"}:
             request.state.principal = AuthenticatedPrincipal.development()
@@ -351,6 +354,8 @@ async def authenticate_request(request: Request) -> Response | None:
                     correlation_id=correlation_id,
                 )
             request.state.principal = principal
+            verified_user_token = token
+    request.state.verified_user_identity_token = verified_user_token
 
     if request.url.path not in PUBLIC_PATHS:
         principal = getattr(request.state, "principal", None)
@@ -521,6 +526,7 @@ class AuthenticationMiddleware:
         request = Request(scope, receive=receive)
         started = time.monotonic()
         response = await authenticate_request(request)
+        verified_user_token = getattr(request.state, "verified_user_identity_token", None)
         correlation_id = getattr(request.state, "correlation_id", str(uuid4()))
         status_code = 500
         app_receive = receive
@@ -641,6 +647,9 @@ class AuthenticationMiddleware:
             scope_token = (
                 bind_request_scope(request_scope) if response is None and request_scope else None
             )
+            identity_token = (
+                bind_verified_user_identity_token(verified_user_token) if response is None else None
+            )
             if response is None:
                 await self.app(scope, app_receive, harden_send)
             else:
@@ -663,6 +672,8 @@ class AuthenticationMiddleware:
             )
             if "scope_token" in locals() and scope_token is not None:
                 reset_request_scope(scope_token)
+            if "identity_token" in locals() and identity_token is not None:
+                reset_verified_user_identity_token(identity_token)
 
 
 def _harden_response(response: Response, request: Request, correlation_id: str) -> Response:

@@ -394,6 +394,40 @@ def test_effective_sensitivity_is_monotonic_and_permission_dependencies_fail_clo
     assert "must not be sent" not in "\n".join(message.content for message in result.messages)
 
 
+def test_builder_revalidates_shared_source_permission_once_per_build():
+    dependency = ContextPermissionDependency(
+        permission_id="travel_context_read:trip",
+        version="8",
+        purpose="verify current owner access",
+    )
+    selected = (
+        item("trip", "current trip", permission_dependencies=(dependency,)),
+        item("selected-day", "selected itinerary day", permission_dependencies=(dependency,)),
+    )
+
+    class RevokedPermission:
+        def __init__(self):
+            self.calls = 0
+
+        def is_current(self, _dependency):
+            self.calls += 1
+            return False
+
+    permission = RevokedPermission()
+    result = ContextBuilder(
+        FakeTokenCounter(),
+        permission_revalidator=permission,
+        clock=lambda: NOW,
+    ).build((ChatMessage("user", "Help with the trip."),), selected, policy())
+
+    assert permission.calls == 1
+    assert result.included_item_ids == ()
+    assert set(result.excluded_items) == {
+        ("trip", "permission_revoked"),
+        ("selected-day", "permission_revoked"),
+    }
+
+
 def test_expired_items_are_omitted_and_required_items_fail_explicitly():
     counter = FakeTokenCounter()
     base = (ChatMessage("user", "hello"),)
