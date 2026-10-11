@@ -17,7 +17,11 @@ from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.applications.contracts import (
+    SENSITIVITY_RANK,
+    ApplicationContextRequest,
+    ExternalDisclosurePolicy,
+)
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner, SignedDispatchGrant
 from personal_ai.auth.scope import scope_matches
 from personal_ai.context.authorization import (
@@ -25,6 +29,7 @@ from personal_ai.context.authorization import (
     authorize_effective_sensitivity,
 )
 from personal_ai.context.contracts import fingerprint
+from personal_ai.contracts.context_categories import CONTEXT_SOURCE_CLASSES
 from personal_ai.contracts.context_references import (
     ContextSourceSnapshot,
 )
@@ -146,17 +151,24 @@ class ExternalTurnService:
         choice = request.choice
         if choice.mode == "automatic":
             raise ConversationConflictError("automatic_execution_uses_existing_routing_lane")
+        self._validate_launch_context(request, conversation_id)
+        disclosure = self._disclosure_policy(choice.mode)
         self._snapshot(conversation_id, choice, ())
+        excluded = self._excluded_for_disclosure(
+            request.excluded_source_classes, disclosure
+        )
         candidate_message_ids = (
-            () if "conversation" in request.excluded_source_classes
+            () if "conversation" in excluded
             else request.candidate_message_ids
         )
         plan, direct_count = self.chat.preview_external_context(
             conversation_id,
             request.content,
             candidate_message_ids=candidate_message_ids,
+            candidate_entities=request.entity_refs,
             history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
-            excluded_source_classes=request.excluded_source_classes,
+            excluded_source_classes=excluded,
+            maximum_context_sensitivity=disclosure.maximum_sensitivity,
             context_assembler=self.context_assembler,
         )
         return {
@@ -237,9 +249,10 @@ class ExternalTurnService:
 
     def _snapshot(self, conversation_id, choice, sources, snapshots=()):
         self.chat.require_context(self.context)
-        authorize_base_disclosure(self.context)
-        if choice.mode not in self.context.definition.context_policy.external_execution_modes:
-            raise ConversationConflictError("execution_disclosure_denied")
+        disclosure = self._disclosure_policy(choice.mode)
+        base_sensitivity = authorize_base_disclosure(self.context)
+        if SENSITIVITY_RANK[base_sensitivity] > SENSITIVITY_RANK[disclosure.maximum_sensitivity]:
+            raise ConversationConflictError("execution_sensitivity_denied")
         value = self.authority.snapshot(self.context, conversation_id, choice, sources, snapshots)
         if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
             raise ConversationConflictError("authority_snapshot_invalid")
@@ -255,10 +268,41 @@ class ExternalTurnService:
             }
         )
 
+    def _disclosure_policy(
+        self, mode: Literal["connected_provider", "manual_external"]
+    ) -> ExternalDisclosurePolicy:
+        policy = self.context.definition.context_policy
+        if mode not in policy.external_execution_modes:
+            raise ConversationConflictError("execution_disclosure_denied")
+        disclosure = policy.sidecar.disclosure_for(mode)
+        if not disclosure.allowed or (mode == "manual_external" and not policy.sidecar.copy_allowed):
+            raise ConversationConflictError("execution_disclosure_denied")
+        return disclosure
+
+    @staticmethod
+    def _excluded_for_disclosure(excluded, disclosure: ExternalDisclosurePolicy):
+        allowed = set(disclosure.allowed_context_categories)
+        return frozenset(excluded) | frozenset(
+            category for category in CONTEXT_SOURCE_CLASSES if category not in allowed
+        )
+
+    def _validate_launch_context(
+        self, request: ContinuationRequest, conversation_id: UUID
+    ) -> None:
+        launch = request.launch_context
+        if launch is None:
+            return
+        try:
+            launch.validate_for(self.context.scope, conversation_id)
+        except ValueError as error:
+            raise ConversationConflictError("application_launch_scope_mismatch") from error
+
     def prepare(self, conversation_id: UUID, request: ContinuationRequest) -> PreparedExternalTurn:
         choice = request.choice
         if choice.mode == "automatic":
             raise ConversationConflictError("automatic_execution_uses_existing_routing_lane")
+        self._validate_launch_context(request, conversation_id)
+        disclosure = self._disclosure_policy(choice.mode)
         if choice.mode == "connected_provider" and self.signer is None:
             raise ConversationConflictError("dispatch_signer_unavailable")
         now = self.clock()
@@ -268,6 +312,9 @@ class ExternalTurnService:
             f"{self.context.scope.owner_id}:{self.context.scope.application_id}:{self.context.scope.workspace_id}:{request.idempotency_key}",
         )
         request_hash = request.intent_digest
+        excluded_source_classes = self._excluded_for_disclosure(
+            request.excluded_source_classes, disclosure
+        )
         try:
             existing = self.chat.get_message(conversation_id, identity)
         except ResourceNotFoundError:
@@ -282,6 +329,10 @@ class ExternalTurnService:
         def bind(assistant, assembled, inference, active):
             if inference is None:
                 raise ConversationConflictError("authorized_inference_context_required")
+            if SENSITIVITY_RANK[inference.effective_sensitivity] > SENSITIVITY_RANK[
+                disclosure.maximum_sensitivity
+            ]:
+                raise ConversationConflictError("execution_sensitivity_denied")
             selected = tuple(
                 dict.fromkeys(
                     (
@@ -461,13 +512,15 @@ class ExternalTurnService:
             user_id=uuid5(identity, "user"),
             preparation_hook=bind,
             candidate_message_ids=(
-                () if "conversation" in request.excluded_source_classes
+                () if "conversation" in excluded_source_classes
                 else request.candidate_message_ids
             ),
+            candidate_entities=request.entity_refs,
             history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
             continuation_digest=request_hash,
             context_assembler=self.context_assembler,
-            excluded_source_classes=request.excluded_source_classes,
+            excluded_source_classes=excluded_source_classes,
+            maximum_context_sensitivity=disclosure.maximum_sensitivity,
         )
         return result[0]
 

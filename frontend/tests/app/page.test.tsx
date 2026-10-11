@@ -6,6 +6,18 @@ import type { Message } from "../../src/lib/api";
 
 const fetchMock = vi.fn();
 const conversation = { id: "conversation-1", owner_id: "local", title: "Project ideas", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
+const contextCategories = [
+  "global_profile", "domain_profile", "domain_current", "domain_history",
+  "ai_memory", "conversation", "external_research", "tool_result", "client_context",
+];
+const sidecarActions = {
+  connected_provider_disclosure: { allowed: true, allowed_context_categories: contextCategories, maximum_sensitivity: "sensitive" },
+  manual_external_disclosure: { allowed: true, allowed_context_categories: contextCategories, maximum_sensitivity: "sensitive" },
+  allow_manual_import_context: true,
+  copy_allowed: true,
+  draft_insert_target_ids: ["personal_ai.message_composer"],
+  future_apply_operation_ids: [],
+};
 function jsonResponse(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }); }
 function sseResponse(events: string[]) {
   return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(events.join(""))); controller.close(); } }), { headers: { "Content-Type": "text/event-stream" } });
@@ -175,6 +187,7 @@ describe("Home", () => {
       if (url === `/api/conversations/${conversation.id}`) return jsonResponse({ conversation, messages: canonicalMessages });
       if (url === "/api/conversations/execution-options") return jsonResponse({
         modes: ["automatic", "manual_external", "connected_provider"],
+        sidecar: sidecarActions,
         explicit_profiles: [{
           endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
           provider_id: "openai_chatgpt_plan",

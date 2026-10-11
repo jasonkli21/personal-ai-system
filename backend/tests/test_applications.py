@@ -10,7 +10,9 @@ from personal_ai.applications.contracts import (
     ApplicationBudgetHints,
     ApplicationContextRequest,
     ApplicationDefinition,
+    ApplicationLaunchContext,
     ApplicationRegistryError,
+    ApplicationSidecarPolicy,
     CapabilityRegistration,
     CrossApplicationDeclaration,
 )
@@ -22,6 +24,7 @@ from personal_ai.applications.registry import (
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.tokens import FakeTokenCounter
+from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.entities import Message, MessageRole, MessageStatus
 from personal_ai.settings import Settings
 
@@ -82,6 +85,11 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
             }
         )
         assert all(not tool.available for tool in registration.tools)
+    for application_id in ("finance", "health"):
+        policy = registry.get(application_id).context_policy.sidecar
+        assert policy.allow_manual_import_context is False
+        assert policy.copy_allowed is True
+        assert policy.draft_insert_target_ids == ()
     assert registry.registration("travel").comparison_modules[0].registration.domain_id == "travel"
     assert registry.registration("shopping").comparison_modules[0].registration.domain_id == "shopping"
 
@@ -175,6 +183,63 @@ def test_workspace_support_is_enforced_by_the_scoped_application_contract() -> N
         ApplicationContextRequest(
             definition=_definition(workspace_kind="required"), scope=required_scope
         )
+
+
+def test_application_launch_context_is_bounded_and_rebound_to_server_scope() -> None:
+    conversation_id = uuid4()
+    scope = RequestScope(
+        owner_id="owner-1",
+        request_id="request-1",
+        application_id="synthetic",
+        workspace_id="team-a",
+        client_context={"origin_view": "trip.detail"},
+    )
+    reference = ContextEntityReference(
+        entity_type="trip",
+        entity_id="trip-123",
+        application_id="synthetic",
+        workspace_id="team-a",
+    )
+    launch = ApplicationLaunchContext(
+        application_id="synthetic",
+        workspace_id="team-a",
+        entity_refs=(reference,),
+        view_id="trip.detail",
+        conversation_id=str(conversation_id),
+        client_context=scope.client_context,
+    )
+
+    assert launch.schema_version == "application-launch-v1"
+    launch.validate_for(scope, conversation_id)
+    with pytest.raises(ValueError, match="application_launch_scope_mismatch"):
+        launch.validate_for(scope, uuid4())
+    with pytest.raises(ValidationError, match="application_launch_entity_scope_mismatch"):
+        ApplicationLaunchContext(
+            application_id="synthetic",
+            workspace_id="team-a",
+            entity_refs=(ContextEntityReference(
+                entity_type="trip",
+                entity_id="trip-123",
+                application_id="synthetic",
+                workspace_id="team-b",
+            ),),
+            conversation_id=str(conversation_id),
+        )
+    with pytest.raises(ValidationError, match="application_launch_client_context_too_large"):
+        ApplicationLaunchContext(
+            application_id="synthetic",
+            conversation_id=str(conversation_id),
+            client_context={"payload": "x" * 4097},
+        )
+
+
+def test_sidecar_policy_rejects_ambiguous_categories_and_targets() -> None:
+    from personal_ai.applications.contracts import ExternalDisclosurePolicy
+
+    with pytest.raises(ValidationError, match="external_disclosure_categories_must_be_unique"):
+        ExternalDisclosurePolicy(allowed_context_categories=("conversation", "conversation"))
+    with pytest.raises(ValidationError, match="sidecar_draft_insert_target_ids_invalid"):
+        ApplicationSidecarPolicy(draft_insert_target_ids=("not a target",))
 
 
 def test_synthetic_application_flows_into_context_without_application_branching() -> None:

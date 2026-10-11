@@ -6,12 +6,18 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.auth.scope import RequestScope
+from personal_ai.contracts.context_categories import (
+    CONTEXT_SOURCE_CLASSES,
+    ContextSourceClass,
+)
+from personal_ai.contracts.context_references import ContextEntityReference
 
 ApplicationId = str
 Sensitivity = Literal["public", "personal", "sensitive", "restricted"]
 ContextSensitivity = Literal["public", "personal", "sensitive", "restricted", "unknown"]
 ContextOperation = Literal["profile", "current", "entity", "history", "search"]
 CapabilityKind = Literal["context_provider", "tool"]
+_VIEW_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$"
 _APPLICATION_ID_PATTERN = r"^[a-z][a-z0-9_-]{1,40}$"
 _CAPABILITY_ID_PATTERN = r"^[a-z][a-z0-9_.-]{1,80}$"
 
@@ -178,6 +184,7 @@ class ApplicationContextPolicy(BaseModel):
     maximum_model_sensitivity: ContextSensitivity = "sensitive"
     unknown_sensitivity: Literal["deny"] = "deny"
     cross_application: Literal["deny"] = "deny"
+    sidecar: "ApplicationSidecarPolicy" = Field(default_factory=lambda: ApplicationSidecarPolicy())
 
     @model_validator(mode="after")
     def providers_are_unique(self) -> "ApplicationContextPolicy":
@@ -186,6 +193,8 @@ class ApplicationContextPolicy(BaseModel):
             raise ValueError("context_policy_providers_must_be_unique")
         if self.maximum_model_sensitivity == "unknown":
             raise ValueError("unknown_model_sensitivity_cannot_be_allowed")
+        if len(set(self.external_execution_modes)) != len(self.external_execution_modes):
+            raise ValueError("external_execution_modes_must_be_unique")
         return self
 
     def operation(self, provider_id: str, operation: ContextOperation) -> ContextOperationPolicy | None:
@@ -195,6 +204,114 @@ class ApplicationContextPolicy(BaseModel):
         if provider is None:
             return None
         return next((item for item in provider.operations if item.operation == operation), None)
+
+
+class ExternalDisclosurePolicy(BaseModel):
+    """Narrow one external execution lane by category and sensitivity."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    allowed: bool = True
+    allowed_context_categories: tuple[ContextSourceClass, ...] = Field(
+        default=CONTEXT_SOURCE_CLASSES,
+        max_length=9,
+    )
+    maximum_sensitivity: Literal["public", "personal", "sensitive", "restricted"] = "sensitive"
+
+    @model_validator(mode="after")
+    def categories_are_unique(self) -> "ExternalDisclosurePolicy":
+        if len(set(self.allowed_context_categories)) != len(self.allowed_context_categories):
+            raise ValueError("external_disclosure_categories_must_be_unique")
+        return self
+
+
+class ApplicationSidecarPolicy(BaseModel):
+    """Application-owned narrowing hooks for shared sidecar disclosure and actions."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    connected_provider_disclosure: ExternalDisclosurePolicy = Field(
+        default_factory=ExternalDisclosurePolicy
+    )
+    manual_external_disclosure: ExternalDisclosurePolicy = Field(
+        default_factory=ExternalDisclosurePolicy
+    )
+    allow_manual_import_context: bool = True
+    copy_allowed: bool = True
+    draft_insert_target_ids: tuple[str, ...] = Field(default=(), max_length=16)
+    # Declarations reserve a policy seam for Phase 31; no Apply operation is executable here.
+    future_apply_operation_ids: tuple[str, ...] = Field(default=(), max_length=16)
+
+    @model_validator(mode="after")
+    def action_targets_are_valid(self) -> "ApplicationSidecarPolicy":
+        for name, values in (
+            ("draft_insert_target_ids", self.draft_insert_target_ids),
+            ("future_apply_operation_ids", self.future_apply_operation_ids),
+        ):
+            if len(values) != len(set(values)) or any(
+                not re.fullmatch(_VIEW_ID_PATTERN, value) for value in values
+            ):
+                raise ValueError(f"sidecar_{name}_invalid")
+        return self
+
+    def disclosure_for(
+        self, mode: Literal["connected_provider", "manual_external"]
+    ) -> ExternalDisclosurePolicy:
+        return (
+            self.connected_provider_disclosure
+            if mode == "connected_provider"
+            else self.manual_external_disclosure
+        )
+
+
+class ApplicationLaunchContext(BaseModel):
+    """Versioned, bounded host hints; every identifier remains non-authoritative."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["application-launch-v1"] = "application-launch-v1"
+    application_id: str = Field(pattern=_APPLICATION_ID_PATTERN, min_length=2, max_length=42)
+    workspace_id: str | None = Field(default=None, max_length=100)
+    entity_refs: tuple[ContextEntityReference, ...] = Field(default=(), max_length=16)
+    view_id: str | None = Field(default=None, pattern=_VIEW_ID_PATTERN)
+    conversation_id: str = Field(
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    )
+    client_context: dict[str, str | int | float | bool | None] = Field(
+        default_factory=dict, max_length=32
+    )
+
+    @model_validator(mode="after")
+    def launch_hints_are_bounded_and_scoped(self) -> "ApplicationLaunchContext":
+        import json
+
+        try:
+            encoded_context = json.dumps(
+                self.client_context, separators=(",", ":"), allow_nan=False
+            )
+        except (TypeError, ValueError) as error:
+            raise ValueError("application_launch_client_context_invalid") from error
+        if len(encoded_context) > 4_096:
+            raise ValueError("application_launch_client_context_too_large")
+        if len(set(self.entity_refs)) != len(self.entity_refs):
+            raise ValueError("application_launch_entity_refs_must_be_unique")
+        if any(
+            reference.application_id != self.application_id
+            or reference.workspace_id != self.workspace_id
+            for reference in self.entity_refs
+        ):
+            raise ValueError("application_launch_entity_scope_mismatch")
+        return self
+
+    def validate_for(self, scope: RequestScope, conversation_id) -> None:
+        """Bind advisory launch hints to server-derived scope and the route target."""
+        if (
+            self.application_id != scope.application_id
+            or self.workspace_id != scope.workspace_id
+            or self.client_context != scope.client_context
+            or self.conversation_id != str(conversation_id)
+        ):
+            raise ValueError("application_launch_scope_mismatch")
 
 
 class CrossApplicationDeclaration(BaseModel):

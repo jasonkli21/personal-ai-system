@@ -37,6 +37,7 @@ from personal_ai.context.contracts import (
     complete_turns,
     fingerprint,
 )
+from personal_ai.context.history import conversation_context_messages
 from personal_ai.context.planner import ContextPlan, ContextPlanner
 from personal_ai.context.providers import (
     ContextPreparationError,
@@ -105,6 +106,7 @@ class ContextAssembler:
         *,
         candidate_entities=(),
         excluded_source_classes=frozenset(),
+        maximum_sensitivity=None,
         now: datetime | None = None,
     ) -> ContextPlan:
         """Plan bounded source operations before any request-specific retrieval."""
@@ -131,7 +133,11 @@ class ContextAssembler:
             excluded_source_classes=frozenset(excluded_source_classes),
             now=now,
         )
-        authorize_context_selections(application_context, plan.selections)
+        authorize_context_selections(
+            application_context,
+            plan.selections,
+            maximum_sensitivity=maximum_sensitivity,
+        )
         return plan
 
     def input_budget(self, output_reserve: int | None = None) -> int:
@@ -166,6 +172,13 @@ class ContextAssembler:
         if application_context is not None:
             scope = application_context.scope
             authorize_base_disclosure(application_context)
+            active_messages = conversation_context_messages(
+                active_messages,
+                allow_manual_external=(
+                    application_context.definition.context_policy.sidecar
+                    .allow_manual_import_context
+                ),
+            )
             messages = (*active_messages, pending_user_message)
             if any(
                 message.owner_id != scope.owner_id

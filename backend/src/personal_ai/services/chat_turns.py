@@ -18,14 +18,16 @@ from personal_ai.api.schemas import (
     SSEResponseDelta,
     SSEResponseError,
 )
-from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.applications.contracts import ApplicationContextRequest, ContextSensitivity
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.authorization import make_inference_context
 from personal_ai.context.contracts import ContextError
 from personal_ai.context.deadline import remaining
+from personal_ai.context.history import conversation_context_messages
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
+from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.entities import MAX_MESSAGE_CONTENT_CHARS, Message, MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.llm import (
@@ -175,10 +177,12 @@ class ChatTurnService:
         user_id: UUID,
         preparation_hook,
         candidate_message_ids=None,
+        candidate_entities: Sequence[ContextEntityReference] = (),
         history_authorizer=None,
         continuation_digest: str,
         context_assembler: ContextAssembler | None = None,
         excluded_source_classes=frozenset(),
+        maximum_context_sensitivity: ContextSensitivity | None = None,
     ) -> _PreparedTurn:
         # External assembly must not disclose context to an unrelated count/summary provider.
         from personal_ai.context.tokens import EstimatedTokenCounter
@@ -236,11 +240,13 @@ class ChatTurnService:
             preparation_hook=preparation_hook,
             external=True,
             candidate_message_ids=candidate_message_ids,
+            candidate_entities=candidate_entities,
             history_authorizer=history_authorizer,
             continuation_digest=continuation_digest,
             user_already_persisted=already_persisted,
             context_assembler=preparation_context,
             excluded_source_classes=frozenset(excluded_source_classes) | {"ai_memory"},
+            maximum_context_sensitivity=maximum_context_sensitivity,
         )
 
     def preview_external_context(
@@ -249,8 +255,10 @@ class ChatTurnService:
         content: str,
         *,
         candidate_message_ids=None,
+        candidate_entities: Sequence[ContextEntityReference] = (),
         history_authorizer=None,
         excluded_source_classes=frozenset(),
+        maximum_context_sensitivity: ContextSensitivity | None = None,
         context_assembler: ContextAssembler | None = None,
     ):
         """Return a read-only planner projection without reservation or provider work."""
@@ -275,12 +283,21 @@ class ChatTurnService:
                 if any(message.id in requested for message in turn)
                 for message in turn
             ]
+        history = conversation_context_messages(
+            history,
+            allow_manual_external=(
+                self._application_context.definition.context_policy.sidecar
+                .allow_manual_import_context
+            ),
+        )
         if history_authorizer is not None:
             history_authorizer(tuple(message.id for message in history))
         plan = context.plan_context(
             content,
             self._application_context,
+            candidate_entities=candidate_entities,
             excluded_source_classes=frozenset(excluded_source_classes) | {"ai_memory"},
+            maximum_sensitivity=maximum_context_sensitivity,
         )
         return plan, len(history)
 
@@ -288,6 +305,15 @@ class ChatTurnService:
         """An automatic continuation uses the configured generation lane and shared assembly."""
         if request.choice.mode != "automatic":
             raise ContextPreparationError("external_choice_requires_preparation")
+        if request.launch_context is not None:
+            if self._application_context is None:
+                raise ContextPreparationError("application_context_required")
+            try:
+                request.launch_context.validate_for(
+                    self._application_context.scope, conversation_id
+                )
+            except ValueError as error:
+                raise ContextPreparationError("application_launch_scope_mismatch") from error
         identity = uuid5(
             conversation_id,
             f"{self._owner_id}:{self._application_context.scope.application_id if self._application_context else 'personal_ai'}:{self._application_context.scope.workspace_id if self._application_context else None}:{request.idempotency_key}",
@@ -347,6 +373,7 @@ class ChatTurnService:
             None,
             request_id=str(request.idempotency_key),
             candidate_message_ids=request.candidate_message_ids,
+            candidate_entities=request.entity_refs,
             assistant_id=identity,
             continuation_digest=intent_digest,
             user_already_persisted=already_persisted,
@@ -436,11 +463,13 @@ class ChatTurnService:
         preparation_hook=None,
         external: bool = False,
         candidate_message_ids=None,
+        candidate_entities: Sequence[ContextEntityReference] = (),
         history_authorizer=None,
         continuation_digest: str | None = None,
         user_already_persisted: bool = False,
         context_assembler: ContextAssembler | None = None,
         excluded_source_classes=frozenset(),
+        maximum_context_sensitivity: ContextSensitivity | None = None,
     ) -> _PreparedTurn:
         if self._application_context is None and getattr(
             self._llm, "requires_inference_context", True
@@ -480,6 +509,14 @@ class ChatTurnService:
                 history_for_context = [
                     m for pair in eligible if any(m.id in requested for m in pair) for m in pair
                 ]
+            if self._application_context is not None:
+                history_for_context = list(conversation_context_messages(
+                    history_for_context,
+                    allow_manual_external=(
+                        self._application_context.definition.context_policy.sidecar
+                        .allow_manual_import_context
+                    ),
+                ))
             if history_authorizer is not None:
                 history_authorizer(tuple(m.id for m in history_for_context))
             context_plan = None
@@ -488,7 +525,9 @@ class ChatTurnService:
                 context_plan = context.plan_context(
                     user.content,
                     self._application_context,
+                    candidate_entities=candidate_entities,
                     excluded_source_classes=excluded_source_classes,
+                    maximum_sensitivity=maximum_context_sensitivity,
                 )
                 use_planned_memory = any(
                     selection.provider_id == "ai_memory" and selection.operation == "search"

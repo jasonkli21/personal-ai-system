@@ -22,6 +22,7 @@ from personal_ai.applications.contracts import (
     CapabilityRegistration,
 )
 from personal_ai.auth.scope import ApplicationScope, RequestScope
+from personal_ai.contracts.context_categories import ContextSourceClass
 from personal_ai.contracts.context_references import (
     ContextAuthorityReference,
     ContextEntityReference,
@@ -31,17 +32,6 @@ from personal_ai.contracts.context_references import (
 )
 from personal_ai.memory.contracts import RetrievalResult
 
-ContextSourceClass = Literal[
-    "global_profile",
-    "domain_profile",
-    "domain_current",
-    "domain_history",
-    "ai_memory",
-    "conversation",
-    "external_research",
-    "tool_result",
-    "client_context",
-]
 ContextOperation = Literal["profile", "current", "entity", "history", "search"]
 ContextAuthority = Literal[
     "authoritative", "user_asserted", "derived", "external", "client_supplied", "unknown"

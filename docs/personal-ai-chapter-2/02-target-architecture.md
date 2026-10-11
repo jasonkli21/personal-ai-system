@@ -111,7 +111,7 @@ The **Application Integration Contract** is the evolving logical typed interface
 | 2 (implemented) | `ApplicationDefinition`, workspace semantics, and capability registration metadata. |
 | 11 (future) | First runtime integration seam: scope + definition + registered typed `ContextProvider` capabilities. |
 | 15 (partially implemented) | Typed application/provider/operation/field policy, sensitivity declarations, and local pre-retrieval/model-disclosure enforcement. End-to-end revocation through derived context and immutable Postgres policy/source references remain open. |
-| 25.4 (future) | Optional shared sidecar/host launch and action hooks. |
+| 25.4 (implemented locally) | Optional shared sidecar/host launch, disclosure, and action-policy hooks. Real domain repositories and live authorization remain future work. |
 | 30 (future) | Optional scoped export/federation declarations and authorization dependencies. |
 | 31 (future) | Optional versioned typed mutation capabilities. |
 | 36 (future) | Complete evaluation/conformance fixtures. |

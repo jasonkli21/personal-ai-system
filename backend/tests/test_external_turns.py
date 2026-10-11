@@ -1399,6 +1399,7 @@ def test_principal_bound_authority_requires_verified_owner_and_rechecks_source_g
 
 def test_execution_options_follow_application_policy_and_current_explicit_profiles(setup, monkeypatch):
     from personal_ai.api.external_turns import execution_options
+    from personal_ai.applications.contracts import ExternalDisclosurePolicy
     from personal_ai.settings import Settings
 
     service, *_ = setup
@@ -1442,3 +1443,25 @@ def test_execution_options_follow_application_policy_and_current_explicit_profil
     denied = execution_options(denied_context, settings)
     assert denied.modes == ("automatic",)
     assert denied.explicit_profiles == ()
+
+    original_sidecar = service.context.definition.context_policy.sidecar
+    for restricted_sidecar in (
+        original_sidecar.model_copy(update={
+            "manual_external_disclosure": ExternalDisclosurePolicy(
+                allowed=False,
+                allowed_context_categories=("conversation",),
+                maximum_sensitivity="personal",
+            )
+        }),
+        original_sidecar.model_copy(update={"copy_allowed": False}),
+    ):
+        restricted_context = service.context.model_copy(update={
+            "definition": service.context.definition.model_copy(update={
+                "context_policy": service.context.definition.context_policy.model_copy(
+                    update={"sidecar": restricted_sidecar}
+                )
+            })
+        })
+        restricted = execution_options(restricted_context, settings)
+        assert "manual_external" not in restricted.modes
+        assert restricted.sidecar == restricted_sidecar

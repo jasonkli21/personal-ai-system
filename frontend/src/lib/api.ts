@@ -48,6 +48,39 @@ export type TurnAttribution = {
 
 export type ContextSourceClass = "global_profile" | "domain_profile" | "domain_current" | "domain_history" | "ai_memory" | "conversation" | "external_research" | "tool_result" | "client_context";
 
+export type ContextEntityReference = {
+  entity_type: string;
+  entity_id: string;
+  application_id: string;
+  workspace_id: string | null;
+};
+
+/** Advisory host metadata. Server identity and authorization remain authoritative. */
+export type ApplicationLaunchContext = {
+  schema_version: "application-launch-v1";
+  application_id: string;
+  workspace_id: string | null;
+  entity_refs: ContextEntityReference[];
+  view_id: string | null;
+  conversation_id: string;
+  client_context: Record<string, string | number | boolean | null>;
+};
+
+export type ExternalDisclosureOptions = {
+  allowed: boolean;
+  allowed_context_categories: ContextSourceClass[];
+  maximum_sensitivity: "public" | "personal" | "sensitive" | "restricted";
+};
+
+export type SidecarActionOptions = {
+  connected_provider_disclosure: ExternalDisclosureOptions;
+  manual_external_disclosure: ExternalDisclosureOptions;
+  allow_manual_import_context: boolean;
+  copy_allowed: boolean;
+  draft_insert_target_ids: string[];
+  future_apply_operation_ids: string[];
+};
+
 export type ConversationDetail = { conversation: Conversation; messages: Message[] };
 type ErrorPayload = { error?: { message?: string } };
 type MessageCreatedEvent = { message: Message };
@@ -77,6 +110,7 @@ export type ContinuationRequest = {
   idempotency_key: string;
   choice: ExecutionChoice;
   candidate_message_ids?: string[] | null;
+  launch_context?: ApplicationLaunchContext | null;
   excluded_source_classes?: ContextSourceClass[];
 };
 export type ContextPackage = {
@@ -133,6 +167,7 @@ export type ExplicitProfileOption = {
 export type ExecutionOptions = {
   modes: ("automatic" | ExternalMode)[];
   explicit_profiles: ExplicitProfileOption[];
+  sidecar: SidecarActionOptions;
 };
 export type PreparedExternalTurn = {
   message_id: string;

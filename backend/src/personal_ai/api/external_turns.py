@@ -15,7 +15,10 @@ from personal_ai.api.dependencies import (
     get_settings,
 )
 from personal_ai.api.schemas import APIModel
-from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.applications.contracts import (
+    ApplicationContextRequest,
+    ApplicationSidecarPolicy,
+)
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner, SignedDispatchGrant
 from personal_ai.contracts.execution import ContinuationRequest, ExternalFailureCode
 from personal_ai.entities import Message
@@ -60,6 +63,7 @@ class ExplicitProfileOption(APIModel):
 class ExecutionOptionsResponse(APIModel):
     modes: tuple[Literal["automatic", "connected_provider", "manual_external"], ...]
     explicit_profiles: tuple[ExplicitProfileOption, ...] = Field(default=(), max_length=32)
+    sidecar: ApplicationSidecarPolicy
 
 
 class PreparedTurnResponse(APIModel):
@@ -146,17 +150,30 @@ def execution_options(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ExecutionOptionsResponse:
     """Project only explicitly selectable, current P18 profiles and app policy modes."""
+    sidecar = context.definition.context_policy.sidecar
     if not settings.external_turn_acceptance_enabled:
-        return ExecutionOptionsResponse(modes=("automatic",), explicit_profiles=())
+        return ExecutionOptionsResponse(
+            modes=("automatic",), explicit_profiles=(), sidecar=sidecar
+        )
     allowed = set(context.definition.context_policy.external_execution_modes)
+    policy = context.definition.context_policy.sidecar
     signer: DispatchGrantSigner | None = get_external_dispatch_signer(settings)
     registry: EndpointRegistry | None = None
-    if signer is not None and "connected_provider" in allowed:
+    if (
+        signer is not None
+        and "connected_provider" in allowed
+        and policy.connected_provider_disclosure.allowed
+    ):
         try:
             registry = get_endpoint_registry(settings)
         except Exception:  # noqa: BLE001 - optional connected discovery fails closed.
             registry = None
-    if registry is None or signer is None or "connected_provider" not in allowed:
+    if (
+        registry is None
+        or signer is None
+        or "connected_provider" not in allowed
+        or not policy.connected_provider_disclosure.allowed
+    ):
         profiles = ()
     else:
         profiles = tuple(
@@ -173,11 +190,21 @@ def execution_options(
             if profile.context_limit_tokens is not None
         )
     modes = ["automatic"]
-    if "connected_provider" in allowed and profiles:
+    if (
+        "connected_provider" in allowed
+        and policy.connected_provider_disclosure.allowed
+        and profiles
+    ):
         modes.append("connected_provider")
-    if "manual_external" in allowed:
+    if (
+        "manual_external" in allowed
+        and policy.manual_external_disclosure.allowed
+        and policy.copy_allowed
+    ):
         modes.append("manual_external")
-    return ExecutionOptionsResponse(modes=tuple(modes), explicit_profiles=profiles)
+    return ExecutionOptionsResponse(
+        modes=tuple(modes), explicit_profiles=profiles, sidecar=sidecar
+    )
 
 
 @router.post(

@@ -7,7 +7,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from personal_ai.context.providers import ContextSourceClass
+from personal_ai.applications.contracts import ApplicationLaunchContext
+from personal_ai.contracts.context_categories import ContextSourceClass
+from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.routing.contracts import EndpointRef
 
 
@@ -119,6 +121,8 @@ class ContinuationRequest(BaseModel):
     choice: ExecutionChoice = Field(default_factory=ExecutionChoice)
     # Optional narrowing. References never authorize or force inclusion.
     candidate_message_ids: tuple[UUID, ...] | None = Field(default=None, max_length=10000)
+    # Host launch data is advisory and is re-bound to the authenticated request scope.
+    launch_context: ApplicationLaunchContext | None = None
     # Bounded source-class narrowing. This can only remove planner-selected sources.
     excluded_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
 
@@ -129,12 +133,20 @@ class ContinuationRequest(BaseModel):
         return self
 
     @property
+    def entity_refs(self) -> tuple[ContextEntityReference, ...]:
+        return self.launch_context.entity_refs if self.launch_context is not None else ()
+
+    @property
     def intent_digest(self) -> str:
         """Stable durable identity for retries across automatic and external modes."""
         import json
 
+        payload = self.model_dump(mode="json")
+        # Preserve idempotency digests written before launch metadata was added.
+        if self.launch_context is None:
+            payload.pop("launch_context", None)
         canonical = json.dumps(
-            self.model_dump(mode="json"),
+            payload,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,

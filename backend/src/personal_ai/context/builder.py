@@ -17,23 +17,16 @@ from personal_ai.context.providers import (
     ContextOperation,
     ContextPermissionDependency,
     ContextSensitivity,
-    ContextSourceClass,
     ContextSourceReference,
+)
+from personal_ai.contracts.context_categories import (
+    CONTEXT_SOURCE_CLASSES,
+    ContextSourceClass,
 )
 from personal_ai.llm.client import ChatMessage
 from personal_ai.llm.errors import LLMError
 
-SOURCE_CLASSES: tuple[ContextSourceClass, ...] = (
-    "global_profile",
-    "domain_profile",
-    "domain_current",
-    "domain_history",
-    "ai_memory",
-    "conversation",
-    "external_research",
-    "tool_result",
-    "client_context",
-)
+SOURCE_CLASSES = CONTEXT_SOURCE_CLASSES
 
 SENSITIVITY_RANK: Mapping[ContextSensitivity, int] = {
     "public": 0,

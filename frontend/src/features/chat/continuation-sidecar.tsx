@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   conversationsApi,
+  type ApplicationLaunchContext,
   type BridgeConnection,
   type BridgeModel,
   type BridgePairing,
@@ -16,6 +17,7 @@ import {
   type ExternalTurnReconciliation,
   type Message,
   type PreparedExternalTurn,
+  type SidecarActionOptions,
   type SignedDispatchGrant,
 } from "../../lib/api";
 import { readSseFrames } from "../../lib/sse";
@@ -30,10 +32,13 @@ import styles from "./continuation-sidecar.module.css";
 type Props = {
   conversationId: string;
   scope?: ApplicationScopeRequest;
+  launchContext?: ApplicationLaunchContext;
+  draftTargets?: readonly { id: string; label: string }[];
+  onDraftInsert?: (targetId: string, text: string) => void;
   transportAdapters?: readonly ExternalTransportAdapter[];
   target: Message;
   onClose: () => void;
-  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest) => void;
+  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest, launchContext: ApplicationLaunchContext) => void;
   onExternalPrepared?: (messageId: string) => Promise<void>;
   onExternalDelta?: (messageId: string, delta: string) => void;
   onExternalCompleted?: (message: Message) => void;
@@ -178,6 +183,27 @@ const NARROWABLE_SOURCES: { id: ContextSourceClass; label: string }[] = [
 
 const DEFAULT_SCOPE: ApplicationScopeRequest = { applicationId: "personal_ai" };
 const noop = () => undefined;
+
+const CONTEXT_CLASSES: ContextSourceClass[] = [
+  "global_profile", "domain_profile", "domain_current", "domain_history", "ai_memory",
+  "conversation", "external_research", "tool_result", "client_context",
+];
+
+function launchFor(
+  conversationId: string,
+  scope: ApplicationScopeRequest,
+  launchContext?: ApplicationLaunchContext,
+): ApplicationLaunchContext {
+  return launchContext ?? {
+    schema_version: "application-launch-v1",
+    application_id: scope.applicationId ?? "personal_ai",
+    workspace_id: scope.workspaceId ?? null,
+    entity_refs: [],
+    view_id: null,
+    conversation_id: conversationId,
+    client_context: scope.clientContext ?? {},
+  };
+}
 const noopPrepared = async () => undefined;
 
 function RecoveryPanel({
@@ -199,7 +225,7 @@ function RecoveryPanel({
   </section>;
 }
 
-export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
+export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
   const [options, setOptions] = useState<ExecutionOptions | null>(null);
   const [mode, setMode] = useState<"automatic" | "manual_external" | "connected_provider">("automatic");
   const [instruction, setInstruction] = useState("Continue from this answer.");
@@ -235,13 +261,28 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
   const heading = useRef<HTMLHeadingElement>(null);
   const bridgeRequest = useRef<AbortController | null>(null);
   const preparedRef = useRef<PreparedExternalTurn | null>(null);
+  const effectiveLaunch = useMemo(
+    () => launchFor(conversationId, scope, launchContext),
+    [conversationId, scope, launchContext],
+  );
+  const requestScope = useMemo(
+    () => ({ ...scope, clientContext: effectiveLaunch.client_context }),
+    [scope, effectiveLaunch],
+  );
+  const actionOptions: SidecarActionOptions | null = options?.sidecar ?? null;
 
   useEffect(() => {
     let cancelled = false;
-    void conversationsApi.executionOptions(undefined, scope).then(value => {
+    void conversationsApi.executionOptions(undefined, requestScope).then(value => {
       if (cancelled) return;
       setOptions(value);
-      setMode(value.modes.includes("manual_external") ? "manual_external" : "automatic");
+      setMode(
+        value.modes.includes("manual_external")
+          && value.sidecar.manual_external_disclosure.allowed
+          && value.sidecar.copy_allowed
+          ? "manual_external"
+          : "automatic",
+      );
       setSelectedProfile(supportedExternalProfiles(value.explicit_profiles, transportAdapters)[0]?.endpoint.endpoint_profile_id ?? "");
       setStatus("Choose how to continue. Automatic and manual modes work without the local bridge.");
     }).catch(failure => {
@@ -252,14 +293,14 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
     });
     heading.current?.focus();
     return () => { cancelled = true; };
-  }, [scope, transportAdapters]);
+  }, [requestScope, transportAdapters]);
 
   useEffect(() => {
     const key = recoveryStorageKey(conversationId, scope);
     const idempotencyKey = window.sessionStorage.getItem(key);
     if (!idempotencyKey) return;
     setRecoveryKey(idempotencyKey);
-    void conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, scope)
+    void conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, requestScope)
       .then(result => {
         if (["not_found", "not_external", "cancelled", "completed"].includes(result.state)) {
           window.sessionStorage.removeItem(key);
@@ -277,15 +318,15 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
         }
       })
       .catch(() => setStatus("Checking whether an earlier prepare request committed…"));
-  }, [conversationId, scope, onExternalInterrupted]);
+  }, [conversationId, requestScope, onExternalInterrupted]);
 
   useEffect(() => () => {
     bridgeRequest.current?.abort();
     const current = preparedRef.current;
     if (current) {
-      void conversationsApi.abandonExternal(conversationId, current.message_id, current.package_fingerprint, undefined, scope).catch(() => undefined);
+      void conversationsApi.abandonExternal(conversationId, current.message_id, current.package_fingerprint, undefined, requestScope).catch(() => undefined);
     }
-  }, [conversationId, scope]);
+  }, [conversationId, requestScope]);
 
   useEffect(() => {
     const element = sidecar.current;
@@ -322,15 +363,26 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
   const selectedTransport = selectedProfileOption
     ? transportRegistry.get(selectedProfileOption.external_transport_id)
     : undefined;
-  const connectedAvailable = !!options?.modes.includes("connected_provider") && profiles.length > 0;
-  const manualAvailable = !!options?.modes.includes("manual_external");
+  const connectedAvailable = !!options?.modes.includes("connected_provider")
+    && !!actionOptions?.connected_provider_disclosure.allowed && profiles.length > 0;
+  const manualAvailable = !!options?.modes.includes("manual_external")
+    && !!actionOptions?.manual_external_disclosure.allowed && !!actionOptions.copy_allowed;
+  const currentDisclosure = mode === "connected_provider"
+    ? actionOptions?.connected_provider_disclosure
+    : actionOptions?.manual_external_disclosure;
+  const policyExcludedSources = CONTEXT_CLASSES.filter(
+    source => !currentDisclosure?.allowed_context_categories.includes(source),
+  );
+  const permittedDraftTargets = draftTargets.filter(
+    item => actionOptions?.draft_insert_target_ids.includes(item.id),
+  );
 
   async function discardPrepared() {
     bridgeRequest.current?.abort();
     bridgeRequest.current = null;
     if (prepared) {
       try {
-        await conversationsApi.abandonExternal(conversationId, prepared.message_id, prepared.package_fingerprint, undefined, scope);
+        await conversationsApi.abandonExternal(conversationId, prepared.message_id, prepared.package_fingerprint, undefined, requestScope);
       } catch {
         // A stale or already terminal reservation cannot be reused; preparation will revalidate.
       }
@@ -348,12 +400,12 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
   function submitAutomatic(event: FormEvent) {
     event.preventDefault();
     if (!instruction.trim() || busy) return;
-    onAutomatic(instruction.trim(), target, includeTarget, scope);
+    onAutomatic(instruction.trim(), target, includeTarget, requestScope, effectiveLaunch);
   }
 
   function requestFor(modeChoice: "manual_external" | "connected_provider", idempotencyKey: string) {
     let choice: Parameters<typeof conversationsApi.prepareExternal>[1]["choice"];
-    if (modeChoice === "manual_external") choice = { mode: "manual_external" };
+      if (modeChoice === "manual_external") choice = { mode: "manual_external" };
     else {
       if (!pairing || !bridgeConnection || !selectedModel || !selectedProfile) throw new Error("Connect an eligible local bridge account and choose a model.");
       if (bridgeConnection.usage?.state === "limit") throw new Error("The local account reports a current usage limit. Manage or refresh usage before sending.");
@@ -376,7 +428,8 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
       idempotency_key: idempotencyKey,
       choice,
       candidate_message_ids: includeTarget ? [target.id] : [],
-      excluded_source_classes: excludedSources,
+      launch_context: effectiveLaunch,
+      excluded_source_classes: [...new Set([...excludedSources, ...policyExcludedSources])],
     };
   }
 
@@ -388,7 +441,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
     setStatus("Previewing the authorized planner selection. This does not create a reservation.");
     try {
       const request = requestFor(mode, crypto.randomUUID());
-      const next = await conversationsApi.previewExternal(conversationId, request, undefined, scope);
+      const next = await conversationsApi.previewExternal(conversationId, request, undefined, requestScope);
       setPreview(next);
       setPreviewReviewed(false);
       setStatus("Preview ready. It is advisory; canonical preparation will replan and reauthorize.");
@@ -412,7 +465,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
     setRecoveryKey(idempotencyKey);
     try {
       const request = requestFor(mode as "manual_external" | "connected_provider", idempotencyKey);
-      const next = await conversationsApi.prepareExternal(conversationId, request, undefined, scope);
+      const next = await conversationsApi.prepareExternal(conversationId, request, undefined, requestScope);
       window.sessionStorage.removeItem(storageKey);
       setRecoveryKey(null);
       setRecovery(null);
@@ -425,7 +478,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
       setError(errorMessage(failure));
       setStatus("The prepare response may have been lost. Checking the canonical reservation before allowing another attempt.");
       try {
-        const result = await conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, scope);
+        const result = await conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, requestScope);
         if (result.state === "not_found") {
           window.sessionStorage.removeItem(storageKey);
           setRecoveryKey(null);
@@ -444,7 +497,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
     if (!recoveryKey || busy) return;
     setBusy(true);
     try {
-      await conversationsApi.abandonExternalByKey(conversationId, recoveryKey, undefined, scope);
+      await conversationsApi.abandonExternalByKey(conversationId, recoveryKey, undefined, requestScope);
       window.sessionStorage.removeItem(recoveryStorageKey(conversationId, scope));
       setRecovery(null);
       setRecoveryKey(null);
@@ -471,7 +524,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
         text: importText.trim(),
         ...(providerLabel.trim() ? { provider_label: providerLabel.trim() } : {}),
         ...(modelLabel.trim() ? { model_label: modelLabel.trim() } : {}),
-      }, undefined, scope);
+      }, undefined, requestScope);
       onExternalCompleted(completed);
       preparedRef.current = null;
       setPrepared(null);
@@ -577,9 +630,9 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
 
   async function markConnectedInterrupted(turn: PreparedExternalTurn) {
     try {
-      await conversationsApi.failExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, scope);
+      await conversationsApi.failExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, requestScope);
     } catch {
-      try { await conversationsApi.abandonExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, scope); } catch { /* Canonical state may already be terminal. */ }
+      try { await conversationsApi.abandonExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, requestScope); } catch { /* Canonical state may already be terminal. */ }
     }
     preparedRef.current = null;
     setPrepared(null);
@@ -600,7 +653,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
         latency_ms: completion.latencyMs,
         ...(completion.inputTokens !== undefined ? { input_tokens: completion.inputTokens } : {}),
         ...(completion.outputTokens !== undefined ? { output_tokens: completion.outputTokens } : {}),
-      }, undefined, scope);
+      }, undefined, requestScope);
       onExternalCompleted(completed);
       preparedRef.current = null;
       setPrepared(null);
@@ -638,7 +691,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
     const turn = prepared;
     try {
       setStatus("Requesting a short-lived dispatch grant…");
-      const { proof } = await conversationsApi.dispatchExternal(conversationId, turn.message_id, connectedExecution, controller.signal, scope);
+      const { proof } = await conversationsApi.dispatchExternal(conversationId, turn.message_id, connectedExecution, controller.signal, requestScope);
       setStatus("Sending the authorized package to the paired local bridge…");
       const result = await bridgeExecute(connectedExecution, proof, pairing, adapter, controller.signal, delta => {
         onExternalDelta(turn.message_id, delta);
@@ -675,6 +728,13 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
     } catch {
       setError("Clipboard access is unavailable. Select the prepared text and copy it manually.");
     }
+  }
+
+  function insertIntoDraft(targetId: string, text: string) {
+    if (!onDraftInsert || !text.trim()) return;
+    if (!permittedDraftTargets.some(targetValue => targetValue.id === targetId)) return;
+    onDraftInsert(targetId, text);
+    setStatus(`Inserted text into the ${targetId} draft. No domain record was changed.`);
   }
 
   function submit(event: FormEvent) {
@@ -744,14 +804,14 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
         <legend>Narrow sources for this external turn</legend>
         <p className={styles.note}>These controls only omit sources from the shared authorized planner. They cannot force a source into the package.</p>
         {NARROWABLE_SOURCES.map(source => <label className={styles.checkboxLabel} key={source.id}>
-          <input type="checkbox" checked={excludedSources.includes(source.id)} onChange={event => {
+          <input type="checkbox" checked={policyExcludedSources.includes(source.id) || excludedSources.includes(source.id)} disabled={policyExcludedSources.includes(source.id)} onChange={event => {
             setExcludedSources(current => event.target.checked
               ? [...current, source.id]
               : current.filter(item => item !== source.id));
             setPreview(null);
             setPreviewReviewed(false);
           }} />
-          Omit {source.label}
+          Omit {source.label}{policyExcludedSources.includes(source.id) ? " · blocked by application policy" : ""}
         </label>)}
       </fieldset>}
       {!prepared && !recovery && <button type="submit" disabled={busy || !instruction.trim() || (mode === "connected_provider" && (!pairing || !selectedModel || !selectedProfile || bridgeConnection?.usage?.state === "limit")) || (mode !== "automatic" && !!preview && !previewReviewed)}>
@@ -791,7 +851,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
         <p>Personal AI did not open, control, authenticate to, scrape, or verify the external model or session. This prompt is user-mediated and can be used without the local bridge.</p>
         <label htmlFor="portable-prompt">Prepared prompt</label>
         <textarea id="portable-prompt" readOnly value={prepared.portable_prompt ?? ""} />
-        <button type="button" onClick={() => void copyText(prepared.portable_prompt ?? "")} disabled={!prepared.portable_prompt || !finalPackageReviewed}>Copy prepared prompt</button>
+        <button type="button" onClick={() => void copyText(prepared.portable_prompt ?? "")} disabled={!prepared.portable_prompt || !finalPackageReviewed || !actionOptions?.copy_allowed}>Copy prepared prompt</button>
         {copied && <span role="status">Copied.</span>}
         <form onSubmit={importManual} className={styles.form}>
           <label htmlFor="manual-response">Paste the external response</label>
@@ -801,6 +861,12 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
           <label htmlFor="manual-model">Model label (optional, user-declared)</label>
           <input id="manual-model" value={modelLabel} maxLength={200} onChange={event => setModelLabel(event.target.value)} disabled={busy} />
           <p className={styles.note}>Provider and model labels are unverified. Imported text returns as a conversation turn and does not apply changes to domain records.</p>
+          {onDraftInsert && importText.trim() && permittedDraftTargets.map(draftTarget => <button
+            key={draftTarget.id}
+            type="button"
+            disabled={busy}
+            onClick={() => insertIntoDraft(draftTarget.id, importText)}
+          >Insert response into {draftTarget.label} draft</button>)}
           <button type="submit" disabled={busy || !importText.trim() || !finalPackageReviewed}>Import response into conversation</button>
         </form>
       </section>}
@@ -809,6 +875,12 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, tra
         <p>Connected deltas appear on the pending assistant turn in the shared conversation view. They remain transient until completion.</p>
         {savedCompletion && <>
           <p>The bridge completed. Retry saves the same response and does not send it again.</p>
+          {onDraftInsert && permittedDraftTargets.map(draftTarget => <button
+            key={draftTarget.id}
+            type="button"
+            disabled={busy}
+            onClick={() => insertIntoDraft(draftTarget.id, savedCompletion.text)}
+          >Insert response into {draftTarget.label} draft</button>)}
           <button type="button" disabled={busy} onClick={() => void saveConnectedOutput(prepared, savedCompletion)}>Retry saving response</button>
         </>}
         {!savedCompletion && <button type="button" disabled={busy || !pairing || !finalPackageReviewed || bridgeConnection?.usage?.state === "limit"} onClick={() => void sendConnected()}>

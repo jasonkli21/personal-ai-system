@@ -106,18 +106,28 @@ def policy_cross_application_denied(context: ApplicationContextRequest) -> bool:
 
 
 def authorize_context_selections(
-    context: ApplicationContextRequest, selections: Sequence[ContextSelection]
+    context: ApplicationContextRequest,
+    selections: Sequence[ContextSelection],
+    *,
+    maximum_sensitivity: ContextSensitivity | None = None,
 ) -> None:
     """Authorize every requested operation before any source or auxiliary call."""
     for selection in selections:
-        _selection_policy(context, selection)
+        _operation, sensitivity = _selection_policy(context, selection)
+        if maximum_sensitivity is not None and not _at_most(sensitivity, maximum_sensitivity):
+            raise ContextPreparationError("context_mode_sensitivity_denied")
 
 
 def authorize_context_selection(
-    context: ApplicationContextRequest, selection: ContextSelection
+    context: ApplicationContextRequest,
+    selection: ContextSelection,
+    *,
+    maximum_sensitivity: ContextSensitivity | None = None,
 ) -> ContextSensitivity:
     """Return the joined server classification for one authorized operation."""
     _operation, sensitivity = _selection_policy(context, selection)
+    if maximum_sensitivity is not None and not _at_most(sensitivity, maximum_sensitivity):
+        raise ContextPreparationError("context_mode_sensitivity_denied")
     return sensitivity
 
 

@@ -5,7 +5,7 @@ import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } fro
 import { chatReducer, initialChatState } from "../features/chat/chat-state";
 import { attributionLabel } from "../features/chat/attribution-label";
 import { ContinuationSidecar } from "../features/chat/continuation-sidecar";
-import { ApiError, conversationsApi, type ApplicationScopeRequest, type Message, type StreamHandlers } from "../lib/api";
+import { ApiError, conversationsApi, type ApplicationLaunchContext, type ApplicationScopeRequest, type Message, type StreamHandlers } from "../lib/api";
 import styles from "./page.module.css";
 
 function readableError(error: unknown) {
@@ -194,7 +194,13 @@ export default function Home() {
     void runStream((handlers, signal) => conversationsApi.editAndRetry(conversationId, parent.id, parent.content, handlers, signal));
   }
 
-  function continueWithAutomatic(instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest) {
+  function continueWithAutomatic(
+    instruction: string,
+    target: Message,
+    includeTarget: boolean,
+    scope: ApplicationScopeRequest,
+    launchContext: ApplicationLaunchContext,
+  ) {
     if (!selectedId || controlsDisabled) return;
     const conversationId = selectedId;
     setContinuationTarget(null);
@@ -204,6 +210,7 @@ export default function Home() {
       idempotency_key: crypto.randomUUID(),
       choice: { mode: "automatic" },
       candidate_message_ids: includeTarget ? [target.id] : [],
+      launch_context: launchContext,
     }, handlers, signal, scope));
   }
 
@@ -326,6 +333,12 @@ export default function Home() {
         key={`${selectedId}-${continuationTarget.id}`}
         conversationId={selectedId}
         scope={PERSONAL_AI_SCOPE}
+        draftTargets={[{ id: "personal_ai.message_composer", label: "message composer" }]}
+        onDraftInsert={(targetId, text) => {
+          if (targetId !== "personal_ai.message_composer") return;
+          setDraft(text);
+          composerRef.current?.focus();
+        }}
         target={continuationTarget}
         onClose={closeContinuation}
         onAutomatic={continueWithAutomatic}

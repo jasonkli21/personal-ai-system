@@ -26,8 +26,8 @@ from personal_ai.context.providers import (
     ContextPreparationError,
     ContextProviderSpec,
     ContextSelection,
-    ContextSourceClass,
 )
+from personal_ai.contracts.context_categories import ContextSourceClass
 
 
 class ContextPlanningCapability(BaseModel):

@@ -10,6 +10,7 @@ from personal_ai.applications.contracts import (
     ApplicationContextPolicy,
     ApplicationDefinition,
     ApplicationRegistryError,
+    ApplicationSidecarPolicy,
     CapabilityKind,
     CapabilityRegistration,
     ContextFieldPolicy,
@@ -241,7 +242,10 @@ def _capability(
 
 
 def _domain_context_policy(
-    version: str, declarations: tuple[ContextProviderPolicy, ...]
+    version: str,
+    declarations: tuple[ContextProviderPolicy, ...],
+    *,
+    sidecar: ApplicationSidecarPolicy | None = None,
 ) -> ApplicationContextPolicy:
     """Compose explicit app-owned source rules with shared context policies."""
     shared = ApplicationContextPolicy()
@@ -250,6 +254,7 @@ def _domain_context_policy(
         provider_policies=(*shared.provider_policies, *declarations),
         maximum_model_sensitivity=shared.maximum_model_sensitivity,
         cross_application="deny",
+        sidecar=sidecar or ApplicationSidecarPolicy(),
     )
 
 
@@ -322,6 +327,11 @@ def default_application_registry() -> ApplicationRegistry:
                     version="personal-ai-context-policy-v2",
                     external_execution_modes=("connected_provider", "manual_external"),
                     maximum_model_sensitivity="sensitive",
+                    sidecar=ApplicationSidecarPolicy(
+                        allow_manual_import_context=True,
+                        copy_allowed=True,
+                        draft_insert_target_ids=("personal_ai.message_composer",),
+                    ),
                 ),
             ),
             ApplicationDefinition(
@@ -423,6 +433,10 @@ def default_application_registry() -> ApplicationRegistry:
                             ),),
                         ),
                     ),
+                    sidecar=ApplicationSidecarPolicy(
+                        allow_manual_import_context=False,
+                        copy_allowed=True,
+                    ),
                 ),
             ),
             ApplicationDefinition(
@@ -462,6 +476,10 @@ def default_application_registry() -> ApplicationRegistry:
                                 restricted_fields=("diagnosis",),
                             ),),
                         ),
+                    ),
+                    sidecar=ApplicationSidecarPolicy(
+                        allow_manual_import_context=False,
+                        copy_allowed=True,
                     ),
                 ),
             ),

@@ -87,6 +87,39 @@ const preview = {
   excluded_sources: [],
 };
 
+const contextCategories = [
+  "global_profile", "domain_profile", "domain_current", "domain_history",
+  "ai_memory", "conversation", "external_research", "tool_result", "client_context",
+];
+
+function executionOptions(
+  modes: string[],
+  explicitProfiles: unknown[] = [],
+  policyOverrides: Record<string, unknown> = {},
+) {
+  return {
+    modes,
+    explicit_profiles: explicitProfiles,
+    sidecar: {
+      connected_provider_disclosure: {
+        allowed: true,
+        allowed_context_categories: contextCategories,
+        maximum_sensitivity: "sensitive",
+      },
+      manual_external_disclosure: {
+        allowed: true,
+        allowed_context_categories: contextCategories,
+        maximum_sensitivity: "sensitive",
+      },
+      allow_manual_import_context: true,
+      copy_allowed: true,
+      draft_insert_target_ids: ["host.edit_draft"],
+      future_apply_operation_ids: [],
+      ...policyOverrides,
+    },
+  };
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -101,7 +134,7 @@ describe("continuation sidecar", () => {
 
   it("keeps manual copy/import available without the local bridge and labels imported facts", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [] }))
+      .mockResolvedValueOnce(jsonResponse(executionOptions(["automatic", "manual_external", "connected_provider"])))
       .mockResolvedValueOnce(jsonResponse(preview))
       .mockResolvedValueOnce(jsonResponse(prepared))
       .mockResolvedValueOnce(jsonResponse({ ...target, id: "reservation-1", content: "Imported result" }));
@@ -109,13 +142,21 @@ describe("continuation sidecar", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     const onSaved = vi.fn();
+    const onDraftInsert = vi.fn();
+    const onExternalCompleted = vi.fn();
 
     render(<ContinuationSidecar
       conversationId="conversation-1"
       scope={{ applicationId: "synthetic_app", workspaceId: "workspace-1" }}
+      draftTargets={[
+        { id: "host.edit_draft", label: "host editor" },
+        { id: "host.undeclared", label: "unauthorized" },
+      ]}
+      onDraftInsert={onDraftInsert}
       target={target}
       onClose={vi.fn()}
       onAutomatic={vi.fn()}
+      onExternalCompleted={onExternalCompleted}
       onSaved={onSaved}
     />);
 
@@ -125,7 +166,18 @@ describe("continuation sidecar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
     expect(await screen.findByText("Bounded context preview")).toBeInTheDocument();
     const previewCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/external-turns/preview"));
-    expect(JSON.parse(String(previewCall?.[1]?.body))).toMatchObject({ excluded_source_classes: ["ai_memory"] });
+    expect(JSON.parse(String(previewCall?.[1]?.body))).toMatchObject({
+      excluded_source_classes: ["ai_memory"],
+      launch_context: {
+        schema_version: "application-launch-v1",
+        application_id: "synthetic_app",
+        workspace_id: "workspace-1",
+        entity_refs: [],
+        view_id: null,
+        conversation_id: "conversation-1",
+        client_context: {},
+      },
+    });
     fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
     fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
     expect(await screen.findByText(/Estimated 42 tokens/)).toBeInTheDocument();
@@ -134,9 +186,18 @@ describe("continuation sidecar", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("user:\nContinue from this answer."));
 
     fireEvent.change(screen.getByLabelText("Paste the external response"), { target: { value: "Imported text from a separate model" } });
+    fireEvent.click(screen.getByRole("button", { name: "Insert response into host editor draft" }));
+    expect(onDraftInsert).toHaveBeenCalledWith("host.edit_draft", "Imported text from a separate model");
+    expect(screen.queryByRole("button", { name: "Insert response into unauthorized draft" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     fireEvent.change(screen.getByLabelText("Provider label (optional, user-declared)"), { target: { value: "Example Provider" } });
     fireEvent.click(screen.getByRole("button", { name: "Import response into conversation" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(onExternalCompleted).toHaveBeenCalledWith({
+      ...target,
+      id: "reservation-1",
+      content: "Imported result",
+    });
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/conversations/conversation-1/external-turns/reservation-1/import", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({
@@ -156,7 +217,7 @@ describe("continuation sidecar", () => {
   });
 
   it("uses the shared automatic continuation callback without preparing an external reservation", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ modes: ["automatic", "manual_external"], explicit_profiles: [] }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(executionOptions(["automatic", "manual_external"])));
     vi.stubGlobal("fetch", fetchMock);
     const onAutomatic = vi.fn();
     render(<ContinuationSidecar
@@ -169,7 +230,53 @@ describe("continuation sidecar", () => {
     fireEvent.change(await screen.findByRole("combobox", { name: "Execution mode" }), { target: { value: "automatic" } });
     fireEvent.change(screen.getByLabelText("What should happen next?"), { target: { value: "Extend this answer" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue with Personal AI" }));
-    expect(onAutomatic).toHaveBeenCalledWith("Extend this answer", target, true, { applicationId: "personal_ai" });
+    expect(onAutomatic).toHaveBeenCalledWith(
+      "Extend this answer",
+      target,
+      true,
+      { applicationId: "personal_ai", clientContext: {} },
+      {
+        schema_version: "application-launch-v1",
+        application_id: "personal_ai",
+        workspace_id: null,
+        entity_refs: [],
+        view_id: null,
+        conversation_id: "conversation-1",
+        client_context: {},
+      },
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps manual external mode hidden when application policy denies disclosure", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(executionOptions(
+      ["automatic", "manual_external"],
+      [],
+      {
+        manual_external_disclosure: {
+          allowed: false,
+          allowed_context_categories: ["conversation"],
+          maximum_sensitivity: "personal",
+        },
+        copy_allowed: false,
+      },
+    )));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAutomatic = vi.fn();
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      scope={{ applicationId: "finance", workspaceId: "workspace-1" }}
+      target={target}
+      onClose={vi.fn()}
+      onAutomatic={onAutomatic}
+      onSaved={vi.fn()}
+    />);
+
+    const mode = await screen.findByRole("combobox", { name: "Execution mode" });
+    expect(mode).toHaveValue("automatic");
+    expect(screen.queryByRole("option", { name: /Manual external model/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Personal AI" }));
+    expect(onAutomatic).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -207,7 +314,7 @@ describe("continuation sidecar", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/conversations/execution-options") {
-        return jsonResponse({ modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [profile] });
+        return jsonResponse(executionOptions(["automatic", "manual_external", "connected_provider"], [profile]));
       }
       if (url === "/api/conversations/conversation-1/external-turns/preview") return jsonResponse(preview);
       if (url === "http://127.0.0.1:8765/connection") return jsonResponse(connection);
@@ -260,13 +367,13 @@ describe("continuation sidecar", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/conversations/execution-options") {
-        return jsonResponse({ modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [{
+        return jsonResponse(executionOptions(["automatic", "manual_external", "connected_provider"], [{
           endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
           provider_id: "openai_chatgpt_plan",
           external_transport_id: "chatgpt_local_v1",
           capabilities: ["streaming"],
           maximum_sensitivity: "sensitive",
-        }] });
+        }]));
       }
       if (url === "http://127.0.0.1:8765/connection") return jsonResponse({
         connection_id: "connection-1",
@@ -329,7 +436,7 @@ describe("continuation sidecar", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/conversations/execution-options") {
-        return jsonResponse({ modes: ["automatic", "connected_provider"], explicit_profiles: [profile] });
+        return jsonResponse(executionOptions(["automatic", "connected_provider"], [profile]));
       }
       if (url === "http://127.0.0.1:8765/connection") return jsonResponse({
         connection_id: "connection-1",
@@ -370,7 +477,7 @@ describe("continuation sidecar", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/conversations/execution-options") {
-        return jsonResponse({ modes: ["automatic", "manual_external"], explicit_profiles: [] });
+        return jsonResponse(executionOptions(["automatic", "manual_external"]));
       }
       if (url === `/api/conversations/conversation-1/external-turns/requests/${key}`) {
         return jsonResponse({
@@ -435,7 +542,7 @@ describe("continuation sidecar", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/conversations/execution-options") return jsonResponse({
-        modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [profile],
+        ...executionOptions(["automatic", "manual_external", "connected_provider"], [profile]),
       });
       if (url === "/api/conversations/conversation-1/external-turns/preview") return jsonResponse(preview);
       if (url === "http://127.0.0.1:8765/connection") return jsonResponse(connection);
@@ -487,6 +594,20 @@ describe("continuation sidecar", () => {
 
     fireEvent.change(screen.getByRole("combobox", { name: "Execution mode" }), { target: { value: "automatic" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue with Personal AI" }));
-    expect(onAutomatic).toHaveBeenCalledWith("Continue from this answer.", target, true, { applicationId: "personal_ai" });
+    expect(onAutomatic).toHaveBeenCalledWith(
+      "Continue from this answer.",
+      target,
+      true,
+      { applicationId: "personal_ai", clientContext: {} },
+      {
+        schema_version: "application-launch-v1",
+        application_id: "personal_ai",
+        workspace_id: null,
+        entity_refs: [],
+        view_id: null,
+        conversation_id: "conversation-1",
+        client_context: {},
+      },
+    );
   });
 });
