@@ -1,6 +1,6 @@
 # Phase 26 — Travel context integration evidence
 
-Status: locally implemented and verified; integration gates remain off; live acceptance is open  
+Status: local integration fixes are verified; P26.1 remains blocked; integration gates remain off
 Date: 2026-10-11
 
 ## Tested revisions and scope
@@ -11,17 +11,17 @@ Date: 2026-10-11
 - Personal AI source/test manifest: 35 files, aggregate SHA-256 `fe494f66c0ba4462958ff07dd4aec9ff4ad247b9b1b173c3f41df89def6a4391`.
 - Travel backend/frontend source/test manifest: 19 files, aggregate SHA-256 `9dc3eacf3b497c8b39a84fab2458ae60edf65da3ffd4a33827ebc3fae689da80`.
 
-The new Travel read boundary is `POST /v1/integrations/personal-ai/context` with `travel-context-read-v1`. Sidecar launch metadata uses `application-launch-v1`; conversation create, history, context preview, and automatic continuation use the existing Personal AI application-scoped APIs. Existing direct Travel capabilities remain unchanged: `research-v1`, `booking-document-extraction-v1`, `itinerary-proposal-v1`, `travel-itinerary-context-v1`, `itinerary-proposal-policy-v2`, the accepted comparison contracts `domain-lookup-v1`, `domain-comparison-v1`, `domain-module-v1`, `travel-comparison-v1`, `travel-features-v2`, and `travel-sources-v1`, and Travel response `travel-research-comparison-v1`.
+The reviewed Travel read boundary is `POST /v1/integrations/personal-ai/context` with `travel-context-read-v2`. Sidecar launch metadata uses `application-launch-v1`; conversation create, history, context preview, and automatic continuation use the existing Personal AI application-scoped APIs. Existing direct Travel capabilities remain unchanged: `research-v1`, `booking-document-extraction-v1`, `itinerary-proposal-v1`, `travel-itinerary-context-v1`, `itinerary-proposal-policy-v2`, the accepted comparison contracts `domain-lookup-v1`, `domain-comparison-v1`, `domain-module-v1`, `travel-comparison-v1`, `travel-features-v2`, and `travel-sources-v1`, and Travel response `travel-research-comparison-v1`.
 
 ## Architecture and behavior delivered
 
-Personal AI composes `travel.trip_context` and `travel.research_context` through the deployment-owned `ContextRuntimeRegistry`, the generic `ContextPlanner`, `ContextProviderCoordinator`, `ContextAssembler`, policy revalidators, and existing conversation lifecycle. Selected entity triggers and entity-type bounds extend the generic planning rule; there is no Travel-name branch in generic orchestration. Shared profile, conversation, and eligible memory remain on their existing providers.
+Personal AI contributes `travel.trip_context` through generic `ContextRuntimeContribution` composition, the generic `ContextPlanner`, `ContextProviderCoordinator`, `ContextAssembler`, policy revalidators, and existing conversation lifecycle. Selected Personal-AI-owned research resolves directly through the shared `external_research` provider. Selected entity triggers and entity-type bounds extend the generic planning rule; there is no Travel-name branch in generic orchestration. Shared profile, conversation, and eligible memory remain on their existing providers.
 
 Travel remains canonical for trip, itinerary, place, reservation, authorization, validation, persistence, and all final writes. Its typed HTTP projection is owner-authorized and bounded. It returns requested current records and explicitly selected cited research, with source identity/version, fingerprint, observed/expiry facts, sensitivity, and trip-revision permission dependency. Reservation summaries are minimized, explicitly selected, and sensitive. The new sidecar is preview-first and supports narrowing, Copy, and non-authoritative draft insertion only. The pinned Travel model has no separate persisted travel-preference profile or trip-history store, so no parallel `domain_profile` or `domain_history` source was invented; the shared Personal AI profile, active conversation history, and eligible memory remain on their existing owners and paths.
 
 Identity and scope stay separate: Travel verifies the signed-in user and selected trip; Personal AI verifies the Cloud Run service token as transport identity and carries the Google user assertion separately. The application is `travel`, `workspace_id` remains null, and no trip-to-workspace mapping exists. Stable conversation creation keys reconcile duplicate creation; turn idempotency remains on Personal AI's canonical turn path, and a regression test confirms additive provenance fields do not change pre-existing external authority digest payloads.
 
-Payload-free source snapshots now flow from selected context into canonical assistant attribution and derived conversation summaries. Permission dependencies and expiries are rechecked before source-derived history can re-enter summary selection, counts, or model input. Effective sensitivity includes inherited history before auxiliary disclosure. Source-dependent or time-bound Travel turns are not promoted into durable shared memory. Denied, expired, scope-mismatched, and unverified history fails closed. Repeated identical permission dependencies are checked once within each policy decision, with later assemblies and transitions performing fresh checks. No new database or migration was introduced.
+Payload-free source snapshots now flow from selected context into canonical assistant attribution and derived conversation summaries. Permission dependencies and expiries are rechecked before source-derived history can re-enter summary selection, counts, or model input. Effective sensitivity includes inherited history before auxiliary disclosure. Source-dependent or time-bound Travel turns are not promoted into durable shared memory. Denied, expired, scope-mismatched, and unverified history fails closed. Repeated identical permission dependencies are checked once within each policy decision, with later assemblies and transitions performing fresh checks. The follow-up adds Travel migration `0016` for owner/trip/conversation anchors; it does not duplicate trip or conversation content in either repository.
 
 ## Verification
 
@@ -65,3 +65,22 @@ Independent review should focus on:
 - conversation create idempotency and stable external-turn authority digests for legacy records;
 - direct Travel research, extraction, proposal, and comparison compatibility;
 - default-off gate behavior and same-origin forwarding of the user assertion only.
+
+## Independent post-implementation review follow-up — 2026-10-11
+
+The review handoff was defect-oriented input; repository code, contracts, and existing architecture remain authoritative. The follow-up repairs the selected-reservation contract with `travel-context-read-v2` and a typed anchor binding that Personal AI validates against the original selected trip/day/itinerary item/place. Both repositories consume the same fixture. Travel-owned runtime setup now contributes factories, planning rules, and named permission namespaces to generic `compose_context_runtime(...)`; core bootstrap no longer imports a Travel-specific registry. Personal-AI-owned selected research is read directly through the shared `external_research` provider, keeps the canonical cross-application `research_source_policy` dependency, and does not call Travel. Unknown research permission namespaces remain fail-closed, so selected research is not reusable from later history until a canonical current-policy revalidator exists. The Travel UI fetches and applies Personal AI's sidecar action policy. A Travel-owned database mapping ties each sidecar conversation to its owner and trip. Travel's unsupported `destination` field and research-proxy operation were removed; saved places stay Travel-authoritative while retaining source URL provenance.
+
+P26.1 is **blocked and incomplete**: automatic managed chat still injects Gemini directly and is not dispatched by P21. P21 workflow integration remains gated on Phase 15 membership and end-to-end revocation acceptance. The integration feature gates remain default-off; no claim of routed Travel turn attribution is made.
+
+Verification for this follow-up used working trees based on Personal AI `51bc615bdf012d2d7a0339bc67bd257bb85c3d57` and Travel `55e57e166f031971c166471cf0ff0bef9a91d1a3`:
+
+- Personal AI full backend suite: **1,370 passed, 82 skipped, 2 warnings**; full Ruff check passed.
+- Travel backend suite: **203 passed, 124 skipped, 1 warning**. The full suite passed with loopback permission for its existing local Google OIDC test server.
+- Travel Ruff check and format check passed across 162 files.
+- Frontend Node suite: **60 passed**; ESLint, Next route type generation, and `tsc --noEmit` passed.
+- Targeted PAI contract/runtime/research suite: **63 passed**; targeted Travel context suite: **14 passed**; shared frontend policy test: **1 passed**.
+- `git diff --check` passed in both repositories. Travel's link checker found **223 local links across 72 Markdown files**. PAI has no repository Markdown link-check command; changed documentation links were manually checked against their targets.
+
+The tested source/test manifest fingerprints are Personal AI **16 files / `f879fb2788a19adbaabed1851aace5354a159803bb945f33abbbb58345f73d9c`** and Travel backend/frontend **15 files / `615f1889451f20fc94c00ba815489a63e96ea1bef89d79eec6e5362dc785a459`**. Each fingerprint is SHA-256 over sorted repository-relative source/test paths and file contents; documentation and ignored/generated files are excluded.
+
+No deployment, live provider/account, external permission policy, PostgreSQL migration application, Cloud Run IAM, live identity, or browser acceptance was performed. Skipped persistence/provider/cloud cases and local fakes do not establish those environments.

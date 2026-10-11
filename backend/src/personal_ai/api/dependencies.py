@@ -217,18 +217,30 @@ def get_global_profile_repository(
     return persistence_factory(settings).global_profile_repository()
 
 
+def get_context_research_repository(settings: Annotated[Settings, Depends(get_settings)]):
+    """Reuse the canonical repository for explicit selected research context."""
+    if not settings.research_enabled:
+        return None
+    if settings.research_storage == "memory":
+        from personal_ai.api.research import local_repository
+
+        return local_repository()
+    return persistence_factory(settings).research_repository()
+
+
 def get_context_assembler(
     runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     settings: Annotated[Settings, Depends(get_settings)],
     summaries: Annotated[ConversationSummaryRepository, Depends(get_summary_repository)],
     profile_repository: Annotated[object, Depends(get_global_profile_repository)],
     usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
+    research_repository: Annotated[object, Depends(get_context_research_repository)],
 ) -> ContextAssembler:
     built_in_providers = {
         "ai_memory": MemoryContextProviderFactory(settings),
         "client_context": ClientContextProviderFactory(),
         "conversation_history": ConversationContextProviderFactory(),
-        "external_research": ResearchEvidenceContextProviderFactory(),
+        "external_research": ResearchEvidenceContextProviderFactory(research_repository),
         "global_profile": GlobalProfileContextProviderFactory(profile_repository),
     }
     overlap = set(built_in_providers).intersection(runtime.provider_factories)
@@ -236,7 +248,10 @@ def get_context_assembler(
         raise ValueError("context_runtime_provider_conflicts_with_builtin")
     providers = ContextProviderCoordinator(
         {**built_in_providers, **runtime.provider_factories},
-        feature_flags={"memory_enabled": settings.memory_enabled},
+        feature_flags={
+            "memory_enabled": settings.memory_enabled,
+            "travel_context_enabled": settings.travel_context_enabled,
+        },
     )
     return ContextAssembler(
         settings,

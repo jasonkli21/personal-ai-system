@@ -895,7 +895,7 @@ def test_unavailable_optional_provider_does_not_widen_to_another_registered_prov
         phrase="hotel in oslo",
     )
     unrelated = FixtureProvider(
-        "travel.research_context",
+        "external_research",
         "external_research",
         ContextOperationSpec(operation="search", allowed_fields=("passage",)),
     )
@@ -926,7 +926,7 @@ def test_unavailable_required_provider_stops_planning_before_retrieval():
         required=True,
     )
     unrelated = FixtureProvider(
-        "travel.research_context",
+        "external_research",
         "external_research",
         ContextOperationSpec(operation="search", allowed_fields=("passage",)),
     )
@@ -947,7 +947,7 @@ def test_global_planner_token_budget_omits_lower_priority_sources():
         ContextOperationSpec(operation="current", allowed_fields=("city",)),
     )
     second = FixtureProvider(
-        "travel.research_context",
+        "external_research",
         "external_research",
         ContextOperationSpec(operation="search", allowed_fields=("passage",)),
     )

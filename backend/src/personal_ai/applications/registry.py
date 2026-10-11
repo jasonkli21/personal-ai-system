@@ -303,8 +303,12 @@ def default_application_registry() -> ApplicationRegistry:
         _capability("global_profile", "context_provider", available=True),
         _capability("client_context", "context_provider", available=True),
         _capability("external_research", "context_provider", available=True),
-        _capability("travel.trip_context", "context_provider", available=True),
-        _capability("travel.research_context", "context_provider", available=True),
+        _capability(
+            "travel.trip_context",
+            "context_provider",
+            available=True,
+            feature_gate="travel_context_enabled",
+        ),
         _capability("travel.itinerary_action", "tool", reason="travel_actions_unavailable"),
         _capability("shopping.product_context", "context_provider"),
         _capability("shopping.catalog_search", "context_provider"),
@@ -338,7 +342,7 @@ def default_application_registry() -> ApplicationRegistry:
                 application_id="travel",
                 display_name="Travel",
                 workspace_kind="optional",
-                context_provider_ids=("travel.trip_context", "travel.research_context"),
+                context_provider_ids=("travel.trip_context",),
                 tool_ids=("travel.itinerary_action",),
                 memory_namespace="travel",
                 sensitivity_defaults={
@@ -357,7 +361,6 @@ def default_application_registry() -> ApplicationRegistry:
                                     "current",
                                     (
                                         "trip_title",
-                                        "destination",
                                         "start_date",
                                         "end_date",
                                         "timezone",
@@ -381,15 +384,6 @@ def default_application_registry() -> ApplicationRegistry:
                                         "place_attribution",
                                         "reservation_summary",
                                     ),
-                                ),
-                            ),
-                        ),
-                        ContextProviderPolicy(
-                            provider_id="travel.research_context",
-                            operations=(
-                                _operation_policy(
-                                    "search",
-                                    ("passage", "observed_at", "expires_at", "citations"),
                                 ),
                             ),
                         ),

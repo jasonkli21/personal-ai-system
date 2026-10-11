@@ -24,8 +24,8 @@ from personal_ai.auth.account_data import AccountDataUnavailable
 from personal_ai.auth.middleware import AuthenticationMiddleware
 from personal_ai.booking_extractions.repositories import ExtractionError
 from personal_ai.context import ContextError
+from personal_ai.context.deployment import configured_context_runtime
 from personal_ai.context.providers import ContextPreparationError
-from personal_ai.context.travel import configured_travel_context_runtime
 from personal_ai.decisions.repositories import DecisionError
 from personal_ai.domains.contracts import DomainContractError
 from personal_ai.domains.providers import DomainProviderError
@@ -45,9 +45,7 @@ from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 async def lifespan(application: FastAPI):
     validate_startup_configuration()
     settings_provider = application.dependency_overrides.get(get_settings, get_settings)
-    application.state.context_runtime_registry = configured_travel_context_runtime(
-        settings_provider()
-    )
+    application.state.context_runtime_registry = configured_context_runtime(settings_provider())
     try:
         yield
     finally:

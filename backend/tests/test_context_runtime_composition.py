@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -27,7 +28,12 @@ from personal_ai.applications.contracts import (
 )
 from personal_ai.applications.registry import ApplicationRegistry
 from personal_ai.auth.scope import RequestScope
-from personal_ai.context import ContextAssembler, ContextRuntimeRegistry
+from personal_ai.context import (
+    ContextAssembler,
+    ContextRuntimeContribution,
+    ContextRuntimeRegistry,
+    compose_context_runtime,
+)
 from personal_ai.context.planner import ContextPlanningRule
 from personal_ai.context.providers import (
     ContextEntityReference,
@@ -95,6 +101,63 @@ class SyntheticProvider:
             ),),
             payload=RecordPayload(label="Synthetic provider reached through FastAPI composition"),
         ),)
+
+
+def _contribution_rule(rule_id: str, provider_id: str) -> ContextPlanningRule:
+    return ContextPlanningRule(
+        rule_id=rule_id,
+        category="selected_record",
+        phrases=("selected record",),
+        provider_id=provider_id,
+        operation="current",
+        fields=("label",),
+        explanation="Read a selected record through one installed contribution.",
+    )
+
+
+def test_context_runtime_composes_independent_domain_contributions():
+    runtime = compose_context_runtime(
+        ContextRuntimeContribution(
+            {}, (_contribution_rule("travel.record:v1", "travel.record"),)
+        ),
+        ContextRuntimeContribution(
+            {}, (_contribution_rule("shopping.record:v1", "shopping.record"),)
+        ),
+    )
+
+    assert {rule.rule_id for rule in runtime.planning_rules} == {
+        "travel.record:v1",
+        "shopping.record:v1",
+    }
+
+
+def test_context_runtime_rejects_duplicate_provider_rule_and_permission_ownership():
+    rule = _contribution_rule("travel.record:v1", "host.selected_record")
+    provider = SyntheticProvider(
+        ContextEntityReference(
+            entity_type="record", entity_id="record-1", application_id=APPLICATION_ID
+        )
+    )
+
+    with pytest.raises(ValueError, match="context_runtime_provider_id_duplicate"):
+        compose_context_runtime(
+            ContextRuntimeContribution({PROVIDER_ID: provider}),
+            ContextRuntimeContribution({PROVIDER_ID: provider}),
+        )
+    with pytest.raises(ValueError, match="context_runtime_rule_id_duplicate"):
+        compose_context_runtime(
+            ContextRuntimeContribution({}, (rule,)),
+            ContextRuntimeContribution({}, (rule,)),
+        )
+
+    class Revalidator:
+        permission_namespaces = ("source_permission:",)
+
+    with pytest.raises(ValueError, match="context_runtime_revalidator_namespace_duplicate"):
+        compose_context_runtime(
+            ContextRuntimeContribution({}, permission_revalidators=(Revalidator(),)),
+            ContextRuntimeContribution({}, permission_revalidators=(Revalidator(),)),
+        )
 
 
 def _app(provider: SyntheticProvider | None):

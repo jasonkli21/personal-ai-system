@@ -11,10 +11,11 @@ import json
 from datetime import datetime
 from hashlib import sha256
 from time import monotonic
+from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from personal_ai.auth.scope import (
     RequestScope,
@@ -34,15 +35,13 @@ from personal_ai.context.providers import (
     ContextSelection,
     ContextSourceReference,
 )
-from personal_ai.context.runtime import ContextRuntimeRegistry
+from personal_ai.context.runtime import ContextRuntimeContribution
 
 TRAVEL_CONTEXT_PATH = "/v1/integrations/personal-ai/context"
-TRAVEL_CONTEXT_SCHEMA = "travel-context-read-v1"
+TRAVEL_CONTEXT_SCHEMA = "travel-context-read-v2"
 TRAVEL_CONTEXT_PROVIDER_ID = "travel.trip_context"
-TRAVEL_RESEARCH_PROVIDER_ID = "travel.research_context"
 TRAVEL_CONTEXT_FIELDS = (
     "trip_title",
-    "destination",
     "start_date",
     "end_date",
     "timezone",
@@ -61,7 +60,6 @@ TRAVEL_CONTEXT_FIELDS = (
     "place_attribution",
     "reservation_summary",
 )
-TRAVEL_RESEARCH_FIELDS = ("passage", "observed_at", "expires_at", "citations")
 
 
 class TravelContextReadRequest(BaseModel):
@@ -75,6 +73,25 @@ class TravelContextReadRequest(BaseModel):
     fields: tuple[str, ...] = Field(min_length=1, max_length=32)
     max_results: int = Field(ge=1, le=50)
     max_bytes: int = Field(ge=1, le=65_536)
+
+
+class TravelSelectionBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    entity_type: Literal["trip", "day", "itinerary_item", "place"]
+    entity_id: str = Field(min_length=1, max_length=200)
+    relationship: Literal[
+        "trip_reservation_summary",
+        "day_reservation_summary",
+        "itinerary_item_reservation_summary",
+        "place_reservation_summary",
+    ]
+
+    @model_validator(mode="after")
+    def relationship_matches_anchor(self) -> TravelSelectionBinding:
+        if self.relationship.split("_reservation_summary", 1)[0] != self.entity_type:
+            raise ValueError("travel_context_selection_binding_mismatch")
+        return self
 
 
 class TravelContextRecord(BaseModel):
@@ -95,6 +112,7 @@ class TravelContextRecord(BaseModel):
         default=(), max_length=16
     )
     field_sensitivity: tuple[ContextFieldSensitivity, ...] = Field(default=(), max_length=32)
+    selection_binding: TravelSelectionBinding | None = None
 
 
 class TravelContextReadResponse(BaseModel):
@@ -110,7 +128,6 @@ class TravelContextPayload(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     trip_title: str | None = None
-    destination: str | None = None
     start_date: str | None = None
     end_date: str | None = None
     timezone: str | None = None
@@ -243,7 +260,6 @@ class TravelContextProvider:
                 operation="current",
                 allowed_fields=(
                     "trip_title",
-                    "destination",
                     "start_date",
                     "end_date",
                     "timezone",
@@ -298,10 +314,21 @@ class TravelContextProvider:
             raise ContextPreparationError("travel_context_result_limit_exceeded")
         items = []
         for record in response.items:
-            if not any(
+            exact_selection = any(
                 ref.entity_id == record.entity_id and ref.entity_type == record.entity_type
                 for ref in selection.entity_refs
-            ):
+            )
+            binding = record.selection_binding
+            bound_selection = binding is not None and any(
+                ref.entity_id == binding.entity_id and ref.entity_type == binding.entity_type
+                for ref in selection.entity_refs
+            )
+            if binding is not None and record.entity_type != "reservation":
+                raise ContextPreparationError("travel_context_selection_binding_invalid")
+            if record.entity_type == "reservation":
+                if not exact_selection and not bound_selection:
+                    raise ContextPreparationError("travel_context_unselected_entity")
+            elif not exact_selection:
                 raise ContextPreparationError("travel_context_unselected_entity")
             payload_values = {
                 key: value
@@ -338,93 +365,6 @@ class TravelContextProvider:
         return tuple(items)
 
 
-class TravelResearchContextProvider:
-    spec = ContextProviderSpec(
-        provider_id=TRAVEL_RESEARCH_PROVIDER_ID,
-        source_class="external_research",
-        source_version=TRAVEL_CONTEXT_SCHEMA,
-        operations=(
-            ContextOperationSpec(
-                operation="search",
-                allowed_fields=TRAVEL_RESEARCH_FIELDS,
-                accepts_entity_refs=True,
-                maximum_results=5,
-                maximum_bytes=16_384,
-                maximum_timeout_seconds=5,
-            ),
-        ),
-        maximum_items_per_call=5,
-    )
-
-    def __init__(self, client: TravelContextHTTPClient) -> None:
-        self.client = client
-
-    def validate_selection(
-        self, selection: ContextSelection, inputs: ContextProviderInputs
-    ) -> None:
-        if inputs.scope.application_id != "travel" or inputs.scope.workspace_id is not None:
-            raise ContextPreparationError("travel_research_scope_unsupported")
-        if not any(
-            reference.entity_type == "research_session" for reference in selection.entity_refs
-        ) or any(
-            reference.application_id != "travel" or reference.workspace_id is not None
-            for reference in selection.entity_refs
-        ):
-            raise ContextPreparationError("travel_research_reference_required")
-
-    def fetch(self, selection: ContextSelection, scope: RequestScope, *, deadline: float):
-        references = tuple(
-            reference
-            for reference in selection.entity_refs
-            if reference.entity_type == "research_session"
-        )
-        response = self.client.read(
-            TravelContextReadRequest(
-                operation="search",
-                entity_refs=references,
-                fields=selection.fields,
-                max_results=selection.max_results,
-                max_bytes=selection.max_bytes,
-            ),
-            deadline=deadline,
-        )
-        if len(response.items) > selection.max_results:
-            raise ContextPreparationError("travel_research_result_limit_exceeded")
-        selected = {(reference.entity_type, reference.entity_id) for reference in references}
-        if any((record.entity_type, record.entity_id) not in selected for record in response.items):
-            raise ContextPreparationError("travel_research_unselected_entity")
-        return tuple(
-            ContextItem(
-                source_class="external_research",
-                provider_id=TRAVEL_RESEARCH_PROVIDER_ID,
-                source_id=f"travel-research:{sha256(record.source_id.encode()).hexdigest()}",
-                source_version=record.source_version,
-                item_id=f"travel-research:{sha256(record.entity_id.encode()).hexdigest()[:32]}",
-                owner_id=scope.owner_id,
-                application_id="travel",
-                workspace_id=None,
-                entity_refs=(),
-                authority=record.authority,
-                observed_at=record.observed_at,
-                effective_at=record.effective_at,
-                expires_at=record.expires_at,
-                sensitivity=record.sensitivity,
-                source_refs=record.source_refs,
-                permission_dependencies=record.permission_dependencies,
-                selected_operation="search",
-                field_sensitivity=record.field_sensitivity,
-                payload=TravelContextPayload.model_validate(
-                    {
-                        key: value
-                        for key, value in record.payload.items()
-                        if key in selection.fields and value is not None
-                    }
-                ),
-            )
-            for record in response.items
-        )
-
-
 class TravelContextProviderFactory:
     def __init__(self, client: TravelContextHTTPClient) -> None:
         self.client = client
@@ -435,20 +375,11 @@ class TravelContextProviderFactory:
         return TravelContextProvider(self.client)
 
 
-class TravelResearchContextProviderFactory:
-    def __init__(self, client: TravelContextHTTPClient) -> None:
-        self.client = client
-        self.spec = TravelResearchContextProvider.spec
-
-    def create(self, inputs: ContextProviderInputs) -> TravelResearchContextProvider:
-        del inputs
-        return TravelResearchContextProvider(self.client)
-
-
 class TravelContextPermissionRevalidator:
     """Recheck Travel membership and source revision before context disclosure."""
 
     permission_prefix = "travel_context_read:"
+    permission_namespaces = (permission_prefix,)
 
     def __init__(self, client: TravelContextHTTPClient) -> None:
         self.client = client
@@ -494,7 +425,6 @@ def travel_context_planning_rules() -> tuple[ContextPlanningRule, ...]:
             operation="current",
             fields=(
                 "trip_title",
-                "destination",
                 "start_date",
                 "end_date",
                 "timezone",
@@ -568,12 +498,12 @@ def travel_context_planning_rules() -> tuple[ContextPlanningRule, ...]:
             explanation="Read a minimized booking summary only when the request explicitly asks.",
         ),
         ContextPlanningRule(
-            rule_id="travel.selected-research:v1",
+            rule_id="travel.selected-research:v2",
             category="travel_selected_research",
             phrases=("use this research", "use the selected research", "based on these sources"),
-            provider_id=TRAVEL_RESEARCH_PROVIDER_ID,
+            provider_id="external_research",
             operation="search",
-            fields=TRAVEL_RESEARCH_FIELDS,
+            fields=("passage", "observed_at", "expires_at"),
             max_results=3,
             max_bytes=16_384,
             max_tokens=384,
@@ -584,31 +514,37 @@ def travel_context_planning_rules() -> tuple[ContextPlanningRule, ...]:
             candidate_entity_types=("research_session",),
             priority=35,
             application_ids=("travel",),
-            explanation="Use only the explicitly selected, current cited research session.",
+            explanation="Use only the explicitly selected Personal AI research session.",
         ),
     )
 
 
-def configured_travel_context_runtime(settings) -> ContextRuntimeRegistry:
-    if not settings.travel_context_enabled:
-        return ContextRuntimeRegistry()
-    from personal_ai.auth.service_tokens import fetch_google_service_token
+def configured_travel_context_contribution(settings) -> ContextRuntimeContribution:
+    """Build Travel's contribution while leaving composition to shared runtime code."""
+    providers = {}
+    revalidators = ()
+    planning_rules = travel_context_planning_rules()
+    if settings.travel_context_enabled:
+        from personal_ai.auth.service_tokens import fetch_google_service_token
 
-    client = TravelContextHTTPClient(
-        base_url=str(settings.travel_context_base_url),
-        auth_mode=settings.auth_mode,
-        service_audience=settings.travel_context_service_audience,
-        service_account=settings.travel_context_service_account,
-        timeout_seconds=settings.travel_context_timeout_seconds,
-        service_token_fetcher=(
-            fetch_google_service_token if settings.auth_mode == "google_oidc" else None
-        ),
-    )
-    return ContextRuntimeRegistry(
-        provider_factories={
-            TRAVEL_CONTEXT_PROVIDER_ID: TravelContextProviderFactory(client),
-            TRAVEL_RESEARCH_PROVIDER_ID: TravelResearchContextProviderFactory(client),
-        },
-        planning_rules=travel_context_planning_rules(),
-        permission_revalidators=(TravelContextPermissionRevalidator(client),),
+        client = TravelContextHTTPClient(
+            base_url=str(settings.travel_context_base_url),
+            auth_mode=settings.auth_mode,
+            service_audience=settings.travel_context_service_audience,
+            service_account=settings.travel_context_service_account,
+            timeout_seconds=settings.travel_context_timeout_seconds,
+            service_token_fetcher=(
+                fetch_google_service_token if settings.auth_mode == "google_oidc" else None
+            ),
+        )
+        providers[TRAVEL_CONTEXT_PROVIDER_ID] = TravelContextProviderFactory(client)
+        revalidators = (TravelContextPermissionRevalidator(client),)
+    else:
+        planning_rules = tuple(
+            rule for rule in planning_rules if rule.provider_id == TRAVEL_CONTEXT_PROVIDER_ID
+        )
+    return ContextRuntimeContribution(
+        provider_factories=providers,
+        planning_rules=planning_rules,
+        permission_revalidators=revalidators,
     )

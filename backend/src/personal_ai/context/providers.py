@@ -443,11 +443,11 @@ class ContextProviderCoordinator:
         )
         if capability is None or capability.kind != "context_provider":
             return ContextPlanningCapability(status="not_registered")
+        if not capability.is_enabled(self._feature_flags):
+            return ContextPlanningCapability(status="disabled")
         factory = self._factory(provider_id)
         if factory is None:
             return ContextPlanningCapability(status="unavailable")
-        if not capability.is_enabled(self._feature_flags):
-            return ContextPlanningCapability(status="disabled")
         try:
             spec = ContextProviderSpec.model_validate(factory.spec.model_dump())
         except ValidationError:

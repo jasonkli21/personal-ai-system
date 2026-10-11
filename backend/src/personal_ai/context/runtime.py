@@ -1,10 +1,20 @@
 """Deployment-owned context implementation and planning contributions."""
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from types import MappingProxyType
 
 from personal_ai.context.planner import ContextPlanningRule
 from personal_ai.context.providers import ContextProvider, ContextProviderFactory
+
+
+@dataclass(frozen=True)
+class ContextRuntimeContribution:
+    """One independently configured set of executable context extensions."""
+
+    provider_factories: Mapping[str, ContextProviderFactory | ContextProvider]
+    planning_rules: Sequence[ContextPlanningRule] = ()
+    permission_revalidators: Sequence[object] = ()
 
 
 class ContextPermissionRevalidatorRegistry:
@@ -45,6 +55,33 @@ class ContextRuntimeRegistry:
         self.provider_factories = MappingProxyType(providers)
         self.planning_rules = tuple(planning_rules)
         self.permission_revalidators = tuple(permission_revalidators)
+
+
+def compose_context_runtime(
+    *contributions: ContextRuntimeContribution,
+) -> ContextRuntimeRegistry:
+    """Compose domain-neutral contributions and reject ambiguous ownership."""
+    providers: dict[str, ContextProviderFactory | ContextProvider] = {}
+    rules: list[ContextPlanningRule] = []
+    revalidators: list[object] = []
+    namespaces: set[str] = set()
+    for contribution in contributions:
+        overlap = providers.keys() & contribution.provider_factories.keys()
+        if overlap:
+            raise ValueError("context_runtime_provider_id_duplicate")
+        providers.update(contribution.provider_factories)
+        rules.extend(contribution.planning_rules)
+        for revalidator in contribution.permission_revalidators:
+            declared = getattr(revalidator, "permission_namespaces", None)
+            if not isinstance(declared, tuple) or not declared:
+                raise ValueError("context_runtime_revalidator_namespaces_required")
+            if any(not isinstance(value, str) or not value for value in declared):
+                raise ValueError("context_runtime_revalidator_namespace_invalid")
+            if namespaces.intersection(declared):
+                raise ValueError("context_runtime_revalidator_namespace_duplicate")
+            namespaces.update(declared)
+            revalidators.append(revalidator)
+    return ContextRuntimeRegistry(providers, rules, revalidators)
 
 
 EMPTY_CONTEXT_RUNTIME_REGISTRY = ContextRuntimeRegistry()

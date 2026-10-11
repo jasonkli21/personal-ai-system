@@ -1,7 +1,9 @@
 """Travel adapters use the shared provider and permission contracts."""
 
 import asyncio
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -33,15 +35,15 @@ from personal_ai.context.runtime import (
 )
 from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.context.travel import (
+    TRAVEL_CONTEXT_FIELDS,
     TRAVEL_CONTEXT_PROVIDER_ID,
-    TRAVEL_RESEARCH_PROVIDER_ID,
     TravelContextPermissionRevalidator,
     TravelContextProvider,
     TravelContextProviderFactory,
     TravelContextReadResponse,
     TravelContextRecord,
-    TravelResearchContextProvider,
-    configured_travel_context_runtime,
+    TravelSelectionBinding,
+    configured_travel_context_contribution,
     travel_context_planning_rules,
 )
 from personal_ai.contracts.context_references import ContextSourceSnapshot
@@ -142,7 +144,7 @@ def test_travel_provider_hashes_model_item_identity_and_keeps_owner_only_depende
 
 
 def test_host_bootstrap_installs_travel_runtime_only_when_its_gate_is_enabled():
-    disabled = configured_travel_context_runtime(
+    disabled = configured_travel_context_contribution(
         Settings(
             _env_file=None,
             ai_provider="fake",
@@ -151,9 +153,9 @@ def test_host_bootstrap_installs_travel_runtime_only_when_its_gate_is_enabled():
         )
     )
     assert disabled.provider_factories == {}
-    assert disabled.planning_rules == ()
+    assert disabled.planning_rules
 
-    enabled = configured_travel_context_runtime(
+    enabled = configured_travel_context_contribution(
         Settings(
             _env_file=None,
             ai_provider="fake",
@@ -163,29 +165,77 @@ def test_host_bootstrap_installs_travel_runtime_only_when_its_gate_is_enabled():
             app_environment="test",
         )
     )
-    assert set(enabled.provider_factories) == {
-        TRAVEL_CONTEXT_PROVIDER_ID,
-        TRAVEL_RESEARCH_PROVIDER_ID,
-    }
+    assert set(enabled.provider_factories) == {TRAVEL_CONTEXT_PROVIDER_ID}
     assert enabled.planning_rules
     assert len(enabled.permission_revalidators) == 1
 
+    registration = default_application_registry().registration("travel")
+    context = ApplicationContextRequest(
+        definition=registration.definition,
+        scope=_scope(),
+        context_provider_capabilities=registration.context_providers,
+        tool_capabilities=registration.tools,
+    )
+    selected_trip = ContextEntityReference(
+        entity_type="trip", entity_id="trip-id", application_id="travel"
+    )
+    disabled_coordinator = ContextProviderCoordinator(
+        disabled.provider_factories, feature_flags={"travel_context_enabled": False}
+    )
+    disabled_capability = disabled_coordinator.planning_capability(
+        context, TRAVEL_CONTEXT_PROVIDER_ID
+    )
+    assert disabled_capability.status == "disabled"
+    disabled_plan = ContextPlanner(disabled.planning_rules).plan(
+        "this trip",
+        context,
+        {TRAVEL_CONTEXT_PROVIDER_ID: disabled_capability},
+        input_token_budget=2_000,
+        candidate_entities=(selected_trip,),
+    )
+    assert disabled_plan.selections == ()
+    assert disabled_plan.decisions[0].reason == "provider_feature_disabled"
 
-def test_travel_provider_rejects_records_outside_the_selected_references():
+    enabled_coordinator = ContextProviderCoordinator(
+        enabled.provider_factories, feature_flags={"travel_context_enabled": True}
+    )
+    enabled_capability = enabled_coordinator.planning_capability(
+        context, TRAVEL_CONTEXT_PROVIDER_ID
+    )
+    enabled_plan = ContextPlanner(enabled.planning_rules).plan(
+        "this trip",
+        context,
+        {TRAVEL_CONTEXT_PROVIDER_ID: enabled_capability},
+        input_token_budget=2_000,
+        candidate_entities=(selected_trip,),
+    )
+    assert enabled_plan.selections[0].provider_id == TRAVEL_CONTEXT_PROVIDER_ID
+    assert "destination" not in TRAVEL_CONTEXT_FIELDS
+
+
+def test_travel_provider_accepts_bounded_reservation_linked_to_selected_day():
     selected = ContextEntityReference(
-        entity_type="research_session",
-        entity_id="selected",
+        entity_type="day",
+        entity_id="selected-day",
         application_id="travel",
         workspace_id=None,
     )
-    client = FakeTravelClient(
-        TravelContextReadResponse(items=(_record("research_session", "different"),))
+    reservation = _record("reservation", "opaque-reservation").model_copy(
+        update={
+            "selection_binding": TravelSelectionBinding(
+                entity_type="day",
+                entity_id="selected-day",
+                relationship="day_reservation_summary",
+            ),
+            "payload": {"reservation_summary": "flight · Sample Air · confirmed"},
+        }
     )
-    provider = TravelResearchContextProvider(client)
+    client = FakeTravelClient(TravelContextReadResponse(items=(reservation,)))
+    provider = TravelContextProvider(client)
     selection = ContextSelection(
-        provider_id=TRAVEL_RESEARCH_PROVIDER_ID,
-        operation="search",
-        fields=("passage",),
+        provider_id=TRAVEL_CONTEXT_PROVIDER_ID,
+        operation="entity",
+        fields=("reservation_summary",),
         entity_refs=(selected,),
         max_results=1,
         max_bytes=2_048,
@@ -194,7 +244,66 @@ def test_travel_provider_rejects_records_outside_the_selected_references():
         target_scope=ApplicationScope(application_id="travel"),
     )
 
-    with pytest.raises(ContextPreparationError, match="travel_research_unselected_entity"):
+    (item,) = provider.fetch(selection, _scope(), deadline=10**12)
+    assert item.payload.reservation_summary == "flight · Sample Air · confirmed"
+
+
+def test_travel_provider_consumes_versioned_shared_reservation_fixture():
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures/travel-context-read-v2-reservation.json").read_text()
+    )
+    response = TravelContextReadResponse.model_validate(fixture)
+    binding = response.items[0].selection_binding
+    assert response.schema_version == "travel-context-read-v2"
+    assert binding is not None
+    assert binding.entity_type == "day"
+
+    reference = ContextEntityReference(
+        entity_type="day",
+        entity_id=binding.entity_id,
+        application_id="travel",
+        workspace_id=None,
+    )
+    provider = TravelContextProvider(FakeTravelClient(response))
+    selection = ContextSelection(
+        provider_id=TRAVEL_CONTEXT_PROVIDER_ID,
+        operation="entity",
+        fields=("reservation_summary",),
+        entity_refs=(reference,),
+        max_results=1,
+        max_bytes=2_048,
+        max_tokens=64,
+        timeout_seconds=1,
+        target_scope=ApplicationScope(application_id="travel"),
+    )
+
+    (item,) = provider.fetch(selection, _scope(), deadline=10**12)
+    assert item.sensitivity == "sensitive"
+    assert item.payload.reservation_summary == "lodging · Example Stay · confirmed"
+    assert "00000000-0000-4000-8000-000000000003" not in item.item_id
+
+
+def test_travel_provider_rejects_reservation_without_selected_binding():
+    selected = ContextEntityReference(
+        entity_type="day", entity_id="selected-day", application_id="travel"
+    )
+    client = FakeTravelClient(
+        TravelContextReadResponse(items=(_record("reservation", "different-reservation"),))
+    )
+    provider = TravelContextProvider(client)
+    selection = ContextSelection(
+        provider_id=TRAVEL_CONTEXT_PROVIDER_ID,
+        operation="entity",
+        fields=("reservation_summary",),
+        entity_refs=(selected,),
+        max_results=1,
+        max_bytes=2_048,
+        max_tokens=64,
+        timeout_seconds=1,
+        target_scope=ApplicationScope(application_id="travel"),
+    )
+
+    with pytest.raises(ContextPreparationError, match="travel_context_unselected_entity"):
         provider.fetch(selection, _scope(), deadline=10**12)
 
 
@@ -335,7 +444,10 @@ def test_travel_provider_runs_through_the_shared_planner_and_context_assembler()
         ),
         FakeTokenCounter(),
         InMemorySummaryRepository(),
-        context_provider_coordinator=ContextProviderCoordinator(runtime.provider_factories),
+        context_provider_coordinator=ContextProviderCoordinator(
+            runtime.provider_factories,
+            feature_flags={"travel_context_enabled": True},
+        ),
         permission_revalidator=ContextPermissionRevalidatorRegistry(
             runtime.permission_revalidators
         ),
@@ -445,7 +557,10 @@ def test_revoked_trip_context_is_removed_from_history_and_compatible_summary():
         settings,
         SummaryChoosingCounter(),
         summaries,
-        context_provider_coordinator=ContextProviderCoordinator(runtime.provider_factories),
+        context_provider_coordinator=ContextProviderCoordinator(
+            runtime.provider_factories,
+            feature_flags={"travel_context_enabled": True},
+        ),
         permission_revalidator=ContextPermissionRevalidatorRegistry(
             runtime.permission_revalidators
         ),
@@ -498,8 +613,7 @@ def test_revoked_trip_context_is_removed_from_history_and_compatible_summary():
     assert first_assistant.attribution is not None
     assert first_assistant.attribution.effective_context_sensitivity == "sensitive"
     assert any(
-        dependency.version == "8"
-        and dependency.permission_id == "travel_context_read:trip-id"
+        dependency.version == "8" and dependency.permission_id == "travel_context_read:trip-id"
         for snapshot in first_assistant.attribution.source_snapshots
         for dependency in snapshot.permission_dependencies
     )
@@ -547,7 +661,9 @@ def test_revoked_trip_context_is_removed_from_history_and_compatible_summary():
         )
     assert before_revocation.summary is not None
     assert before_revocation.summary.id == summary.id
-    assert any("SUMMARY_TRIP_REVISION_EIGHT" in message.content for message in before_revocation.messages)
+    assert any(
+        "SUMMARY_TRIP_REVISION_EIGHT" in message.content for message in before_revocation.messages
+    )
 
     client.revision = "9"
     llm.deltas = ("I will answer without revoked trip data.",)

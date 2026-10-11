@@ -11,7 +11,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.applications.contracts import CapabilityRegistration
-from personal_ai.auth.scope import RequestScope, current_request_scope
+from personal_ai.auth.scope import (
+    STANDALONE_APPLICATION_ID,
+    ApplicationScope,
+    RequestScope,
+    application_scope_context,
+    current_request_scope,
+)
 from personal_ai.context.history import message_context_authority
 from personal_ai.context.providers import (
     ContextItem,
@@ -156,13 +162,13 @@ class ConversationContextProvider:
         records = records_for(selected_turns)
         if compatible_summary:
             covered_ids = set(summary.source_message_ids)
-            covered = tuple(
-                message for message in messages if message.id in covered_ids
-            )
+            covered = tuple(message for message in messages if message.id in covered_ids)
             covered_assistants = tuple(
                 message for message in covered if message.role.value == "assistant"
             )
-            authorities = tuple(message_context_authority(message) for message in covered_assistants)
+            authorities = tuple(
+                message_context_authority(message) for message in covered_assistants
+            )
             dependencies = tuple(
                 dict.fromkeys(
                     dependency
@@ -184,7 +190,9 @@ class ConversationContextProvider:
             if len(dependencies) > 16:
                 raise ContextProviderError("conversation_context_dependency_limit")
             summary_expiry = min(expiries) if expiries else None
-            summary_sensitivity = max(sensitivities, key=rank.__getitem__) if sensitivities else "personal"
+            summary_sensitivity = (
+                max(sensitivities, key=rank.__getitem__) if sensitivities else "personal"
+            )
             summary_record = ContextItem(
                 source_class="conversation",
                 provider_id=self.spec.provider_id,
@@ -400,6 +408,7 @@ class ResearchEvidenceContextProvider:
             ContextOperationSpec(
                 operation="search",
                 allowed_fields=("passage", "observed_at", "expires_at"),
+                accepts_entity_refs=True,
                 maximum_results=12,
                 maximum_bytes=65_536,
                 maximum_timeout_seconds=5,
@@ -408,8 +417,9 @@ class ResearchEvidenceContextProvider:
         maximum_items_per_call=12,
     )
 
-    def __init__(self, inputs: ContextProviderInputs) -> None:
+    def __init__(self, inputs: ContextProviderInputs, research_repository=None) -> None:
         self.inputs = inputs
+        self.research_repository = research_repository
 
     def validate_selection(self, selection: ContextSelection, inputs: ContextProviderInputs):
         del selection
@@ -421,7 +431,41 @@ class ResearchEvidenceContextProvider:
         output = []
         from personal_ai.evidence.contracts import Evidence, SourceObservation
 
-        for record in self.inputs.evidence_records[: selection.max_results]:
+        records = [] if selection.entity_refs else list(self.inputs.evidence_records)
+        selected_session_ids = set()
+        selected_session_expiries = {}
+        if selection.entity_refs:
+            if scope.application_id != "travel" or any(
+                item.entity_type != "research_session"
+                or item.application_id != scope.application_id
+                or item.workspace_id != scope.workspace_id
+                for item in selection.entity_refs
+            ):
+                raise ContextProviderError("research_context_selection_invalid")
+            if self.research_repository is None:
+                raise ContextProviderError("research_context_unavailable")
+            from uuid import UUID
+
+            from personal_ai.storage.errors import ResourceNotFoundError
+
+            for reference in selection.entity_refs[: selection.max_results]:
+                try:
+                    session_id = UUID(reference.entity_id)
+                    with application_scope_context(ApplicationScope()):
+                        research_session = self.research_repository.get(scope.owner_id, session_id)
+                except (ValueError, ResourceNotFoundError):
+                    raise ContextProviderError("research_context_unavailable") from None
+                if (
+                    research_session.state != "completed"
+                    or research_session.expires_at <= datetime.now(UTC)
+                ):
+                    continue
+                selected_session_ids.add(research_session.id)
+                selected_session_expiries[research_session.id] = research_session.expires_at
+                observations = {item.id: item for item in research_session.observations}
+                for evidence in research_session.evidence:
+                    records.append((evidence, tuple(observations.values())))
+        for record in records[: selection.max_results]:
             if not isinstance(record, tuple) or len(record) != 2:
                 raise ContextProviderError("research_context_record_invalid")
             evidence, observations = record
@@ -429,10 +473,15 @@ class ResearchEvidenceContextProvider:
                 not isinstance(item, SourceObservation) for item in observations
             ):
                 raise ContextProviderError("research_context_record_invalid")
+            selected_standalone = evidence.session_id in selected_session_ids
+            expected_application = (
+                STANDALONE_APPLICATION_ID if selected_standalone else scope.application_id
+            )
+            expected_workspace = None if selected_standalone else scope.workspace_id
             if (
                 evidence.owner_id != scope.owner_id
-                or evidence.application_id != scope.application_id
-                or evidence.workspace_id != scope.workspace_id
+                or evidence.application_id != expected_application
+                or evidence.workspace_id != expected_workspace
             ):
                 raise ContextProviderError("research_context_scope_mismatch")
             observation_by_id = {item.id: item for item in observations}
@@ -469,7 +518,10 @@ class ResearchEvidenceContextProvider:
                     workspace_id=scope.workspace_id,
                     authority="external",
                     observed_at=evidence.observed_at,
-                    expires_at=evidence.expires_at,
+                    expires_at=min(
+                        evidence.expires_at,
+                        selected_session_expiries.get(evidence.session_id, evidence.expires_at),
+                    ),
                     sensitivity="public",
                     source_refs=tuple(
                         ContextSourceReference(
@@ -485,6 +537,12 @@ class ResearchEvidenceContextProvider:
                             permission_id="research_source_policy",
                             version="research-v1",
                             purpose="preserve evidence source rights and attribution",
+                            source_application_id=(
+                                STANDALONE_APPLICATION_ID if selected_standalone else None
+                            ),
+                            destination_application_id=(
+                                scope.application_id if selected_standalone else None
+                            ),
                         ),
                     ),
                     payload=ResearchEvidencePayload(
@@ -636,8 +694,11 @@ class BuiltInContextPermissionRevalidator:
 class ResearchEvidenceContextProviderFactory:
     spec = ResearchEvidenceContextProvider.spec
 
+    def __init__(self, research_repository=None) -> None:
+        self.research_repository = research_repository
+
     def create(self, inputs: ContextProviderInputs) -> ResearchEvidenceContextProvider:
-        return ResearchEvidenceContextProvider(inputs)
+        return ResearchEvidenceContextProvider(inputs, self.research_repository)
 
 
 @dataclass(frozen=True)

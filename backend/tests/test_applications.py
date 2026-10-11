@@ -73,11 +73,7 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
             "conversation_history", "ai_memory"
         }
         assert registration.tools
-        expected_domain_capabilities = (
-            {"travel.trip_context", "travel.research_context"}
-            if application_id == "travel"
-            else set()
-        )
+        expected_domain_capabilities = {"travel.trip_context"} if application_id == "travel" else set()
         assert all(
             not provider.available
             for provider in registration.context_providers
@@ -101,7 +97,11 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
         for provider in registry.registration("travel").context_providers
     }
     assert travel_providers["travel.trip_context"].available
-    assert travel_providers["travel.research_context"].available
+    assert travel_providers["travel.trip_context"].feature_gate == "travel_context_enabled"
+    assert not travel_providers["travel.trip_context"].is_enabled(
+        {"travel_context_enabled": False}
+    )
+    assert travel_providers["travel.trip_context"].is_enabled({"travel_context_enabled": True})
     assert registry.get("travel").context_policy.sidecar.copy_allowed
     assert registry.get("travel").context_policy.sidecar.draft_insert_target_ids == (
         "travel.message_composer",
