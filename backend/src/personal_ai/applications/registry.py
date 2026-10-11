@@ -310,8 +310,18 @@ def default_application_registry() -> ApplicationRegistry:
             feature_gate="travel_context_enabled",
         ),
         _capability("travel.itinerary_action", "tool", reason="travel_actions_unavailable"),
-        _capability("shopping.product_context", "context_provider"),
-        _capability("shopping.catalog_search", "context_provider"),
+        _capability(
+            "shopping.product_context",
+            "context_provider",
+            available=True,
+            feature_gate="shopping_context_enabled",
+        ),
+        _capability(
+            "shopping.catalog_search",
+            "context_provider",
+            available=True,
+            feature_gate="shopping_context_enabled",
+        ),
         _capability("shopping.product_action", "tool", reason="shopping_actions_unavailable"),
         _capability("finance.account_context", "context_provider"),
         _capability("finance.portfolio_context", "context_provider"),
@@ -414,15 +424,18 @@ def default_application_registry() -> ApplicationRegistry:
                         ContextProviderPolicy(
                             provider_id="shopping.product_context",
                             operations=(_operation_policy(
-                                "current", ("product_name", "price", "tax_id"),
-                                restricted_fields=("tax_id",),
+                                "current",
+                                (
+                                    "project_title", "project_goal", "category", "requirements",
+                                    "budget_target", "budget_maximum", "budget_currency",
+                                    "project_notes", "project_revision", "selected_products",
+                                ),
                             ),),
                         ),
                         ContextProviderPolicy(
                             provider_id="shopping.catalog_search",
                             operations=(_operation_policy(
-                                "search", ("product_name", "price", "tax_id"),
-                                restricted_fields=("tax_id",),
+                                "search", ("catalog_observations",),
                             ),),
                         ),
                     ),

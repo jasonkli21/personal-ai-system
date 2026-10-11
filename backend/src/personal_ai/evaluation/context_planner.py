@@ -33,6 +33,7 @@ from personal_ai.context.profile import (
     InMemoryGlobalProfileRepository,
 )
 from personal_ai.context.providers import (
+    ContextEntityReference,
     ContextItem,
     ContextOperationSpec,
     ContextProviderCoordinator,
@@ -96,9 +97,14 @@ class _FixtureProvider:
                 owner_id=scope.owner_id,
                 application_id=scope.application_id,
                 workspace_id=scope.workspace_id,
-                authority="authoritative",
+                entity_refs=selection.entity_refs,
+                authority=(
+                    "external" if self.spec.source_class == "external_research" else "authoritative"
+                ),
                 observed_at=NOW,
-                sensitivity="sensitive",
+                sensitivity=(
+                    "personal" if self.spec.source_class == "external_research" else "sensitive"
+                ),
                 source_refs=(ContextSourceReference(kind="record", reference_id="fixture-item-1"),),
                 payload=payload,
             ),
@@ -194,6 +200,10 @@ def _rule(fixture: dict, provider_id: str, category: str | None = None):
         timeout_seconds=1,
         window_seconds=fixture.get("window_seconds"),
         exclusive_group="domain" if fixture.get("ambiguous") else None,
+        use_candidate_entities=fixture.get("use_candidate_entities", False),
+        require_candidate_entities=fixture.get("require_candidate_entities", False),
+        trigger_on_selected_entities=fixture.get("trigger_on_selected_entities", False),
+        candidate_entity_types=tuple(fixture.get("candidate_entity_types", ())),
         application_ids=(fixture["application_id"],),
         explanation=f"Synthetic baseline for {fixture['name']}.",
     )
@@ -248,7 +258,7 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         owner_id="synthetic-owner",
         request_id=f"evaluation-{fixture['name']}",
         application_id=fixture["application_id"],
-        workspace_id="synthetic-workspace",
+        workspace_id=fixture.get("workspace_id", "synthetic-workspace"),
     )
     providers = []
     factories = {}
@@ -328,6 +338,7 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         operation_spec = ContextOperationSpec(
             operation=operation,
             allowed_fields=fields,
+            accepts_entity_refs=fixture.get("use_candidate_entities", False),
             requires_time_window=(operation == "history"),
             maximum_window_seconds=fixture.get("max_window_seconds", 365 * 86_400),
             maximum_results=8,
@@ -389,7 +400,18 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
     )
 
     started = time.perf_counter()
-    plan = assembler.plan_context(fixture["intent"], context, now=NOW)
+    candidate_entities = tuple(
+        ContextEntityReference(
+            entity_type=item["entity_type"],
+            entity_id=item["entity_id"],
+            application_id=fixture["application_id"],
+            workspace_id=scope.workspace_id,
+        )
+        for item in fixture.get("candidate_entities", ())
+    )
+    plan = assembler.plan_context(
+        fixture["intent"], context, candidate_entities=candidate_entities, now=NOW
+    )
     scope_token = bind_request_scope(scope)
     try:
         assembled = assembler.assemble(
@@ -401,6 +423,15 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
     latency_ms = (time.perf_counter() - started) * 1000
 
     selected_fields = sorted({field for selection in plan.selections for field in selection.fields})
+    selected_entity_references = sorted(
+        (reference.entity_type, reference.entity_id)
+        for selection in plan.selections
+        for reference in selection.entity_refs
+    )
+    expected_entity_references = sorted(
+        (item["entity_type"], item["entity_id"])
+        for item in fixture.get("expected_candidate_entities", ())
+    )
     expected_fields = set(fixture["expected_fields"])
     excluded_fields = set(fixture["excluded_fields"])
     returned = list(assembled.source_items)
@@ -453,6 +484,7 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         and not (set(selected_fields) & excluded_fields)
         and (expected_reason is None or expected_reason in reasons)
         and actual_selections == expected_selections
+        and selected_entity_references == expected_entity_references
         and calls_match_plan
         and retrieved_support == expected_retrieved
         and injected_support == expected_injected
@@ -475,6 +507,10 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         "planned_selections": actual_selections,
         "expected_selections": expected_selections,
         "selected_fields": selected_fields,
+        "selected_entity_references": [
+            {"entity_type": entity_type, "entity_id": entity_id}
+            for entity_type, entity_id in selected_entity_references
+        ],
         "retrieved_support_fields": sorted(retrieved_support),
         "expected_retrieved_fields": sorted(expected_retrieved),
         "injected_support_fields": sorted(injected_support),

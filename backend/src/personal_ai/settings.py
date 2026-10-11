@@ -146,6 +146,13 @@ class Settings(BaseSettings):
     travel_context_service_audience: str = Field(default="", max_length=500)
     travel_context_service_account: str = Field(default="", max_length=254)
     travel_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
+    # Shopping has a separately authenticated, versioned read-only source.
+    # It is off until the service/user identity mapping is configured and accepted.
+    shopping_context_enabled: bool = False
+    shopping_context_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    shopping_context_service_audience: str = Field(default="", max_length=500)
+    shopping_context_service_account: str = Field(default="", max_length=254)
+    shopping_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
     worker_push_auth_required: bool = False
     worker_push_audience: str = Field(default="", max_length=500)
     worker_push_service_account: str = Field(default="", max_length=254)
@@ -338,6 +345,16 @@ class Settings(BaseSettings):
                     raise ValueError("travel_context_identity_configuration_required")
             elif self.app_environment not in {"local", "test"}:
                 raise ValueError("travel_context_development_identity_local_only")
+        if self.shopping_context_enabled:
+            shopping_url = str(self.shopping_context_base_url)
+            if (
+                self.auth_mode != "google_oidc"
+                or not self.auth_required
+                or not shopping_url.startswith("https://")
+                or not self.shopping_context_service_audience.startswith("https://")
+                or not self.shopping_context_service_account.strip()
+            ):
+                raise ValueError("shopping_context_identity_configuration_required")
         signer_key = self.external_dispatch_grant_private_key.get_secret_value().strip()
         signer_configured = bool(
             signer_key

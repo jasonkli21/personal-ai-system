@@ -73,7 +73,13 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
             "conversation_history", "ai_memory"
         }
         assert registration.tools
-        expected_domain_capabilities = {"travel.trip_context"} if application_id == "travel" else set()
+        expected_domain_capabilities = (
+            {"travel.trip_context"}
+            if application_id == "travel"
+            else {"shopping.product_context", "shopping.catalog_search"}
+            if application_id == "shopping"
+            else set()
+        )
         assert all(
             not provider.available
             for provider in registration.context_providers
@@ -86,6 +92,14 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
             } | expected_domain_capabilities
         )
         assert all(not tool.available for tool in registration.tools)
+
+    for capability in ("shopping.product_context", "shopping.catalog_search"):
+        provider = registry.capability("shopping", capability, kind="context_provider")
+        assert provider.available is True
+        assert provider.feature_gate == "shopping_context_enabled"
+        assert provider.is_enabled({}) is False
+        assert provider.is_enabled({"shopping_context_enabled": True}) is True
+    assert registry.capability("shopping", "shopping.product_action", kind="tool").available is False
     for application_id in ("finance", "health"):
         policy = registry.get(application_id).context_policy.sidecar
         assert policy.manual_import_reuse.allowed is False

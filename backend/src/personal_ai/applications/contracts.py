@@ -414,7 +414,9 @@ class CapabilityRegistration(BaseModel):
     # `available` means an implementation exists. A feature gate can still
     # disable its use for a given deployment without turning it into a stub.
     available: bool = False
-    feature_gate: Literal["memory_enabled", "travel_context_enabled"] | None = None
+    feature_gate: Literal[
+        "memory_enabled", "travel_context_enabled", "shopping_context_enabled"
+    ] | None = None
     unavailable_reason: str | None = Field(default=None, min_length=1, max_length=160)
     read_only_context: bool = False
     result_fields: tuple[str, ...] = Field(default=(), max_length=32)

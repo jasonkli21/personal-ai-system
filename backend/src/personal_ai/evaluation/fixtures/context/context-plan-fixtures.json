@@ -159,48 +159,55 @@
     {
       "name": "synthetic-shopping-saved-chair",
       "application_id": "shopping",
-      "intent": "Compare prices for my saved chair options.",
-      "provider_id": "shopping.product_context",
-      "source_class": "domain_current",
-      "operation": "current",
+      "workspace_id": null,
+      "intent": "Compare these selected products from my saved chairs.",
+      "provider_id": "shopping.catalog_search",
+      "source_class": "external_research",
+      "operation": "search",
       "allowed_fields": [
-        "product_name",
-        "price",
+        "catalog_observations",
         "tax_id"
       ],
       "rule_fields": [
-        "product_name",
-        "price"
+        "catalog_observations"
       ],
       "expected_fields": [
-        "product_name",
-        "price"
+        "catalog_observations"
       ],
       "excluded_fields": [
         "tax_id"
       ],
       "answer_support_needs": [
-        "product_name",
-        "price"
+        "catalog_observations"
       ],
-      "category": "shopping",
-      "phrase": "saved chair",
+      "category": "shopping_selected_catalog_evidence",
+      "phrase": "compare these selected products",
+      "use_candidate_entities": true,
+      "require_candidate_entities": true,
+      "trigger_on_selected_entities": true,
+      "candidate_entity_types": ["project", "project_product"],
+      "candidate_entities": [
+        {"entity_type": "project", "entity_id": "8d2b8676-958a-4d3c-9624-398ab6732c3f"},
+        {"entity_type": "project_product", "entity_id": "2ae24044-33a8-47e7-8a48-8eeefbd17452"}
+      ],
+      "expected_candidate_entities": [
+        {"entity_type": "project", "entity_id": "8d2b8676-958a-4d3c-9624-398ab6732c3f"},
+        {"entity_type": "project_product", "entity_id": "2ae24044-33a8-47e7-8a48-8eeefbd17452"}
+      ],
+      "expected_authority": "external",
       "max_tokens": 256,
       "expected_retrieved_fields": [
-        "product_name",
-        "price"
+        "catalog_observations"
       ],
       "expected_injected_fields": [
-        "product_name",
-        "price"
+        "catalog_observations"
       ],
       "expected_selections": [
         {
-          "provider_id": "shopping.product_context",
-          "operation": "current",
+          "provider_id": "shopping.catalog_search",
+          "operation": "search",
           "fields": [
-            "price",
-            "product_name"
+            "catalog_observations"
           ],
           "max_results": 3,
           "max_bytes": 4096,

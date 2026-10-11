@@ -251,6 +251,7 @@ def get_context_assembler(
         feature_flags={
             "memory_enabled": settings.memory_enabled,
             "travel_context_enabled": settings.travel_context_enabled,
+            "shopping_context_enabled": settings.shopping_context_enabled,
         },
     )
     return ContextAssembler(

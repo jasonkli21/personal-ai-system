@@ -759,8 +759,9 @@ def test_required_profile_field_survives_optional_field_budget_pressure():
         ),
         (
             "shopping", "shopping", "shopping.product_context", "domain_current", "current",
-            ("product_name", "price", "tax_id"), "compare saved chair prices",
-            ("product_name", "price"), None,
+            ("project_title", "requirements", "selected_products", "tax_id"),
+            "review shopping project requirements",
+            ("project_title", "requirements", "selected_products"), None,
         ),
         (
             "finance", "finance", "finance.account_context", "domain_current", "current",
@@ -1375,7 +1376,7 @@ def test_planned_source_budget_limits_builder_source_ceiling():
         "domain_current",
         ContextOperationSpec(
             operation="current",
-            allowed_fields=("product_name", "price"),
+            allowed_fields=("project_title", "requirements"),
             maximum_bytes=4_096,
             maximum_results=3,
             maximum_timeout_seconds=1,
@@ -1387,16 +1388,16 @@ def test_planned_source_budget_limits_builder_source_ceiling():
         category="shopping",
         provider_id="shopping.product_context",
         operation="current",
-        fields=("product_name", "price"),
-        phrase="compare chair prices",
+        fields=("project_title", "requirements"),
+        phrase="review project requirements",
         max_tokens=12,
     )
     assembler = _assembler(
         provider, context, ContextPlanner((rule,), include_default_rules=False)
     )
-    plan = assembler.plan_context("compare chair prices", context, now=NOW)
+    plan = assembler.plan_context("review project requirements", context, now=NOW)
     result = assembler.assemble(
-        (), _pending(context, "compare chair prices"),
+        (), _pending(context, "review project requirements"),
         application_context=context, context_plan=plan, refresh=False,
     )
 
