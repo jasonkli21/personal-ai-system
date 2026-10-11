@@ -19,7 +19,7 @@ export type Message = {
   workspace_id: string | null;
   role: "user" | "assistant";
   content: string;
-  status: "streaming" | "completed" | "failed" | "superseded";
+  status: "pending" | "streaming" | "completed" | "failed" | "superseded";
   created_at: string;
   parent_message_id: string | null;
   supersedes_message_id: string | null;

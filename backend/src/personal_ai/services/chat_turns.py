@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from time import monotonic
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import anyio
 
@@ -27,6 +27,7 @@ from personal_ai.context.deadline import remaining
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
 from personal_ai.entities import MAX_MESSAGE_CONTENT_CHARS, Message, MessageRole, MessageStatus
+from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.llm import (
     ChatMessage,
     GenerationClient,
@@ -59,6 +60,7 @@ class _PreparedTurn:
     request_id: str
     deadline: float
     selected_memory_ids: tuple[UUID, ...] = ()
+    selected_message_ids: tuple[UUID, ...] = ()
     inference_context: InferenceContext | None = None
 
 
@@ -152,6 +154,105 @@ class ChatTurnService:
         self._ensure_no_streaming_turn(active)
         return active
 
+    def require_context(self, context: ApplicationContextRequest) -> None:
+        if self._owner_id != context.scope.owner_id or self._application_context != context:
+            raise ContextPreparationError("turn_context_scope_mismatch")
+
+    def get_message(self, conversation_id: UUID, message_id: UUID) -> Message:
+        return self._messages.get(
+            owner_id=self._owner_id, conversation_id=conversation_id, message_id=message_id
+        )
+
+    def transition(self, current: Message, replacement: Message) -> Message:
+        result = self._messages.update_status(
+            owner_id=self._owner_id,
+            conversation_id=current.conversation_id,
+            message_id=current.id,
+            status=replacement.status,
+            updated_at=datetime.now(UTC),
+            expected_message=current,
+            replacement=replacement,
+            expected_branch_digest=current.execution.branch_digest if current.execution else None,
+        )
+        if result is None:
+            raise ConversationConflictError("turn changed; inspect canonical state")
+        return result
+
+    def prepare_external(
+        self,
+        conversation_id: UUID,
+        content: str,
+        *,
+        request_id: str,
+        assistant_id: UUID,
+        user_id: UUID,
+        preparation_hook,
+        candidate_message_ids=None,
+        history_authorizer=None,
+    ) -> _PreparedTurn:
+        # External assembly must not disclose context to an unrelated count/summary provider.
+        from personal_ai.context.tokens import EstimatedTokenCounter
+
+        if (
+            not isinstance(self._context.counter, EstimatedTokenCounter)
+            or self._context.summarizer is not None
+        ):
+            raise ContextPreparationError("external_context_requires_local_preparation")
+        if self._application_context is None:
+            raise ContextPreparationError("application_context_required")
+        active = self._active(conversation_id)
+        user = self._new_message(
+            conversation_id=conversation_id,
+            role=MessageRole.USER,
+            content=content,
+            status=MessageStatus.COMPLETED,
+            now=datetime.now(UTC),
+            parent_message_id=active[-1].id if active else None,
+            message_id=user_id,
+        )
+        return self._prepare_context_turn(
+            active,
+            user,
+            (user,),
+            None,
+            None,
+            request_id,
+            assistant_id=assistant_id,
+            preparation_hook=preparation_hook,
+            external=True,
+            candidate_message_ids=candidate_message_ids,
+            history_authorizer=history_authorizer,
+        )
+
+    def continue_turn(self, conversation_id: UUID, request) -> AsyncIterator[str]:
+        """An automatic continuation uses the configured generation lane and shared assembly."""
+        if request.choice.mode != "automatic":
+            raise ContextPreparationError("external_choice_requires_preparation")
+        identity = uuid5(
+            conversation_id,
+            f"{self._owner_id}:{self._application_context.scope.application_id if self._application_context else 'personal_ai'}:{self._application_context.scope.workspace_id if self._application_context else None}:{request.idempotency_key}",
+        )
+        active = self._active(conversation_id)
+        user = self._new_message(
+            conversation_id=conversation_id,
+            role=MessageRole.USER,
+            content=request.content,
+            status=MessageStatus.COMPLETED,
+            now=datetime.now(UTC),
+            parent_message_id=active[-1].id if active else None,
+            message_id=uuid5(identity, "user"),
+        )
+        return self._prepare_context_stream(
+            active,
+            user,
+            (user,),
+            None,
+            None,
+            request_id=str(request.idempotency_key),
+            candidate_message_ids=request.candidate_message_ids,
+            assistant_id=identity,
+        )
+
     def send(self, conversation_id: UUID, content: str, *, request_id: str) -> AsyncIterator[str]:
         active = self._active(conversation_id)
         user = self._new_message(
@@ -220,7 +321,10 @@ class ChatTurnService:
         )
         return self._prepare_context_stream(active, user, (user,), target.id, None, request_id)
 
-    def _prepare_context_stream(
+    def _prepare_context_stream(self, *args, **kwargs) -> AsyncIterator[str]:
+        return self._stream(self._prepare_context_turn(*args, **kwargs))
+
+    def _prepare_context_turn(
         self,
         active: Sequence[Message],
         user: Message,
@@ -228,13 +332,18 @@ class ChatTurnService:
         supersede_from: UUID | None,
         assistant_supersedes: UUID | None,
         request_id: str,
-    ) -> AsyncIterator[str]:
-        if (
-            self._application_context is None
-            and getattr(self._llm, "requires_inference_context", True)
+        *,
+        assistant_id: UUID | None = None,
+        preparation_hook=None,
+        external: bool = False,
+        candidate_message_ids=None,
+        history_authorizer=None,
+    ) -> _PreparedTurn:
+        if self._application_context is None and getattr(
+            self._llm, "requires_inference_context", True
         ):
             raise ContextPreparationError("application_context_required")
-        if getattr(self._llm, "requires_inference_context", False):
+        if not external and getattr(self._llm, "requires_inference_context", False):
             try:
                 require_matching_endpoint(self._llm, self._context.counter)
             except LLMInvalidRequestError as error:
@@ -252,17 +361,28 @@ class ChatTurnService:
         )
         try:
             post_active = self._messages.list_active(
-                owner_id=self._owner_id, conversation_id=user.conversation_id,
+                owner_id=self._owner_id,
+                conversation_id=user.conversation_id,
             )
+            history_for_context = post_active[:-1]
+            if candidate_message_ids is not None:
+                from personal_ai.context.contracts import complete_turns
+
+                requested = set(candidate_message_ids)
+                eligible = complete_turns(history_for_context)
+                if requested - {m.id for pair in eligible for m in pair}:
+                    raise ContextPreparationError("continuation_source_not_active_completed")
+                history_for_context = [
+                    m for pair in eligible if any(m.id in requested for m in pair) for m in pair
+                ]
+            if history_authorizer is not None:
+                history_authorizer(tuple(m.id for m in history_for_context))
             context_plan = None
             use_planned_memory = False
             if self._application_context is not None:
-                context_plan = self._context.plan_context(
-                    user.content, self._application_context
-                )
+                context_plan = self._context.plan_context(user.content, self._application_context)
                 use_planned_memory = any(
-                    selection.provider_id == "ai_memory"
-                    and selection.operation == "search"
+                    selection.provider_id == "ai_memory" and selection.operation == "search"
                     for selection in context_plan.selections
                 )
             retrieval = None
@@ -271,13 +391,14 @@ class ChatTurnService:
                     (
                         selection.timeout_seconds
                         for selection in (context_plan.selections if context_plan else ())
-                        if selection.provider_id == "ai_memory"
-                        and selection.operation == "search"
+                        if selection.provider_id == "ai_memory" and selection.operation == "search"
                     ),
                     self._context.settings.memory_timeout_seconds,
                 )
                 retrieval = self._memory_retriever.retrieve(
-                    self._owner_id, user.content, post_active,
+                    self._owner_id,
+                    user.content,
+                    post_active,
                     timeout=min(
                         memory_selection_timeout,
                         self._context.settings.memory_timeout_seconds,
@@ -286,17 +407,21 @@ class ChatTurnService:
                     application_context=self._application_context,
                 )
             assembled = self._context.assemble(
-                post_active[:-1], post_active[-1], deadline=deadline, retrieval=retrieval,
+                history_for_context,
+                post_active[-1],
+                deadline=deadline,
+                retrieval=retrieval,
+                refresh=not external,
                 application_context=self._application_context,
                 context_plan=context_plan,
                 expected_counter_identity=(
                     self._llm.identity
-                    if getattr(self._llm, "requires_inference_context", False)
+                    if not external and getattr(self._llm, "requires_inference_context", False)
                     else None
                 ),
             )
             remaining(deadline)
-            assistant_id = uuid4()
+            assistant_id = assistant_id or uuid4()
             if self._context_traces is not None:
                 if assembled.manifest is None:
                     raise ContextError("actual_context_manifest_unavailable")
@@ -342,6 +467,8 @@ class ChatTurnService:
                 supersedes_message_id=assistant_supersedes,
                 message_id=assistant_id,
             )
+            if preparation_hook is not None:
+                assistant = preparation_hook(assistant, assembled, inference_context, post_active)
             persisted_assistant = self._messages.prepare_message_turn(
                 owner_id=self._owner_id,
                 conversation_id=user.conversation_id,
@@ -375,16 +502,15 @@ class ChatTurnService:
             assembled.budget.selected_total,
             len(assembled.selected_message_ids),
         )
-        return self._stream(
-            _PreparedTurn(
-                (*persisted_users, persisted_assistant[0]),
-                persisted_assistant[0],
-                assembled.messages,
-                request_id,
-                deadline,
-                assembled.selected_memory_ids,
-                inference_context,
-            )
+        return _PreparedTurn(
+            (*persisted_users, persisted_assistant[0]),
+            persisted_assistant[0],
+            assembled.messages,
+            request_id,
+            deadline,
+            assembled.selected_memory_ids,
+            inference_context=inference_context,
+            selected_message_ids=assembled.selected_message_ids,
         )
 
     def _stream(self, turn: _PreparedTurn) -> AsyncIterator[str]:
@@ -452,6 +578,7 @@ class ChatTurnService:
     async def _stream_events(
         self, turn: _PreparedTurn, completed_turn: list[Message]
     ) -> AsyncIterator[str]:
+        started_at = monotonic()
         parts: list[str] = []
         content_length = 0
         terminal = False
@@ -517,9 +644,7 @@ class ChatTurnService:
 
             content = "".join(parts)
             if generation_metadata is None:
-                raise LLMIncompleteGenerationError(
-                    "language model ended without a terminal result"
-                )
+                raise LLMIncompleteGenerationError("language model ended without a terminal result")
             if not content.strip():
                 raise LLMInvalidResponseError("language model response was empty")
             completed = await io_call(
@@ -530,6 +655,34 @@ class ChatTurnService:
                 status=MessageStatus.COMPLETED,
                 content=content,
                 model=self._model,
+                replacement=turn.assistant.model_copy(
+                    update={
+                        "status": MessageStatus.COMPLETED,
+                        "content": content,
+                        "model": self._model,
+                        "attribution": TurnAttribution(
+                            mode="connected_provider",
+                            fact_source="server_observed",
+                            provider_id=generation_metadata.identity.provider_id,
+                            model_id=generation_metadata.identity.model_id,
+                            recorded_at=datetime.now(UTC),
+                            source_message_ids=turn.selected_message_ids,
+                            latency_ms=int((monotonic() - started_at) * 1000),
+                            usage_source=generation_metadata.usage.source
+                            if generation_metadata.usage
+                            else None,
+                            usage_confidence=generation_metadata.usage.confidence
+                            if generation_metadata.usage
+                            else None,
+                            input_tokens=generation_metadata.usage.input_tokens
+                            if generation_metadata.usage
+                            else None,
+                            output_tokens=generation_metadata.usage.output_tokens
+                            if generation_metadata.usage
+                            else None,
+                        ),
+                    }
+                ),
                 expected_status=MessageStatus.STREAMING,
                 updated_at=datetime.now(UTC),
             )
@@ -624,7 +777,9 @@ class ChatTurnService:
 
     @staticmethod
     def _ensure_no_streaming_turn(active: Sequence[Message]) -> None:
-        if any(message.status is MessageStatus.STREAMING for message in active):
+        if any(
+            message.status in {MessageStatus.STREAMING, MessageStatus.PENDING} for message in active
+        ):
             raise ConversationConflictError("a response is already in progress")
 
     def _new_message(
