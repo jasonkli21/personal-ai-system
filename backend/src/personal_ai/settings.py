@@ -153,6 +153,13 @@ class Settings(BaseSettings):
     shopping_context_service_audience: str = Field(default="", max_length=500)
     shopping_context_service_account: str = Field(default="", max_length=254)
     shopping_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
+    # Finance context is a separate, high-sensitivity read contract. Both its
+    # Finance-side gate and the exact Google service/user identities are required.
+    finance_context_enabled: bool = False
+    finance_context_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    finance_context_service_audience: str = Field(default="", max_length=500)
+    finance_context_service_account: str = Field(default="", max_length=254)
+    finance_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
     worker_push_auth_required: bool = False
     worker_push_audience: str = Field(default="", max_length=500)
     worker_push_service_account: str = Field(default="", max_length=254)
@@ -355,6 +362,16 @@ class Settings(BaseSettings):
                 or not self.shopping_context_service_account.strip()
             ):
                 raise ValueError("shopping_context_identity_configuration_required")
+        if self.finance_context_enabled:
+            finance_url = str(self.finance_context_base_url)
+            if (
+                self.auth_mode != "google_oidc"
+                or not self.auth_required
+                or not finance_url.startswith("https://")
+                or not self.finance_context_service_audience.startswith("https://")
+                or not self.finance_context_service_account.strip()
+            ):
+                raise ValueError("finance_context_identity_configuration_required")
         signer_key = self.external_dispatch_grant_private_key.get_secret_value().strip()
         signer_configured = bool(
             signer_key

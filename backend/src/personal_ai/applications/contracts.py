@@ -415,7 +415,10 @@ class CapabilityRegistration(BaseModel):
     # disable its use for a given deployment without turning it into a stub.
     available: bool = False
     feature_gate: Literal[
-        "memory_enabled", "travel_context_enabled", "shopping_context_enabled"
+        "memory_enabled",
+        "travel_context_enabled",
+        "shopping_context_enabled",
+        "finance_context_enabled",
     ] | None = None
     unavailable_reason: str | None = Field(default=None, min_length=1, max_length=160)
     read_only_context: bool = False

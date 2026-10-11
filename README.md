@@ -270,6 +270,8 @@ The Phase 25.3 continuation sidecar is implemented, but manual external disclosu
 
 Phase 26 adds an optional, read-only Travel context integration through the shared planner, context assembler, and sidecar. The Travel API remains authoritative for trips, days, places, bookings, and writes; the integration has independent default-off gates and supports preview, narrowing, Copy, and draft insertion. See the [Phase 26 plan](docs/personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/plans/phase-26-implementation-plan.md) and [implementation evidence](docs/personal-ai-chapter-2/phase-26-implementation-evidence.md).
 
+Phase 28 adds a separate, read-only Finance context contract through the shared planner, context assembler, and permission-revalidation seams. Both Finance and Personal AI gates default off. Automatic chat routing and the Finance sidecar remain unavailable pending Phase 15/21 prerequisites, an accepted Finance embed contract, and deployed identity/provider privacy checks; see the [Phase 28 evidence](docs/personal-ai-chapter-2/phase-28-implementation-evidence.md).
+
 Connected execution requires an operator-provisioned Ed25519 signer that matches the public key pinned in the local bridge's protected compatibility configuration. Set `EXTERNAL_DISPATCH_GRANT_ISSUER`, `EXTERNAL_DISPATCH_GRANT_KEY_ID`, and `EXTERNAL_DISPATCH_GRANT_PRIVATE_KEY` only through a protected local environment file or Secret Manager. The key is never sent to the browser. Manual copy/import does not need this signer or the ChatGPT bridge.
 
 Research, memory, decision, travel, shopping, proposal, and extraction capabilities each have independent gates. Enable only the specific path you are testing and preserve its provider/storage policy controls.

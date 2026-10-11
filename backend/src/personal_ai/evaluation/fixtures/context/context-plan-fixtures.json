@@ -220,48 +220,48 @@
     {
       "name": "synthetic-finance-cash-position",
       "application_id": "finance",
-      "intent": "Summarize the cash balance in my account.",
+      "intent": "Summarize the account balance context.",
       "provider_id": "finance.account_context",
       "source_class": "domain_current",
       "operation": "current",
       "allowed_fields": [
-        "balance",
-        "currency",
+        "account_summary",
+        "balance_summary",
         "tax_id"
       ],
       "rule_fields": [
-        "balance",
-        "currency"
+        "account_summary",
+        "balance_summary"
       ],
       "expected_fields": [
-        "balance",
-        "currency"
+        "account_summary",
+        "balance_summary"
       ],
       "excluded_fields": [
         "tax_id"
       ],
       "answer_support_needs": [
-        "balance",
-        "currency"
+        "account_summary",
+        "balance_summary"
       ],
       "category": "finance",
-      "phrase": "cash balance",
+      "phrase": "account balance context",
       "max_tokens": 256,
       "expected_retrieved_fields": [
-        "balance",
-        "currency"
+        "account_summary",
+        "balance_summary"
       ],
       "expected_injected_fields": [
-        "balance",
-        "currency"
+        "account_summary",
+        "balance_summary"
       ],
       "expected_selections": [
         {
           "provider_id": "finance.account_context",
           "operation": "current",
           "fields": [
-            "balance",
-            "currency"
+            "account_summary",
+            "balance_summary"
           ],
           "max_results": 3,
           "max_bytes": 4096,

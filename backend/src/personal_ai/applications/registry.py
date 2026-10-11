@@ -16,6 +16,8 @@ from personal_ai.applications.contracts import (
     ContextFieldPolicy,
     ContextOperationPolicy,
     ContextProviderPolicy,
+    ContextSensitivity,
+    ExternalDisclosurePolicy,
 )
 
 SHARED_CONTEXT_PROVIDER_IDS = (
@@ -246,13 +248,16 @@ def _domain_context_policy(
     declarations: tuple[ContextProviderPolicy, ...],
     *,
     sidecar: ApplicationSidecarPolicy | None = None,
+    maximum_model_sensitivity: ContextSensitivity | None = None,
 ) -> ApplicationContextPolicy:
     """Compose explicit app-owned source rules with shared context policies."""
     shared = ApplicationContextPolicy()
     return ApplicationContextPolicy(
         version=version,
         provider_policies=(*shared.provider_policies, *declarations),
-        maximum_model_sensitivity=shared.maximum_model_sensitivity,
+        maximum_model_sensitivity=(
+            maximum_model_sensitivity or shared.maximum_model_sensitivity
+        ),
         cross_application="deny",
         sidecar=sidecar or ApplicationSidecarPolicy(),
     )
@@ -271,18 +276,21 @@ def _operation_policy(
     fields: tuple[str, ...],
     *,
     restricted_fields: tuple[str, ...] = (),
+    sensitivity: ContextSensitivity = "sensitive",
 ) -> ContextOperationPolicy:
     return ContextOperationPolicy(
         operation=operation,
         fields=tuple(
             _field_policy(
                 field,
-                sensitivity="restricted" if field in restricted_fields else "sensitive",
+                sensitivity=(
+                    "restricted" if field in restricted_fields else sensitivity
+                ),
                 model_disclosure=field not in restricted_fields,
             )
             for field in fields
         ),
-        sensitivity="sensitive",
+        sensitivity=sensitivity,
     )
 
 
@@ -323,8 +331,30 @@ def default_application_registry() -> ApplicationRegistry:
             feature_gate="shopping_context_enabled",
         ),
         _capability("shopping.product_action", "tool", reason="shopping_actions_unavailable"),
-        _capability("finance.account_context", "context_provider"),
-        _capability("finance.portfolio_context", "context_provider"),
+        _capability(
+            "finance.account_context",
+            "context_provider",
+            available=True,
+            feature_gate="finance_context_enabled",
+        ),
+        _capability(
+            "finance.portfolio_context",
+            "context_provider",
+            available=True,
+            feature_gate="finance_context_enabled",
+        ),
+        _capability(
+            "finance.research_context",
+            "context_provider",
+            available=True,
+            feature_gate="finance_context_enabled",
+        ),
+        _capability(
+            "finance.research_evidence",
+            "context_provider",
+            available=True,
+            feature_gate="finance_context_enabled",
+        ),
         _capability("finance.account_action", "tool", reason="finance_actions_unavailable"),
         _capability("health.profile_context", "context_provider"),
         _capability("health.history_context", "context_provider"),
@@ -446,7 +476,12 @@ def default_application_registry() -> ApplicationRegistry:
                 application_id="finance",
                 display_name="Finance",
                 workspace_kind="optional",
-                context_provider_ids=("finance.account_context", "finance.portfolio_context"),
+                context_provider_ids=(
+                    "finance.account_context",
+                    "finance.portfolio_context",
+                    "finance.research_context",
+                    "finance.research_evidence",
+                ),
                 tool_ids=("finance.account_action",),
                 memory_namespace="finance",
                 sensitivity_defaults={
@@ -460,23 +495,63 @@ def default_application_registry() -> ApplicationRegistry:
                     (
                         ContextProviderPolicy(
                             provider_id="finance.account_context",
-                            operations=(_operation_policy(
-                                "current", ("balance", "currency", "tax_id"),
-                                restricted_fields=("tax_id",),
-                            ),),
+                            operations=(
+                                _operation_policy(
+                                    "current",
+                                    ("account_summary", "balance_summary"),
+                                    sensitivity="restricted",
+                                ),
+                            ),
                         ),
                         ContextProviderPolicy(
                             provider_id="finance.portfolio_context",
-                            operations=(_operation_policy(
-                                "current", ("ticker", "shares", "market_value", "tax_id"),
-                                restricted_fields=("tax_id",),
-                            ),),
+                            operations=(
+                                _operation_policy(
+                                    "current",
+                                    (
+                                        "account_summary",
+                                        "balance_summary",
+                                        "security_summary",
+                                        "position_summary",
+                                    ),
+                                    sensitivity="restricted",
+                                ),
+                            ),
+                        ),
+                        ContextProviderPolicy(
+                            provider_id="finance.research_context",
+                            operations=(
+                                _operation_policy(
+                                    "current",
+                                    ("research_thesis",),
+                                    sensitivity="restricted",
+                                ),
+                            ),
+                        ),
+                        ContextProviderPolicy(
+                            provider_id="finance.research_evidence",
+                            operations=(
+                                _operation_policy(
+                                    "current",
+                                    ("research_fact",),
+                                    sensitivity="restricted",
+                                ),
+                            ),
                         ),
                     ),
                     sidecar=ApplicationSidecarPolicy(
+                        connected_provider_disclosure=ExternalDisclosurePolicy(
+                            allowed=False,
+                            maximum_sensitivity="restricted",
+                        ),
+                        manual_external_disclosure=ExternalDisclosurePolicy(
+                            allowed=False,
+                            maximum_sensitivity="restricted",
+                        ),
                         manual_import_reuse={"allowed": False},
                         copy_allowed=True,
                     ),
+                    maximum_model_sensitivity="restricted",
                 ),
             ),
             ApplicationDefinition(

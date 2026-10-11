@@ -765,8 +765,8 @@ def test_required_profile_field_survives_optional_field_budget_pressure():
         ),
         (
             "finance", "finance", "finance.account_context", "domain_current", "current",
-            ("balance", "currency", "tax_id"), "account cash balance",
-            ("balance", "currency"), None,
+            ("account_summary", "balance_summary", "tax_id"), "account balance summary",
+            ("account_summary", "balance_summary"), None,
         ),
         (
             "health", "health", "health.history_context", "domain_history", "history",

@@ -78,6 +78,13 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
             if application_id == "travel"
             else {"shopping.product_context", "shopping.catalog_search"}
             if application_id == "shopping"
+            else {
+                "finance.account_context",
+                "finance.portfolio_context",
+                "finance.research_context",
+                "finance.research_evidence",
+            }
+            if application_id == "finance"
             else set()
         )
         assert all(
@@ -121,6 +128,17 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
         "travel.message_composer",
     )
     assert registry.registration("shopping").comparison_modules[0].registration.domain_id == "shopping"
+    for capability in (
+        "finance.account_context",
+        "finance.portfolio_context",
+        "finance.research_context",
+        "finance.research_evidence",
+    ):
+        provider = registry.capability("finance", capability, kind="context_provider")
+        assert provider.available is True
+        assert provider.feature_gate == "finance_context_enabled"
+        assert provider.is_enabled({}) is False
+        assert provider.is_enabled({"finance_context_enabled": True}) is True
 
 
 def test_unknown_application_fails_with_a_stable_registry_error() -> None:
