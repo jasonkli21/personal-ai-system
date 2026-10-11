@@ -99,7 +99,7 @@ class EndpointProfileDefinition:
 
 
 def encode_current_endpoint_profile(profile: EndpointProfile) -> EndpointProfileDefinition:
-    """Encode the current model using the frozen V2 definition representation."""
+    """Use frozen V3 for access-bearing profiles, preserving V2 for older profiles."""
     profile = EndpointProfile.model_validate(profile.model_dump())
     return decode_endpoint_profile_definition(
         CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION if profile.access_policy is not None else 2,
