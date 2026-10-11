@@ -505,6 +505,17 @@ def test_plan_never_automatic_candidate_or_free_quota(setup):
         )
 
 
+def test_explicit_local_admission_uses_profile_facts_for_any_provider():
+    second_provider = profile("synthetic_local_subscription")
+    registry = EndpointRegistry([second_provider])
+    admitted = registry.revalidate_explicit(
+        second_provider.ref,
+        sensitivity="personal",
+        required_capabilities=frozenset({"streaming"}),
+    )
+    assert admitted == second_provider
+
+
 def test_coarse_usage_no_reset_account_or_secret_fields():
     observation = usage_observation("bridge_usage_limit", now=1)
     assert observation.state == "limit"

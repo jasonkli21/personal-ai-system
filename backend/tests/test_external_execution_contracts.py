@@ -124,11 +124,10 @@ def test_every_bridge_error_literal_normalizes_to_the_shared_failure_contract():
     }
     assert observable_codes
     supported_codes = {item.value for item in ExternalFailureCode}
+    assert observable_codes <= supported_codes
     for code in observable_codes:
-        normalized = normalize_external_failure(code)
-        assert isinstance(normalized, ExternalFailureCode)
-        if code not in supported_codes:
-            assert normalized is ExternalFailureCode.EXECUTION_INTERRUPTED
+        assert normalize_external_failure(code).value == code
+    assert normalize_external_failure("bridge_unregistered_failure") is ExternalFailureCode.EXECUTION_INTERRUPTED
 
 
 def test_pinned_proof_verification_and_scoped_idempotency_are_independent_of_proof_id():

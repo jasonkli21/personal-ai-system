@@ -339,7 +339,7 @@ class EndpointProfile(_FrozenContract):
 
     @model_validator(mode="after")
     def validate_profile_contract(self) -> EndpointProfile:
-        if self.provider_id == "openai_chatgpt_plan":
+        if self.execution_mode == "CHATGPT_PLAN":
             required = ProviderAccessPolicy(
                 auth_mode="oauth_public_client",
                 selection_mode="explicit_only",
@@ -350,13 +350,12 @@ class EndpointProfile(_FrozenContract):
             )
             if (
                 self.access_policy != required
-                or self.execution_mode != "CHATGPT_PLAN"
                 or self.strict_free_enabled
                 or self.cost_class != "SUBSCRIPTION"
                 or self.credential_source != "user_runtime"
                 or self.quota_buckets
             ):
-                raise ValueError("chatgpt_plan_requires_explicit_local_subscription_policy")
+                raise ValueError("plan_execution_requires_explicit_local_subscription_policy")
         bucket_ids = [bucket.bucket_id for bucket in self.quota_buckets]
         if len(set(bucket_ids)) != len(bucket_ids):
             raise ValueError("endpoint_quota_bucket_duplicate")

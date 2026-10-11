@@ -97,7 +97,7 @@ def serialize(messages: Sequence[ChatMessage], model: str) -> bytes:
     for message in messages:
         role = getattr(message.role, "value", message.role)
         if role not in {"system", "developer", "user", "assistant"}:
-            raise LLMInvalidRequestError("bridge_request_unsupported")
+            raise LLMInvalidRequestError("bridge_unsupported_request")
         if not isinstance(message.content, str) or not message.content:
             raise LLMInvalidRequestError("bridge_request_invalid")
         items.append(

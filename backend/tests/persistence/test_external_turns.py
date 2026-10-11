@@ -178,3 +178,68 @@ def test_dispatch_expiry_recovery_retains_unknown_fence(repositories):
     )
     assert recovered.status == MessageStatus.FAILED and recovered.execution.state == "unknown"
     assert recovered.content == ""
+
+
+@pytest.mark.parametrize("mismatch", ["provider", "model", "package", "source"])
+def test_repository_rejects_completion_that_mismatches_reservation(repositories, mismatch):
+    _, _, messages = repositories
+    assistant, branch, now = prepared(repositories, "connected_provider")
+    dispatched = messages.update_status(
+        owner_id="local",
+        conversation_id=assistant.conversation_id,
+        message_id=assistant.id,
+        status=MessageStatus.PENDING,
+        replacement=assistant.model_copy(
+            update={"execution": assistant.execution.model_copy(update={"state": "dispatched"})}
+        ),
+        expected_message=assistant,
+        expected_branch_digest=branch,
+        updated_at=now,
+    )
+    assert dispatched is not None
+    attribution = TurnAttribution(
+        mode="connected_provider",
+        fact_source="client_reported",
+        execution_origin="connected_local",
+        provider_id=dispatched.execution.provider_id,
+        model_id=dispatched.execution.model_id,
+        recorded_at=now,
+        package_fingerprint=dispatched.execution.package_fingerprint,
+        connection_id=dispatched.execution.connection_id,
+        connection_revision=dispatched.execution.connection_revision,
+        source_message_ids=dispatched.execution.source_message_ids,
+        source_snapshots=dispatched.execution.source_snapshots,
+    ).model_copy(
+        update={
+            "provider_id": "forged-provider" if mismatch == "provider" else dispatched.execution.provider_id,
+            "model_id": "forged-model" if mismatch == "model" else dispatched.execution.model_id,
+            "package_fingerprint": "b" * 64
+            if mismatch == "package"
+            else dispatched.execution.package_fingerprint,
+            "source_message_ids": (uuid4(),)
+            if mismatch == "source"
+            else dispatched.execution.source_message_ids,
+        }
+    )
+    candidate = dispatched.model_copy(
+        update={
+            "status": MessageStatus.COMPLETED,
+            "content": "Imported answer",
+            "model": attribution.model_id,
+            "attribution": attribution,
+            "execution": dispatched.execution.model_copy(
+                update={"state": "completed", "completion_digest": "c" * 64}
+            ),
+        }
+    )
+    with pytest.raises(ValueError, match="completion_attribution_mismatches_reservation"):
+        messages.update_status(
+            owner_id="local",
+            conversation_id=assistant.conversation_id,
+            message_id=assistant.id,
+            status=MessageStatus.COMPLETED,
+            replacement=candidate,
+            expected_message=dispatched,
+            expected_branch_digest=branch,
+            updated_at=now,
+        )

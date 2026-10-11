@@ -232,7 +232,7 @@ class LocalChatGPTBridge:
             or package.connection_id != session.connection_id
             or package.connection_revision != session.connection_revision
         ):
-            raise BridgeDenied("bridge_selection_mismatch")
+            raise BridgeDenied("bridge_admission_denied")
         self.verifier.verify(proof, package, caller_id=session.caller_id, now=int(self.clock()))
         gate = self.gates.get(
             (
