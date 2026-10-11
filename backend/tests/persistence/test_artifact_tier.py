@@ -13,7 +13,7 @@ from personal_ai.artifacts.local import InMemoryArtifactStore
 from personal_ai.artifacts.service import ArtifactService
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.persistence.postgres import PostgresDatabase
-from personal_ai.persistence.postgres_artifacts import PostgresArtifactMetadataRepository
+from personal_ai.persistence.postgres.artifacts import PostgresArtifactMetadataRepository
 
 pytestmark = pytest.mark.persistence_integration
 
@@ -149,7 +149,7 @@ def test_durable_fence_survives_new_repository_instance(database, monkeypatch):
 
 
 def test_account_confirmation_fence_and_cancel_before_cleanup(database):
-    from personal_ai.persistence.postgres_auth import PostgresAccountLifecycleRepository
+    from personal_ai.persistence.postgres.auth import PostgresAccountLifecycleRepository
 
     owner = f"artifact-test-{uuid4()}"
     lifecycle = PostgresAccountLifecycleRepository(database)
@@ -168,7 +168,7 @@ def test_account_confirmation_fence_and_cancel_before_cleanup(database):
 
 
 def test_cancel_winning_owner_cleanup_claim_prevents_physical_delete(database):
-    from personal_ai.persistence.postgres_auth import PostgresAccountLifecycleRepository
+    from personal_ai.persistence.postgres.auth import PostgresAccountLifecycleRepository
 
     owner = f"artifact-test-{uuid4()}"
     scope = ApplicationScope()
@@ -214,7 +214,7 @@ def test_cancel_winning_owner_cleanup_claim_prevents_physical_delete(database):
 
 def test_owner_cleanup_claim_winning_cancellation_returns_conflict(database):
     from personal_ai.auth.account_data import AccountRequestConflict
-    from personal_ai.persistence.postgres_auth import PostgresAccountLifecycleRepository
+    from personal_ai.persistence.postgres.auth import PostgresAccountLifecycleRepository
 
     owner = f"artifact-test-{uuid4()}"
     scope = ApplicationScope()

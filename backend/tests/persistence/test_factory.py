@@ -84,7 +84,7 @@ def test_deployed_factory_uses_neon_and_federated_dynamodb(monkeypatch):
         def close(self):
             calls.append(("close-federated-dynamodb",))
 
-    monkeypatch.setattr("personal_ai.persistence.neon.NeonRuntimeDatabase", Database)
+    monkeypatch.setattr("personal_ai.persistence.postgres.neon.NeonRuntimeDatabase", Database)
     monkeypatch.setattr(
         "personal_ai.persistence.dynamodb.cloud.FederatedDynamoDBRuntimeTable", Table
     )
@@ -115,7 +115,7 @@ def test_postgres_auth_adapters_construct_with_current_identity_contract():
     factory = PostgresDynamoPersistenceFactory(object(), object())
 
     from personal_ai.auth.directory import MIGRATION_VERSION
-    from personal_ai.persistence.postgres_auth import (
+    from personal_ai.persistence.postgres.auth import (
         PostgresAccountLifecycleRepository,
         PostgresPrincipalDirectory,
     )

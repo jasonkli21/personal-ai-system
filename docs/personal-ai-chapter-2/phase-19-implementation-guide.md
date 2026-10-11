@@ -22,7 +22,7 @@ not select or route to a different model provider.
   [`usage/async_call.py`](../../backend/src/personal_ai/usage/async_call.py)
   gives directly implemented HTTP adapters the same reserve-before-send and
   settle-after-response lifecycle used by the LiteLLM gateway.
-- [`llm/litellm_gateway.py`](../../backend/src/personal_ai/llm/litellm_gateway.py)
+- [`llm/litellm/gateway.py`](../../backend/src/personal_ai/llm/litellm/gateway.py)
   reserves each intercepted physical transport request before handing it to
   HTTPX. Hidden SDK retries are disabled and a second send is rejected unless
   it has an explicit new attempt. Search and lookup providers use the shared
@@ -45,7 +45,7 @@ Iterative research keeps its distinct task and run attribution.
   supplies static quota bucket authority, unit, window, ceiling and provenance.
   `usage/quota.py` owns live reset/remaining/freshness observations. Bucket IDs represent shared provider/account capacity;
   endpoint and credential attribution remain on their individual attempts.
-- [`persistence/postgres_usage.py`](../../backend/src/personal_ai/persistence/postgres_usage.py)
+- [`persistence/postgres/usage/accounting.py`](../../backend/src/personal_ai/persistence/postgres/usage/accounting.py)
   locks request budgets, endpoint cooldowns, and every applicable quota bucket
   in one Postgres transaction. Attempt/token ceilings and known exhausted
   buckets deny before dispatch. All required bucket reservations commit
@@ -88,7 +88,7 @@ budgets, scarcity scoring, or provider selection.
   records quota-membership provenance and separates daily aggregates by
   endpoint profile version; legacy aggregate rows retain a NULL version because
   their former mixed version cannot be reconstructed.
-- [`persistence/dynamodb_usage.py`](../../backend/src/personal_ai/persistence/dynamodb_usage.py)
+- [`persistence/dynamodb/usage.py`](../../backend/src/personal_ai/persistence/dynamodb/usage.py)
   stores bounded, owner/app/workspace-scoped operational attempt events and
   minimal expiry locators. Event publication can be reconciled from Postgres by
   invocation/attempt IDs; DynamoDB does not duplicate the canonical ledger.

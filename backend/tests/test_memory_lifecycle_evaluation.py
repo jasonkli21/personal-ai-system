@@ -15,7 +15,7 @@ from personal_ai.evaluation.memory_lifecycle import (
     evaluate_fixture,
     load_fixtures,
 )
-from personal_ai.memory.lifecycle_policy import make_event
+from personal_ai.memory.lifecycle.policy import make_event
 from personal_ai.memory.recovery import recover_pending
 from personal_ai.memory.services import MemoryRetriever
 from personal_ai.storage.errors import ResourceNotFoundError

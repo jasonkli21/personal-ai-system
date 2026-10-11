@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from personal_ai.persistence.dynamodb_cloud import (
+from personal_ai.persistence.dynamodb.cloud import (
     FederatedDynamoDBConfig,
     google_oidc_aws_condition_claims,
 )
-from personal_ai.persistence.neon import NeonDirectDatabase, NeonRuntimeDatabase
 from personal_ai.persistence.postgres import PostgresDatabase
+from personal_ai.persistence.postgres.neon import NeonDirectDatabase, NeonRuntimeDatabase
 
 
 def test_google_claim_mapping_uses_azp_for_aws_aud_and_aud_for_oaud():

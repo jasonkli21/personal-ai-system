@@ -2,18 +2,17 @@
 
 import { FormEvent, useEffect, useMemo, useRef } from "react";
 
+import { ApiError, type ApplicationScopeRequest } from "../../../lib/api/common";
+import type { Message } from "../../../lib/api/conversations";
 import {
-  ApiError,
-  conversationsApi,
+  externalTurnEndpoints,
   type ApplicationLaunchContext,
   type BridgeConnection,
   type BridgeModel,
   type ContextSourceClass,
-  type ApplicationScopeRequest,
-  type Message,
   type PreparedExternalTurn,
   type SidecarActionOptions,
-} from "../../../lib/api";
+} from "../../../lib/api/external-turns";
 import {
   createExternalTransportRegistry,
   DEFAULT_EXTERNAL_TRANSPORTS,
@@ -141,7 +140,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
 
   useEffect(() => {
     let cancelled = false;
-    void conversationsApi.executionOptions(undefined, requestScope).then(value => {
+    void externalTurnEndpoints.executionOptions(undefined, requestScope).then(value => {
       if (cancelled) return;
       setOptions(value);
       setMode(
@@ -168,7 +167,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     const idempotencyKey = window.sessionStorage.getItem(key);
     if (!idempotencyKey) return;
     setRecoveryKey(idempotencyKey);
-    void conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, requestScope)
+    void externalTurnEndpoints.reconcileExternal(conversationId, idempotencyKey, undefined, requestScope)
       .then(result => {
         if (["not_found", "not_external", "cancelled", "completed"].includes(result.state)) {
           window.sessionStorage.removeItem(key);
@@ -192,7 +191,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     bridgeRequest.current?.abort();
     const current = preparedRef.current;
     if (current) {
-      void conversationsApi.abandonExternal(conversationId, current.message_id, current.package_fingerprint, undefined, requestScope).catch(() => undefined);
+      void externalTurnEndpoints.abandonExternal(conversationId, current.message_id, current.package_fingerprint, undefined, requestScope).catch(() => undefined);
     }
   }, [conversationId, requestScope]);
 
@@ -259,7 +258,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     bridgeRequest.current = null;
     if (prepared) {
       try {
-        await conversationsApi.abandonExternal(conversationId, prepared.message_id, prepared.package_fingerprint, undefined, requestScope);
+        await externalTurnEndpoints.abandonExternal(conversationId, prepared.message_id, prepared.package_fingerprint, undefined, requestScope);
       } catch {
         // A stale or already terminal reservation cannot be reused; preparation will revalidate.
       }
@@ -281,7 +280,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
   }
 
   function requestFor(modeChoice: "manual_external" | "connected_provider", idempotencyKey: string) {
-    let choice: Parameters<typeof conversationsApi.prepareExternal>[1]["choice"];
+    let choice: Parameters<typeof externalTurnEndpoints.prepareExternal>[1]["choice"];
       if (modeChoice === "manual_external") choice = { mode: "manual_external" };
     else {
       if (!pairing || !bridgeConnection || !selectedModel || !selectedProfile) throw new Error("Connect an eligible local bridge account and choose a model.");
@@ -318,7 +317,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     setStatus("Previewing the authorized planner selection. This does not create a reservation.");
     try {
       const request = requestFor(mode, crypto.randomUUID());
-      const next = await conversationsApi.previewExternal(conversationId, request, undefined, requestScope);
+      const next = await externalTurnEndpoints.previewExternal(conversationId, request, undefined, requestScope);
       setPreview(next);
       setPreviewReviewed(false);
       setStatus("Preview ready. It is advisory; canonical preparation will replan and reauthorize.");
@@ -342,7 +341,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     setRecoveryKey(idempotencyKey);
     try {
       const request = requestFor(mode as "manual_external" | "connected_provider", idempotencyKey);
-      const next = await conversationsApi.prepareExternal(conversationId, request, undefined, requestScope);
+      const next = await externalTurnEndpoints.prepareExternal(conversationId, request, undefined, requestScope);
       window.sessionStorage.removeItem(storageKey);
       setRecoveryKey(null);
       setRecovery(null);
@@ -355,7 +354,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
       setError(errorMessage(failure));
       setStatus("The prepare response may have been lost. Checking the canonical reservation before allowing another attempt.");
       try {
-        const result = await conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, requestScope);
+        const result = await externalTurnEndpoints.reconcileExternal(conversationId, idempotencyKey, undefined, requestScope);
         if (result.state === "not_found") {
           window.sessionStorage.removeItem(storageKey);
           setRecoveryKey(null);
@@ -374,7 +373,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     if (!recoveryKey || busy) return;
     setBusy(true);
     try {
-      await conversationsApi.abandonExternalByKey(conversationId, recoveryKey, undefined, requestScope);
+      await externalTurnEndpoints.abandonExternalByKey(conversationId, recoveryKey, undefined, requestScope);
       window.sessionStorage.removeItem(recoveryStorageKey(conversationId, scope));
       setRecovery(null);
       setRecoveryKey(null);
@@ -396,7 +395,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     setError(null);
     setStatus("Importing your response into this conversation…");
     try {
-      const completed = await conversationsApi.importManual(conversationId, prepared.message_id, {
+      const completed = await externalTurnEndpoints.importManual(conversationId, prepared.message_id, {
         package_fingerprint: prepared.package_fingerprint,
         text: importText.trim(),
         ...(providerLabel.trim() ? { provider_label: providerLabel.trim() } : {}),
@@ -507,9 +506,9 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
 
   async function markConnectedInterrupted(turn: PreparedExternalTurn) {
     try {
-      await conversationsApi.failExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, requestScope);
+      await externalTurnEndpoints.failExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, requestScope);
     } catch {
-      try { await conversationsApi.abandonExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, requestScope); } catch { /* Canonical state may already be terminal. */ }
+      try { await externalTurnEndpoints.abandonExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, requestScope); } catch { /* Canonical state may already be terminal. */ }
     }
     preparedRef.current = null;
     setPrepared(null);
@@ -524,7 +523,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     setError(null);
     setStatus("Saving the completed connected response through the shared turn finalizer…");
     try {
-      const completed = await conversationsApi.completeConnected(conversationId, turn.message_id, {
+      const completed = await externalTurnEndpoints.completeConnected(conversationId, turn.message_id, {
         package_fingerprint: turn.package_fingerprint,
         text: completion.text,
         latency_ms: completion.latencyMs,
@@ -568,7 +567,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     const turn = prepared;
     try {
       setStatus("Requesting a short-lived dispatch grant…");
-      const { proof } = await conversationsApi.dispatchExternal(conversationId, turn.message_id, connectedExecution, controller.signal, requestScope);
+      const { proof } = await externalTurnEndpoints.dispatchExternal(conversationId, turn.message_id, connectedExecution, controller.signal, requestScope);
       setStatus("Sending the authorized package to the paired local bridge…");
       const result = await bridgeExecute(connectedExecution, proof, pairing, adapter, controller.signal, delta => {
         onExternalDelta(turn.message_id, delta);

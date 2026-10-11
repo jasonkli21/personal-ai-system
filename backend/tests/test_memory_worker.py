@@ -15,13 +15,13 @@ from fastapi.testclient import TestClient
 from personal_ai.entities import Message
 from personal_ai.main import app as public_app
 from personal_ai.memory.lifecycle import MemoryJob
-from personal_ai.memory.lifecycle_jobs import (
+from personal_ai.memory.lifecycle.jobs import (
     MemoryJobNotification,
     MemoryLifecycleCoordinator,
     MemoryLifecycleWorker,
     PubSubMemoryJobPublisher,
 )
-from personal_ai.memory.lifecycle_repositories import (
+from personal_ai.memory.lifecycle.repositories import (
     InMemoryMemoryLifecycleRepository,
     job_idempotency_id,
 )
@@ -208,7 +208,7 @@ def test_owned_publisher_is_lazy_bounded_and_closed_after_notification(
 ):
     client = MagicMock()
     constructor = MagicMock(return_value=client)
-    monkeypatch.setattr("personal_ai.memory.lifecycle_jobs.pubsub_v1.PublisherClient", constructor)
+    monkeypatch.setattr("personal_ai.memory.lifecycle.jobs.pubsub_v1.PublisherClient", constructor)
     if publication_fails:
         client.publish.return_value.result.side_effect = TimeoutError("synthetic timeout")
     publisher = PubSubMemoryJobPublisher(settings(gcp_project_id="synthetic-project"))

@@ -8,21 +8,21 @@ from uuid import uuid4
 import pytest
 
 from personal_ai.agents.research.contracts import ResearchError, ResearchRequest, ResearchSession
-from personal_ai.agents.research.iterative_contracts import (
+from personal_ai.agents.research.iterative.contracts import (
     DecisionIntent,
     IterativeResearchRequest,
     ResearchRun,
     RunState,
     StopReason,
 )
-from personal_ai.agents.research.iterative_fakes import (
+from personal_ai.agents.research.iterative.fakes import (
     DeterministicClock,
     FakeIterativeSearchAdapter,
 )
-from personal_ai.agents.research.iterative_repositories import (
+from personal_ai.agents.research.iterative.repositories import (
     InMemoryIterativeResearchRepository,
 )
-from personal_ai.agents.research.iterative_service import IterativeResearchService
+from personal_ai.agents.research.iterative.service import IterativeResearchService
 from personal_ai.agents.research.repositories import InMemoryResearchRepository
 from personal_ai.agents.research.service import ResearchService
 from personal_ai.applications.contracts import ApplicationContextRequest

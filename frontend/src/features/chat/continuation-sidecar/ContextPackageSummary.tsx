@@ -1,4 +1,4 @@
-import type { ContextPackage } from "../../../lib/api";
+import type { ContextPackage } from "../../../lib/api/external-turns";
 import styles from "./continuation-sidecar.module.css";
 
 export function ContextPackageSummary({ packageValue }: { packageValue: ContextPackage }) {

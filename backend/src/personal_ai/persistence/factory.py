@@ -337,7 +337,7 @@ def persistence_factory(settings) -> PersistenceFactory:
                 FederatedDynamoDBConfig,
                 FederatedDynamoDBRuntimeTable,
             )
-            from personal_ai.persistence.neon import NeonRuntimeDatabase
+            from personal_ai.persistence.postgres.neon import NeonRuntimeDatabase
 
             database = NeonRuntimeDatabase(
                 settings.p10_neon_runtime_dsn.get_secret_value(),

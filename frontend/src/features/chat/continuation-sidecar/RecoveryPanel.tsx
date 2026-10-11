@@ -1,4 +1,4 @@
-import type { ExternalTurnReconciliation } from "../../../lib/api";
+import type { ExternalTurnReconciliation } from "../../../lib/api/external-turns";
 import styles from "./continuation-sidecar.module.css";
 
 export function RecoveryPanel({

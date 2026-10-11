@@ -20,7 +20,7 @@ from personal_ai.api.dependencies import (
 )
 from personal_ai.entities import Conversation
 from personal_ai.llm.context import GeminiConversationSummarizer
-from personal_ai.llm.litellm_gateway import LiteLLMTokenCounter
+from personal_ai.llm.litellm import LiteLLMTokenCounter
 from personal_ai.main import app
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.settings import Settings

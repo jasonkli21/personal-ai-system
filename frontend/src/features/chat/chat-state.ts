@@ -1,4 +1,4 @@
-import type { Conversation, ConversationDetail, Message } from "../../lib/api";
+import type { Conversation, ConversationDetail, Message } from "../../lib/api/conversations";
 
 export type RequestState = "idle" | "loading-list" | "creating" | "opening";
 export type ChatState = {

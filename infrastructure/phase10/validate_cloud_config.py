@@ -1,1 +1,0 @@
-../aws/dynamodb/validate_cloud_config.py

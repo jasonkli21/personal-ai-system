@@ -11,7 +11,7 @@ import type {
   ExecutionOptions,
   ExternalTurnReconciliation,
   PreparedExternalTurn,
-} from "../../../lib/api";
+} from "../../../lib/api/external-turns";
 
 export function useContinuationSidecar() {
   const [options, setOptions] = useState<ExecutionOptions | null>(null);

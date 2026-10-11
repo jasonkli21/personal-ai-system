@@ -7,7 +7,7 @@ import httpx
 from personal_ai.llm.client import EmbeddingResult, InferenceContext
 from personal_ai.llm.context import GeminiTokenCounter
 from personal_ai.llm.gemini import GeminiLLMClient
-from personal_ai.llm.litellm_gateway import LiteLLMEmbeddingClient
+from personal_ai.llm.litellm import LiteLLMEmbeddingClient
 from personal_ai.memory.extraction import MemoryCandidateExtractor
 from personal_ai.settings import Settings
 from personal_ai.usage.context import bind_usage_task

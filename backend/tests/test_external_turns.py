@@ -32,7 +32,7 @@ from personal_ai.routing.contracts import (
     ProviderAccessPolicy,
 )
 from personal_ai.routing.registry import EndpointRegistry
-from personal_ai.services.chat_turns import ChatTurnService
+from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.external_turns import (
     ContinuationRequest,
     DispatchGrantSigner,
@@ -1351,7 +1351,7 @@ def test_principal_bound_authority_requires_verified_owner_and_rechecks_source_g
         ContextPermissionDependency,
         ContextSourceSnapshot,
     )
-    from personal_ai.services.external_turn_authority import PrincipalBoundExternalTurnAuthority
+    from personal_ai.services.external_turns.authority import PrincipalBoundExternalTurnAuthority
 
     service, conversation_id, messages, *_ = setup
     principal = AuthenticatedPrincipal(

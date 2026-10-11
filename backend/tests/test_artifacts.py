@@ -757,7 +757,7 @@ def test_provider_fence_denies_before_profile_reservation_or_send():
     from contextlib import contextmanager
     from types import SimpleNamespace
 
-    from personal_ai.persistence.postgres_usage import PostgresProviderUsageAccounting
+    from personal_ai.persistence.postgres.usage.accounting import PostgresProviderUsageAccounting
     from personal_ai.usage.contracts import UsageAdmissionDenied
 
     calls = []
@@ -787,7 +787,7 @@ def test_provider_fence_denies_before_profile_reservation_or_send():
 def test_fenced_memory_job_never_claims_or_dispatches():
     from types import SimpleNamespace
 
-    from personal_ai.memory.lifecycle_jobs import MemoryLifecycleWorker
+    from personal_ai.memory.lifecycle.jobs import MemoryLifecycleWorker
 
     settings = Settings(
         ai_provider="fake",

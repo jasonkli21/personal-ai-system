@@ -8,6 +8,6 @@ and preparation contracts used by services. Provider SDK and transport details s
 - `__init__.py` and the contracts expose the shared inference interface.
 - `litellm/` implements the pinned LiteLLM transport, request shaping, streaming, profiles, and attempt accounting.
 - Product workflows depend on the neutral contracts; they should not import LiteLLM types.
-- `personal_ai.llm.litellm_gateway` remains a compatibility import path.
+- `personal_ai.llm.litellm` exposes the transport clients used by provider adapters.
 
 Gateway and provider contract tests live in `backend/tests/test_litellm_gateway.py`, `backend/tests/test_llm_*.py`, and related usage tests. Offline fakes do not establish live provider compatibility.

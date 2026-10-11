@@ -17,9 +17,9 @@ from personal_ai.llm.client import (
     ProviderIdentity,
     TokenCount,
 )
-from personal_ai.persistence.postgres_routing import PostgresEndpointRegistryRepository
-from personal_ai.persistence.postgres_routing_observations import PostgresRoutingDecisionRepository
-from personal_ai.persistence.postgres_usage import PostgresProviderUsageAccounting
+from personal_ai.persistence.postgres.routing import PostgresEndpointRegistryRepository
+from personal_ai.persistence.postgres.routing_observations import PostgresRoutingDecisionRepository
+from personal_ai.persistence.postgres.usage.accounting import PostgresProviderUsageAccounting
 from personal_ai.routing import EndpointRegistry, RoutingDecisionService
 from personal_ai.routing.cascade import (
     CascadeCoordinator,

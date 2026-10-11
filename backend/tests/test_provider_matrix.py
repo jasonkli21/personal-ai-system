@@ -52,10 +52,12 @@ from personal_ai.routing import (
     RoutingDecisionService,
 )
 from personal_ai.routing.contracts import EndpointCandidateRequirements
-from personal_ai.routing.phase21 import (
+from personal_ai.routing.decision_models import (
     EvaluationQualityGate,
     PreparationIdentity,
     RoutingRequestFacts,
+)
+from personal_ai.routing.integrity import (
     endpoint_configuration_sha256,
     task_configuration_sha256,
 )

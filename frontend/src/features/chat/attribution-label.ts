@@ -1,4 +1,4 @@
-import type { TurnAttribution } from "../../lib/api";
+import type { TurnAttribution } from "../../lib/api/conversations";
 
 function producer(attribution: TurnAttribution) {
   return [attribution.provider_id, attribution.model_id].filter(Boolean).join(" / ");

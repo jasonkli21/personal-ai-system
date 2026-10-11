@@ -4,8 +4,10 @@ import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } fro
 
 import { chatReducer, initialChatState } from "../features/chat/chat-state";
 import { attributionLabel } from "../features/chat/attribution-label";
-import { ContinuationSidecar } from "../features/chat/continuation-sidecar";
-import { ApiError, conversationsApi, type ApplicationLaunchContext, type ApplicationScopeRequest, type Message, type StreamHandlers } from "../lib/api";
+import { ContinuationSidecar } from "../features/chat/continuation-sidecar/ContinuationSidecar";
+import { ApiError, type ApplicationScopeRequest } from "../lib/api/common";
+import type { ApplicationLaunchContext } from "../lib/api/external-turns";
+import { conversationEndpoints, type Message, type StreamHandlers } from "../lib/api/conversations";
 import styles from "./page.module.css";
 
 function readableError(error: unknown) {
@@ -37,7 +39,7 @@ export default function Home() {
     activeNavigation.current = controller;
     dispatch({ type: "request-started", requestState: "loading-list" });
     try {
-      const conversations = await conversationsApi.list(controller.signal);
+      const conversations = await conversationEndpoints.list(controller.signal);
       if (!controller.signal.aborted) dispatch({ type: "list-loaded", conversations });
     } catch (error) {
       if (!controller.signal.aborted) dispatch({ type: "failed", error: readableError(error) });
@@ -61,7 +63,7 @@ export default function Home() {
     activeNavigation.current = controller;
     dispatch({ type: "request-started", requestState: "opening" });
     try {
-      const detail = await conversationsApi.get(id, controller.signal);
+      const detail = await conversationEndpoints.get(id, controller.signal);
       if (controller.signal.aborted) return;
       setEditingMessage(null);
       setContinuationTarget(null);
@@ -80,11 +82,11 @@ export default function Home() {
     activeNavigation.current = controller;
     dispatch({ type: "request-started", requestState: "creating" });
     try {
-      const conversation = await conversationsApi.create(undefined, controller.signal);
+      const conversation = await conversationEndpoints.create(undefined, controller.signal);
       if (controller.signal.aborted) return;
       dispatch({ type: "list-loaded", conversations: [conversation, ...state.conversations] });
       dispatch({ type: "request-started", requestState: "opening" });
-      const detail = await conversationsApi.get(conversation.id, controller.signal);
+      const detail = await conversationEndpoints.get(conversation.id, controller.signal);
       if (controller.signal.aborted) return;
       setEditingMessage(null);
       setContinuationTarget(null);
@@ -99,7 +101,7 @@ export default function Home() {
 
   async function refreshConversation(conversationId: string, signal: AbortSignal) {
     try {
-      const detail = await conversationsApi.get(conversationId, signal);
+      const detail = await conversationEndpoints.get(conversationId, signal);
       if (signal.aborted) return;
       dispatch({ type: "opened", detail });
       dispatch({
@@ -160,7 +162,7 @@ export default function Home() {
     if (!state.selected || !content || conversationControlsDisabled || activeNavigation.current || activeStream.current) return;
     const conversationId = state.selected.conversation.id;
     setDraft("");
-    void runStream((handlers, signal) => conversationsApi.send(conversationId, content, handlers, signal));
+    void runStream((handlers, signal) => conversationEndpoints.send(conversationId, content, handlers, signal));
   }
 
   function composerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -183,7 +185,7 @@ export default function Home() {
     const messageId = editingMessage.id;
     const conversationId = state.selected.conversation.id;
     setEditingMessage(null);
-    void runStream((handlers, signal) => conversationsApi.editAndRetry(conversationId, messageId, content, handlers, signal));
+    void runStream((handlers, signal) => conversationEndpoints.editAndRetry(conversationId, messageId, content, handlers, signal));
   }
 
   function retryFailedResponse(message: Message) {
@@ -191,7 +193,7 @@ export default function Home() {
     const conversationId = state.selected.conversation.id;
     const parent = state.selected.messages.find(candidate => candidate.id === message.parent_message_id);
     if (!parent || parent.role !== "user") return;
-    void runStream((handlers, signal) => conversationsApi.editAndRetry(conversationId, parent.id, parent.content, handlers, signal));
+    void runStream((handlers, signal) => conversationEndpoints.editAndRetry(conversationId, parent.id, parent.content, handlers, signal));
   }
 
   function continueWithAutomatic(
@@ -205,7 +207,7 @@ export default function Home() {
     const conversationId = selectedId;
     setContinuationTarget(null);
     requestAnimationFrame(() => mainHeading.current?.focus());
-    void runStream((handlers, signal) => conversationsApi.continueTurn(conversationId, {
+    void runStream((handlers, signal) => conversationEndpoints.continueTurn(conversationId, {
       content: instruction,
       idempotency_key: crypto.randomUUID(),
       choice: { mode: "automatic" },
@@ -234,7 +236,7 @@ export default function Home() {
     const conversationId = selectedId;
     if (!conversationId) return;
     try {
-      const detail = await conversationsApi.get(conversationId, undefined, scope);
+      const detail = await conversationEndpoints.get(conversationId, undefined, scope);
       dispatch({ type: "opened", detail });
       dispatch({
         type: "list-loaded",
@@ -306,7 +308,7 @@ export default function Home() {
                     </>}
                     {message.role === "assistant" && message.status === "completed" && <button
                       disabled={conversationControlsDisabled}
-                      onClick={() => void runStream((handlers, signal) => conversationsApi.regenerate(selectedId!, message.id, handlers, signal))}
+                      onClick={() => void runStream((handlers, signal) => conversationEndpoints.regenerate(selectedId!, message.id, handlers, signal))}
                     >Regenerate</button>}
                     {message.role === "assistant" && message.status === "failed" && <button disabled={conversationControlsDisabled} onClick={() => retryFailedResponse(message)}>Retry response</button>}
                     {message.role === "user" && <button disabled={conversationControlsDisabled} onClick={() => beginEdit(message)}>Edit and retry</button>}

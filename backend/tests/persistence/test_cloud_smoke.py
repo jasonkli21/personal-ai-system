@@ -47,11 +47,11 @@ def test_reviewed_neon_and_dynamodb_smoke_without_provisioning():
     assert not failures, "strict-$0 evidence blocks cloud smoke: " + ",".join(failures)
 
     from personal_ai.persistence.dynamodb import _marshal
-    from personal_ai.persistence.dynamodb_cloud import (
+    from personal_ai.persistence.dynamodb.cloud import (
         FederatedDynamoDBConfig,
         FederatedDynamoDBRuntimeTable,
     )
-    from personal_ai.persistence.neon import NeonRuntimeDatabase
+    from personal_ai.persistence.postgres.neon import NeonRuntimeDatabase
 
     database = NeonRuntimeDatabase(
         os.environ["P10_NEON_RUNTIME_DSN"],

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Home from "../../src/app/page";
-import type { Message } from "../../src/lib/api";
+import type { Message } from "../../src/lib/api/conversations";
 
 const fetchMock = vi.fn();
 const conversation = { id: "conversation-1", owner_id: "local", title: "Project ideas", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };

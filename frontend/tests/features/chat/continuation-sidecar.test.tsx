@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ContinuationSidecar } from "../../../src/features/chat/continuation-sidecar";
-import type { Message, PreparedExternalTurn } from "../../../src/lib/api";
+import { ContinuationSidecar } from "../../../src/features/chat/continuation-sidecar/ContinuationSidecar";
+import type { Message } from "../../../src/lib/api/conversations";
+import type { PreparedExternalTurn } from "../../../src/lib/api/external-turns";
 
 const target: Message = {
   id: "answer-1",

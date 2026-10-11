@@ -47,8 +47,8 @@ from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services import ChatTurnService, ConversationService
-from personal_ai.services.external_turn_authority import PrincipalBoundExternalTurnAuthority
 from personal_ai.services.external_turns import ExternalTurnService
+from personal_ai.services.external_turns.authority import PrincipalBoundExternalTurnAuthority
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 from personal_ai.usage.contracts import ProviderUsageAccounting

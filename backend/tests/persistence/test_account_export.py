@@ -15,7 +15,7 @@ from personal_ai.persistence.dynamodb import (
     _namespace,
     _timestamp,
 )
-from personal_ai.persistence.postgres_auth import PostgresAccountLifecycleRepository
+from personal_ai.persistence.postgres.auth import PostgresAccountLifecycleRepository
 
 
 class _Result:

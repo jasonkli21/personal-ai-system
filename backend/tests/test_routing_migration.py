@@ -188,15 +188,15 @@ def test_migration_retains_v1_definition_moves_runtime_observation_and_upgrades_
 
 
 def test_migration_semantics_ignore_mutable_phase18_and_phase19_runtime_helpers(monkeypatch):
-    from personal_ai.persistence import postgres_usage
+    from personal_ai.persistence.postgres.usage import accounting
 
     original = old_snapshot()
 
     def changed_runtime_contract(*args, **kwargs):
         raise AssertionError("migration called mutable runtime behavior")
 
-    monkeypatch.setattr(postgres_usage, "_select_quota_window", changed_runtime_contract)
-    monkeypatch.setattr(postgres_usage, "_lock_or_seed_bucket", changed_runtime_contract)
+    monkeypatch.setattr(accounting, "_select_quota_window", changed_runtime_contract)
+    monkeypatch.setattr(accounting, "_lock_or_seed_bucket", changed_runtime_contract)
     monkeypatch.setattr(EndpointProfile, "model_validate", classmethod(changed_runtime_contract))
 
     c = MigrationConnection(copy.deepcopy(original))

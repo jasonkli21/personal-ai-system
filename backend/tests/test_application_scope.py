@@ -7,7 +7,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 import pytest
 from pydantic import ConfigDict
 
-from personal_ai.agents.research.iterative_service import iterative_run_id
+from personal_ai.agents.research.iterative.service import iterative_run_id
 from personal_ai.auth.scope import (
     ApplicationScope,
     ApplicationScopedRecord,
@@ -24,7 +24,7 @@ from personal_ai.memory.contracts import (
     identity,
     normalize,
 )
-from personal_ai.memory.lifecycle_repositories import event_idempotency_id, job_idempotency_id
+from personal_ai.memory.lifecycle.repositories import event_idempotency_id, job_idempotency_id
 from personal_ai.storage import InMemoryConversationRepository, ResourceNotFoundError
 
 OWNER = "same-owner"

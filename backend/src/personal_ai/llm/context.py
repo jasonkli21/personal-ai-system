@@ -9,7 +9,7 @@ from personal_ai.context.contracts import ConversationSummary, SummaryDraft
 from personal_ai.entities import Message
 from personal_ai.llm.client import InferenceContext
 from personal_ai.llm.gemini import GeminiLLMClient
-from personal_ai.llm.litellm_gateway import LiteLLMTokenCounter
+from personal_ai.llm.litellm import LiteLLMTokenCounter
 from personal_ai.settings import Settings
 from personal_ai.usage.context import bind_usage_task
 from personal_ai.usage.contracts import ProviderUsageAccounting

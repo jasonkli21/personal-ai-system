@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID
 
-logger = logging.getLogger("personal_ai.persistence.postgres_usage")
+logger = logging.getLogger("personal_ai.persistence.postgres.usage.accounting")
 
 from .ledger import _aggregate_attempt, _aggregate_identity, _event_from_row
 

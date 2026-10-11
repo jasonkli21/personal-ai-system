@@ -28,7 +28,7 @@ from personal_ai.entities.research import (
     TextValue,
 )
 from personal_ai.evaluation.output import emit
-from personal_ai.ranking.policy import evaluate_candidates
+from personal_ai.ranking.constraints import evaluate_candidates
 from personal_ai.settings import Settings
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "decisions" / "decision-fixtures.json"

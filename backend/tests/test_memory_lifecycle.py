@@ -15,7 +15,7 @@ from personal_ai.memory.lifecycle import (
     score_memory,
     transition,
 )
-from personal_ai.memory.lifecycle_repositories import (
+from personal_ai.memory.lifecycle.repositories import (
     InMemoryMemoryLifecycleRepository,
     event_idempotency_id,
     job_idempotency_id,

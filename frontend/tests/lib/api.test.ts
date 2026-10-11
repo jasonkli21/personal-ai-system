@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applicationScopeHeaders, conversationsApi, type Message, type StreamHandlers } from "../../src/lib/api";
+import { applicationScopeHeaders } from "../../src/lib/api/common";
+import { conversationEndpoints, type Message, type StreamHandlers } from "../../src/lib/api/conversations";
 
 const assistant: Message = {
   id: "assistant", conversation_id: "conversation", owner_id: "local",
@@ -42,7 +43,7 @@ describe("chat SSE protocol", () => {
     const bytes = new TextEncoder().encode(frame("response.delta", { message_id: assistant.id, delta: assistant.content }) + frame("response.completed", { message: assistant }));
     const { body, cancel } = mockResponse(Array.from(bytes, (byte) => new Uint8Array([byte])), false);
     const events = handlers();
-    await conversationsApi.send("conversation", "Hi", events);
+    await conversationEndpoints.send("conversation", "Hi", events);
     expect(events.onDelta).toHaveBeenCalledWith(assistant.id, assistant.content);
     expect(events.onCompleted).toHaveBeenCalledOnce();
     expect(cancel).toHaveBeenCalledOnce();
@@ -52,7 +53,7 @@ describe("chat SSE protocol", () => {
   it.each(["", frame("response.delta", { message_id: "assistant", delta: "Partial" })])("rejects EOF without a terminal event", async (text) => {
     const { body } = mockResponse([new TextEncoder().encode(text)]);
     const events = handlers();
-    await expect(conversationsApi.send("conversation", "Hi", events)).rejects.toThrow("interrupted");
+    await expect(conversationEndpoints.send("conversation", "Hi", events)).rejects.toThrow("interrupted");
     expect(events.onCompleted).not.toHaveBeenCalled();
     expect(body.locked).toBe(false);
     if (text) expect(events.onDelta).toHaveBeenCalledWith("assistant", "Partial");
@@ -62,7 +63,7 @@ describe("chat SSE protocol", () => {
     const error = { message_id: "assistant", code: "llm_timeout", message: "Please retry." };
     const { cancel } = mockResponse([new TextEncoder().encode(frame("response.error", error))], false);
     const events = handlers();
-    await conversationsApi.send("conversation", "Hi", events);
+    await conversationEndpoints.send("conversation", "Hi", events);
     expect(events.onError).toHaveBeenCalledWith(error);
     expect(cancel).toHaveBeenCalledOnce();
   });
@@ -73,7 +74,7 @@ describe("chat SSE protocol", () => {
     frame("response.delta", { message_id: "assistant", delta: 7 }),
   ])("cancels and unlocks malformed streams", async (text) => {
     const { body, cancel } = mockResponse([new TextEncoder().encode(text)], false);
-    await expect(conversationsApi.send("conversation", "Hi", handlers())).rejects.toThrow("could not be read");
+    await expect(conversationEndpoints.send("conversation", "Hi", handlers())).rejects.toThrow("could not be read");
     expect(cancel).toHaveBeenCalledOnce();
     expect(body.locked).toBe(false);
   });
@@ -81,14 +82,14 @@ describe("chat SSE protocol", () => {
   it("does not dispatch a terminal frame missing its boundary", async () => {
     mockResponse([new TextEncoder().encode(frame("response.completed", { message: assistant }).trimEnd())]);
     const events = handlers();
-    await expect(conversationsApi.send("conversation", "Hi", events)).rejects.toThrow("interrupted");
+    await expect(conversationEndpoints.send("conversation", "Hi", events)).rejects.toThrow("interrupted");
     expect(events.onCompleted).not.toHaveBeenCalled();
   });
 
   it("forwards a caller's abort signal", async () => {
     mockResponse([new TextEncoder().encode(frame("response.completed", { message: assistant }))]);
     const controller = new AbortController();
-    await conversationsApi.send("conversation", "Hi", handlers(), controller.signal);
+    await conversationEndpoints.send("conversation", "Hi", handlers(), controller.signal);
     expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ signal: controller.signal }));
   });
 });

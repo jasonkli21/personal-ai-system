@@ -27,16 +27,16 @@ from personal_ai.entities.research import (
     EntityMatch,
     EvidenceReference,
 )
-from personal_ai.ranking.policy import (
+from personal_ai.ranking.claim_verification import (
     CLAIM_VERIFICATION_POLICY_VERSION,
     claim_assertion_supported,
-    evaluate_candidates,
     identifier_assertion_supported,
     literal_supported,
-    normalize_name,
-    rank_with_domain_features,
-    resolve_candidate,
 )
+from personal_ai.ranking.constraints import evaluate_candidates
+from personal_ai.ranking.normalization import normalize_name
+from personal_ai.ranking.resolution import resolve_candidate
+from personal_ai.ranking.scoring import rank_with_domain_features
 from personal_ai.settings import Settings
 from personal_ai.storage.errors import ResourceNotFoundError
 

@@ -1,4 +1,4 @@
-import type { BridgeConnection, BridgePairing } from "../../../lib/api";
+import type { BridgeConnection, BridgePairing } from "../../../lib/api/external-turns";
 import type { DraftTarget } from "./ManualExternalPanel";
 import styles from "./continuation-sidecar.module.css";
 

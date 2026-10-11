@@ -4,7 +4,7 @@ Updated: 2026-10-11. This is the single living status snapshot. Code, tests, and
 
 ## Repository organization
 
-The 2026-10-11 modularity refactor groups persistence, inference transport, routing policy, iterative research, chat streaming, external turns, ranking, memory lifecycle, frontend API/sidecar code, evaluation resources, and active infrastructure by responsibility. Compatibility exports preserve previously used Python, TypeScript, and historical infrastructure paths. These are structural changes; feature gates, persisted schemas, durable IDs, and product behavior were not intentionally changed. See [dated refactor verification](repository-modularity-refactor-2026-10-11.md) for the tested revision, checks, and remaining local/cloud gaps.
+The 2026-10-11 modularity refactor groups persistence, inference transport, routing policy, iterative research, chat streaming, external turns, ranking, memory lifecycle, frontend API/sidecar code, evaluation resources, and active infrastructure by responsibility. Repository-owned imports and resource references now use the canonical package layout; the compatibility-only flat modules and filesystem aliases have been removed. These are structural changes; feature gates, persisted schemas, durable IDs, and product behavior were not intentionally changed. See [dated refactor verification](repository-modularity-refactor-2026-10-11.md) for both the original modularity verification and the compatibility cleanup checks and remaining local/cloud gaps.
 
 ## Implemented boundary
 

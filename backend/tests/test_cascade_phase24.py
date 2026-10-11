@@ -9,7 +9,7 @@ import pytest
 
 from personal_ai.llm.client import GenerationMetadata, GenerationResult, ProviderIdentity
 from personal_ai.routing.cascade import CascadeCoordinator, CascadeRejected, PreparedCascadeInput
-from personal_ai.routing.phase21 import CascadePolicy, PreparationIdentity
+from personal_ai.routing.decision_models import CascadePolicy, PreparationIdentity
 from personal_ai.routing.strategy import (
     QuotaAwareDeterministicStrategy,
     replay_deterministic_decision,
@@ -822,7 +822,7 @@ def _litellm_routing_fixture(system, *, generation_status="success", nested_acco
 def test_p24_real_litellm_gateway_uses_exactly_one_outer_p19_attempt_per_send(
     system, monkeypatch, generation_status
 ):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     sdk = gateway._load_litellm()
     monkeypatch.setattr(sdk, "num_retries", 1)

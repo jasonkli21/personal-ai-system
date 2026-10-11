@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from personal_ai.agents.research.iterative_contracts import IterativeResearchRequest
+from personal_ai.agents.research.iterative.contracts import IterativeResearchRequest
 from personal_ai.api.iterative_research import iterative_research_service
 from personal_ai.main import app
 from personal_ai.settings import Settings, get_settings

@@ -6,7 +6,7 @@ from personal_ai.evaluation.memory import build_fixture, load_fixtures
 from personal_ai.memory.contracts import Memory, ScoredMemory
 from personal_ai.memory.fake import FakeMemoryExtractor
 from personal_ai.memory.services import MemoryExtractionService
-from personal_ai.persistence.postgres_lifecycle import PostgresMemoryLifecycleRepository
+from personal_ai.persistence.postgres.lifecycle import PostgresMemoryLifecycleRepository
 
 
 def _seeded_memory():

@@ -14,7 +14,7 @@ from personal_ai.context.providers import ContextPreparationError
 from personal_ai.evaluation.memory import build_fixture, fixture_settings, load_fixtures
 from personal_ai.llm.memory import GeminiMemoryAdapter
 from personal_ai.memory.lifecycle import MemoryJob
-from personal_ai.memory.lifecycle_jobs import MemoryLifecycleWorker
+from personal_ai.memory.lifecycle.jobs import MemoryLifecycleWorker
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 
 

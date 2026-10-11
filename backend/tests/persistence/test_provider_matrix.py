@@ -27,15 +27,14 @@ from personal_ai.llm.client import (
     UsageMetadata,
 )
 from personal_ai.persistence.postgres import PostgresDatabase
-from personal_ai.persistence.postgres_provider_matrix import PostgresProviderMatrixRepository
-from personal_ai.persistence.postgres_routing import PostgresEndpointRegistryRepository
-from personal_ai.persistence.postgres_routing_observations import PostgresRoutingDecisionRepository
-from personal_ai.persistence.postgres_usage import PostgresProviderUsageAccounting
+from personal_ai.persistence.postgres.provider_matrix import PostgresProviderMatrixRepository
+from personal_ai.persistence.postgres.routing import PostgresEndpointRegistryRepository
+from personal_ai.persistence.postgres.routing_observations import PostgresRoutingDecisionRepository
+from personal_ai.persistence.postgres.usage.accounting import PostgresProviderUsageAccounting
 from personal_ai.routing import EndpointRegistry, RoutingDecisionService
 from personal_ai.routing.contracts import EndpointCandidateRequirements
-from personal_ai.routing.phase21 import (
-    EvaluationQualityGate,
-    RoutingRequestFacts,
+from personal_ai.routing.decision_models import EvaluationQualityGate, RoutingRequestFacts
+from personal_ai.routing.integrity import (
     endpoint_configuration_sha256,
     task_configuration_sha256,
 )

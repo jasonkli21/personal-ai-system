@@ -27,7 +27,8 @@ from personal_ai.llm import (
 )
 from personal_ai.llm.client import SYSTEM_INSTRUCTION
 from personal_ai.llm.context import GeminiTokenCounter
-from personal_ai.llm.litellm_gateway import LITELLM_VERSION, LiteLLMEmbeddingClient
+from personal_ai.llm.litellm import LiteLLMEmbeddingClient
+from personal_ai.llm.litellm.gateway import LITELLM_VERSION
 from personal_ai.llm.preparation import prepare_bounded_input
 from personal_ai.settings import Settings
 from personal_ai.usage.contracts import UsageAdmissionDenied
@@ -632,7 +633,7 @@ def test_429_timeout_and_known_failure_make_at_most_one_send(provider):
 
 
 def test_gemini_request_and_completion_bounds_precede_sdk_parsing(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     monkeypatch.setattr(gateway, "_MAX_COMPLETION_RESPONSE_BYTES", 256)
     response_secret = "response-secret-" * 200
@@ -701,7 +702,7 @@ def test_stream_line_and_event_caps_stop_before_sdk_parsing(monkeypatch):
 
 
 def test_total_stream_cap_stops_many_small_events_before_sdk_parsing(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     monkeypatch.setattr(gateway, "_MAX_STREAM_RESPONSE_BYTES", 256)
     event = {
@@ -779,7 +780,7 @@ def test_groq_and_cloudflare_are_generation_only_for_authoritative_count_workflo
 
 
 def test_ambient_hooks_fail_closed_and_disabled_logging_and_cache_hold(caplog, monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     sdk = gateway._load_litellm()
     monkeypatch.setattr(sdk, "callbacks", ["external_callback"])
@@ -905,7 +906,7 @@ def test_gemini_embeddings_use_litellm_and_preserve_persisted_space():
 
 @pytest.mark.parametrize("provider", ["gemini", "groq", "cloudflare_workers_ai"])
 def test_chunked_streams_drain_to_eof_and_allow_split_done_and_usage(provider):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     body = _stream_payload(provider)
     if provider != "gemini":
@@ -1111,7 +1112,7 @@ def test_conflicting_stream_identity_withholds_that_events_text(provider):
 
 @pytest.mark.parametrize("cache_loaded", [False, True])
 def test_ambient_litellm_retries_fail_closed_before_dispatch(cache_loaded, monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     sdk = gateway._load_litellm()
     monkeypatch.setattr(sdk, "num_retries", 1)
@@ -1134,7 +1135,7 @@ def test_ambient_litellm_retries_fail_closed_before_dispatch(cache_loaded, monke
 
 
 def test_generation_transport_fences_sdk_replay_even_if_global_changes_mid_call(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     sdk = gateway._load_litellm()
     monkeypatch.setattr(sdk, "num_retries", 1)
@@ -1159,7 +1160,7 @@ def test_generation_transport_fences_sdk_replay_even_if_global_changes_mid_call(
 
 
 def test_async_generation_transport_fences_sdk_replay(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     sdk = gateway._load_litellm()
     monkeypatch.setattr(sdk, "num_retries", 1)
@@ -1214,7 +1215,7 @@ class _RecordingProviderUsage:
 
 
 def test_usage_reservation_precedes_send_and_settles_one_attempt(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     monkeypatch.setattr(gateway, "_assert_litellm_runtime_safe", lambda: None)
     ledger = _RecordingProviderUsage()
@@ -1250,7 +1251,7 @@ def test_usage_reservation_precedes_send_and_settles_one_attempt(monkeypatch):
 
 
 def test_usage_admission_denial_happens_before_provider_send(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     monkeypatch.setattr(gateway, "_assert_litellm_runtime_safe", lambda: None)
     ledger = _RecordingProviderUsage(deny=True)
@@ -1279,7 +1280,7 @@ def test_usage_admission_denial_happens_before_provider_send(monkeypatch):
 
 
 def test_usage_ledger_counts_only_physical_sends_when_sdk_retry_is_intercepted(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     sdk = gateway._load_litellm()
     monkeypatch.setattr(sdk, "num_retries", 1)
@@ -1409,7 +1410,7 @@ def test_sync_generation_deadline_rejects_slow_success(provider):
 
 
 def test_sync_generation_deadline_bounds_trickle_reads_and_parsing(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     class TrickleStream(httpx.SyncByteStream):
         def __iter__(self):
@@ -1519,7 +1520,7 @@ def test_embedding_text_prefixes_remain_literal_and_never_trigger_file_reads():
 
 
 def test_embedding_batch_response_limits_are_per_response_and_reset(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     monkeypatch.setattr(gateway, "_MAX_EMBEDDING_RESPONSE_BYTES", 64)
     requests = []
@@ -1622,16 +1623,17 @@ def test_embedding_deadline_is_forwarded_to_each_batch_and_stops_late_work():
 
 
 def test_cloudflare_schema_guard_rejects_openai_wrapped_shape():
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
+    from personal_ai.llm.litellm.request import _request_preserves_schema
 
     schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
     profile = gateway._provider_profile(_cloudflare_settings(), "cloudflare_workers_ai")
-    assert gateway._request_preserves_schema(
+    assert _request_preserves_schema(
         {"response_format": {"type": "json_schema", "json_schema": schema}},
         profile,
         schema,
     )
-    assert not gateway._request_preserves_schema(
+    assert not _request_preserves_schema(
         {
             "response_format": {
                 "type": "json_schema",
@@ -1651,7 +1653,7 @@ def test_transport_attribution_uses_ledger_assigned_physical_attempt(monkeypatch
     from dataclasses import replace
     from uuid import uuid4
 
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import gateway
 
     monkeypatch.setattr(gateway, "_assert_litellm_runtime_safe", lambda: None)
     assigned_id = uuid4()

@@ -18,7 +18,7 @@ from pydantic import ValidationError
 
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.persistence.postgres import PersistenceConflict
-from personal_ai.persistence.postgres_owner_lifecycle import OwnerFenced
+from personal_ai.persistence.postgres.owner_lifecycle import OwnerFenced
 from personal_ai.routing import (
     AuthorizationEvidence,
     DeterministicScoringStrategy,
@@ -43,14 +43,13 @@ from personal_ai.routing import (
     replay_deterministic_decision,
     source_reference_manifest_sha256,
 )
-from personal_ai.routing.phase21 import (
+from personal_ai.routing.decision_models import transition
+from personal_ai.routing.integrity import (
     endpoint_configuration_sha256,
     quality_identity_sha256,
-    reselection_requirements_preserved,
-    sources_allowed,
     task_configuration_sha256,
-    transition,
 )
+from personal_ai.routing.policy import reselection_requirements_preserved, sources_allowed
 from personal_ai.usage.contracts import AttemptResult, UsageAdmissionDenied
 from personal_ai.usage.quota import EndpointRuntimeSnapshot
 from tests.test_endpoint_registry import _profile, _requirements
@@ -943,13 +942,13 @@ def test_maximum_candidate_set_is_compact_without_profile_amplification(system):
     ],
 )
 def test_runtime_health_bootstrap_and_missing_evidence(health, eligible):
-    from personal_ai.persistence.postgres_usage import _health_unavailable
+    from personal_ai.persistence.postgres.usage.accounting import _health_unavailable
 
     assert _health_unavailable(health, datetime.now(UTC)) is not eligible
 
 
 def test_expired_cooldown_allows_probe_without_claiming_measured_health():
-    from personal_ai.persistence.postgres_usage import _health_unavailable
+    from personal_ai.persistence.postgres.usage.accounting import _health_unavailable
 
     now = datetime.now(UTC)
     assert not _health_unavailable(("degraded", now - timedelta(seconds=1)), now)

@@ -37,7 +37,7 @@ from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.entities import Conversation, Message, MessageRole, MessageStatus
 from personal_ai.llm import GeminiLLMClient
 from personal_ai.llm.fake import FakeLLMClient
-from personal_ai.services.chat_turns import ChatTurnService
+from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import Settings
 from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMessageRepository
 

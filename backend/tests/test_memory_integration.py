@@ -37,7 +37,7 @@ from personal_ai.llm import FakeLLMClient, LLMUnavailableError
 from personal_ai.main import app
 from personal_ai.memory.fake import FakeMemoryExtractor
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
-from personal_ai.services.chat_turns import ChatTurnService
+from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import get_settings
 
 
@@ -261,8 +261,8 @@ def test_lifecycle_accounting_receives_only_injected_ids_after_terminal_send(env
 def test_lifecycle_inspector_is_read_only_and_reports_safe_event_metadata(environment):
     from datetime import UTC, datetime
 
-    from personal_ai.memory.lifecycle_jobs import make_event
-    from personal_ai.memory.lifecycle_repositories import InMemoryMemoryLifecycleRepository
+    from personal_ai.memory.lifecycle.jobs import make_event
+    from personal_ai.memory.lifecycle.repositories import InMemoryMemoryLifecycleRepository
 
     client, settings, messages, repo, pending, _, _, embedder = environment
     messages.create(pending)

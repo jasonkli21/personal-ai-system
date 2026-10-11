@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import pytest
 from pydantic import ValidationError
 
-from personal_ai.persistence.postgres_routing import (
+from personal_ai.persistence.postgres.routing import (
     PostgresEndpointRegistryRepository,
     _write_profile_version_history,
 )

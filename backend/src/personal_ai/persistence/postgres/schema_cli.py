@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     if not dsn:
         raise SystemExit("P10_SCHEMA_POSTGRES_DSN is required")
     if args.environment in {"staging", "production"}:
-        from personal_ai.persistence.neon import NeonDirectDatabase
+        from personal_ai.persistence.postgres.neon import NeonDirectDatabase
 
         database = NeonDirectDatabase(dsn, environment=args.environment, max_size=1)
     else:

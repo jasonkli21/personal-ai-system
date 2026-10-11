@@ -8,6 +8,6 @@ lifecycle behavior. Memory remains a separate data class from time-sensitive ext
 - Root modules own memory identity, extraction, retrieval, and general policy.
 - `lifecycle/` owns lifecycle contracts, scoring, transitions, jobs, and lifecycle repositories.
 - Backend-neutral memory effect coordination contracts live in `effects.py`; database adapters implement them under `personal_ai.persistence`.
-- `lifecycle.py` and the `lifecycle_*` modules remain compatibility exports.
+- Lifecycle contracts, jobs, policy, and repositories live under `lifecycle/` and are imported from their owning modules.
 
 Lifecycle and disclosure tests live in `backend/tests/test_memory_lifecycle.py`, `backend/tests/test_memory.py`, and persistence suites. Preserve freshness, source attribution, owner scope, and transactional behavior when changing adapters.

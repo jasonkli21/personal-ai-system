@@ -31,7 +31,7 @@ from personal_ai.memory.contracts import (
     normalize,
 )
 from personal_ai.memory.lifecycle import MemoryJob, MemoryLifecycleEvent
-from personal_ai.memory.lifecycle_repositories import event_idempotency_id, job_idempotency_id
+from personal_ai.memory.lifecycle.repositories import event_idempotency_id, job_idempotency_id
 from personal_ai.persistence.controls import (
     DynamoDBSafeguardStore,
     PostgresDailyBudgetRepository,
@@ -52,19 +52,19 @@ from personal_ai.persistence.postgres import (
     PostgresPayloadRepository,
     _ensure_namespace,
 )
-from personal_ai.persistence.postgres_capabilities import (
+from personal_ai.persistence.postgres.capabilities import (
     PostgresBookingExtractionRepository,
     PostgresItineraryProposalRepository,
 )
-from personal_ai.persistence.postgres_context import PostgresGlobalProfileRepository
-from personal_ai.persistence.postgres_decisions import PostgresDecisionRepository
-from personal_ai.persistence.postgres_domains import PostgresDomainRepository
-from personal_ai.persistence.postgres_lifecycle import PostgresMemoryLifecycleRepository
-from personal_ai.persistence.postgres_memory import (
+from personal_ai.persistence.postgres.context import PostgresGlobalProfileRepository
+from personal_ai.persistence.postgres.decisions import PostgresDecisionRepository
+from personal_ai.persistence.postgres.domains import PostgresDomainRepository
+from personal_ai.persistence.postgres.lifecycle import PostgresMemoryLifecycleRepository
+from personal_ai.persistence.postgres.memory import (
     EffectGuardToken,
     PostgresMemoryRepository,
 )
-from personal_ai.persistence.postgres_research import PostgresResearchRepository
+from personal_ai.persistence.postgres.research import PostgresResearchRepository
 from personal_ai.storage.errors import ConversationConflictError
 
 pytestmark = pytest.mark.persistence_integration
@@ -508,7 +508,7 @@ def test_postgres_extraction_concurrent_replay_checks_losing_fingerprint(
 ):
     from threading import Barrier, Lock
 
-    import personal_ai.persistence.postgres_capabilities as adapter
+    import personal_ai.persistence.postgres.capabilities as adapter
     from personal_ai.booking_extractions.repositories import ExtractionError
 
     repository = PostgresBookingExtractionRepository(postgres_database)
@@ -601,7 +601,7 @@ def test_postgres_dynamodb_portable_export_preserves_logical_records_and_coverag
     postgres_database, dynamodb_table,
 ):
     from personal_ai.auth.account_data import ExportTooLarge
-    from personal_ai.persistence.postgres_auth import PostgresAccountLifecycleRepository
+    from personal_ai.persistence.postgres.auth import PostgresAccountLifecycleRepository
 
     owner_id = f"portable-export-{uuid4()}"
     scope = ApplicationScope(application_id="personal_ai", workspace_id=None)

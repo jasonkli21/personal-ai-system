@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from personal_ai.agents.research.iterative_contracts import (
+from personal_ai.agents.research.iterative.contracts import (
     BudgetLedgerEntry,
     BudgetSnapshot,
     BudgetUsage,
@@ -18,7 +18,7 @@ from personal_ai.agents.research.iterative_contracts import (
     SafeEventPayload,
     validate_run_transition,
 )
-from personal_ai.agents.research.iterative_fakes import DeterministicClock
+from personal_ai.agents.research.iterative.fakes import DeterministicClock
 from personal_ai.auth.scope import scoped_record
 from personal_ai.decisions.contracts import Candidate, ClaimProposal, Constraint
 from personal_ai.entities.research import TextValue

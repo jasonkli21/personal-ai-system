@@ -9,16 +9,16 @@ from uuid import uuid4
 import pytest
 
 from personal_ai.auth.scope import ApplicationScope
-from personal_ai.persistence import postgres_usage as postgres_usage_module
 from personal_ai.persistence.postgres import PersistenceConflict, PostgresDatabase
-from personal_ai.persistence.postgres_artifacts import PostgresArtifactMetadataRepository
-from personal_ai.persistence.postgres_owner_lifecycle import OwnerFenced
-from personal_ai.persistence.postgres_routing import PostgresEndpointRegistryRepository
-from personal_ai.persistence.postgres_routing_observations import (
+from personal_ai.persistence.postgres.artifacts import PostgresArtifactMetadataRepository
+from personal_ai.persistence.postgres.owner_lifecycle import OwnerFenced
+from personal_ai.persistence.postgres.routing import PostgresEndpointRegistryRepository
+from personal_ai.persistence.postgres.routing_observations import (
     PostgresRoutingDecisionRepository,
     RoutingDecisionUnavailable,
 )
-from personal_ai.persistence.postgres_usage import PostgresProviderUsageAccounting
+from personal_ai.persistence.postgres.usage import accounting as accounting_module
+from personal_ai.persistence.postgres.usage.accounting import PostgresProviderUsageAccounting
 from personal_ai.routing import (
     DeterministicScoringStrategy,
     EndpointPriority,
@@ -475,8 +475,8 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
     route_thread_id = []
     finalizer_thread_id = []
     finalizer_bucket_attempt = Event()
-    original_health_lock = postgres_usage_module._lock_endpoint_health
-    original_select_bucket = postgres_usage_module._select_quota_window
+    original_health_lock = accounting_module._lock_endpoint_health
+    original_select_bucket = accounting_module._select_quota_window
 
     def pause_route_before_health(connection, endpoint):
         if route_thread_id and get_ident() == route_thread_id[0] and not release_route.is_set():
@@ -486,7 +486,7 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
         return original_health_lock(connection, endpoint)
 
     monkeypatch.setattr(
-        postgres_usage_module, "_lock_endpoint_health", pause_route_before_health
+        accounting_module, "_lock_endpoint_health", pause_route_before_health
     )
 
     def track_finalizer_bucket_attempt(connection, bucket, now):
@@ -495,7 +495,7 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
         return original_select_bucket(connection, bucket, now)
 
     monkeypatch.setattr(
-        postgres_usage_module, "_select_quota_window", track_finalizer_bucket_attempt
+        accounting_module, "_select_quota_window", track_finalizer_bucket_attempt
     )
 
     def make_final_route():
@@ -896,9 +896,12 @@ def test_expired_decisions_purge_normalized_events(database):
 
 def test_staged_migration_preserves_legacy_audit_and_transfers_quota(database):
     import json
+    from importlib import import_module
     from importlib.resources import files
 
-    from personal_ai.persistence.routing_migration import migrate_routing_authorities
+    migrate_routing_authorities = import_module(
+        "personal_ai.persistence.migrations_py.022_routing_authorities"
+    ).migrate_routing_authorities
     from tests.test_routing_migration import old_snapshot
 
     schema = f"routing_migration_{uuid4().hex}"

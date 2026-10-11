@@ -43,7 +43,7 @@ from personal_ai.entities.research import (
     TextValue,
     TypedValue,
 )
-from personal_ai.ranking.policy import verified_claims_for_feature
+from personal_ai.ranking.claim_verification import verified_claims_for_feature
 
 _CLAIM_FIELDS = (
     ("product_variant", "Product variant", "text", False),

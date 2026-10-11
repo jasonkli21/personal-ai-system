@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import httpx
 
-from personal_ai.llm.litellm_gateway import LiteLLMGenerationClient
+from personal_ai.llm.litellm import LiteLLMGenerationClient
 from personal_ai.settings import Settings
 from personal_ai.usage.contracts import ProviderUsageAccounting
 

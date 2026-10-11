@@ -3,9 +3,9 @@ from contextlib import contextmanager
 import pytest
 
 from personal_ai.context.profile import GlobalProfileFieldUpdate, GlobalProfileUpdate
-from personal_ai.persistence import postgres_context
 from personal_ai.persistence.postgres import PersistenceConflict
-from personal_ai.persistence.postgres_context import PostgresGlobalProfileRepository
+from personal_ai.persistence.postgres import context as context_module
+from personal_ai.persistence.postgres.context import PostgresGlobalProfileRepository
 
 
 def test_profile_repository_maps_exhausted_initial_insert_retries(monkeypatch):
@@ -23,9 +23,9 @@ def test_profile_repository_maps_exhausted_initial_insert_retries(monkeypatch):
         attempts.append(True)
         raise UniqueViolation("private database details")
 
-    monkeypatch.setattr(postgres_context, "_ensure_namespace", ensure_namespace)
+    monkeypatch.setattr(context_module, "_ensure_namespace", ensure_namespace)
     monkeypatch.setattr(
-        postgres_context,
+        context_module,
         "_is_unique_violation",
         lambda error: isinstance(error, UniqueViolation),
     )

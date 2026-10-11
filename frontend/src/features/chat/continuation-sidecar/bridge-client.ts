@@ -1,10 +1,10 @@
 import { readSseFrames } from "../../../lib/sse";
+import type { ApplicationScopeRequest } from "../../../lib/api/common";
 import type {
-  ApplicationScopeRequest,
   BridgePairing,
   PreparedExternalTurn,
   SignedDispatchGrant,
-} from "../../../lib/api";
+} from "../../../lib/api/external-turns";
 import type { ExternalTransportAdapter } from "../external-transport";
 
 export type BridgeTerminal = {

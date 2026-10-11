@@ -42,7 +42,7 @@ from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.entities import Conversation
 from personal_ai.routing.contracts import DataUsePolicy, EndpointProfile, ProviderAccessPolicy
 from personal_ai.routing.registry import EndpointRegistry
-from personal_ai.services.chat_turns import ChatTurnService
+from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.external_turns import ExternalTurnService
 from personal_ai.settings import Settings
 from personal_ai.storage import InMemoryConversationRepository, InMemoryMessageRepository

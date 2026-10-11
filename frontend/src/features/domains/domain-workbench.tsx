@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { ApiError } from "../../lib/api";
+import { ApiError } from "../../lib/api/common";
 import {
   domainApi,
   type ComparisonCell,

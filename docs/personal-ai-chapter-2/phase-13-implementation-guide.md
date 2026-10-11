@@ -50,7 +50,7 @@ source state and remaining limits.
 
 ## Baseline and evaluation
 
-[`context-plan-fixtures.json`](../../backend/src/personal_ai/evaluation/context-plan-fixtures.json)
+[`context-plan-fixtures.json`](../../backend/src/personal_ai/evaluation/fixtures/context/context-plan-fixtures.json)
 contains named standalone memory/profile requests using the built-in adapters,
 synthetic Travel, Shopping, Finance, and Health requests, plus ambiguous,
 unavailable-provider, and unshared-profile cases. The

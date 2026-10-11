@@ -28,13 +28,13 @@ from personal_ai.entities.research import (
     QuantityValue,
     TextValue,
 )
-from personal_ai.ranking.policy import (
+from personal_ai.ranking.claim_verification import (
     claim_assertion_supported,
-    evaluate_candidates,
     literal_matches_typed_value,
     literal_supported,
-    resolve_candidate,
 )
+from personal_ai.ranking.constraints import evaluate_candidates
+from personal_ai.ranking.resolution import resolve_candidate
 from personal_ai.settings import Settings
 
 NOW = datetime(2026, 10, 2, tzinfo=UTC)

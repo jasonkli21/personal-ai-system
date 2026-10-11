@@ -22,7 +22,7 @@ Apply schema migrations explicitly when running services outside Compose:
 ```sh
 cd backend
 P10_SCHEMA_POSTGRES_DSN='postgresql://personal_ai:personal_ai_local_only@127.0.0.1:54329/personal_ai' \
-  .venv/bin/python -m personal_ai.persistence.postgres_schema_cli --environment local
+  .venv/bin/python -m personal_ai.persistence.postgres.schema_cli --environment local
 ```
 
 With the emulators running and the local table bootstrapped, first inventory

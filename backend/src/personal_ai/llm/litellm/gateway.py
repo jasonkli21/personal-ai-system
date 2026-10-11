@@ -75,7 +75,6 @@ from personal_ai.llm.litellm.profiles import (
 )
 from personal_ai.llm.litellm.request import (
     _contains_schema,
-    _request_preserves_schema,  # noqa: F401 - historical gateway compatibility export
     _response_format,
     _role_name,
     _sdk_messages,
@@ -94,8 +93,6 @@ from personal_ai.llm.litellm.transport import (
     _MAX_COMPLETION_RESPONSE_BYTES,
     _MAX_COUNT_RESPONSE_BYTES,
     _MAX_EMBEDDING_RESPONSE_BYTES,
-    _MAX_STREAM_EVENT_BYTES,  # noqa: F401 - historical gateway compatibility export
-    _MAX_STREAM_LINE_BYTES,  # noqa: F401 - historical gateway compatibility export
     _MAX_STREAM_RESPONSE_BYTES,
     _bounded_timeout,
     _BoundedAsyncTransport,

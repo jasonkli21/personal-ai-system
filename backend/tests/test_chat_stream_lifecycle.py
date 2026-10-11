@@ -556,7 +556,7 @@ def test_gemini_timeout_after_first_delta_finalizes_partial_turn() -> None:
     """Pinned SDK streaming timeout finalizes a partial application turn."""
     from personal_ai.llm import GeminiLLMClient
     from personal_ai.llm.context import GeminiTokenCounter
-    from personal_ai.llm.litellm_gateway import _load_litellm
+    from personal_ai.llm.litellm.gateway import _load_litellm
 
     # Keep one-time SDK import/setup outside the request deadline under test.
     _load_litellm()

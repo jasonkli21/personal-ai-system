@@ -3,7 +3,7 @@
 from typing import Literal
 
 from personal_ai.llm.errors import LLMInvalidConfigurationError
-from personal_ai.llm.litellm_gateway import LiteLLMGenerationClient
+from personal_ai.llm.litellm import LiteLLMGenerationClient
 from personal_ai.settings import Settings
 from personal_ai.usage.contracts import ProviderUsageAccounting
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { attributionLabel } from "../../../src/features/chat/attribution-label";
-import type { TurnAttribution } from "../../../src/lib/api";
+import type { TurnAttribution } from "../../../src/lib/api/conversations";
 
 function attribution(overrides: Partial<TurnAttribution>): TurnAttribution {
   return {

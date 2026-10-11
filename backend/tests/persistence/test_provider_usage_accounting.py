@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from personal_ai.persistence.postgres import PostgresDatabase
-from personal_ai.persistence.postgres_usage import PostgresProviderUsageAccounting
+from personal_ai.persistence.postgres.usage.accounting import PostgresProviderUsageAccounting
 from personal_ai.search.providers import brave
 from personal_ai.search.providers.brave import BraveSearchAdapter, SearchError
 from personal_ai.settings import Settings

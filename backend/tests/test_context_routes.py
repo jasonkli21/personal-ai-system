@@ -358,7 +358,7 @@ def test_overall_preparation_deadline_releases_lease_without_assistant(environme
     client, conversations, messages, _, llm, context = environment
     _, pending = install(environment, 'short-control')
     clock = [0.0]
-    monkeypatch.setattr('personal_ai.services.chat_turns.monotonic', lambda: clock[0])
+    monkeypatch.setattr('personal_ai.services.chat.service.monotonic', lambda: clock[0])
     monkeypatch.setattr(deadline, 'monotonic', lambda: clock[0])
     class Counter(FakeTokenCounter):
         def count(self, request):
@@ -379,7 +379,7 @@ def test_trace_persistence_deadline_releases_lease_before_model_call(environment
     client, conversations, messages, _, llm, context = environment
     _, pending = install(environment, 'short-control')
     clock = [0.0]
-    monkeypatch.setattr('personal_ai.services.chat_turns.monotonic', lambda: clock[0])
+    monkeypatch.setattr('personal_ai.services.chat.service.monotonic', lambda: clock[0])
     monkeypatch.setattr(deadline, 'monotonic', lambda: clock[0])
 
     class SlowTraceRepository(InMemoryContextTraceRepository):

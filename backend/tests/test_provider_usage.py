@@ -8,11 +8,11 @@ import anyio
 
 from personal_ai.auth.account_data import EXPORT_COLLECTIONS
 from personal_ai.auth.owner_data import OWNER_DATA_COLLECTIONS
-from personal_ai.persistence.dynamodb_usage import (
+from personal_ai.persistence.dynamodb.usage import (
     PROVIDER_USAGE_EVENT_FIELDS,
     DynamoDBProviderUsageEventRepository,
 )
-from personal_ai.persistence.postgres_usage import _operational_event
+from personal_ai.persistence.postgres.usage.accounting import _operational_event
 from personal_ai.routing.configured import build_initial_endpoint_profiles
 from personal_ai.settings import Settings
 from personal_ai.usage.accounting import new_invocation, unit_reservations
@@ -69,7 +69,7 @@ def test_provider_unit_reservations_preserve_separate_token_and_request_units():
 
 
 def test_postgres_request_budget_key_scopes_application_and_workspace_but_shares_runs():
-    from personal_ai.persistence.postgres_usage import _request_budget_scope
+    from personal_ai.persistence.postgres.usage.accounting import _request_budget_scope
 
     base = new_invocation(
         _endpoint(), operation="generation", quota_operation="bounded_generation"
