@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from personal_ai.context.providers import ContextSourceClass
 from personal_ai.routing.contracts import EndpointRef
 
 
@@ -118,6 +119,14 @@ class ContinuationRequest(BaseModel):
     choice: ExecutionChoice = Field(default_factory=ExecutionChoice)
     # Optional narrowing. References never authorize or force inclusion.
     candidate_message_ids: tuple[UUID, ...] | None = Field(default=None, max_length=10000)
+    # Bounded source-class narrowing. This can only remove planner-selected sources.
+    excluded_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
+
+    @model_validator(mode="after")
+    def unique_exclusions(self):
+        if len(set(self.excluded_source_classes)) != len(self.excluded_source_classes):
+            raise ValueError("context_source_exclusions_must_be_unique")
+        return self
 
     @property
     def intent_digest(self) -> str:

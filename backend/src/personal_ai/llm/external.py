@@ -24,6 +24,9 @@ class ExecutionProfileIdentity(BaseModel):
     deployment_id: str = Field(min_length=1, max_length=200)
     serializer_id: str = Field(min_length=1, max_length=200)
     runtime_id: str = Field(min_length=1, max_length=200)
+    external_transport_id: str | None = Field(
+        default=None, pattern=r"^[a-z][a-z0-9_.-]{1,63}$"
+    )
 
 
 CHATGPT_PLAN_PROFILE = ExecutionProfileIdentity(

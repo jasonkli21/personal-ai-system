@@ -67,6 +67,7 @@ const connectedPrepared: PreparedExternalTurn = {
       deployment_id: "deployment-fixture",
       serializer_id: "serializer-fixture",
       runtime_id: "runtime-fixture",
+      external_transport_id: "chatgpt_local_v1",
     },
     connection_id: "connection-1",
     connection_revision: 1,
@@ -80,6 +81,12 @@ const connectedPrepared: PreparedExternalTurn = {
   },
 };
 
+const preview = {
+  selected_message_count: 1,
+  planned_sources: [{ category: "conversation_history", operation: "read", fields: ["content"], max_results: 1 }],
+  excluded_sources: [],
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -89,11 +96,13 @@ describe("continuation sidecar", () => {
     cleanup();
     vi.unstubAllGlobals();
     Reflect.deleteProperty(navigator, "clipboard");
+    window.sessionStorage.clear();
   });
 
   it("keeps manual copy/import available without the local bridge and labels imported facts", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [] }))
+      .mockResolvedValueOnce(jsonResponse(preview))
       .mockResolvedValueOnce(jsonResponse(prepared))
       .mockResolvedValueOnce(jsonResponse({ ...target, id: "reservation-1", content: "Imported result" }));
     vi.stubGlobal("fetch", fetchMock);
@@ -103,6 +112,7 @@ describe("continuation sidecar", () => {
 
     render(<ContinuationSidecar
       conversationId="conversation-1"
+      scope={{ applicationId: "synthetic_app", workspaceId: "workspace-1" }}
       target={target}
       onClose={vi.fn()}
       onAutomatic={vi.fn()}
@@ -111,8 +121,15 @@ describe("continuation sidecar", () => {
 
     expect(await screen.findByRole("combobox", { name: "Execution mode" })).toHaveValue("manual_external");
     fireEvent.change(screen.getByLabelText("What should happen next?"), { target: { value: "Compare the earlier answer with current constraints." } });
-    fireEvent.click(screen.getByRole("button", { name: "Prepare bounded context" }));
+    fireEvent.click(screen.getByLabelText("Omit Saved memory"));
+    fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
+    expect(await screen.findByText("Bounded context preview")).toBeInTheDocument();
+    const previewCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/external-turns/preview"));
+    expect(JSON.parse(String(previewCall?.[1]?.body))).toMatchObject({ excluded_source_classes: ["ai_memory"] });
+    fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
     expect(await screen.findByText(/Estimated 42 tokens/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("I reviewed the exact prepared messages and source summary"));
     fireEvent.click(screen.getByRole("button", { name: "Copy prepared prompt" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("user:\nContinue from this answer."));
 
@@ -120,7 +137,7 @@ describe("continuation sidecar", () => {
     fireEvent.change(screen.getByLabelText("Provider label (optional, user-declared)"), { target: { value: "Example Provider" } });
     fireEvent.click(screen.getByRole("button", { name: "Import response into conversation" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/conversations/conversation-1/external-turns/reservation-1/import", expect.objectContaining({
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/conversations/conversation-1/external-turns/reservation-1/import", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({
         package_fingerprint: "a".repeat(64),
@@ -129,6 +146,13 @@ describe("continuation sidecar", () => {
       }),
     }));
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("http://127.0.0.1:8765"))).toBe(false);
+    const apiCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/"));
+    expect(apiCalls.length).toBe(4);
+    for (const [, init] of apiCalls) {
+      const headers = new Headers(init?.headers as HeadersInit);
+      expect(headers.get("X-Application-ID")).toBe("synthetic_app");
+      expect(headers.get("X-Workspace-ID")).toBe("workspace-1");
+    }
   });
 
   it("uses the shared automatic continuation callback without preparing an external reservation", async () => {
@@ -145,7 +169,7 @@ describe("continuation sidecar", () => {
     fireEvent.change(await screen.findByRole("combobox", { name: "Execution mode" }), { target: { value: "automatic" } });
     fireEvent.change(screen.getByLabelText("What should happen next?"), { target: { value: "Extend this answer" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue with Personal AI" }));
-    expect(onAutomatic).toHaveBeenCalledWith("Extend this answer", target, true);
+    expect(onAutomatic).toHaveBeenCalledWith("Extend this answer", target, true, { applicationId: "personal_ai" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -153,6 +177,7 @@ describe("continuation sidecar", () => {
     const profile = {
       endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
       provider_id: "openai_chatgpt_plan",
+      external_transport_id: "chatgpt_local_v1",
       capabilities: ["streaming"],
       maximum_sensitivity: "sensitive",
     };
@@ -184,6 +209,7 @@ describe("continuation sidecar", () => {
       if (url === "/api/conversations/execution-options") {
         return jsonResponse({ modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [profile] });
       }
+      if (url === "/api/conversations/conversation-1/external-turns/preview") return jsonResponse(preview);
       if (url === "http://127.0.0.1:8765/connection") return jsonResponse(connection);
       if (url === "http://127.0.0.1:8765/models") {
         modelRefreshes += 1;
@@ -208,7 +234,10 @@ describe("continuation sidecar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verify local connection" }));
     expect(await screen.findByRole("status")).toHaveTextContent(/Connected to ChatGPT account · 12345678/);
 
-    fireEvent.click(screen.getByRole("button", { name: "Prepare bounded context" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
+    await screen.findByText("Bounded context preview");
+    fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
     expect(await screen.findByText(/Estimated 42 tokens/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh account and models" }));
 
@@ -234,6 +263,7 @@ describe("continuation sidecar", () => {
         return jsonResponse({ modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [{
           endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
           provider_id: "openai_chatgpt_plan",
+          external_transport_id: "chatgpt_local_v1",
           capabilities: ["streaming"],
           maximum_sensitivity: "sensitive",
         }] });
@@ -275,6 +305,103 @@ describe("continuation sidecar", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("blocks connected preparation while the local bridge reports a current usage limit", async () => {
+    const pairing = {
+      caller_id: "caller-1",
+      audience: "audience-1",
+      connection_id: "connection-1",
+      connection_revision: 1,
+      expires_at: Math.floor(Date.now() / 1000) + 300,
+      caller_authorization: "a".repeat(48),
+    };
+    const profile = {
+      endpoint: { endpoint_profile_id: "fixture-local", profile_version: 1 },
+      provider_id: "fixture_provider",
+      external_transport_id: "fixture_local_v1",
+      capabilities: ["streaming"],
+      maximum_sensitivity: "sensitive",
+    };
+    const transportAdapters = [{
+      id: "fixture_local_v1",
+      displayName: "Synthetic local provider",
+      bridgeOrigin: "http://127.0.0.1:8765",
+    }] as const;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/conversations/execution-options") {
+        return jsonResponse({ modes: ["automatic", "connected_provider"], explicit_profiles: [profile] });
+      }
+      if (url === "http://127.0.0.1:8765/connection") return jsonResponse({
+        connection_id: "connection-1",
+        state: "connected",
+        plan_permission: true,
+        revision: 1,
+        remote_revocation: "unknown",
+        account_label: "Local account",
+        usage: { state: "limit", observed_at: new Date().toISOString() },
+        recovery: { reconnect: "local_operator", switch_account: "local_operator_new_pairing", manage_usage: "provider_account_ui" },
+      });
+      if (url === "http://127.0.0.1:8765/models") return jsonResponse({ models: [{ slug: "model-1", display_name: "Model 1" }] });
+      throw new Error(`Unexpected request ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      transportAdapters={transportAdapters}
+      target={target}
+      onClose={vi.fn()}
+      onAutomatic={vi.fn()}
+      onSaved={vi.fn()}
+    />);
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Execution mode" }), { target: { value: "connected_provider" } });
+    fireEvent.change(screen.getByLabelText("Temporary pairing response"), { target: { value: JSON.stringify(pairing) } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify local connection" }));
+    expect(await screen.findByText((_content, element) =>
+      element?.tagName === "P" && element.textContent?.includes("Local account") === true && element.textContent.includes("limit"),
+    )).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview bounded context" })).toBeDisabled();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/external-turns/dispatch"))).toBe(false);
+  });
+
+  it("reconciles an ambiguous prepare after reload and cancels by its retained idempotency key", async () => {
+    const key = "10000000-0000-4000-8000-000000000001";
+    window.sessionStorage.setItem("external-prepare:personal_ai::conversation-1", key);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/conversations/execution-options") {
+        return jsonResponse({ modes: ["automatic", "manual_external"], explicit_profiles: [] });
+      }
+      if (url === `/api/conversations/conversation-1/external-turns/requests/${key}`) {
+        return jsonResponse({
+          state: "prepared",
+          message_id: "reservation-1",
+          package_fingerprint: "a".repeat(64),
+          mode: "manual_external",
+          expires_at: "2026-10-11T00:00:00Z",
+        });
+      }
+      if (url === `/api/conversations/conversation-1/external-turns/requests/${key}/abandon`) {
+        expect(init?.method).toBe("POST");
+        return jsonResponse(target);
+      }
+      throw new Error(`Unexpected request ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      target={target}
+      onClose={vi.fn()}
+      onAutomatic={vi.fn()}
+      onSaved={vi.fn()}
+    />);
+
+    expect(await screen.findByText("Canonical state: prepared")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel this prepared reservation and start fresh" }));
+    await waitFor(() => expect(window.sessionStorage.getItem("external-prepare:personal_ai::conversation-1")).toBeNull());
+    expect(await screen.findByRole("status")).toHaveTextContent(/canceled/i);
+  });
+
   it("keeps canceled connected output transient and lets the user switch back to automatic", async () => {
     const pairing = {
       caller_id: "caller-1",
@@ -287,6 +414,7 @@ describe("continuation sidecar", () => {
     const profile = {
       endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
       provider_id: "openai_chatgpt_plan",
+      external_transport_id: "chatgpt_local_v1",
       capabilities: ["streaming"],
       maximum_sensitivity: "sensitive",
     };
@@ -309,6 +437,7 @@ describe("continuation sidecar", () => {
       if (url === "/api/conversations/execution-options") return jsonResponse({
         modes: ["automatic", "manual_external", "connected_provider"], explicit_profiles: [profile],
       });
+      if (url === "/api/conversations/conversation-1/external-turns/preview") return jsonResponse(preview);
       if (url === "http://127.0.0.1:8765/connection") return jsonResponse(connection);
       if (url === "http://127.0.0.1:8765/models") return jsonResponse({ models: [{ slug: "gpt-5-fixture", display_name: "Fixture" }] });
       if (url === "/api/conversations/conversation-1/external-turns/prepare") return jsonResponse(connectedPrepared);
@@ -328,22 +457,28 @@ describe("continuation sidecar", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const onAutomatic = vi.fn();
+    const onExternalDelta = vi.fn();
     render(<ContinuationSidecar
       conversationId="conversation-1"
       target={target}
       onClose={vi.fn()}
       onAutomatic={onAutomatic}
       onSaved={vi.fn()}
+      onExternalDelta={onExternalDelta}
     />);
 
     fireEvent.change(await screen.findByRole("combobox", { name: "Execution mode" }), { target: { value: "connected_provider" } });
     fireEvent.change(screen.getByLabelText("Temporary pairing response"), { target: { value: JSON.stringify(pairing) } });
     fireEvent.click(screen.getByRole("button", { name: "Verify local connection" }));
     await screen.findByText(/account-visible model/i);
-    fireEvent.click(screen.getByRole("button", { name: "Prepare bounded context" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
+    await screen.findByText("Bounded context preview");
+    fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
     await screen.findByText(/Estimated 42 tokens/);
+    fireEvent.click(screen.getByLabelText("I reviewed the exact prepared messages and source summary"));
     fireEvent.click(screen.getByRole("button", { name: "Send through local bridge" }));
-    expect(await screen.findByLabelText("Transient connected output")).toHaveValue("partial answer");
+    await waitFor(() => expect(onExternalDelta).toHaveBeenCalledWith("reservation-1", "partial answer"));
     fireEvent.click(screen.getByRole("button", { name: "Cancel connected execution" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/conversations/conversation-1/external-turns/reservation-1/fail",
@@ -352,6 +487,6 @@ describe("continuation sidecar", () => {
 
     fireEvent.change(screen.getByRole("combobox", { name: "Execution mode" }), { target: { value: "automatic" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue with Personal AI" }));
-    expect(onAutomatic).toHaveBeenCalledWith("Continue from this answer.", target, true);
+    expect(onAutomatic).toHaveBeenCalledWith("Continue from this answer.", target, true, { applicationId: "personal_ai" });
   });
 });

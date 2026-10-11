@@ -282,6 +282,8 @@ class EndpointProfile(_FrozenContract):
     strict_free_attestation: StrictFreeEligibilityAttestation | None = None
     serializer_id: str
     runtime_id: str
+    # Explicit client-side transport adapter contract for external execution.
+    external_transport_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.-]{1,63}$")
     structured_schema_ids: tuple[str, ...] = Field(default=(), max_length=128)
     counter: CounterCompatibility | None = None
     access_policy: ProviderAccessPolicy | None = None
@@ -293,6 +295,8 @@ class EndpointProfile(_FrozenContract):
         payload = handler(self)
         if self.access_policy is None:
             payload.pop("access_policy", None)
+        if self.external_transport_id is None:
+            payload.pop("external_transport_id", None)
         return payload
 
     @property

@@ -1,5 +1,6 @@
 """Tests for environment-backed application settings."""
 
+import base64
 from pathlib import Path
 
 import pytest
@@ -107,3 +108,44 @@ def test_deployed_runtime_requires_explicit_polyglot_persistence(monkeypatch) ->
 def test_required_authentication_cannot_silently_use_development_identity() -> None:
     with pytest.raises(ValidationError, match="authentication_configuration_invalid"):
         Settings(_env_file=None, ai_provider="fake", ai_model="test", auth_required=True)
+
+
+def test_external_dispatch_signer_rejects_partial_or_malformed_configuration() -> None:
+    with pytest.raises(ValidationError, match="external_dispatch_signer_configuration_incomplete"):
+        Settings(
+            _env_file=None,
+            ai_provider="fake",
+            ai_model="test",
+            external_dispatch_grant_key_id="key-1",
+        )
+
+    with pytest.raises(ValidationError, match="external_dispatch_signer_configuration_invalid"):
+        Settings(
+            _env_file=None,
+            ai_provider="fake",
+            ai_model="test",
+            external_dispatch_grant_key_id="key-1",
+            external_dispatch_grant_private_key=base64.urlsafe_b64encode(b"short").decode().rstrip("="),
+        )
+
+    valid_key = base64.urlsafe_b64encode(bytes(32)).decode().rstrip("=")
+    with pytest.raises(ValidationError, match="external_dispatch_signer_configuration_invalid"):
+        Settings(
+            _env_file=None,
+            ai_provider="fake",
+            ai_model="test",
+            external_dispatch_grant_key_id="key-1",
+            external_dispatch_grant_private_key=f"{valid_key}!!!!",
+        )
+
+
+def test_external_dispatch_signer_accepts_complete_ed25519_configuration() -> None:
+    settings = Settings(
+        _env_file=None,
+        ai_provider="fake",
+        ai_model="test",
+        external_dispatch_grant_key_id="key-1",
+        external_dispatch_grant_private_key=base64.urlsafe_b64encode(bytes(32)).decode().rstrip("="),
+    )
+
+    assert settings.external_dispatch_grant_key_id == "key-1"

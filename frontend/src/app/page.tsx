@@ -3,13 +3,16 @@
 import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
 
 import { chatReducer, initialChatState } from "../features/chat/chat-state";
+import { attributionLabel } from "../features/chat/attribution-label";
 import { ContinuationSidecar } from "../features/chat/continuation-sidecar";
-import { ApiError, conversationsApi, type Message, type StreamHandlers } from "../lib/api";
+import { ApiError, conversationsApi, type ApplicationScopeRequest, type Message, type StreamHandlers } from "../lib/api";
 import styles from "./page.module.css";
 
 function readableError(error: unknown) {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
 }
+
+const PERSONAL_AI_SCOPE: ApplicationScopeRequest = { applicationId: "personal_ai" };
 
 export default function Home() {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -191,7 +194,7 @@ export default function Home() {
     void runStream((handlers, signal) => conversationsApi.editAndRetry(conversationId, parent.id, parent.content, handlers, signal));
   }
 
-  function continueWithAutomatic(instruction: string, target: Message, includeTarget: boolean) {
+  function continueWithAutomatic(instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest) {
     if (!selectedId || controlsDisabled) return;
     const conversationId = selectedId;
     setContinuationTarget(null);
@@ -201,7 +204,7 @@ export default function Home() {
       idempotency_key: crypto.randomUUID(),
       choice: { mode: "automatic" },
       candidate_message_ids: includeTarget ? [target.id] : [],
-    }, handlers, signal));
+    }, handlers, signal, scope));
   }
 
   function closeContinuation() {
@@ -220,19 +223,23 @@ export default function Home() {
     }
   }
 
-  async function refreshAfterExternalSave() {
+  async function refreshCanonicalConversation(_messageId: string, scope: ApplicationScopeRequest) {
     const conversationId = selectedId;
     if (!conversationId) return;
     try {
-      const detail = await conversationsApi.get(conversationId);
+      const detail = await conversationsApi.get(conversationId, undefined, scope);
       dispatch({ type: "opened", detail });
       dispatch({
         type: "list-loaded",
         conversations: state.conversations.map(item => item.id === conversationId ? detail.conversation : item),
       });
     } catch {
-      // The external response is already durable. Reopening refreshes canonical state.
+      // Reopening the conversation refreshes canonical state.
     }
+  }
+
+  async function refreshAfterExternalSave(scope: ApplicationScopeRequest) {
+    if (selectedId) await refreshCanonicalConversation("", scope);
     setContinuationTarget(null);
   }
 
@@ -273,11 +280,9 @@ export default function Home() {
               : <ol className={styles.messages}>
                 {state.selected.messages.map(message => <li className={styles.message} key={message.id} data-status={message.status}>
                   <span className={styles.messageRole}>{message.role}</span>
-                  <p>{message.content || (message.status === "streaming" ? "Thinking…" : "")}</p>
+                  <p>{message.content + (state.externalDeltas[message.id] ?? "") || (message.status === "streaming" ? "Thinking…" : "")}</p>
                   {message.role === "assistant" && message.status === "completed" && message.attribution && <p className={styles.provenance}>
-                    {message.attribution.mode === "manual_external"
-                      ? `Manual external · ${[message.attribution.provider_id, message.attribution.model_id].filter(Boolean).join(" / ") || "provider/model undeclared"} · user-declared, unverified`
-                      : `Connected provider · ${[message.attribution.provider_id, message.attribution.model_id].filter(Boolean).join(" / ")} · client-reported`}
+                    {attributionLabel(message.attribution)}
                   </p>}
                   {message.role === "assistant" && message.status === "completed" && !message.attribution && message.model && <p className={styles.provenance}>Personal AI automatic · {message.model}</p>}
                   {message.status === "failed" && <p className={styles.messageError} role="alert">
@@ -320,10 +325,18 @@ export default function Home() {
       {continuationTarget && selectedId && <ContinuationSidecar
         key={`${selectedId}-${continuationTarget.id}`}
         conversationId={selectedId}
+        scope={PERSONAL_AI_SCOPE}
         target={continuationTarget}
         onClose={closeContinuation}
         onAutomatic={continueWithAutomatic}
-        onSaved={() => void refreshAfterExternalSave()}
+        onExternalPrepared={messageId => refreshCanonicalConversation(messageId, PERSONAL_AI_SCOPE)}
+        onExternalDelta={(messageId, delta) => dispatch({ type: "external-delta", messageId, delta })}
+        onExternalCompleted={message => dispatch({ type: "stream-completed", message })}
+        onExternalInterrupted={messageId => {
+          dispatch({ type: "external-clear", messageId });
+          void refreshCanonicalConversation(messageId, PERSONAL_AI_SCOPE);
+        }}
+        onSaved={() => void refreshAfterExternalSave(PERSONAL_AI_SCOPE)}
       />}
     </div>
   );

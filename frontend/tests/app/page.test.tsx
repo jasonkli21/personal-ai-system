@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Home from "../../src/app/page";
+import type { Message } from "../../src/lib/api";
 
 const fetchMock = vi.fn();
 const conversation = { id: "conversation-1", owner_id: "local", title: "Project ideas", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
@@ -9,7 +10,7 @@ function jsonResponse(body: unknown, status = 200) { return new Response(JSON.st
 function sseResponse(events: string[]) {
   return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(events.join(""))); controller.close(); } }), { headers: { "Content-Type": "text/event-stream" } });
 }
-const userMessage = { id: "user-1", conversation_id: conversation.id, owner_id: "local", role: "user" as const, content: "Hello", status: "completed" as const, created_at: "2026-01-01T00:00:00Z", parent_message_id: null, supersedes_message_id: null, model: null, error_code: null };
+const userMessage = { id: "user-1", conversation_id: conversation.id, owner_id: "local", application_id: "personal_ai", workspace_id: null, role: "user" as const, content: "Hello", status: "completed" as const, created_at: "2026-01-01T00:00:00Z", parent_message_id: null, supersedes_message_id: null, model: null, error_code: null };
 const assistantMessage = { ...userMessage, id: "assistant-1", role: "assistant" as const, content: "", status: "streaming" as const, parent_message_id: userMessage.id };
 
 describe("Home", () => {
@@ -147,6 +148,151 @@ describe("Home", () => {
     expect(await screen.findByText("Partial answer")).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("interrupted");
     expect(await screen.findByRole("button", { name: "Retry response" })).toBeEnabled();
+  });
+
+  it("renders connected deltas in the shared conversation view and clears them after interruption", async () => {
+    const completedTarget = { ...assistantMessage, content: "Earlier response", status: "completed" as const };
+    const pendingExternal = {
+      ...assistantMessage,
+      id: "reservation-1",
+      content: "",
+      status: "pending" as const,
+      parent_message_id: "external-user-1",
+    };
+    const failedExternal = { ...pendingExternal, status: "failed" as const, error_code: "bridge_execution_interrupted" };
+    let canonicalMessages: Message[] = [userMessage, completedTarget];
+    const pairing = {
+      caller_id: "caller-1",
+      audience: "audience-1",
+      connection_id: "connection-1",
+      connection_revision: 1,
+      expires_at: Math.floor(Date.now() / 1000) + 300,
+      caller_authorization: "a".repeat(48),
+    };
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/conversations") return jsonResponse({ conversations: [conversation] });
+      if (url === `/api/conversations/${conversation.id}`) return jsonResponse({ conversation, messages: canonicalMessages });
+      if (url === "/api/conversations/execution-options") return jsonResponse({
+        modes: ["automatic", "manual_external", "connected_provider"],
+        explicit_profiles: [{
+          endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
+          provider_id: "openai_chatgpt_plan",
+          external_transport_id: "chatgpt_local_v1",
+          capabilities: ["streaming"],
+          maximum_sensitivity: "sensitive",
+        }],
+      });
+      if (url === "http://127.0.0.1:8765/connection") return jsonResponse({
+        connection_id: "connection-1",
+        state: "connected",
+        plan_permission: true,
+        revision: 1,
+        remote_revocation: "unknown",
+        account_label: "Local account",
+        usage: { state: "unknown", observed_at: null },
+        recovery: { reconnect: "local_operator", switch_account: "local_operator_new_pairing", manage_usage: "provider_account_ui" },
+      });
+      if (url === "http://127.0.0.1:8765/models") return jsonResponse({ models: [{ slug: "gpt-fixture", display_name: "Fixture" }] });
+      if (url === `/api/conversations/${conversation.id}/external-turns/preview`) return jsonResponse({
+        selected_message_count: 1,
+        planned_sources: [],
+        excluded_sources: [],
+      });
+      if (url === `/api/conversations/${conversation.id}/external-turns/prepare`) {
+        canonicalMessages = [userMessage, completedTarget, pendingExternal];
+        return jsonResponse({
+          message_id: "reservation-1",
+          reservation_id: "reservation-1",
+          mode: "connected_provider",
+          provider_id: "openai_chatgpt_plan",
+          model_id: "gpt-fixture",
+          package_fingerprint: "a".repeat(64),
+          context_package: {
+            schema_version: "context-package-v1",
+            messages: [{ role: "user", content: "Continue from this answer." }],
+            included_sources: [],
+            excluded_sources: [],
+            selected_message_count: 1,
+            input_tokens: 42,
+            counter_kind: "estimated",
+            effective_sensitivity: "personal",
+            maximum_sensitivity: "sensitive",
+            policy_version: "personal-ai-context-policy-v2",
+            grant_versions: [],
+            expires_at: "2026-10-12T00:00:00Z",
+            fingerprint: "a".repeat(64),
+          },
+          portable_prompt: null,
+          connected_execution: {
+            owner_id: "local",
+            application_id: "personal_ai",
+            workspace_id: null,
+            conversation_id: conversation.id,
+            reservation_id: "reservation-1",
+            branch_digest: "b".repeat(64),
+            source_authority_digest: "c".repeat(64),
+            provider_id: "openai_chatgpt_plan",
+            model_id: "gpt-fixture",
+            execution_profile: {
+              endpoint: { endpoint_profile_id: "chatgpt-plan", profile_version: 1 },
+              endpoint_id: "endpoint-fixture",
+              deployment_id: "deployment-fixture",
+              serializer_id: "serializer-fixture",
+              runtime_id: "runtime-fixture",
+              external_transport_id: "chatgpt_local_v1",
+            },
+            connection_id: "connection-1",
+            connection_revision: 1,
+            messages: [{ role: "user", content: "Continue from this answer." }],
+            effective_sensitivity: "personal",
+            maximum_sensitivity: "sensitive",
+            policy_version: "personal-ai-context-policy-v2",
+            max_output_bytes: 80000,
+            max_output_chars: 20000,
+            timeout_seconds: 120,
+          },
+        });
+      }
+      if (url === `/api/conversations/${conversation.id}/external-turns/reservation-1/dispatch`) {
+        return jsonResponse({ proof: { claims: {}, signature: "fixture" } });
+      }
+      if (url === "http://127.0.0.1:8765/execute") {
+        const signal = init?.signal as AbortSignal;
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ kind: "delta", delta: "partial answer" })}\n\n`));
+            signal.addEventListener("abort", () => controller.error(new DOMException("Aborted", "AbortError")), { once: true });
+          },
+        });
+        return new Response(stream, { headers: { "Content-Type": "text/event-stream" } });
+      }
+      if (url === `/api/conversations/${conversation.id}/external-turns/reservation-1/fail`) {
+        canonicalMessages = [userMessage, completedTarget, failedExternal];
+        return jsonResponse(failedExternal);
+      }
+      throw new Error(`Unexpected request ${init?.method ?? "GET"} ${url}`);
+    });
+
+    render(<Home />);
+    fireEvent.click(await screen.findByRole("button", { name: "Project ideas" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue with…" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Execution mode" }), { target: { value: "connected_provider" } });
+    fireEvent.change(screen.getByLabelText("Temporary pairing response"), { target: { value: JSON.stringify(pairing) } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify local connection" }));
+    await screen.findByText(/account-visible model/i);
+    fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
+    await screen.findByText("Bounded context preview");
+    fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
+    await screen.findByText(/Estimated 42 tokens/);
+    fireEvent.click(screen.getByLabelText("I reviewed the exact prepared messages and source summary"));
+    fireEvent.click(screen.getByRole("button", { name: "Send through local bridge" }));
+
+    expect(await screen.findByText("partial answer")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Transient connected output")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel connected execution" }));
+    await waitFor(() => expect(screen.queryByText("partial answer")).not.toBeInTheDocument());
   });
 
   it("aborts an active request when the chat unmounts", async () => {

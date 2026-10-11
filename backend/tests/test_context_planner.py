@@ -373,6 +373,37 @@ def test_default_standalone_recall_rule_is_deterministic_and_narrow():
     assert "source_message_ids" not in first.selections[0].fields
 
 
+def test_user_source_narrowing_omits_a_planned_class_before_provider_calls():
+    provider = FixtureProvider(
+        "travel.trip_context",
+        "domain_current",
+        ContextOperationSpec(operation="current", allowed_fields=("city",)),
+    )
+    rule = _rule(
+        application_id="travel",
+        category="travel_trip",
+        provider_id=provider.spec.provider_id,
+        operation="current",
+        fields=("city",),
+        phrase="trip city",
+    )
+    context = _context(provider, "travel")
+    assembler = _assembler(
+        provider, context, ContextPlanner((rule,), include_default_rules=False)
+    )
+
+    plan = assembler.plan_context(
+        "trip city",
+        context,
+        excluded_source_classes=frozenset({"domain_current"}),
+        now=NOW,
+    )
+
+    assert plan.selections == ()
+    assert plan.decisions[0].reason == "source_narrowed_by_user"
+    assert provider.calls == []
+
+
 @pytest.mark.parametrize(
     "intent",
     [

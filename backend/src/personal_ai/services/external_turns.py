@@ -95,6 +95,7 @@ class ContextPackage(BaseModel):
     included_sources: tuple[ContextPackageSourceSummary, ...] = Field(default=(), max_length=32)
     excluded_sources: tuple[ContextPackageExclusionSummary, ...] = Field(default=(), max_length=128)
     selected_message_count: int = Field(ge=0, le=20000)
+    summarized_source_message_count: int = Field(default=0, ge=0, le=20000)
     input_tokens: int = Field(ge=0)
     counter_kind: Literal["estimated"] = "estimated"
     effective_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
@@ -132,11 +133,94 @@ class ExternalTurnService:
         registry: EndpointRegistry,
         authority: ExternalTurnAuthority,
         signer: DispatchGrantSigner | None = None,
+        context_assembler=None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ):
         chat.require_context(context)
         self.chat, self.context, self.registry = chat, context, registry
         self.authority, self.signer, self.clock = authority, signer, clock
+        self.context_assembler = context_assembler
+
+    def preview(self, conversation_id: UUID, request: ContinuationRequest):
+        """Inspect bounded planner choices before creating a durable reservation."""
+        choice = request.choice
+        if choice.mode == "automatic":
+            raise ConversationConflictError("automatic_execution_uses_existing_routing_lane")
+        self._snapshot(conversation_id, choice, ())
+        candidate_message_ids = (
+            () if "conversation" in request.excluded_source_classes
+            else request.candidate_message_ids
+        )
+        plan, direct_count = self.chat.preview_external_context(
+            conversation_id,
+            request.content,
+            candidate_message_ids=candidate_message_ids,
+            history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
+            excluded_source_classes=request.excluded_source_classes,
+            context_assembler=self.context_assembler,
+        )
+        return {
+            "selected_message_count": direct_count,
+            "planned_sources": tuple(
+                {
+                    "category": item.source_class,
+                    "operation": item.operation,
+                    "fields": item.fields,
+                    "max_results": selection.max_results,
+                    "max_tokens": selection.max_tokens,
+                }
+                for selection in plan.selections
+                for item in plan.decisions
+                if item.disposition == "selected"
+                and item.provider_id == selection.provider_id
+                and item.operation == selection.operation
+            ),
+            "excluded_sources": tuple(
+                {"category": item.source_class or item.category, "reason": item.reason}
+                for item in plan.decisions
+                if item.disposition == "omitted"
+            ),
+        }
+
+    def reconcile(self, conversation_id: UUID, idempotency_key: UUID):
+        """Look up a committed preparation without reconstructing transient prompt text."""
+        identity = uuid5(
+            conversation_id,
+            f"{self.context.scope.owner_id}:{self.context.scope.application_id}:{self.context.scope.workspace_id}:{idempotency_key}",
+        )
+        try:
+            message = self.chat.get_message(conversation_id, identity)
+        except ResourceNotFoundError:
+            self._snapshot(conversation_id, ExecutionChoice(mode="manual_external"), ())
+            return {"state": "not_found", "message_id": None}
+        reservation = message.execution
+        if reservation is None:
+            return {"state": "not_external", "message_id": str(identity)}
+        stale_reason = None
+        if reservation.state == "prepared":
+            choice = self._choice(reservation)
+            try:
+                self._recheck(conversation_id, reservation, choice)
+            except ConversationConflictError as error:
+                stale_reason = str(error)
+        return {
+            "state": "prepared_stale" if stale_reason else reservation.state,
+            "message_id": str(message.id),
+            "package_fingerprint": reservation.package_fingerprint,
+            "mode": reservation.mode,
+            "expires_at": reservation.expires_at,
+            "stale_reason": stale_reason,
+        }
+
+    def abandon_by_idempotency_key(self, conversation_id: UUID, idempotency_key: UUID):
+        result = self.reconcile(conversation_id, idempotency_key)
+        if result["state"] not in {"prepared", "prepared_stale"} or not result.get("message_id"):
+            raise ConversationConflictError("reconciliation_not_abandonable")
+        return self.abandon(
+            conversation_id,
+            UUID(result["message_id"]),
+            result["package_fingerprint"],
+        )
 
     def _profile(self, choice: ExecutionChoice, sensitivity: str):
         try:
@@ -147,9 +231,7 @@ class ExternalTurnService:
             )
         except (EndpointRegistryError, ValueError):
             raise ConversationConflictError("explicit_endpoint_unavailable")
-        # This sidecar's connected client is the local ChatGPT-plan adapter. Other
-        # explicit endpoint modes need their own registered transport contract.
-        if profile.execution_mode != "CHATGPT_PLAN":
+        if profile.external_transport_id is None:
             raise ConversationConflictError("explicit_endpoint_unavailable")
         return profile
 
@@ -251,6 +333,7 @@ class ExternalTurnService:
                         deployment_id=profile.deployment_id,
                         serializer_id=profile.serializer_id,
                         runtime_id=profile.runtime_id,
+                        external_transport_id=profile.external_transport_id,
                     ),
                     connection_id=choice.connection_id,
                     connection_revision=choice.connection_revision,
@@ -346,6 +429,11 @@ class ExternalTurnService:
                     for (category, reason), count in sorted(excluded.items())
                 ),
                 selected_message_count=len(assembled.selected_message_ids),
+                summarized_source_message_count=(
+                    len(assembled.summary.source_message_ids)
+                    if assembled.summary is not None
+                    else 0
+                ),
                 input_tokens=assembled.budget.selected_total,
                 effective_sensitivity=inference.effective_sensitivity,
                 maximum_sensitivity=inference.maximum_sensitivity,
@@ -372,9 +460,14 @@ class ExternalTurnService:
             assistant_id=identity,
             user_id=uuid5(identity, "user"),
             preparation_hook=bind,
-            candidate_message_ids=request.candidate_message_ids,
+            candidate_message_ids=(
+                () if "conversation" in request.excluded_source_classes
+                else request.candidate_message_ids
+            ),
             history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
             continuation_digest=request_hash,
+            context_assembler=self.context_assembler,
+            excluded_source_classes=request.excluded_source_classes,
         )
         return result[0]
 

@@ -83,6 +83,7 @@ def profile(provider="openai_chatgpt_plan", execution_mode="CHATGPT_PLAN"):
         context_limit_tokens=10000,
         serializer_id="synthetic-v1",
         runtime_id="synthetic-v1",
+        external_transport_id="chatgpt_local_v1" if plan_execution else None,
         data_use_policy=DataUsePolicy(
             status="approved", max_sensitivity="sensitive", policy_reference="fixture"
         ),
@@ -1054,11 +1055,25 @@ def test_v3_profile_definition_freezes_access_policy_without_old_schema_churn():
     )
 
     current = encode_current_endpoint_profile(profile())
-    assert current.definition_schema_version == 3
-    assert current.payload["access_policy"]["automation_eligible"] is False
-    assert decode_endpoint_profile_definition(3, current.payload) == current
+    v3_payload = {key: value for key, value in current.payload.items() if key != "external_transport_id"}
+    v3 = decode_endpoint_profile_definition(3, v3_payload)
+    assert v3.definition_schema_version == 3
+    assert v3.payload["access_policy"]["automation_eligible"] is False
+    assert decode_endpoint_profile_definition(3, v3.payload) == v3
     with pytest.raises(ValueError, match="payload_invalid"):
-        decode_endpoint_profile_definition(2, current.payload)
+        decode_endpoint_profile_definition(2, v3.payload)
+
+
+def test_v4_profile_definition_freezes_external_transport_id():
+    from personal_ai.routing.definitions import (
+        decode_endpoint_profile_definition,
+        encode_current_endpoint_profile,
+    )
+
+    current = encode_current_endpoint_profile(profile())
+    assert current.definition_schema_version == 4
+    assert current.payload["external_transport_id"] == "chatgpt_local_v1"
+    assert decode_endpoint_profile_definition(4, current.payload) == current
 
 
 def test_registered_source_snapshot_survives_prepare_and_rejects_stale_source(setup):
@@ -1216,19 +1231,24 @@ def test_authenticated_external_turn_routes_prepare_and_import_through_shared_se
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from personal_ai.api.dependencies import get_external_turn_service
+    from personal_ai.api.dependencies import get_external_turn_service, get_settings
     from personal_ai.api.external_turns import router
+    from personal_ai.settings import Settings
 
     service, conversation_id, _messages, *_ = setup
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_external_turn_service] = lambda: service
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        ai_provider="fake", ai_model="fixture", external_turn_acceptance_enabled=True
+    )
     with TestClient(app) as client:
+        idempotency_key = str(uuid4())
         response = client.post(
             f"/v1/conversations/{conversation_id}/external-turns/prepare",
             json={
                 "content": "Continue from this answer",
-                "idempotency_key": str(uuid4()),
+                "idempotency_key": idempotency_key,
                 "choice": {"mode": "manual_external"},
                 "candidate_message_ids": None,
             },
@@ -1240,6 +1260,13 @@ def test_authenticated_external_turn_routes_prepare_and_import_through_shared_se
         assert prepared["context_package"]["counter_kind"] == "estimated"
         assert prepared["context_package"]["fingerprint"] == prepared["package_fingerprint"]
         assert "user:" in prepared["portable_prompt"]
+
+        reconciliation = client.get(
+            f"/v1/conversations/{conversation_id}/external-turns/requests/{idempotency_key}"
+        )
+        assert reconciliation.status_code == 200
+        assert reconciliation.json()["state"] == "prepared"
+        assert reconciliation.json()["message_id"] == prepared["message_id"]
 
         invalid_label = client.post(
             f"/v1/conversations/{conversation_id}/external-turns/{prepared['message_id']}/import",
@@ -1266,6 +1293,23 @@ def test_authenticated_external_turn_routes_prepare_and_import_through_shared_se
         assert payload["attribution"]["mode"] == "manual_external"
         assert payload["attribution"]["fact_source"] == "user_declared"
         assert payload["attribution"]["model_verified"] is False
+
+
+def test_lost_prepare_response_reconciles_and_stale_reservation_can_be_abandoned(setup):
+    service, conversation_id, _messages, authority, _key, _clock = setup
+    prepared, _selected, request = prepare(setup)
+
+    recovered = service.reconcile(conversation_id, request.idempotency_key)
+    assert recovered["state"] == "prepared"
+    assert recovered["message_id"] == str(prepared.message_id)
+
+    authority.version = "d" * 64
+    stale = service.reconcile(conversation_id, request.idempotency_key)
+    assert stale["state"] == "prepared_stale"
+    assert stale["stale_reason"] == "source_authority_changed"
+
+    cancelled = service.abandon_by_idempotency_key(conversation_id, request.idempotency_key)
+    assert cancelled.execution.state == "cancelled"
 
 
 def test_principal_bound_authority_requires_verified_owner_and_rechecks_source_grants(setup):
@@ -1353,23 +1397,31 @@ def test_principal_bound_authority_requires_verified_owner_and_rechecks_source_g
         )
 
 
-def test_execution_options_follow_application_policy_and_current_explicit_profiles(setup):
-    from types import SimpleNamespace
-
+def test_execution_options_follow_application_policy_and_current_explicit_profiles(setup, monkeypatch):
     from personal_ai.api.external_turns import execution_options
+    from personal_ai.settings import Settings
 
     service, *_ = setup
-    usage = SimpleNamespace(
-        endpoint_profile_resolver=SimpleNamespace(endpoint_registry=service.registry)
+    settings = Settings(
+        ai_provider="fake", ai_model="fixture", external_turn_acceptance_enabled=True
     )
-    options = execution_options(service.context, usage, service.signer)
+    monkeypatch.setattr(
+        "personal_ai.api.external_turns.get_endpoint_registry", lambda _settings: service.registry
+    )
+    monkeypatch.setattr(
+        "personal_ai.api.external_turns.get_external_dispatch_signer", lambda _settings: service.signer
+    )
+    options = execution_options(service.context, settings)
     assert options.modes == ("automatic", "connected_provider", "manual_external")
     assert {item.provider_id for item in options.explicit_profiles} == {
         "openai_chatgpt_plan",
         "another_provider",
     }
 
-    without_signer = execution_options(service.context, usage, None)
+    monkeypatch.setattr(
+        "personal_ai.api.external_turns.get_external_dispatch_signer", lambda _settings: None
+    )
+    without_signer = execution_options(service.context, settings)
     assert without_signer.modes == ("automatic", "manual_external")
     assert without_signer.explicit_profiles == ()
 
@@ -1384,6 +1436,9 @@ def test_execution_options_follow_application_policy_and_current_explicit_profil
             )
         }
     )
-    denied = execution_options(denied_context, usage, service.signer)
+    monkeypatch.setattr(
+        "personal_ai.api.external_turns.get_external_dispatch_signer", lambda _settings: service.signer
+    )
+    denied = execution_options(denied_context, settings)
     assert denied.modes == ("automatic",)
     assert denied.explicit_profiles == ()

@@ -104,6 +104,7 @@ class ContextAssembler:
         application_context: ApplicationContextRequest,
         *,
         candidate_entities=(),
+        excluded_source_classes=frozenset(),
         now: datetime | None = None,
     ) -> ContextPlan:
         """Plan bounded source operations before any request-specific retrieval."""
@@ -127,6 +128,7 @@ class ContextAssembler:
             capabilities,
             input_token_budget=self.input_budget(),
             candidate_entities=candidate_entities,
+            excluded_source_classes=frozenset(excluded_source_classes),
             now=now,
         )
         authorize_context_selections(application_context, plan.selections)

@@ -8,6 +8,7 @@ export type ChatState = {
   chatPending: boolean;
   error: string | null;
   messageErrors: Record<string, string>;
+  externalDeltas: Record<string, string>;
 };
 export type ChatAction =
   | { type: "list-loaded"; conversations: Conversation[] }
@@ -19,7 +20,9 @@ export type ChatAction =
   | { type: "stream-message-created"; message: Message }
   | { type: "stream-delta"; messageId: string; delta: string }
   | { type: "stream-completed"; message: Message }
-  | { type: "stream-error"; messageId: string; error: string };
+  | { type: "stream-error"; messageId: string; error: string }
+  | { type: "external-delta"; messageId: string; delta: string }
+  | { type: "external-clear"; messageId: string };
 
 export const initialChatState: ChatState = {
   conversations: [],
@@ -28,6 +31,7 @@ export const initialChatState: ChatState = {
   chatPending: false,
   error: null,
   messageErrors: {},
+  externalDeltas: {},
 };
 
 function updateMessage(state: ChatState, messageId: string, change: (message: Message) => Message): ChatState {
@@ -64,7 +68,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "list-loaded":
       return { ...state, conversations: action.conversations, requestState: "idle" };
     case "opened":
-      return { ...state, selected: action.detail, requestState: "idle", error: null, messageErrors: {} };
+      return { ...state, selected: action.detail, requestState: "idle", error: null, messageErrors: {}, externalDeltas: {} };
     case "failed":
       return { ...state, requestState: "idle", error: action.error };
     case "chat-started":
@@ -86,10 +90,24 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ? { ...message, content: message.content + action.delta }
         : message);
     case "stream-completed":
-      return updateMessage(state, action.message.id, () => action.message);
+      return { ...updateMessage(state, action.message.id, () => action.message), externalDeltas: withoutKey(state.externalDeltas, action.message.id) };
     case "stream-error": {
       const next = updateMessage(state, action.messageId, message => ({ ...message, status: "failed" }));
-      return { ...next, messageErrors: { ...next.messageErrors, [action.messageId]: action.error } };
+      return { ...next, messageErrors: { ...next.messageErrors, [action.messageId]: action.error }, externalDeltas: withoutKey(next.externalDeltas, action.messageId) };
     }
+    case "external-delta": {
+      const message = state.selected?.messages.find(item => item.id === action.messageId);
+      if (!message || message.role !== "assistant" || !["pending", "streaming"].includes(message.status)) return state;
+      return { ...state, externalDeltas: { ...state.externalDeltas, [action.messageId]: (state.externalDeltas[action.messageId] ?? "") + action.delta } };
+    }
+    case "external-clear":
+      return { ...state, externalDeltas: withoutKey(state.externalDeltas, action.messageId) };
   }
+}
+
+function withoutKey(value: Record<string, string>, key: string) {
+  if (!(key in value)) return value;
+  const next = { ...value };
+  delete next[key];
+  return next;
 }

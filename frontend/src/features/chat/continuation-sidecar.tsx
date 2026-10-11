@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -9,19 +9,35 @@ import {
   type BridgeModel,
   type BridgePairing,
   type ContextPackage,
+  type ContextPreview,
+  type ContextSourceClass,
+  type ApplicationScopeRequest,
   type ExecutionOptions,
+  type ExternalTurnReconciliation,
   type Message,
   type PreparedExternalTurn,
   type SignedDispatchGrant,
 } from "../../lib/api";
 import { readSseFrames } from "../../lib/sse";
+import {
+  createExternalTransportRegistry,
+  DEFAULT_EXTERNAL_TRANSPORTS,
+  supportedExternalProfiles,
+  type ExternalTransportAdapter,
+} from "./external-transport";
 import styles from "./continuation-sidecar.module.css";
 
 type Props = {
   conversationId: string;
+  scope?: ApplicationScopeRequest;
+  transportAdapters?: readonly ExternalTransportAdapter[];
   target: Message;
   onClose: () => void;
-  onAutomatic: (instruction: string, target: Message, includeTarget: boolean) => void;
+  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest) => void;
+  onExternalPrepared?: (messageId: string) => Promise<void>;
+  onExternalDelta?: (messageId: string, delta: string) => void;
+  onExternalCompleted?: (message: Message) => void;
+  onExternalInterrupted?: (messageId: string) => void;
   onSaved: () => void;
 };
 
@@ -46,12 +62,16 @@ function validatePairing(value: unknown): BridgePairing {
   return pairing as BridgePairing;
 }
 
-function bridgeUrl(path: string) {
-  return `http://127.0.0.1:8765${path}`;
+function bridgeUrl(path: string, adapter: ExternalTransportAdapter) {
+  return `${adapter.bridgeOrigin}${path}`;
 }
 
-async function bridgeJson<T>(path: string, pairing: BridgePairing, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(bridgeUrl(path), {
+function recoveryStorageKey(conversationId: string, scope: ApplicationScopeRequest) {
+  return `external-prepare:${scope.applicationId ?? "personal_ai"}:${scope.workspaceId ?? ""}:${conversationId}`;
+}
+
+async function bridgeJson<T>(path: string, pairing: BridgePairing, adapter: ExternalTransportAdapter, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(bridgeUrl(path, adapter), {
     method: "GET",
     mode: "cors",
     credentials: "omit",
@@ -68,12 +88,13 @@ async function bridgeExecute(
   packageValue: PreparedExternalTurn["connected_execution"],
   proof: SignedDispatchGrant,
   pairing: BridgePairing,
+  adapter: ExternalTransportAdapter,
   signal: AbortSignal,
   onDelta: (text: string) => void,
 ) {
   if (!packageValue) throw new Error("prepared_package_missing");
   const startedAt = performance.now();
-  const response = await fetch(bridgeUrl("/execute"), {
+  const response = await fetch(bridgeUrl("/execute", adapter), {
     method: "POST",
     mode: "cors",
     credentials: "omit",
@@ -121,7 +142,7 @@ function SourceSummary({ packageValue }: { packageValue: ContextPackage }) {
   return <section className={styles.context} aria-labelledby="context-package-heading">
     <h3 id="context-package-heading">Prepared context</h3>
     <p>
-      Estimated {packageValue.input_tokens.toLocaleString()} tokens · {packageValue.selected_message_count} conversation messages · {packageValue.effective_sensitivity} sensitivity
+      Estimated {packageValue.input_tokens.toLocaleString()} tokens · {packageValue.selected_message_count} direct conversation messages · {packageValue.summarized_source_message_count ?? 0} messages represented by summaries · {packageValue.effective_sensitivity} sensitivity
     </p>
     <p>Policy {packageValue.policy_version} · expires {new Date(packageValue.expires_at).toLocaleString()}</p>
     <ul className={styles.sources}>
@@ -143,11 +164,52 @@ function SourceSummary({ packageValue }: { packageValue: ContextPackage }) {
   </section>;
 }
 
-export function ContinuationSidecar({ conversationId, target, onClose, onAutomatic, onSaved }: Props) {
+const NARROWABLE_SOURCES: { id: ContextSourceClass; label: string }[] = [
+  { id: "conversation", label: "Conversation history" },
+  { id: "ai_memory", label: "Saved memory" },
+  { id: "global_profile", label: "Shared profile" },
+  { id: "client_context", label: "Client context" },
+  { id: "external_research", label: "Research and evidence" },
+  { id: "domain_profile", label: "Domain profile" },
+  { id: "domain_current", label: "Current domain context" },
+  { id: "domain_history", label: "Domain history" },
+  { id: "tool_result", label: "Tool results" },
+];
+
+const DEFAULT_SCOPE: ApplicationScopeRequest = { applicationId: "personal_ai" };
+const noop = () => undefined;
+const noopPrepared = async () => undefined;
+
+function RecoveryPanel({
+  result,
+  onAbandon,
+  busy,
+}: {
+  result: ExternalTurnReconciliation;
+  onAbandon: () => void;
+  busy: boolean;
+}) {
+  return <section className={styles.context} aria-labelledby="recovery-heading">
+    <h3 id="recovery-heading">Earlier preparation status</h3>
+    <p>A previous prepare request may have committed before its response reached this browser. The prompt body is not reconstructed.</p>
+    <p>Canonical state: {result.state}{result.stale_reason ? ` · ${result.stale_reason}` : ""}</p>
+    {result.state === "prepared" || result.state === "prepared_stale"
+      ? <button type="button" disabled={busy} onClick={onAbandon}>Cancel this prepared reservation and start fresh</button>
+      : <p>Inspect or reopen the canonical conversation before retrying.</p>}
+  </section>;
+}
+
+export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
   const [options, setOptions] = useState<ExecutionOptions | null>(null);
   const [mode, setMode] = useState<"automatic" | "manual_external" | "connected_provider">("automatic");
   const [instruction, setInstruction] = useState("Continue from this answer.");
   const [includeTarget, setIncludeTarget] = useState(true);
+  const [excludedSources, setExcludedSources] = useState<ContextSourceClass[]>([]);
+  const [preview, setPreview] = useState<ContextPreview | null>(null);
+  const [previewReviewed, setPreviewReviewed] = useState(false);
+  const [finalPackageReviewed, setFinalPackageReviewed] = useState(false);
+  const [recovery, setRecovery] = useState<ExternalTurnReconciliation | null>(null);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
   const [prepared, setPrepared] = useState<PreparedExternalTurn | null>(null);
   const [providerLabel, setProviderLabel] = useState("");
   const [modelLabel, setModelLabel] = useState("");
@@ -158,7 +220,6 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
   const [bridgeModels, setBridgeModels] = useState<BridgeModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [selectedProfile, setSelectedProfile] = useState("");
-  const [partialOutput, setPartialOutput] = useState("");
   const [savedCompletion, setSavedCompletion] = useState<{
     text: string; latencyMs: number; inputTokens?: number; outputTokens?: number;
   } | null>(null);
@@ -166,6 +227,10 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
   const [status, setStatus] = useState("Loading available execution modes…");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const transportRegistry = useMemo(
+    () => createExternalTransportRegistry(transportAdapters),
+    [transportAdapters],
+  );
   const sidecar = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const bridgeRequest = useRef<AbortController | null>(null);
@@ -173,11 +238,11 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
 
   useEffect(() => {
     let cancelled = false;
-    void conversationsApi.executionOptions().then(value => {
+    void conversationsApi.executionOptions(undefined, scope).then(value => {
       if (cancelled) return;
       setOptions(value);
       setMode(value.modes.includes("manual_external") ? "manual_external" : "automatic");
-      setSelectedProfile(value.explicit_profiles.find(profile => profile.provider_id === "openai_chatgpt_plan")?.endpoint.endpoint_profile_id ?? "");
+      setSelectedProfile(supportedExternalProfiles(value.explicit_profiles, transportAdapters)[0]?.endpoint.endpoint_profile_id ?? "");
       setStatus("Choose how to continue. Automatic and manual modes work without the local bridge.");
     }).catch(failure => {
       if (!cancelled) {
@@ -187,15 +252,40 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     });
     heading.current?.focus();
     return () => { cancelled = true; };
-  }, []);
+  }, [scope, transportAdapters]);
+
+  useEffect(() => {
+    const key = recoveryStorageKey(conversationId, scope);
+    const idempotencyKey = window.sessionStorage.getItem(key);
+    if (!idempotencyKey) return;
+    setRecoveryKey(idempotencyKey);
+    void conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, scope)
+      .then(result => {
+        if (["not_found", "not_external", "cancelled", "completed"].includes(result.state)) {
+          window.sessionStorage.removeItem(key);
+          setRecoveryKey(null);
+          setRecovery(null);
+          if (result.state === "completed" && result.message_id) {
+            onExternalInterrupted(result.message_id);
+            setStatus("The earlier preparation already completed. The canonical conversation was refreshed.");
+          } else if (result.state === "cancelled") {
+            setStatus("The earlier preparation was canceled. Review context again before starting fresh.");
+          }
+        } else {
+          setRecovery(result);
+          setStatus("Recovered canonical status for an earlier prepare request.");
+        }
+      })
+      .catch(() => setStatus("Checking whether an earlier prepare request committed…"));
+  }, [conversationId, scope, onExternalInterrupted]);
 
   useEffect(() => () => {
     bridgeRequest.current?.abort();
     const current = preparedRef.current;
     if (current) {
-      void conversationsApi.abandonExternal(conversationId, current.message_id, current.package_fingerprint).catch(() => undefined);
+      void conversationsApi.abandonExternal(conversationId, current.message_id, current.package_fingerprint, undefined, scope).catch(() => undefined);
     }
-  }, [conversationId]);
+  }, [conversationId, scope]);
 
   useEffect(() => {
     const element = sidecar.current;
@@ -226,9 +316,12 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     return () => element.removeEventListener("keydown", onKeyDown);
   }, [busy, onClose]);
 
-  // This UI adapter speaks the Phase 25.1 ChatGPT bridge contract. The API
-  // keeps profile discovery generic; other local runtimes can add their own UI.
-  const profiles = (options?.explicit_profiles ?? []).filter(profile => profile.provider_id === "openai_chatgpt_plan");
+  // The transport discriminator selects the narrow adapter. Provider identity remains data.
+  const profiles = supportedExternalProfiles(options?.explicit_profiles ?? [], transportAdapters);
+  const selectedProfileOption = profiles.find(profile => profile.endpoint.endpoint_profile_id === selectedProfile);
+  const selectedTransport = selectedProfileOption
+    ? transportRegistry.get(selectedProfileOption.external_transport_id)
+    : undefined;
   const connectedAvailable = !!options?.modes.includes("connected_provider") && profiles.length > 0;
   const manualAvailable = !!options?.modes.includes("manual_external");
 
@@ -237,15 +330,16 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     bridgeRequest.current = null;
     if (prepared) {
       try {
-        await conversationsApi.abandonExternal(conversationId, prepared.message_id, prepared.package_fingerprint);
+        await conversationsApi.abandonExternal(conversationId, prepared.message_id, prepared.package_fingerprint, undefined, scope);
       } catch {
         // A stale or already terminal reservation cannot be reused; preparation will revalidate.
       }
+      onExternalInterrupted(prepared.message_id);
     }
     preparedRef.current = null;
     setPrepared(null);
     setSavedCompletion(null);
-    setPartialOutput("");
+    setFinalPackageReviewed(false);
     setImportText("");
     setError(null);
     setStatus("Prepared turn discarded. Prepare a fresh turn after reviewing context.");
@@ -254,50 +348,112 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
   function submitAutomatic(event: FormEvent) {
     event.preventDefault();
     if (!instruction.trim() || busy) return;
-    onAutomatic(instruction.trim(), target, includeTarget);
+    onAutomatic(instruction.trim(), target, includeTarget, scope);
+  }
+
+  function requestFor(modeChoice: "manual_external" | "connected_provider", idempotencyKey: string) {
+    let choice: Parameters<typeof conversationsApi.prepareExternal>[1]["choice"];
+    if (modeChoice === "manual_external") choice = { mode: "manual_external" };
+    else {
+      if (!pairing || !bridgeConnection || !selectedModel || !selectedProfile) throw new Error("Connect an eligible local bridge account and choose a model.");
+      if (bridgeConnection.usage?.state === "limit") throw new Error("The local account reports a current usage limit. Manage or refresh usage before sending.");
+      const profile = profiles.find(item => item.endpoint.endpoint_profile_id === selectedProfile);
+      if (!profile || !transportRegistry.has(profile.external_transport_id) || pairing.connection_id !== bridgeConnection.connection_id || pairing.connection_revision !== bridgeConnection.revision) {
+        throw new Error("The local account changed. Refresh its connection and choose again.");
+      }
+      choice = {
+        mode: "connected_provider",
+        endpoint: profile.endpoint,
+        model_id: selectedModel,
+        connection_id: pairing.connection_id,
+        connection_revision: pairing.connection_revision,
+        caller_id: pairing.caller_id,
+        audience: pairing.audience,
+      };
+    }
+    return {
+      content: instruction.trim(),
+      idempotency_key: idempotencyKey,
+      choice,
+      candidate_message_ids: includeTarget ? [target.id] : [],
+      excluded_source_classes: excludedSources,
+    };
+  }
+
+  async function previewTurn(event: FormEvent) {
+    event.preventDefault();
+    if (!instruction.trim() || busy || prepared || mode === "automatic") return;
+    setBusy(true);
+    setError(null);
+    setStatus("Previewing the authorized planner selection. This does not create a reservation.");
+    try {
+      const request = requestFor(mode, crypto.randomUUID());
+      const next = await conversationsApi.previewExternal(conversationId, request, undefined, scope);
+      setPreview(next);
+      setPreviewReviewed(false);
+      setStatus("Preview ready. It is advisory; canonical preparation will replan and reauthorize.");
+    } catch (failure) {
+      setError(errorMessage(failure));
+      setStatus("Context preview could not be created.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function prepareTurn(event: FormEvent) {
     event.preventDefault();
-    if (!instruction.trim() || busy || prepared) return;
+    if (!instruction.trim() || busy || prepared || !preview || !previewReviewed || recovery) return;
     setBusy(true);
     setError(null);
-    setStatus("Preparing a bounded context package…");
+    setStatus("Preparing and revalidating the canonical context package…");
+    const storageKey = recoveryStorageKey(conversationId, scope);
+    const idempotencyKey = crypto.randomUUID();
+    window.sessionStorage.setItem(storageKey, idempotencyKey);
+    setRecoveryKey(idempotencyKey);
     try {
-      let choice: Parameters<typeof conversationsApi.prepareExternal>[1]["choice"];
-      if (mode === "manual_external") {
-        choice = { mode: "manual_external" };
-      } else {
-        if (!pairing || !bridgeConnection || !selectedModel || !selectedProfile) throw new Error("Connect an eligible local bridge account and choose a model.");
-        const profile = profiles.find(item => item.endpoint.endpoint_profile_id === selectedProfile);
-        if (!profile || pairing.connection_id !== bridgeConnection.connection_id || pairing.connection_revision !== bridgeConnection.revision) {
-          throw new Error("The local account changed. Refresh its connection and choose again.");
-        }
-        choice = {
-          mode: "connected_provider",
-          endpoint: profile.endpoint,
-          model_id: selectedModel,
-          connection_id: pairing.connection_id,
-          connection_revision: pairing.connection_revision,
-          caller_id: pairing.caller_id,
-          audience: pairing.audience,
-        };
-      }
-      const request = {
-        content: instruction.trim(),
-        idempotency_key: crypto.randomUUID(),
-        choice,
-        candidate_message_ids: includeTarget ? [target.id] : [],
-      };
-      const next = await conversationsApi.prepareExternal(conversationId, request);
+      const request = requestFor(mode as "manual_external" | "connected_provider", idempotencyKey);
+      const next = await conversationsApi.prepareExternal(conversationId, request, undefined, scope);
+      window.sessionStorage.removeItem(storageKey);
+      setRecoveryKey(null);
+      setRecovery(null);
       preparedRef.current = next;
       setPrepared(next);
-      setStatus(mode === "manual_external"
-        ? "Prompt prepared. Inspect its context, copy it, use the external model yourself, then import its response."
-        : "Package prepared. The local bridge will recheck its account, model and compatibility before sending.");
+      setFinalPackageReviewed(false);
+      await onExternalPrepared(next.message_id);
+      setStatus("Canonical package prepared. Review the exact messages and sources before copying, importing or dispatching.");
     } catch (failure) {
       setError(errorMessage(failure));
-      setStatus("Preparation did not complete. No external response was saved.");
+      setStatus("The prepare response may have been lost. Checking the canonical reservation before allowing another attempt.");
+      try {
+        const result = await conversationsApi.reconcileExternal(conversationId, idempotencyKey, undefined, scope);
+        if (result.state === "not_found") {
+          window.sessionStorage.removeItem(storageKey);
+          setRecoveryKey(null);
+        } else {
+          setRecovery(result);
+        }
+      } catch {
+        // Retain the unguessable key for deterministic reconciliation after reload.
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function abandonRecoveredPreparation() {
+    if (!recoveryKey || busy) return;
+    setBusy(true);
+    try {
+      await conversationsApi.abandonExternalByKey(conversationId, recoveryKey, undefined, scope);
+      window.sessionStorage.removeItem(recoveryStorageKey(conversationId, scope));
+      setRecovery(null);
+      setRecoveryKey(null);
+      setPreview(null);
+      setPreviewReviewed(false);
+      setStatus("The ambiguous prepared reservation was canceled. Review the context again before starting a fresh preparation.");
+    } catch (failure) {
+      setError(errorMessage(failure));
+      setStatus("The canonical reservation changed. Reconcile again or reopen the conversation.");
     } finally {
       setBusy(false);
     }
@@ -310,12 +466,13 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     setError(null);
     setStatus("Importing your response into this conversation…");
     try {
-      await conversationsApi.importManual(conversationId, prepared.message_id, {
+      const completed = await conversationsApi.importManual(conversationId, prepared.message_id, {
         package_fingerprint: prepared.package_fingerprint,
         text: importText.trim(),
         ...(providerLabel.trim() ? { provider_label: providerLabel.trim() } : {}),
         ...(modelLabel.trim() ? { model_label: modelLabel.trim() } : {}),
-      });
+      }, undefined, scope);
+      onExternalCompleted(completed);
       preparedRef.current = null;
       setPrepared(null);
       setImportText("");
@@ -334,11 +491,12 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     setBusy(true);
     setError(null);
     try {
+      if (!selectedTransport) throw new Error("external_transport_unavailable");
       const parsed = validatePairing(JSON.parse(pairingText));
       if (parsed.expires_at * 1000 <= Date.now()) throw new Error("This local pairing has expired. Pair again from the local bridge.");
       setPairing(parsed);
       setPairingText("");
-      const connection = await bridgeJson<BridgeConnection>("/connection", parsed);
+      const connection = await bridgeJson<BridgeConnection>("/connection", parsed, selectedTransport);
       if (
         connection.state !== "connected" ||
         connection.connection_id !== parsed.connection_id || connection.revision !== parsed.connection_revision
@@ -350,7 +508,7 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
         setStatus("This local account has no plan-use permission yet. Use the recovery controls below, then pair the updated connection.");
         return;
       }
-      const modelsResult = await bridgeJson<{ models: BridgeModel[] }>("/models", parsed);
+      const modelsResult = await bridgeJson<{ models: BridgeModel[] }>("/models", parsed, selectedTransport);
       setBridgeModels(modelsResult.models);
       setSelectedModel(modelsResult.models[0]?.slug ?? "");
       setStatus(`Connected to ${connection.account_label}. The local runtime still checks model compatibility and disclosure policy at send time.`);
@@ -367,10 +525,11 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
 
   async function refreshBridge() {
     if (!pairing) return;
+    if (!selectedTransport) return;
     setBusy(true);
     setError(null);
     try {
-      const connection = await bridgeJson<BridgeConnection>("/connection", pairing);
+      const connection = await bridgeJson<BridgeConnection>("/connection", pairing, selectedTransport);
       if (connection.revision !== pairing.connection_revision || connection.state !== "connected") {
         if (prepared) await discardPrepared();
         setPairing(null);
@@ -386,7 +545,7 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
         setStatus("Plan-use permission is not enabled for this local account. Use the recovery controls below, then pair again.");
         return;
       }
-      const modelsResult = await bridgeJson<{ models: BridgeModel[] }>("/models", pairing);
+      const modelsResult = await bridgeJson<{ models: BridgeModel[] }>("/models", pairing, selectedTransport);
       if (prepared && !modelsResult.models.some(model => model.slug === selectedModel)) {
         await discardPrepared();
         setSelectedModel(modelsResult.models[0]?.slug ?? "");
@@ -418,12 +577,13 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
 
   async function markConnectedInterrupted(turn: PreparedExternalTurn) {
     try {
-      await conversationsApi.failExternal(conversationId, turn.message_id, turn.package_fingerprint);
+      await conversationsApi.failExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, scope);
     } catch {
-      try { await conversationsApi.abandonExternal(conversationId, turn.message_id, turn.package_fingerprint); } catch { /* Canonical state may already be terminal. */ }
+      try { await conversationsApi.abandonExternal(conversationId, turn.message_id, turn.package_fingerprint, undefined, scope); } catch { /* Canonical state may already be terminal. */ }
     }
     preparedRef.current = null;
     setPrepared(null);
+    onExternalInterrupted(turn.message_id);
   }
 
   async function saveConnectedOutput(
@@ -434,17 +594,18 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     setError(null);
     setStatus("Saving the completed connected response through the shared turn finalizer…");
     try {
-      await conversationsApi.completeConnected(conversationId, turn.message_id, {
+      const completed = await conversationsApi.completeConnected(conversationId, turn.message_id, {
         package_fingerprint: turn.package_fingerprint,
         text: completion.text,
         latency_ms: completion.latencyMs,
         ...(completion.inputTokens !== undefined ? { input_tokens: completion.inputTokens } : {}),
         ...(completion.outputTokens !== undefined ? { output_tokens: completion.outputTokens } : {}),
-      });
+      }, undefined, scope);
+      onExternalCompleted(completed);
       preparedRef.current = null;
       setPrepared(null);
       setSavedCompletion(null);
-      setPartialOutput("");
+      setFinalPackageReviewed(false);
       setStatus("Completed response saved with connected-local and client-reported attribution.");
       onSaved();
     } catch (failure) {
@@ -458,24 +619,29 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
 
   async function sendConnected() {
     if (!prepared?.connected_execution || !pairing || busy) return;
+    if (bridgeConnection?.usage?.state === "limit") {
+      setError("The local account reports a current usage limit. Manage or refresh usage before requesting a dispatch grant.");
+      setStatus("Connected dispatch is paused while the local usage limit is active.");
+      return;
+    }
     const connectedExecution = prepared.connected_execution;
+    const adapter = transportRegistry.get(connectedExecution.execution_profile.external_transport_id ?? "");
     const profile = profiles.find(item => item.endpoint.endpoint_profile_id === selectedProfile);
-    if (!profile || !bridgeConnection || bridgeConnection.revision !== pairing.connection_revision) {
+    if (!adapter || !profile || profile.external_transport_id !== adapter.id || !bridgeConnection || bridgeConnection.revision !== pairing.connection_revision) {
       setError("The selected account or execution profile changed. Discard this package and prepare again.");
       return;
     }
     setBusy(true);
     setError(null);
-    setPartialOutput("");
     const controller = new AbortController();
     bridgeRequest.current = controller;
     const turn = prepared;
     try {
       setStatus("Requesting a short-lived dispatch grant…");
-      const { proof } = await conversationsApi.dispatchExternal(conversationId, turn.message_id, connectedExecution, controller.signal);
+      const { proof } = await conversationsApi.dispatchExternal(conversationId, turn.message_id, connectedExecution, controller.signal, scope);
       setStatus("Sending the authorized package to the paired local bridge…");
-      const result = await bridgeExecute(connectedExecution, proof, pairing, controller.signal, delta => {
-        setPartialOutput(value => value + delta);
+      const result = await bridgeExecute(connectedExecution, proof, pairing, adapter, controller.signal, delta => {
+        onExternalDelta(turn.message_id, delta);
         setStatus("Receiving transient output from the local bridge…");
       });
       if (bridgeRequest.current === controller) bridgeRequest.current = null;
@@ -489,9 +655,9 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
       await saveConnectedOutput(turn, completion);
     } catch (failure) {
       if (controller.signal.aborted) {
-        setStatus("Connected execution was cancelled. Partial output remains transient and the send is recorded as uncertain.");
+        setStatus("Connected execution was cancelled. Shared-view partial output was cleared and the send is recorded as uncertain.");
       } else {
-        setError("The local bridge did not return a complete response. Partial output was not saved; the external effect may be uncertain.");
+        setError("The local bridge did not return a complete response. Transient output was cleared; the external effect may be uncertain.");
         setStatus(errorMessage(failure));
       }
       await markConnectedInterrupted(turn);
@@ -513,6 +679,7 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
 
   function submit(event: FormEvent) {
     if (mode === "automatic") submitAutomatic(event);
+    else if (!preview) void previewTurn(event);
     else void prepareTurn(event);
   }
 
@@ -528,19 +695,19 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
     {error && <p className={styles.error} role="alert">{error}</p>}
 
     <label htmlFor="execution-mode">Execution mode</label>
-    <select id="execution-mode" value={mode} disabled={busy || !!prepared} onChange={event => setMode(event.target.value as typeof mode)}>
+    <select id="execution-mode" value={mode} disabled={busy || !!prepared} onChange={event => { setMode(event.target.value as typeof mode); setPreview(null); setPreviewReviewed(false); }}>
       <option value="automatic">Personal AI · automatic</option>
       {manualAvailable && <option value="manual_external">Manual external model · copy/import</option>}
-      {connectedAvailable && <option value="connected_provider">Connected ChatGPT plan · local bridge</option>}
+      {connectedAvailable && <option value="connected_provider">Connected provider · local bridge</option>}
     </select>
 
     {mode === "connected_provider" && <section className={styles.bridge} aria-labelledby="bridge-heading">
-      <h3 id="bridge-heading">Local ChatGPT bridge</h3>
+      <h3 id="bridge-heading">{selectedTransport?.displayName ?? "Local connected runtime"}</h3>
       <p>Credentials remain in the local runtime. Pairing authorizes this browser origin and one connection revision; the short-lived caller capability is held only in page memory.</p>
       {bridgeConnection ? <>
         <p><strong>{bridgeConnection.account_label}</strong> · {bridgeConnection.usage?.state ?? "usage unknown"} · plan-use permission {bridgeConnection.plan_permission ? "granted" : "not granted"}</p>
         <div className={styles.recovery}>
-          {bridgeConnection.recovery.manage_usage === "provider_account_ui" && <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Manage plan usage in ChatGPT</a>}
+          {bridgeConnection.recovery.manage_usage === "provider_account_ui" && selectedTransport?.accountManagementUrl && <a href={selectedTransport.accountManagementUrl} target="_blank" rel="noopener noreferrer">{selectedTransport.accountManagementLabel ?? `Manage usage for ${selectedTransport.displayName}`}</a>}
           {bridgeConnection.recovery.reconnect === "local_operator" && <details>
             <summary>Reconnect this local account</summary>
             <p>In the terminal running the local bridge, run <code>reauth {bridgeConnection.connection_id}</code>. Then pair the updated connection for this browser origin.</p>
@@ -568,24 +735,63 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
 
     <form className={styles.form} onSubmit={submit}>
       <label htmlFor="continuation-instruction">What should happen next?</label>
-      <textarea id="continuation-instruction" value={instruction} onChange={event => setInstruction(event.target.value)} maxLength={20000} disabled={busy || !!prepared} />
+      <textarea id="continuation-instruction" value={instruction} onChange={event => { setInstruction(event.target.value); setPreview(null); setPreviewReviewed(false); }} maxLength={20000} disabled={busy || !!prepared} />
       <label className={styles.checkboxLabel} htmlFor="include-selected-answer">
-        <input id="include-selected-answer" type="checkbox" checked={includeTarget} disabled={busy || !!prepared} onChange={event => setIncludeTarget(event.target.checked)} />
+        <input id="include-selected-answer" type="checkbox" checked={includeTarget} disabled={busy || !!prepared} onChange={event => { setIncludeTarget(event.target.checked); setPreview(null); setPreviewReviewed(false); }} />
         Include this completed turn as a context candidate
       </label>
-      {!prepared && <button type="submit" disabled={busy || !instruction.trim() || (mode === "connected_provider" && (!pairing || !selectedModel || !selectedProfile))}>
-        {mode === "automatic" ? "Continue with Personal AI" : "Prepare bounded context"}
+      {mode !== "automatic" && <fieldset className={styles.form} disabled={busy || !!prepared}>
+        <legend>Narrow sources for this external turn</legend>
+        <p className={styles.note}>These controls only omit sources from the shared authorized planner. They cannot force a source into the package.</p>
+        {NARROWABLE_SOURCES.map(source => <label className={styles.checkboxLabel} key={source.id}>
+          <input type="checkbox" checked={excludedSources.includes(source.id)} onChange={event => {
+            setExcludedSources(current => event.target.checked
+              ? [...current, source.id]
+              : current.filter(item => item !== source.id));
+            setPreview(null);
+            setPreviewReviewed(false);
+          }} />
+          Omit {source.label}
+        </label>)}
+      </fieldset>}
+      {!prepared && !recovery && <button type="submit" disabled={busy || !instruction.trim() || (mode === "connected_provider" && (!pairing || !selectedModel || !selectedProfile || bridgeConnection?.usage?.state === "limit")) || (mode !== "automatic" && !!preview && !previewReviewed)}>
+        {mode === "automatic" ? "Continue with Personal AI" : preview ? "Prepare and review exact package" : "Preview bounded context"}
       </button>}
     </form>
 
+    {preview && !prepared && <section className={styles.context} aria-labelledby="context-preview-heading">
+      <h3 id="context-preview-heading">Bounded context preview</h3>
+      <p>Planner-only estimate; no reservation or source retrieval was performed. Canonical preparation will reauthorize and rebuild it.</p>
+      <p>{preview.selected_message_count} direct conversation messages selected.</p>
+      <ul className={styles.sources}>
+        {preview.planned_sources.map((item, index) => <li key={`${item.category}-${item.operation}-${index}`}>
+          {item.category}: {item.operation} · up to {item.max_results} results · {item.fields.join(", ") || "registered fields"}
+        </li>)}
+        {preview.excluded_sources.map((item, index) => <li key={`excluded-${item.category}-${item.reason}-${index}`}>
+          {item.category}: omitted ({item.reason})
+        </li>)}
+      </ul>
+      <label className={styles.checkboxLabel}>
+        <input type="checkbox" checked={previewReviewed} onChange={event => setPreviewReviewed(event.target.checked)} />
+        I reviewed this bounded preview
+      </label>
+      <button type="button" disabled={busy} onClick={() => { setPreview(null); setPreviewReviewed(false); }}>Change preview selection</button>
+    </section>}
+
+    {recovery && recoveryKey && <RecoveryPanel result={recovery} onAbandon={() => void abandonRecoveredPreparation()} busy={busy} />}
+
     {prepared && <>
       <SourceSummary packageValue={prepared.context_package} />
+      <label className={styles.checkboxLabel}>
+        <input type="checkbox" checked={finalPackageReviewed} disabled={busy} onChange={event => setFinalPackageReviewed(event.target.checked)} />
+        I reviewed the exact prepared messages and source summary
+      </label>
       {mode === "manual_external" && <section className={styles.manual} aria-labelledby="manual-heading">
         <h3 id="manual-heading">Manual external model</h3>
         <p>Personal AI did not open, control, authenticate to, scrape, or verify the external model or session. This prompt is user-mediated and can be used without the local bridge.</p>
         <label htmlFor="portable-prompt">Prepared prompt</label>
         <textarea id="portable-prompt" readOnly value={prepared.portable_prompt ?? ""} />
-        <button type="button" onClick={() => void copyText(prepared.portable_prompt ?? "")} disabled={!prepared.portable_prompt}>Copy prepared prompt</button>
+        <button type="button" onClick={() => void copyText(prepared.portable_prompt ?? "")} disabled={!prepared.portable_prompt || !finalPackageReviewed}>Copy prepared prompt</button>
         {copied && <span role="status">Copied.</span>}
         <form onSubmit={importManual} className={styles.form}>
           <label htmlFor="manual-response">Paste the external response</label>
@@ -595,21 +801,17 @@ export function ContinuationSidecar({ conversationId, target, onClose, onAutomat
           <label htmlFor="manual-model">Model label (optional, user-declared)</label>
           <input id="manual-model" value={modelLabel} maxLength={200} onChange={event => setModelLabel(event.target.value)} disabled={busy} />
           <p className={styles.note}>Provider and model labels are unverified. Imported text returns as a conversation turn and does not apply changes to domain records.</p>
-          <button type="submit" disabled={busy || !importText.trim()}>Import response into conversation</button>
+          <button type="submit" disabled={busy || !importText.trim() || !finalPackageReviewed}>Import response into conversation</button>
         </form>
       </section>}
       {mode === "connected_provider" && <section className={styles.manual} aria-labelledby="connected-heading">
         <h3 id="connected-heading">Connected provider response</h3>
-        {partialOutput && <>
-          <p>Partial output is transient until the completed response is finalized.</p>
-          <textarea aria-label="Transient connected output" readOnly value={partialOutput} />
-          <button type="button" onClick={() => void copyText(partialOutput)}>Copy transient output</button>
-        </>}
+        <p>Connected deltas appear on the pending assistant turn in the shared conversation view. They remain transient until completion.</p>
         {savedCompletion && <>
           <p>The bridge completed. Retry saves the same response and does not send it again.</p>
           <button type="button" disabled={busy} onClick={() => void saveConnectedOutput(prepared, savedCompletion)}>Retry saving response</button>
         </>}
-        {!savedCompletion && <button type="button" disabled={busy || !pairing} onClick={() => void sendConnected()}>
+        {!savedCompletion && <button type="button" disabled={busy || !pairing || !finalPackageReviewed || bridgeConnection?.usage?.state === "limit"} onClick={() => void sendConnected()}>
           {busy ? "Sending…" : "Send through local bridge"}
         </button>}
         {busy && bridgeRequest.current && <button type="button" onClick={() => bridgeRequest.current?.abort()}>Cancel connected execution</button>}

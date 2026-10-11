@@ -1,128 +1,102 @@
 # Phase 25.3 implementation evidence
 
-Date: 2026-10-10. Tested checkout: branch `main`, `HEAD` `fbae7f5`, plus the
-uncommitted Phase 25.3 working-tree changes. No revision was committed for this
-verification. Local verification used Python 3.11.15 through `uv` and the configured
-bundled Node runtime. Tests used fixtures and generated in-memory signing keys; no
-provider credentials or personal conversation data were used.
+Date: 2026-10-11. The checked source tree was based on `d758802` plus this fix
+session's tracked changes; that exact tree was committed as one follow-on changeset
+after verification. Local verification used Python 3.11.15 through `uv`, the configured
+bundled Node runtime, deterministic fixtures, and generated in-memory signing keys.
+No provider credentials or personal conversation data were used.
 
-## Implemented surfaces
+## Status
 
-- Added authenticated, no-store execution-options, continuation, context-package,
-  manual-import, connected-dispatch/completion, failure, and abandon routes. Same-origin
-  frontend calls use the existing authenticated conversation proxy.
-- Added request-scoped principal/scope authority using the existing conversation,
-  message, workspace-membership, and context-permission seams. It checks active
-  completed candidate turns, conversation ownership, source expiry, and current typed
-  permission dependencies at preparation and external transitions.
-- Reused `ChatTurnService.continue_turn`, the shared planner/assembler/builder and
-  token budget, P18 endpoint registry, P25.2 reservation state machine, canonical
-  message CAS, attribution, and post-completion lifecycle. No sidecar table, new
-  conversation store, or alternate generation path was added.
-- Added a bounded transient `ContextPackage` using actual assembled messages and
-  manifest summaries. Manual imports use the shared completion path with
-  user-declared/unverified labels. Connected output is transient until a successful
-  shared finalization; uncertain dispatched output becomes `unknown` and cannot be
-  resent under that reservation.
-- Added the responsive sidecar with automatic continuation, manual copy/import,
-  connected ChatGPT controls, current account/model/usage status, local recovery
-  instructions, context inspection, Copy and draft insertion. The UI uses the local
-  bridge's existing recovery contract and keyboard-focus behavior. It does not expose
-  domain Apply.
-- Connected profiles are filtered through P18's explicit-local/account-specific
-  policy and `CHATGPT_PLAN` execution mode. The provider-specific bridge adapter stays
-  in the sidecar; generic backend orchestration has no provider-name or application-name
-  branches. Non-ChatGPT endpoint modes remain unavailable until a matching transport
-  contract exists.
+The local Phase 25.3 implementation seams and regressions below are present. Phase
+25.3 is **not accepted or production-usable**: authenticated external disclosure and
+connected dispatch remain unavailable by default behind
+`EXTERNAL_TURN_ACCEPTANCE_ENABLED=false`. Keep that gate closed until Phase 15
+pre-retrieval/derived-source revocation acceptance and Phase 25.2 DynamoDB
+transaction/race/restart acceptance pass. Setting the flag is not evidence that either
+prerequisite passed.
+
+## Implemented and locally verified
+
+- External preparation resolves the production `ChatTurnService` dependency with a
+  cloned `ContextAssembler` that retains the shared planner, registered provider
+  coordinator, permission revalidator, builder, and policy. The clone uses
+  `EstimatedTokenCounter`, no summarizer, and excludes AI-memory retrieval so prepare
+  does not call a remote counter, summarizer, embedding adapter, or model. A composed
+  `main.app` test exercises this dependency path and fails if remote count/summary
+  methods are called.
+- `GET /v1/conversations/execution-options` is mounted ahead of the dynamic
+  conversation route. A `TestClient(main.app)` regression reaches the handler. When
+  the acceptance gate is closed, it returns only automatic mode; external-turn
+  operations return 404 before resolving repository dependencies.
+- A planner-only preview returns bounded source categories and operation summaries
+  without retrieval or reservation. Source-class exclusions are applied by the
+  shared planner and can only narrow; conversation-history exclusion also suppresses
+  candidate message IDs. The UI requires preview review, then separately requires
+  review of the exact canonical package before copy, import, or dispatch.
+- A lost prepare response can be reconciled through the deterministic idempotency
+  identity. The response exposes canonical state, reservation ID/fingerprint, expiry,
+  and stale reason, but never reconstructs prompt text. A prepared or stale reservation
+  can be canceled by idempotency key. The sidecar keeps only that key in session
+  storage and reconciles on mount.
+- Connected deltas live in the shared chat reducer under the pending assistant ID.
+  They are cleared on interruption or reconciled on completion and are never persisted
+  as partial output. Attribution labels use execution origin and fact source for
+  automatic-managed, connected-local, and manual-import turns.
+- The sidecar threads provider-neutral application/workspace scope through API calls.
+  Workspace membership uses a typed injected authorizer whose default denies access.
+  Routing owns endpoint registry discovery and its canonical static explicit-admission
+  projection; usage accounting no longer supplies that dependency. Profiles identify
+  an external transport adapter, and a synthetic second adapter exercises the same
+  controller contract. The concrete local adapter contract remains bridge-v1.
+- Context-package summaries distinguish direct selected messages from summary-derived
+  source coverage. A known local usage limit blocks connected preparation and
+  dispatch. Partial or malformed configured signer material fails settings
+  validation; an entirely unconfigured signer remains intentionally disabled.
 
 ## Verification
 
 | Check | Result |
 | --- | --- |
-| Backend full suite: `UV_CACHE_DIR=/private/tmp/personal-ai-uv-cache uv run python -m pytest` | **1321 passed, 82 skipped**, 2 warnings, 95.54s. The skipped `tests/persistence/test_external_turns.py` engine checks (6) leave P25.2 transaction/race/restart behavior unverified. |
+| Backend full suite: `UV_CACHE_DIR=/private/tmp/personal-ai-uv-cache uv run python -m pytest` | **1,330 passed, 82 skipped**, 2 warnings, 76.90s. Six external-turn persistence tests remained skipped. |
 | Backend lint: `UV_CACHE_DIR=/private/tmp/personal-ai-uv-cache uv run ruff check .` | Passed. |
 | Backend package: `UV_CACHE_DIR=/private/tmp/personal-ai-uv-cache uv build --no-build-isolation` | Passed; source distribution and wheel built. |
-| Frontend tests: `pnpm run test` | **20 files, 103 tests passed.** |
+| Frontend tests: `pnpm run test` | **21 files, 109 tests passed.** |
 | Frontend lint: `pnpm run lint` | Passed. |
-| Frontend type checks: `pnpm run typecheck` | Passed, including application and test projects. |
+| Frontend type checks: `pnpm run typecheck` | Passed for application and test projects. |
 | Frontend production build: `pnpm run build` | Passed on Next.js 15.5.23. Next reported the repository's existing missing Next ESLint-plugin warning. |
-| Context evaluation: `uv run python -m personal_ai.evaluation.context` | **5/5 fixtures passed.** |
-| Context planner evaluation: `uv run python -m personal_ai.evaluation.context_planner` | **9/9 fixtures passed.** |
-| `git diff --check` | Passed. |
+| Context evaluation: `uv run python -m personal_ai.evaluation.context` | Passed. |
+| Context planner evaluation: `uv run python -m personal_ai.evaluation.context_planner` | Passed. |
+| `git diff --check` | Passed after the evidence rewrite. |
+| DynamoDB Local: `make persistence-test-up` | **Not run:** this host has no `docker` executable (`make: docker: No such file or directory`). The six `tests/persistence/test_external_turns.py` cases remain skipped and M9 is unverified. |
 
 Frontend commands used
-`PATH=/Users/jasonkli/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH`.
+`PATH=/Users/jasonkli/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/jasonkli/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:$PATH`.
 Backend `uv` commands used the temporary cache path above because the global cache is
-outside the writable workspace. The full tests emitted a Starlette/httpx deprecation
-warning and a Pydantic `ReadOnly` warning; neither failed a check. Frontend tests also
-reported Vite's CJS Node API deprecation warning. The README was updated because this
-phase changes user-visible continuation, manual import, and connected-execution status.
+outside the writable workspace. Offline checks do not establish provider, emulator,
+cloud, deployment, browser-loopback, or production-security behavior.
 
-The deterministic UI coverage exercises manual preparation/copy/import without the
-bridge, no plan-use permission recovery, model-disappearance package invalidation,
-connected cancellation with transient partial text, and switching back to automatic.
-Backend coverage exercises authenticated prepare/import, policy and signer gating,
-authority/revocation snapshots, branch and expiry checks, idempotent/replayed imports,
-uncertain-send fencing, canonical attribution, and endpoint-mode admission.
+## Remaining acceptance gaps
 
-## Architecture audit and preserved invariants
+- Phase 15 still lacks complete pre-retrieval authorization for every contributing
+  source/provider operation, end-to-end derived history/summary revocation
+  dependencies, immutable policy/source references, and an atomic revocation fence.
+  The new acceptance setting is default-off to keep external disclosure unavailable
+  until those hard gates pass.
+- Production DynamoDB conditional-write, transaction, race, restart, and recovery
+  semantics remain unverified. The in-memory/service tests do not substitute for the
+  six skipped persistence-engine tests.
+- The base application injects a deny-all workspace authorizer. Workspace-scoped
+  execution remains unavailable until a canonical membership authorizer is
+  explicitly composed. Synthetic scope tests establish header propagation only.
+- Only the local bridge-v1 transport is implemented. A synthetic adapter verifies the
+  registration seam, not another real runtime's protocol, pairing, or send behavior.
+- Live ChatGPT OAuth/Responses compatibility, enforceable plan-only billing,
+  distribution approval, native browser private-network/mixed-content behavior,
+  deployed identity, IAM, signer custody/rotation, and cloud deployment remain
+  unverified.
+- Phase 25.4 real domain integrations and Phase 31 mutation acceptance remain future
+  work. No domain Apply authority was added.
 
-- Conversation and reservation state remain canonical in the existing message and
-  conversation repositories. `ContextPackage` is returned for inspection and is not
-  persisted. There is no competing sidecar or manual-import history.
-- Automatic inference, context assembly, policy, budget, and persistence remain owned
-  by the established chat/context layers. External execution does not bypass the
-  shared assembler, policy checks, accounting path for automatic turns, or repository
-  CAS transitions.
-- Manual and connected provenance remain distinct. Historical attribution is
-  immutable. Manual provider/model labels and connected usage/latency are not treated
-  as server-verified facts.
-- The browser does not receive provider credentials. The local caller capability is
-  transient in page memory; the signer key stays server-side. External responses are
-  no-store, and partial connected output is not persisted.
-- Dispatch uncertainty is terminal for that reservation. A failed/canceled send is
-  fenced as unknown, and saving a completed response can retry finalization without
-  repeating the external send.
-- Standalone Personal AI enables the new explicit modes; built-in domain application
-  policies remain deny-by-default. Imported content has no domain mutation authority,
-  and Phase 31 Apply remains absent.
-- Phase 25.4 can add registered domain launch/sensitivity hooks around this shared
-  sidecar and package. Phase 31 remains responsible for typed proposals, domain
-  validation, explicit confirmation, and authoritative writes.
-
-## Deviation and unresolved gates
-
-The accepted Phase 25.2 architecture had required complete Phase 15 authority and
-DynamoDB engine verification before authenticated HTTP/UI composition. The user
-explicitly directed implementation to proceed. The new request-scoped authority is a
-bounded local composition over permission dependencies that exist today; this does not
-complete Phase 15. Derived history/summary revocation is not propagated end-to-end,
-source/policy versions are still code labels rather than immutable Postgres references,
-and an atomic revocation fence is not established.
-
-The following remain **unverified**:
-
-- Real DynamoDB Local transaction, race, restart, and recovery behavior; six P25.2
-  persistence tests were skipped in the full suite because the external engine was not
-  configured.
-- Production identity, workspace membership, IAM/private invocation, deployed signer
-  custody/rotation, and matching public-key pinning in a live local bridge.
-- Live ChatGPT OAuth/Responses compatibility, enforceable plan-only billing, hosted
-  distribution approval, and real account/model usage behavior.
-- Native HTTPS-to-loopback, browser private-network-access and mixed-content behavior.
-- Phase 15 end-to-end derived-source/history revocation and immutable source/policy
-  reference acceptance.
-- Phase 25.4 real domain integrations and Phase 31 mutation acceptance.
-
-These checks were not run against a cloud account, provider account, live bridge,
-production deployment, or local persistence engine. Offline fakes and fixture tests do
-not establish those behaviors.
-
-## Independent review focus
-
-Review the order and completeness of authorization before context reads/counting and
-again at prepare, dispatch, import, completion, replay, and cancellation; examine
-history/summary revocation gaps and the synthetic-vs-engine CAS boundary; verify signer
-custody and key pinning assumptions; inspect local capability lifetime and uncertain
-send recovery; and check that later domain adapters can extend the shared mode/host
-contracts without adding provider or application branches to generic orchestration.
+These gaps prevent marking Phase 25.3 complete. Do not describe fixture-backed tests or
+the local source gate as production acceptance.

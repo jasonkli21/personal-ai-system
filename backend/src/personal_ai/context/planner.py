@@ -284,6 +284,7 @@ class ContextPlanner:
         *,
         input_token_budget: int,
         candidate_entities: Sequence[ContextEntityReference] = (),
+        excluded_source_classes: frozenset[str] = frozenset(),
         now: datetime | None = None,
     ) -> ContextPlan:
         if input_token_budget < 1:
@@ -354,6 +355,9 @@ class ContextPlanner:
                 decisions.append(self._omitted(rule, reason))
                 continue
             spec = capability.spec
+            if spec.source_class in excluded_source_classes:
+                decisions.append(self._omitted(rule, "source_narrowed_by_user", spec.source_class))
+                continue
             operation_spec = spec.operation(rule.operation)
             if operation_spec is None:
                 if rule.required:

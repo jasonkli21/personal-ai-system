@@ -16,7 +16,7 @@ from typing import Any
 
 from personal_ai.routing.contracts import EndpointProfile, EndpointRef
 
-CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION = 3
+CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION = 4
 _SAFE_ID = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9._:/@+-]{0,199}$")
 _PROFILE_FIELDS = frozenset(
     {
@@ -99,11 +99,19 @@ class EndpointProfileDefinition:
 
 
 def encode_current_endpoint_profile(profile: EndpointProfile) -> EndpointProfileDefinition:
-    """Use frozen V3 for access-bearing profiles, preserving V2 for older profiles."""
+    """Use frozen V4 for access/transport-bearing profiles, preserving older shapes."""
     profile = EndpointProfile.model_validate(profile.model_dump())
+    schema_version = (
+        CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION if profile.access_policy is not None else 2
+    )
+    payload = profile.model_dump(mode="json")
+    if schema_version < 4:
+        payload.pop("external_transport_id", None)
+    else:
+        payload["external_transport_id"] = profile.external_transport_id
     return decode_endpoint_profile_definition(
-        CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION if profile.access_policy is not None else 2,
-        profile.model_dump(mode="json"),
+        schema_version,
+        payload,
         expected_endpoint_profile_id=profile.endpoint_profile_id,
         expected_profile_version=profile.profile_version,
     )
@@ -133,25 +141,21 @@ def decode_endpoint_profile_definition(
         base = {k: v for k, v in payload.items() if k != "access_policy"}
         normalized = _decode_v2(base)
         if "access_policy" in payload:
-            access = payload["access_policy"]
-            choices = {
-                "auth_mode": {"service", "oauth_public_client", "none"},
-                "selection_mode": {"automatic", "explicit_only"},
-                "credential_runtime": {"managed", "user_local", "none"},
-                "model_discovery": {"configured", "account_specific"},
-            }
-            if (
-                not isinstance(access, dict)
-                or set(access)
-                != set(choices) | {"automation_eligible", "hosted_conversation_state"}
-                or any(
-                    not isinstance(access[k], str) or access[k] not in v for k, v in choices.items()
-                )
-                or type(access["automation_eligible"]) is not bool
-                or type(access["hosted_conversation_state"]) is not bool
-            ):
-                raise ValueError("endpoint_definition_payload_invalid")
-            normalized["access_policy"] = dict(access)
+            normalized["access_policy"] = _decode_access_policy(payload["access_policy"])
+    elif definition_schema_version == 4:
+        expected = _PROFILE_FIELDS | {"access_policy", "external_transport_id"}
+        if set(payload) != expected:
+            raise ValueError("endpoint_definition_payload_invalid")
+        transport_id = payload["external_transport_id"]
+        if transport_id is not None and (
+            not isinstance(transport_id, str)
+            or not re.fullmatch(r"[a-z][a-z0-9_.-]{1,63}", transport_id)
+        ):
+            raise ValueError("endpoint_definition_payload_invalid")
+        base = {k: v for k, v in payload.items() if k not in {"access_policy", "external_transport_id"}}
+        normalized = _decode_v2(base)
+        normalized["access_policy"] = _decode_access_policy(payload["access_policy"])
+        normalized["external_transport_id"] = transport_id
     else:
         raise ValueError("endpoint_definition_schema_unsupported")
 
@@ -176,6 +180,24 @@ def decode_endpoint_profile_definition(
         definition_schema_version=definition_schema_version,
         _payload_json=encoded,
     )
+
+
+def _decode_access_policy(access: Any) -> dict[str, Any]:
+    choices = {
+        "auth_mode": {"service", "oauth_public_client", "none"},
+        "selection_mode": {"automatic", "explicit_only"},
+        "credential_runtime": {"managed", "user_local", "none"},
+        "model_discovery": {"configured", "account_specific"},
+    }
+    if (
+        not isinstance(access, dict)
+        or set(access) != set(choices) | {"automation_eligible", "hosted_conversation_state"}
+        or any(not isinstance(access[k], str) or access[k] not in v for k, v in choices.items())
+        or type(access["automation_eligible"]) is not bool
+        or type(access["hosted_conversation_state"]) is not bool
+    ):
+        raise ValueError("endpoint_definition_payload_invalid")
+    return dict(access)
 
 
 def _decode_v1(payload: dict[str, Any]) -> dict[str, Any]:

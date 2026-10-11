@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # Raw Ed25519 private key as unpadded base64url. Store in Secret Manager or
     # an untracked local environment file; never expose it to browser or bridge.
     external_dispatch_grant_private_key: SecretStr = Field(default=SecretStr(""))
+    # P25.3 remains unavailable until Phase 15 source/revocation and P25.2
+    # storage acceptance gates are explicitly reviewed and accepted.
+    external_turn_acceptance_enabled: bool = False
     gcp_project_id: str = Field(default="", max_length=200)
     persistence_local_postgres_dsn: SecretStr = Field(
         default=SecretStr(
@@ -311,6 +314,28 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_context_budget(self) -> "Settings":
+        signer_key = self.external_dispatch_grant_private_key.get_secret_value().strip()
+        signer_configured = bool(
+            signer_key
+            or self.external_dispatch_grant_key_id
+            or self.external_dispatch_grant_issuer != "personal-ai-api"
+        )
+        if signer_configured:
+            if not signer_key or not self.external_dispatch_grant_key_id.strip():
+                raise ValueError("external_dispatch_signer_configuration_incomplete")
+            import base64
+
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+            try:
+                raw_key = base64.b64decode(
+                    signer_key + "=" * (-len(signer_key) % 4),
+                    altchars=b"-_",
+                    validate=True,
+                )
+                Ed25519PrivateKey.from_private_bytes(raw_key)
+            except (ValueError, TypeError):
+                raise ValueError("external_dispatch_signer_configuration_invalid") from None
         if self.artifacts_enabled:
             if self.artifact_store == "memory" and self.app_environment not in {"local", "test"}:
                 raise ValueError("artifact_memory_store_local_only")

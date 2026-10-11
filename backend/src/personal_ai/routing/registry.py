@@ -210,24 +210,12 @@ class EndpointRegistry:
         current = next((profile for profile in snapshot.profiles if profile.ref == ref), None)
         if current is None:
             raise RegistryRevisionChangedError("endpoint_profile_version_changed")
-        policy = current.access_policy
-        reasons: list[str] = []
-        if not current.enabled:
-            reasons.append("endpoint_disabled_or_unconfigured")
-        if (
-            policy is None
-            or policy.selection_mode != "explicit_only"
-            or policy.automation_eligible
-        ):
-            reasons.append("endpoint_not_explicitly_selectable")
-        if policy is None or policy.credential_runtime != credential_runtime:
-            reasons.append("endpoint_credential_runtime_mismatch")
-        if policy is None or policy.model_discovery != model_discovery:
-            reasons.append("endpoint_model_discovery_mismatch")
-        if policy is not None and policy.hosted_conversation_state:
-            reasons.append("endpoint_hosted_history_forbidden")
-        for capability in sorted(required_capabilities - current.capabilities):
-            reasons.append(f"capability_missing:{capability}")
+        reasons = list(self._explicit_profile_reasons(
+            current,
+            required_capabilities=required_capabilities,
+            credential_runtime=credential_runtime,
+            model_discovery=model_discovery,
+        ))
         data_use = current.data_use_policy
         if data_use.status != "approved":
             reasons.append("provider_data_use_not_approved")
@@ -236,6 +224,53 @@ class EndpointRegistry:
         if reasons:
             raise EndpointNotAdmissibleError(tuple(reasons))
         return current
+
+    def list_explicitly_selectable(
+        self,
+        *,
+        required_capabilities: frozenset[str],
+        credential_runtime: str = "user_local",
+        model_discovery: str = "account_specific",
+        require_external_transport: bool = True,
+    ) -> tuple[EndpointProfile, ...]:
+        """Canonical static discovery projection; dynamic sensitivity is rechecked later."""
+        snapshot = self.refresh()
+        return tuple(
+            profile
+            for profile in snapshot.profiles
+            if self._explicit_profile_reasons(
+                profile,
+                required_capabilities=required_capabilities,
+                credential_runtime=credential_runtime,
+                model_discovery=model_discovery,
+            ) == ()
+            and profile.data_use_policy.status == "approved"
+            and (not require_external_transport or profile.external_transport_id is not None)
+        )
+
+    @staticmethod
+    def _explicit_profile_reasons(
+        profile: EndpointProfile,
+        *,
+        required_capabilities: frozenset[str],
+        credential_runtime: str,
+        model_discovery: str,
+    ) -> tuple[str, ...]:
+        policy = profile.access_policy
+        reasons: list[str] = []
+        if not profile.enabled:
+            reasons.append("endpoint_disabled_or_unconfigured")
+        if policy is None or policy.selection_mode != "explicit_only" or policy.automation_eligible:
+            reasons.append("endpoint_not_explicitly_selectable")
+        if policy is None or policy.credential_runtime != credential_runtime:
+            reasons.append("endpoint_credential_runtime_mismatch")
+        if policy is None or policy.model_discovery != model_discovery:
+            reasons.append("endpoint_model_discovery_mismatch")
+        if policy is not None and policy.hosted_conversation_state:
+            reasons.append("endpoint_hosted_history_forbidden")
+        for capability in sorted(required_capabilities - profile.capabilities):
+            reasons.append(f"capability_missing:{capability}")
+        return tuple(reasons)
 
     def upsert(self, profile: EndpointProfile) -> EndpointRegistrySnapshot:
         """Add a profile or replace it at a strictly higher profile version."""

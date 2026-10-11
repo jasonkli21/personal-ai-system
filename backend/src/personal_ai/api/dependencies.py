@@ -15,7 +15,12 @@ from personal_ai.applications.registry import (
 )
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner
-from personal_ai.auth.scope import STANDALONE_APPLICATION_ID, RequestScope
+from personal_ai.auth.scope import (
+    STANDALONE_APPLICATION_ID,
+    DenyWorkspaceAuthorizer,
+    RequestScope,
+    WorkspaceAuthorizer,
+)
 from personal_ai.context import ContextAssembler
 from personal_ai.context.adapters import (
     BuiltInContextPermissionRevalidator,
@@ -27,6 +32,7 @@ from personal_ai.context.adapters import (
 from personal_ai.context.contracts import ConversationSummaryRepository
 from personal_ai.context.profile import GlobalProfileContextProviderFactory
 from personal_ai.context.providers import ContextProviderCoordinator
+from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.context.traces import ContextTraceRepository
 from personal_ai.llm import GeminiLLMClient, GenerationClient
 from personal_ai.llm.context import GeminiConversationSummarizer, GeminiTokenCounter
@@ -34,6 +40,7 @@ from personal_ai.llm.memory import GeminiMemoryAdapter
 from personal_ai.memory.lifecycle_jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
+from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.services.external_turn_authority import PrincipalBoundExternalTurnAuthority
 from personal_ai.services.external_turns import ExternalTurnService
@@ -55,6 +62,11 @@ def get_current_principal(request: Request):
     if principal is None:
         raise HTTPException(status_code=401, detail="authentication_required")
     return principal
+
+
+def get_workspace_authorizer() -> WorkspaceAuthorizer:
+    """Fail closed until the app injects a canonical membership adapter."""
+    return DenyWorkspaceAuthorizer()
 
 
 def get_request_scope(request: Request) -> RequestScope:
@@ -213,6 +225,21 @@ def get_context_assembler(
     )
 
 
+def get_external_context_assembler(
+    automatic: Annotated[ContextAssembler, Depends(get_context_assembler)],
+) -> ContextAssembler:
+    """Share all context semantics while disabling remote count and summary calls."""
+    return ContextAssembler(
+        automatic.settings,
+        EstimatedTokenCounter(),
+        automatic.summaries,
+        summarizer=None,
+        context_provider_coordinator=automatic.context_provider_coordinator,
+        permission_revalidator=automatic.permission_revalidator,
+        context_planner=automatic.context_planner,
+    )
+
+
 def get_memory_repository(settings: Annotated[Settings, Depends(get_settings)]):
     if not settings.memory_enabled and not settings.memory_inspection_enabled:
         return None
@@ -302,32 +329,36 @@ def get_external_dispatch_signer(
     )
 
 
+def get_endpoint_registry(settings: Annotated[Settings, Depends(get_settings)]) -> EndpointRegistry:
+    """Expose routing-owned endpoint admission independently of usage accounting."""
+    factory = persistence_factory(settings)
+    try:
+        return factory.endpoint_profile_resolver(settings).endpoint_registry
+    except Exception:  # noqa: BLE001 - unavailable routing authority fails closed.
+        raise HTTPException(status_code=503, detail="external_endpoint_registry_unavailable") from None
+
+
 def get_external_turn_service(
-    request: Request,
     chat: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
     context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
     principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
     conversations: Annotated[ConversationRepository, Depends(get_conversation_repository)],
     messages: Annotated[MessageRepository, Depends(get_message_repository)],
-    context_assembler: Annotated[ContextAssembler, Depends(get_context_assembler)],
-    usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
+    context_assembler: Annotated[ContextAssembler, Depends(get_external_context_assembler)],
+    registry: Annotated[EndpointRegistry, Depends(get_endpoint_registry)],
     settings: Annotated[Settings, Depends(get_settings)],
     signer: Annotated[DispatchGrantSigner | None, Depends(get_external_dispatch_signer)],
+    workspace_authorizer: Annotated[WorkspaceAuthorizer, Depends(get_workspace_authorizer)],
 ) -> ExternalTurnService:
     """Compose external execution over existing P18, context, auth, and chat seams."""
-    resolver = getattr(usage, "endpoint_profile_resolver", None)
-    if resolver is None:
-        raise HTTPException(status_code=503, detail="external_endpoint_registry_unavailable")
-    try:
-        registry = resolver.endpoint_registry
-    except Exception:  # noqa: BLE001 - registry failure must fail closed at the API boundary.
-        raise HTTPException(status_code=503, detail="external_endpoint_registry_unavailable") from None
+    if not settings.external_turn_acceptance_enabled:
+        raise HTTPException(status_code=404, detail="external_execution_not_accepted")
     authority = PrincipalBoundExternalTurnAuthority(
         principal=principal,
         conversations=conversations,
         messages=messages,
         permission_revalidator=context_assembler.permission_revalidator,
-        workspace_authorizer=getattr(request.app.state, "workspace_authorizer", None),
+        workspace_authorizer=workspace_authorizer,
         allow_development_principal=(
             settings.auth_mode == "development"
             and settings.app_environment in {"local", "test"}
@@ -339,4 +370,5 @@ def get_external_turn_service(
         registry=registry,
         authority=authority,
         signer=signer,
+        context_assembler=context_assembler,
     )

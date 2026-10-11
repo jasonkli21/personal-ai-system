@@ -50,6 +50,7 @@ class PersistenceFactory(Protocol):
     def safeguard_store(self) -> SafeguardStore: ...
     def provider_rate_limiter(self, provider: str, repository=None): ...
     def provider_usage_accounting(self, settings): ...
+    def endpoint_profile_resolver(self, settings): ...
     def routing_decision_repository(self): ...
     def provider_matrix_evaluation_repository(self): ...
     def artifact_service(self, settings): ...
@@ -63,6 +64,7 @@ class PostgresDynamoPersistenceFactory:
         self.database = database
         self.runtime_table = runtime_table
         self._artifact_services = {}
+        self._endpoint_profile_resolver = None
 
     def conversation_repository(self):
         from personal_ai.persistence.dynamodb import DynamoDBConversationRepository
@@ -238,14 +240,11 @@ class PostgresDynamoPersistenceFactory:
 
     def provider_usage_accounting(self, settings):
         from personal_ai.persistence.dynamodb_usage import DynamoDBProviderUsageEventRepository
-        from personal_ai.persistence.postgres_routing import PostgresEndpointRegistryRepository
         from personal_ai.persistence.postgres_usage import PostgresProviderUsageAccounting
-        from personal_ai.usage.profiles import EndpointProfileResolver
 
         events = DynamoDBProviderUsageEventRepository(
             self.runtime_table, retention_days=settings.provider_usage_retention_days
         )
-        registry_repository = PostgresEndpointRegistryRepository(self.database)
         return PostgresProviderUsageAccounting(
             self.database,
             retention_days=settings.provider_usage_retention_days,
@@ -254,14 +253,23 @@ class PostgresDynamoPersistenceFactory:
             default_cooldown_seconds=settings.provider_usage_default_cooldown_seconds,
             header_freshness_seconds=settings.provider_usage_header_freshness_seconds,
             stale_attempt_seconds=settings.provider_usage_stale_attempt_seconds,
-            endpoint_profile_resolver=EndpointProfileResolver.from_settings(
-                settings, registry_repository
-            ),
+            endpoint_profile_resolver=self.endpoint_profile_resolver(settings),
             operational_event_writer=events.publish,
             operational_event_purger=lambda now, limit: events.purge_expired(
                 now=now, limit=limit
             ),
         )
+
+    def endpoint_profile_resolver(self, settings):
+        """Routing/profile registry dependency shared with accounting at composition."""
+        if self._endpoint_profile_resolver is None:
+            from personal_ai.persistence.postgres_routing import PostgresEndpointRegistryRepository
+            from personal_ai.usage.profiles import EndpointProfileResolver
+
+            self._endpoint_profile_resolver = EndpointProfileResolver.from_settings(
+                settings, PostgresEndpointRegistryRepository(self.database)
+            )
+        return self._endpoint_profile_resolver
 
     def close(self) -> None:
         for service in self._artifact_services.values():

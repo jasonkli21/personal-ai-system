@@ -46,6 +46,8 @@ export type TurnAttribution = {
   connection_revision?: number | null;
 };
 
+export type ContextSourceClass = "global_profile" | "domain_profile" | "domain_current" | "domain_history" | "ai_memory" | "conversation" | "external_research" | "tool_result" | "client_context";
+
 export type ConversationDetail = { conversation: Conversation; messages: Message[] };
 type ErrorPayload = { error?: { message?: string } };
 type MessageCreatedEvent = { message: Message };
@@ -75,6 +77,7 @@ export type ContinuationRequest = {
   idempotency_key: string;
   choice: ExecutionChoice;
   candidate_message_ids?: string[] | null;
+  excluded_source_classes?: ContextSourceClass[];
 };
 export type ContextPackage = {
   schema_version: "context-package-v1";
@@ -82,6 +85,7 @@ export type ContextPackage = {
   included_sources: { category: string; item_count: number; sensitivity: string[]; authority: string[] }[];
   excluded_sources: { category: string; reason: string; item_count: number }[];
   selected_message_count: number;
+  summarized_source_message_count?: number;
   input_tokens: number;
   counter_kind: "estimated";
   effective_sensitivity: string;
@@ -107,6 +111,7 @@ export type PreparedExecution = {
     deployment_id: string;
     serializer_id: string;
     runtime_id: string;
+    external_transport_id?: string | null;
   };
   connection_id: string;
   connection_revision: number;
@@ -123,6 +128,7 @@ export type ExplicitProfileOption = {
   provider_id: string;
   capabilities: string[];
   maximum_sensitivity: string;
+  external_transport_id: string;
 };
 export type ExecutionOptions = {
   modes: ("automatic" | ExternalMode)[];
@@ -138,6 +144,19 @@ export type PreparedExternalTurn = {
   context_package: ContextPackage;
   portable_prompt: string | null;
   connected_execution: PreparedExecution | null;
+};
+export type ContextPreview = {
+  selected_message_count: number;
+  planned_sources: { category: string; operation: string; fields: string[]; max_results: number; max_tokens: number | null }[];
+  excluded_sources: { category: string; reason: string }[];
+};
+export type ExternalTurnReconciliation = {
+  state: "not_found" | "not_external" | "prepared" | "prepared_stale" | "dispatched" | "completed" | "cancelled" | "unknown";
+  message_id: string | null;
+  package_fingerprint?: string | null;
+  mode?: ExternalMode | null;
+  expires_at?: string | null;
+  stale_reason?: string | null;
 };
 export type SignedDispatchGrant = {
   claims: Record<string, unknown>;
@@ -307,6 +326,15 @@ export const conversationsApi = {
   },
   prepareExternal(conversationId: string, continuation: ContinuationRequest, signal?: AbortSignal, scope?: ApplicationScopeRequest) {
     return request<PreparedExternalTurn>(`/conversations/${encodeURIComponent(conversationId)}/external-turns/prepare`, { method: "POST", body: JSON.stringify(continuation), signal }, scope);
+  },
+  previewExternal(conversationId: string, continuation: ContinuationRequest, signal?: AbortSignal, scope?: ApplicationScopeRequest) {
+    return request<ContextPreview>(`/conversations/${encodeURIComponent(conversationId)}/external-turns/preview`, { method: "POST", body: JSON.stringify(continuation), signal }, scope);
+  },
+  reconcileExternal(conversationId: string, idempotencyKey: string, signal?: AbortSignal, scope?: ApplicationScopeRequest) {
+    return request<ExternalTurnReconciliation>(`/conversations/${encodeURIComponent(conversationId)}/external-turns/requests/${encodeURIComponent(idempotencyKey)}`, { signal }, scope);
+  },
+  abandonExternalByKey(conversationId: string, idempotencyKey: string, signal?: AbortSignal, scope?: ApplicationScopeRequest) {
+    return request<Message>(`/conversations/${encodeURIComponent(conversationId)}/external-turns/requests/${encodeURIComponent(idempotencyKey)}/abandon`, { method: "POST", signal }, scope);
   },
   dispatchExternal(conversationId: string, messageId: string, connectedExecution: PreparedExecution, signal?: AbortSignal, scope?: ApplicationScopeRequest) {
     return request<{ proof: SignedDispatchGrant }>(`/conversations/${encodeURIComponent(conversationId)}/external-turns/${encodeURIComponent(messageId)}/dispatch`, { method: "POST", body: JSON.stringify({ connected_execution: connectedExecution }), signal }, scope);

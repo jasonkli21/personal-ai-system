@@ -177,13 +177,16 @@ class ChatTurnService:
         candidate_message_ids=None,
         history_authorizer=None,
         continuation_digest: str,
+        context_assembler: ContextAssembler | None = None,
+        excluded_source_classes=frozenset(),
     ) -> _PreparedTurn:
         # External assembly must not disclose context to an unrelated count/summary provider.
         from personal_ai.context.tokens import EstimatedTokenCounter
 
+        preparation_context = context_assembler or self._context
         if (
-            not isinstance(self._context.counter, EstimatedTokenCounter)
-            or self._context.summarizer is not None
+            not isinstance(preparation_context.counter, EstimatedTokenCounter)
+            or preparation_context.summarizer is not None
         ):
             raise ContextPreparationError("external_context_requires_local_preparation")
         if self._application_context is None:
@@ -236,7 +239,50 @@ class ChatTurnService:
             history_authorizer=history_authorizer,
             continuation_digest=continuation_digest,
             user_already_persisted=already_persisted,
+            context_assembler=preparation_context,
+            excluded_source_classes=frozenset(excluded_source_classes) | {"ai_memory"},
         )
+
+    def preview_external_context(
+        self,
+        conversation_id: UUID,
+        content: str,
+        *,
+        candidate_message_ids=None,
+        history_authorizer=None,
+        excluded_source_classes=frozenset(),
+        context_assembler: ContextAssembler | None = None,
+    ):
+        """Return a read-only planner projection without reservation or provider work."""
+        if self._application_context is None:
+            raise ContextPreparationError("application_context_required")
+        context = context_assembler or self._context
+        self._conversations.get(owner_id=self._owner_id, conversation_id=conversation_id)
+        active = self._messages.list_active(
+            owner_id=self._owner_id, conversation_id=conversation_id
+        )
+        history = active
+        if candidate_message_ids is not None:
+            from personal_ai.context.contracts import complete_turns
+
+            requested = set(candidate_message_ids)
+            eligible = complete_turns(active)
+            if requested - {message.id for turn in eligible for message in turn}:
+                raise ContextPreparationError("continuation_source_not_active_completed")
+            history = [
+                message
+                for turn in eligible
+                if any(message.id in requested for message in turn)
+                for message in turn
+            ]
+        if history_authorizer is not None:
+            history_authorizer(tuple(message.id for message in history))
+        plan = context.plan_context(
+            content,
+            self._application_context,
+            excluded_source_classes=frozenset(excluded_source_classes) | {"ai_memory"},
+        )
+        return plan, len(history)
 
     def continue_turn(self, conversation_id: UUID, request) -> AsyncIterator[str]:
         """An automatic continuation uses the configured generation lane and shared assembly."""
@@ -393,6 +439,8 @@ class ChatTurnService:
         history_authorizer=None,
         continuation_digest: str | None = None,
         user_already_persisted: bool = False,
+        context_assembler: ContextAssembler | None = None,
+        excluded_source_classes=frozenset(),
     ) -> _PreparedTurn:
         if self._application_context is None and getattr(
             self._llm, "requires_inference_context", True
@@ -403,8 +451,9 @@ class ChatTurnService:
                 require_matching_endpoint(self._llm, self._context.counter)
             except LLMInvalidRequestError as error:
                 raise ContextPreparationError("generation_counter_endpoint_mismatch") from error
+        context = context_assembler or self._context
         reservation = uuid4()
-        deadline = monotonic() + self._context.settings.request_timeout_seconds
+        deadline = monotonic() + context.settings.request_timeout_seconds
         appended_users = self._messages.prepare_message_turn(
             owner_id=self._owner_id,
             conversation_id=user.conversation_id,
@@ -436,7 +485,11 @@ class ChatTurnService:
             context_plan = None
             use_planned_memory = False
             if self._application_context is not None:
-                context_plan = self._context.plan_context(user.content, self._application_context)
+                context_plan = context.plan_context(
+                    user.content,
+                    self._application_context,
+                    excluded_source_classes=excluded_source_classes,
+                )
                 use_planned_memory = any(
                     selection.provider_id == "ai_memory" and selection.operation == "search"
                     for selection in context_plan.selections
@@ -462,7 +515,7 @@ class ChatTurnService:
                     ),
                     application_context=self._application_context,
                 )
-            assembled = self._context.assemble(
+            assembled = context.assemble(
                 history_for_context,
                 post_active[-1],
                 deadline=deadline,

@@ -12,7 +12,7 @@ import pytest
 
 from personal_ai.persistence.postgres import migration_checksum
 from personal_ai.routing import CounterCompatibility, EndpointRegistrySnapshot
-from personal_ai.routing.contracts import EndpointProfile
+from personal_ai.routing.contracts import EndpointProfile, ProviderAccessPolicy
 from personal_ai.routing.definitions import (
     decode_endpoint_profile_definition,
     encode_current_endpoint_profile,
@@ -40,8 +40,15 @@ def _canonical_legacy_profile(profile):
     return profile
 
 
+def _legacy_profile(profile):
+    """Project the current fixture onto the immutable pre-transport shape."""
+    payload = profile.model_dump(mode="json")
+    payload.pop("external_transport_id", None)
+    return payload
+
+
 def old_snapshot(profile=None, *, reorder=False):
-    profile = (profile or _profile("legacy:profile")).model_dump(mode="json")
+    profile = _legacy_profile(profile or _profile("legacy:profile"))
     for bucket in profile["quota_buckets"]:
         bucket.update(remaining=0, reset_at=None, observed_at=None, fresh_until=None)
     canonical = _canonical_legacy_profile(profile)
@@ -97,6 +104,7 @@ def _profile_with_unordered_fields(profile_id="canonical:profile"):
 
 def _unordered_payload_variants(profile, *, schema_version):
     first = profile.model_dump(mode="json")
+    first.pop("external_transport_id", None)
     first["capabilities"] = ["token_counting", "bounded_generation"]
     first["structured_schema_ids"] = ["schema:z", "schema:a"]
     first["quota_buckets"].sort(key=lambda bucket: bucket["bucket_id"], reverse=True)
@@ -207,7 +215,7 @@ def test_conflicting_immutable_definitions_fail_migration():
     c = MigrationConnection(old_snapshot())
     c.definitions[("legacy:profile", 1)] = (
         1,
-        _profile("legacy:profile", context_limit_tokens=123).model_dump(mode="json"),
+        _legacy_profile(_profile("legacy:profile", context_limit_tokens=123)),
     )
     with pytest.raises(RuntimeError, match="legacy_endpoint_definition_conflict"):
         migrate_routing_authorities(c)
@@ -234,7 +242,7 @@ def test_migration_checksum_is_deterministic_and_covers_frozen_implementation():
 
 
 def test_endpoint_definition_decoders_are_versioned_and_independent_of_current_model(monkeypatch):
-    profile = _profile("legacy:profile").model_dump(mode="json")
+    profile = _legacy_profile(_profile("legacy:profile"))
     profile["quota_buckets"][0].update(remaining=0, reset_at=None, observed_at=None, fresh_until=None)
 
     def changed_current_contract(*args, **kwargs):
@@ -242,7 +250,7 @@ def test_endpoint_definition_decoders_are_versioned_and_independent_of_current_m
 
     monkeypatch.setattr(EndpointProfile, "model_validate", classmethod(changed_current_contract))
     v1 = decode_endpoint_profile_definition(1, profile)
-    v2_profile = _profile("current:profile").model_dump(mode="json")
+    v2_profile = _legacy_profile(_profile("current:profile"))
     v2 = decode_endpoint_profile_definition(2, v2_profile)
 
     assert v1.ref.endpoint_profile_id == "legacy:profile"
@@ -251,7 +259,30 @@ def test_endpoint_definition_decoders_are_versioned_and_independent_of_current_m
     assert v2.ref.endpoint_profile_id == "current:profile"
     assert v2.definition_schema_version == 2
     with pytest.raises(ValueError, match="endpoint_definition_schema_unsupported"):
-        decode_endpoint_profile_definition(4, v2_profile)
+        decode_endpoint_profile_definition(5, v2_profile)
+
+
+def test_v4_endpoint_definition_freezes_external_transport_identity():
+    profile = _profile("current:external").model_copy(
+        update={
+            "access_policy": ProviderAccessPolicy(
+                auth_mode="oauth_public_client",
+                selection_mode="explicit_only",
+                credential_runtime="user_local",
+                model_discovery="account_specific",
+                automation_eligible=False,
+                hosted_conversation_state=False,
+            ),
+            "external_transport_id": "synthetic_local_v1",
+        }
+    )
+
+    encoded = encode_current_endpoint_profile(profile)
+    decoded = decode_endpoint_profile_definition(4, encoded.payload)
+
+    assert encoded.definition_schema_version == 4
+    assert decoded == encoded
+    assert decoded.payload["external_transport_id"] == "synthetic_local_v1"
 
 
 @pytest.mark.parametrize("schema_version", [1, 2])
