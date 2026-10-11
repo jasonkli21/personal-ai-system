@@ -1,12 +1,11 @@
 # Phase 25.2 implementation and verification evidence
 
-Date: 2026-10-10. Review set: `a7294ed55c9ba5f1fcb61077ef17950910b85adb`,
+Date: 2026-10-10. Review basis: commits `a7294ed55c9ba5f1fcb61077ef17950910b85adb`,
 `c243a46f8bffd75085ba07bec2b4be9e3cae5608`,
-`2c9db878b5c4f504bd172be9fb966449a5b16ace`, and
-`60c261a2df59148049fa3566ab863c1175710f94`. The focused review-fix tests recorded
-here ran against source revision `03fa8c4188c6f2d57132fc2d01de059f2d91505f`. The
-final commit is a documentation-only closeout amendment that records this tested
-source revision.
+`2c9db878b5c4f504bd172be9fb966449a5b16ace`,
+`60c261a2df59148049fa3566ab863c1175710f94`, and review target
+`100353d79f5f608211f4a5d0d2d33838419c9ee9`. Follow-up source fixes and regression
+coverage were verified at `03d967a`; this evidence update makes no behavior changes.
 
 **Disposition: Phase 25.2 remains incomplete.** The local review fixes below are
 implemented and offline-verified, but Phase 15 has no production pre-retrieval
@@ -56,29 +55,25 @@ in-memory repositories. These checks establish local contracts only.
 
 | Check | Result |
 | --- | --- |
-| Focused external-turn, bridge transport, local lifecycle, execution-contract, and persistence tests | 177 passed, 2 skipped |
-| Full backend pytest suite | 1,312 passed, 78 skipped, 1 failed; the single provider-matrix assertion is described below (the full run began before three final focused regression cases were added) |
-| Isolated provider-matrix failure case | Passed (1 test) |
-| Ruff | Passed (`.venv/bin/python -m ruff check .`) |
-| `git diff --check` | Passed for the review-fix source and documentation |
-| DynamoDB external-turn transaction/race/restart tests | 2 skipped; unverified |
+| Focused external-turn, bridge transport, local lifecycle, execution-contract, and persistence tests | 178 passed, 6 skipped |
+| Full backend pytest suite | 1,317 passed, 82 skipped |
+| Ruff | Passed (`backend/.venv/bin/python -m ruff check .`) |
+| `git diff --check` | Passed |
+| DynamoDB external-turn transaction/race/restart and provenance tests | 6 skipped; unverified |
 
-The full backend run began before the final three focused regression cases and the
-last taxonomy values were added. Its one failure was
-`tests/test_provider_matrix.py::test_matrix_uses_generic_profiles_task_contract_and_p21_p19_seams`:
-the full suite produced 77 synthetic cases where the fixture expected 80. The
-isolated rerun passed. This test's provider profiles do not include ChatGPT-plan;
-the failure was not reproduced outside the full suite and remains a suite-level
-verification gap. The final focused rerun included the added local-store schema-2
-migration case, which landed after collection began for the full run.
+The focused run used `backend/.venv/bin/python -m pytest` over external turns,
+execution contracts, ChatGPT bridge transport, local lifecycle, and external-turn
+persistence. The full backend suite then passed with no failures. Two warning
+classes were reported by dependencies during the full suite; neither caused a
+test failure.
 
-The skipped DynamoDB tests require `PERSISTENCE_TEST_DYNAMODB_ENDPOINT`. Docker and
-an isolated DynamoDB-compatible engine were unavailable, so transaction/catalog
-CAS, concurrent finalize, stale recovery, restart/hydration and the new direct
-provenance checks have not been verified against a real engine. Fakes and JSON
-hydration do not establish this behavior. The Makefile backend targets also assume
-a `python` executable on `PATH`; this host lacks it, so checks were run through
-`backend/.venv/bin/python` instead.
+The six skipped DynamoDB tests require
+`PERSISTENCE_TEST_DYNAMODB_ENDPOINT`. This host has no `docker` executable and no
+isolated DynamoDB-compatible endpoint, so transaction/catalog CAS, concurrent
+finalize, stale recovery, restart/hydration, and the new negative provenance cases
+remain unverified against a real engine. Fakes and JSON hydration do not establish
+this behavior. Checks used the repository's `backend/.venv/bin/python` because a
+system `python` executable is not available on `PATH`.
 
 ## Required gates and remaining acceptance gaps
 
