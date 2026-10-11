@@ -27,6 +27,7 @@ from personal_ai.context.traces import (
     UnsupportedContextTraceSchemaError,
 )
 from personal_ai.entities import Conversation, Message, MessageRole, MessageStatus
+from personal_ai.entities.turn_execution import transition_message
 from personal_ai.persistence.postgres_memory import EffectGuardToken
 from personal_ai.storage.branches import active_path, descendant_ids, effective_message
 from personal_ai.storage.errors import (
@@ -483,9 +484,16 @@ class DynamoDBMessageRepository:
         error_code: str | None = None,
         updated_at: datetime,
         expected_status: MessageStatus | None = None,
+        expected_message: Message | None = None,
+        expected_branch_digest: str | None = None,
+        replacement: Message | None = None,
     ) -> Message | None:
-        current = self.get(owner_id=owner_id, conversation_id=conversation_id, message_id=message_id)
+        current = self.get(
+            owner_id=owner_id, conversation_id=conversation_id, message_id=message_id
+        )
         if expected_status is not None and current.status is not expected_status:
+            return None
+        if expected_message is not None and current != expected_message:
             return None
         changes = {"status": status.value}
         if content is not None:
@@ -494,40 +502,87 @@ class DynamoDBMessageRepository:
             changes["model"] = model
         if error_code is not None:
             changes["error_code"] = error_code
-        updated = current.model_copy(update={"status": status, **{k: v for k, v in changes.items() if k != "status"}})
+        updated = current.model_copy(
+            update={"status": status, **{k: v for k, v in changes.items() if k != "status"}}
+        )
+        updated = transition_message(current, replacement or updated)
+        if (updated.id, updated.owner_id, updated.conversation_id) != (
+            current.id,
+            current.owner_id,
+            current.conversation_id,
+        ):
+            raise ConversationConflictError("message identity changed")
         scope = _scope_of(current)
         conversation = self.conversations.get(owner_id=owner_id, conversation_id=conversation_id)
         meta_key = _conversation_keys(scope, conversation_id, owner_id).meta
         metadata = self.table.get(meta_key)
         if metadata is None:
             raise ResourceNotFoundError("conversation not found")
+        conversation = _conversation_from_item(metadata)
         revision = int(metadata["revision"])
+        if expected_branch_digest is not None:
+            active = self.list_active(owner_id=owner_id, conversation_id=conversation_id)
+            stable = self.table.get(meta_key)
+            if (
+                stable is None
+                or int(stable["revision"]) != revision
+                or not active
+                or active[-1].id != message_id
+                or fingerprint(active[:-1], include_state=True) != expected_branch_digest
+            ):
+                return None
         updated_conversation = conversation.model_copy(update={"updated_at": _utc(updated_at)})
         message_key = _message_key(scope, conversation_id, current.created_at, current.id, owner_id)
         names = {"#status": "status", "#owner": "owner_id", "#payload": "payload"}
-        message_values: dict[str, Any] = {":status": status.value, ":owner": owner_id,
-                                          ":message_payload": _json(_message_payload(updated))}
+        message_values: dict[str, Any] = {
+            ":status": updated.status.value,
+            ":owner": owner_id,
+            ":message_payload": _json(_message_payload(updated)),
+        }
         message_expression = "SET #status=:status,#payload=:message_payload"
         condition = "#owner=:owner"
         if expected_status is not None:
             condition += " AND #status=:expected"
             message_values[":expected"] = expected_status.value
+        if expected_message is not None:
+            condition += " AND #payload=:old_payload"
+            message_values[":old_payload"] = _json(_message_payload(expected_message))
         operations = [
-            _update(message_key, message_expression, names=names, values=message_values, condition=condition),
-            _update(meta_key,
-                    "SET #payload=:conversation_payload,#updated=:updated,#revision=:next",
-                    names={"#payload": "payload", "#updated": "updated_at", "#revision": "revision",
-                           "#owner": "owner_id"},
-                    values={":conversation_payload": _json(_conversation_payload(updated_conversation)),
-                            ":updated": _timestamp(updated_at), ":next": revision + 1, ":owner": owner_id,
-                            ":revision": revision},
-                    condition="#owner=:owner AND revision=:revision AND attribute_not_exists(effect_guard)"),
+            _update(
+                message_key,
+                message_expression,
+                names=names,
+                values=message_values,
+                condition=condition,
+            ),
+            _update(
+                meta_key,
+                "SET #payload=:conversation_payload,#updated=:updated,#revision=:next",
+                names={
+                    "#payload": "payload",
+                    "#updated": "updated_at",
+                    "#revision": "revision",
+                    "#owner": "owner_id",
+                },
+                values={
+                    ":conversation_payload": _json(_conversation_payload(updated_conversation)),
+                    ":updated": _timestamp(updated_at),
+                    ":next": revision + 1,
+                    ":owner": owner_id,
+                    ":revision": revision,
+                },
+                condition="#owner=:owner AND revision=:revision AND attribute_not_exists(effect_guard)",
+            ),
         ]
-        self._append_catalog_move(operations, scope, conversation, updated_conversation, revision + 1)
+        self._append_catalog_move(
+            operations, scope, conversation, updated_conversation, revision + 1
+        )
         try:
             self.table.transact(operations)
         except Exception as error:
-            if _conditional_failure(error) and expected_status is not None:
+            if _conditional_failure(error) and (
+                expected_status is not None or expected_message is not None
+            ):
                 return None
             if _conditional_failure(error):
                 raise ConversationConflictError("conversation changed") from error
@@ -567,14 +622,19 @@ class DynamoDBMessageRepository:
         active = active_path(history)
         if [item.id for item in active] != list(expected_active_ids):
             raise ConversationConflictError("conversation changed; retry the request")
-        if any(item.status is MessageStatus.STREAMING for item in active):
+        if any(item.status in {MessageStatus.STREAMING, MessageStatus.PENDING} for item in active):
             raise ConversationConflictError("a response is already in progress")
-        if supersede_from_message_id is not None and supersede_from_message_id not in {item.id for item in active}:
+        if supersede_from_message_id is not None and supersede_from_message_id not in {
+            item.id for item in active
+        }:
             raise ConversationConflictError("retry target is no longer active")
         history_ids = {item.id for item in history}
         if any(item.id in history_ids for item in messages):
             raise ConversationConflictError("message already exists")
-        if any(item.owner_id != owner_id or item.conversation_id != conversation_id for item in messages):
+        if any(
+            item.owner_id != owner_id or item.conversation_id != conversation_id
+            for item in messages
+        ):
             raise ResourceNotFoundError("conversation not found")
         conversation = _conversation_from_item(metadata)
         updated_conversation = conversation.model_copy(update={"updated_at": _utc(updated_at)})
@@ -584,27 +644,46 @@ class DynamoDBMessageRepository:
             target = next((item for item in history if item.id == supersede_from_message_id), None)
             if target is None:
                 raise ConversationConflictError("retry target is no longer active")
-            operations.append(_update(
-                _message_key(scope, conversation_id, target.created_at, target.id, owner_id),
-                "SET #status=:status,#payload=:payload",
-                names={"#status": "status", "#owner": "owner_id", "#payload": "payload"},
-                values={":status": MessageStatus.SUPERSEDED.value, ":owner": owner_id,
-                        ":payload": _json(_message_payload(target.model_copy(update={"status": MessageStatus.SUPERSEDED})))},
-                condition="#owner=:owner AND #status <> :status",
-            ))
+            operations.append(
+                _update(
+                    _message_key(scope, conversation_id, target.created_at, target.id, owner_id),
+                    "SET #status=:status,#payload=:payload",
+                    names={"#status": "status", "#owner": "owner_id", "#payload": "payload"},
+                    values={
+                        ":status": MessageStatus.SUPERSEDED.value,
+                        ":owner": owner_id,
+                        ":payload": _json(
+                            _message_payload(
+                                target.model_copy(update={"status": MessageStatus.SUPERSEDED})
+                            )
+                        ),
+                    },
+                    condition="#owner=:owner AND #status <> :status",
+                )
+            )
         for message in messages:
             canonical = _message_item(message, scope)
             locator = _message_locator(message, scope)
-            operations.extend([
-                _put(canonical, condition="attribute_not_exists(PK)"),
-                _put(locator, condition="attribute_not_exists(PK)"),
-            ])
+            operations.extend(
+                [
+                    _put(canonical, condition="attribute_not_exists(PK)"),
+                    _put(locator, condition="attribute_not_exists(PK)"),
+                ]
+            )
         update_expression = "SET #payload=:payload,#updated=:updated,#revision=:next"
-        names = {"#payload": "payload", "#updated": "updated_at", "#revision": "revision",
-                 "#owner": "owner_id"}
-        values: dict[str, Any] = {":payload": _json(_conversation_payload(updated_conversation)),
-                                  ":updated": _timestamp(updated_at), ":next": next_revision,
-                                  ":owner": owner_id, ":revision": revision}
+        names = {
+            "#payload": "payload",
+            "#updated": "updated_at",
+            "#revision": "revision",
+            "#owner": "owner_id",
+        }
+        values: dict[str, Any] = {
+            ":payload": _json(_conversation_payload(updated_conversation)),
+            ":updated": _timestamp(updated_at),
+            ":next": next_revision,
+            ":owner": owner_id,
+            ":revision": revision,
+        }
         condition = "#owner=:owner AND revision=:revision AND attribute_not_exists(effect_guard)"
         if complete_preparation:
             condition += " AND context_preparation_id=:preparation"
@@ -618,19 +697,25 @@ class DynamoDBMessageRepository:
             )
             values[":preparation"] = str(preparation_id)
             values[":started"] = _timestamp(updated_at)
-        operations.append(_update(
-            _conversation_keys(scope, conversation_id, owner_id).meta,
-            update_expression,
-            names=names,
-            values=values,
-            condition=condition,
-        ))
-        self._append_catalog_move(operations, scope, conversation, updated_conversation, next_revision)
+        operations.append(
+            _update(
+                _conversation_keys(scope, conversation_id, owner_id).meta,
+                update_expression,
+                names=names,
+                values=values,
+                condition=condition,
+            )
+        )
+        self._append_catalog_move(
+            operations, scope, conversation, updated_conversation, next_revision
+        )
         try:
             self.table.transact(operations)
         except Exception as error:
             if _conditional_failure(error):
-                raise ConversationConflictError("conversation changed; retry the request") from error
+                raise ConversationConflictError(
+                    "conversation changed; retry the request"
+                ) from error
             raise
         return list(messages)
 
@@ -669,7 +754,15 @@ class DynamoDBMessageRepository:
             raise ResourceNotFoundError("conversation not found")
         history = self._read_history(owner_id, conversation_id, scope, timeout=5)
         active = active_path(history)
-        stale = [m for m in active if m.status is MessageStatus.STREAMING and m.created_at < stale_before]
+        stale = [
+            m
+            for m in active
+            if m.status in {MessageStatus.STREAMING, MessageStatus.PENDING}
+            and (
+                m.created_at < stale_before
+                or (m.execution is not None and m.execution.expires_at <= updated_at)
+            )
+        ]
         started = metadata.get("context_preparation_started_at")
         expired = bool(started and _parse_timestamp(started) < stale_before)
         if not stale and not expired:
@@ -681,29 +774,52 @@ class DynamoDBMessageRepository:
         revision = int(metadata["revision"])
         operations = []
         for message in stale:
-            failed = message.model_copy(update={"status": MessageStatus.FAILED, "error_code": "turn_interrupted"})
-            operations.append(_update(
-                _message_key(scope, conversation_id, message.created_at, message.id, owner_id),
-                "SET #status=:status,#payload=:payload",
-                names={"#status": "status", "#owner": "owner_id", "#payload": "payload"},
-                values={":status": MessageStatus.FAILED.value, ":owner": owner_id,
-                        ":payload": _json(_message_payload(failed))},
-                condition="#owner=:owner AND #status=:streaming",
-                more_values={":streaming": MessageStatus.STREAMING.value},
-            ))
+            failed = transition_message(
+                message,
+                message.model_copy(
+                    update={"status": MessageStatus.FAILED, "error_code": "turn_interrupted"}
+                ),
+            )
+            operations.append(
+                _update(
+                    _message_key(scope, conversation_id, message.created_at, message.id, owner_id),
+                    "SET #status=:status,#payload=:payload",
+                    names={"#status": "status", "#owner": "owner_id", "#payload": "payload"},
+                    values={
+                        ":status": MessageStatus.FAILED.value,
+                        ":owner": owner_id,
+                        ":payload": _json(_message_payload(failed)),
+                    },
+                    condition="#owner=:owner AND #status=:streaming",
+                    more_values={":streaming": message.status.value},
+                )
+            )
         update_expression = "SET #payload=:payload,#updated=:updated,#revision=:next"
         if expired:
             update_expression += " REMOVE context_preparation_id,context_preparation_started_at"
-        operations.append(_update(
-            _conversation_keys(scope, conversation_id, owner_id).meta,
-            update_expression,
-            names={"#payload": "payload", "#updated": "updated_at", "#revision": "revision", "#owner": "owner_id"},
-            values={":payload": _json(_conversation_payload(updated_conversation)),
-                    ":updated": _timestamp(updated_at), ":next": revision + 1,
-                    ":owner": owner_id, ":revision": revision},
-            condition="#owner=:owner AND revision=:revision AND attribute_not_exists(effect_guard)",
-        ))
-        self._append_catalog_move(operations, scope, conversation, updated_conversation, revision + 1)
+        operations.append(
+            _update(
+                _conversation_keys(scope, conversation_id, owner_id).meta,
+                update_expression,
+                names={
+                    "#payload": "payload",
+                    "#updated": "updated_at",
+                    "#revision": "revision",
+                    "#owner": "owner_id",
+                },
+                values={
+                    ":payload": _json(_conversation_payload(updated_conversation)),
+                    ":updated": _timestamp(updated_at),
+                    ":next": revision + 1,
+                    ":owner": owner_id,
+                    ":revision": revision,
+                },
+                condition="#owner=:owner AND revision=:revision AND attribute_not_exists(effect_guard)",
+            )
+        )
+        self._append_catalog_move(
+            operations, scope, conversation, updated_conversation, revision + 1
+        )
         self.table.transact(operations)
 
     def supersede_path(self, *, owner_id: str, conversation_id: UUID, message_id: UUID, updated_at: datetime):

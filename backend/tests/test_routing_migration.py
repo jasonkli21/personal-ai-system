@@ -251,7 +251,7 @@ def test_endpoint_definition_decoders_are_versioned_and_independent_of_current_m
     assert v2.ref.endpoint_profile_id == "current:profile"
     assert v2.definition_schema_version == 2
     with pytest.raises(ValueError, match="endpoint_definition_schema_unsupported"):
-        decode_endpoint_profile_definition(3, v2_profile)
+        decode_endpoint_profile_definition(4, v2_profile)
 
 
 @pytest.mark.parametrize("schema_version", [1, 2])

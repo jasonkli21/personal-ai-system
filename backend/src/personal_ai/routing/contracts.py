@@ -9,7 +9,14 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 Sensitivity = Literal["public", "personal", "sensitive", "restricted"]
 ExecutionMode = Literal["STRICT_FREE", "EXPLICIT_BYOK", "CHATGPT_PLAN"]
@@ -233,6 +240,15 @@ class EndpointRef(_FrozenContract):
         return _valid_fact_id(value)
 
 
+class ProviderAccessPolicy(_FrozenContract):
+    auth_mode: Literal["service", "oauth_public_client", "none"] = "service"
+    selection_mode: Literal["automatic", "explicit_only"] = "automatic"
+    credential_runtime: Literal["managed", "user_local", "none"] = "managed"
+    model_discovery: Literal["configured", "account_specific"] = "configured"
+    automation_eligible: bool = True
+    hosted_conversation_state: bool = False
+
+
 class EndpointProfile(_FrozenContract):
     """A callable provider/model/account/credential/cost combination."""
 
@@ -268,8 +284,16 @@ class EndpointProfile(_FrozenContract):
     runtime_id: str
     structured_schema_ids: tuple[str, ...] = Field(default=(), max_length=128)
     counter: CounterCompatibility | None = None
+    access_policy: ProviderAccessPolicy | None = None
     quota_membership: Literal["verified", "unknown", "ambiguous"] = "unknown"
     quota_buckets: tuple[QuotaBucket, ...] = Field(default=(), max_length=32)
+
+    @model_serializer(mode="wrap")
+    def serialize_profile(self, handler):
+        payload = handler(self)
+        if self.access_policy is None:
+            payload.pop("access_policy", None)
+        return payload
 
     @property
     def ref(self) -> EndpointRef:
@@ -315,6 +339,24 @@ class EndpointProfile(_FrozenContract):
 
     @model_validator(mode="after")
     def validate_profile_contract(self) -> EndpointProfile:
+        if self.provider_id == "openai_chatgpt_plan":
+            required = ProviderAccessPolicy(
+                auth_mode="oauth_public_client",
+                selection_mode="explicit_only",
+                credential_runtime="user_local",
+                model_discovery="account_specific",
+                automation_eligible=False,
+                hosted_conversation_state=False,
+            )
+            if (
+                self.access_policy != required
+                or self.execution_mode != "CHATGPT_PLAN"
+                or self.strict_free_enabled
+                or self.cost_class != "SUBSCRIPTION"
+                or self.credential_source != "user_runtime"
+                or self.quota_buckets
+            ):
+                raise ValueError("chatgpt_plan_requires_explicit_local_subscription_policy")
         bucket_ids = [bucket.bucket_id for bucket in self.quota_buckets]
         if len(set(bucket_ids)) != len(bucket_ids):
             raise ValueError("endpoint_quota_bucket_duplicate")

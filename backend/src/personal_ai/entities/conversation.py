@@ -2,11 +2,13 @@
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field, field_validator
 
 from personal_ai.auth.scope import ApplicationScopedRecord
+from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
 
 MAX_MESSAGE_CONTENT_CHARS = 20_000
 
@@ -21,6 +23,7 @@ class MessageRole(StrEnum):
 class MessageStatus(StrEnum):
     """Durable states for append-only messages and replacements."""
 
+    PENDING = "pending"
     STREAMING = "streaming"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -68,3 +71,6 @@ class Message(TimestampedRecord):
     supersedes_message_id: UUID | None = None
     model: str | None = Field(default=None, max_length=200)
     error_code: str | None = Field(default=None, max_length=100)
+    error_fact_source: Literal["server_observed", "client_reported"] | None = None
+    attribution: TurnAttribution | None = None
+    execution: TurnReservation | None = None

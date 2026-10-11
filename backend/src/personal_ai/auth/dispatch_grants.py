@@ -1,18 +1,19 @@
-"""Pinned asymmetric proof verification for a user-controlled execution boundary.
+"""Pinned asymmetric proofs for a user-controlled execution boundary.
 
-No cloud issuance endpoint exists here. A future issuer must authorize shared context
-and active turn/source versions before signing; signatures do not replace that policy.
+Signing is consumed only by the gated shared turn service after authorization and
+branch/source rechecks. No HTTP issuer is composed; signatures do not replace policy.
 """
 
 from __future__ import annotations
 
 import base64
 import json
+from datetime import datetime
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.llm.external import PreparedExecution
@@ -101,3 +102,47 @@ class DispatchGrantVerifier:
         except (InvalidSignature, ValueError):
             raise InvalidDispatchGrant() from None
         return claims
+
+
+class DispatchGrantSigner:
+    """Server-only signer. The orchestration service supplies already checked claims."""
+
+    def __init__(self, *, issuer: str, key_id: str, key: Ed25519PrivateKey):
+        self.issuer, self.key_id, self._key = issuer, key_id, key
+
+    def sign(
+        self,
+        package: PreparedExecution,
+        *,
+        caller_id: UUID,
+        audience: UUID,
+        now: datetime,
+        expires_at: datetime,
+    ) -> SignedDispatchGrant:
+        if (
+            now.tzinfo is None
+            or expires_at.tzinfo is None
+            or not 0 < (expires_at - now).total_seconds() <= 120
+        ):
+            raise InvalidDispatchGrant()
+        claims = DispatchGrant(
+            issuer=self.issuer,
+            key_id=self.key_id,
+            audience=audience,
+            caller_id=caller_id,
+            grant_id=uuid4(),
+            package_hash=package.fingerprint,
+            connection_id=package.connection_id,
+            provider_id=package.provider_id,
+            model_id=package.model_id,
+            policy_version=package.policy_version,
+            effective_sensitivity=package.effective_sensitivity,
+            issued_at=int(now.timestamp()),
+            expires_at=int(expires_at.timestamp()),
+        )
+        return SignedDispatchGrant(
+            claims=claims,
+            signature=base64.urlsafe_b64encode(self._key.sign(claims.canonical()))
+            .decode()
+            .rstrip("="),
+        )

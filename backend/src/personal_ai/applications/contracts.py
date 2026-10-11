@@ -174,6 +174,7 @@ class ApplicationContextPolicy(BaseModel):
     provider_policies: tuple[ContextProviderPolicy, ...] = Field(
         default_factory=_default_context_provider_policies, max_length=32
     )
+    external_execution_modes: tuple[Literal["connected_provider", "manual_external"], ...] = ()
     maximum_model_sensitivity: ContextSensitivity = "sensitive"
     unknown_sensitivity: Literal["deny"] = "deny"
     cross_application: Literal["deny"] = "deny"

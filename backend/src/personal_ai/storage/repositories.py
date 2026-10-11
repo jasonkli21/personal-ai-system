@@ -71,6 +71,9 @@ class MessageRepository(Protocol):
         error_code: str | None = None,
         updated_at: datetime,
         expected_status: MessageStatus | None = None,
+        expected_message: Message | None = None,
+        expected_branch_digest: str | None = None,
+        replacement: Message | None = None,
     ) -> Message | None: ...
 
     def supersede_path(

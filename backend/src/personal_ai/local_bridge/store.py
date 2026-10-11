@@ -16,6 +16,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from personal_ai.local_bridge.status import CoarseUsage
+
 try:
     import fcntl
 except ImportError:  # Explicit unsupported-platform failure, no file fallback.
@@ -50,6 +52,7 @@ class Registration(BaseModel):
         "unavailable",
         "configuration_error",
     ] = "disconnected"
+    usage: CoarseUsage = Field(default_factory=CoarseUsage)
     refresh_pending: bool = False
     remote_revocation: Literal["unknown", "confirmed", "unconfirmed"] = "unknown"
 

@@ -373,6 +373,14 @@ def _assess(
     now: datetime,
 ) -> CandidateAssessment:
     reasons: list[str] = []
+    if profile.provider_id == "openai_chatgpt_plan" or (
+        profile.access_policy is not None
+        and (
+            not profile.access_policy.automation_eligible
+            or profile.access_policy.selection_mode == "explicit_only"
+        )
+    ):
+        reasons.append("explicit_only_endpoint")
     if requirements.execution_mode != "STRICT_FREE":
         reasons.append("execution_mode_not_automatic_strict_free")
     if not profile.enabled:

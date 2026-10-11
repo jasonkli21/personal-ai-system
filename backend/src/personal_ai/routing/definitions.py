@@ -16,7 +16,7 @@ from typing import Any
 
 from personal_ai.routing.contracts import EndpointProfile, EndpointRef
 
-CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION = 2
+CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION = 3
 _SAFE_ID = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9._:/@+-]{0,199}$")
 _PROFILE_FIELDS = frozenset(
     {
@@ -102,7 +102,7 @@ def encode_current_endpoint_profile(profile: EndpointProfile) -> EndpointProfile
     """Encode the current model using the frozen V2 definition representation."""
     profile = EndpointProfile.model_validate(profile.model_dump())
     return decode_endpoint_profile_definition(
-        CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION,
+        CURRENT_ENDPOINT_DEFINITION_SCHEMA_VERSION if profile.access_policy is not None else 2,
         profile.model_dump(mode="json"),
         expected_endpoint_profile_id=profile.endpoint_profile_id,
         expected_profile_version=profile.profile_version,
@@ -129,6 +129,29 @@ def decode_endpoint_profile_definition(
         normalized = _decode_v1(payload)
     elif definition_schema_version == 2:
         normalized = _decode_v2(payload)
+    elif definition_schema_version == 3:
+        base = {k: v for k, v in payload.items() if k != "access_policy"}
+        normalized = _decode_v2(base)
+        if "access_policy" in payload:
+            access = payload["access_policy"]
+            choices = {
+                "auth_mode": {"service", "oauth_public_client", "none"},
+                "selection_mode": {"automatic", "explicit_only"},
+                "credential_runtime": {"managed", "user_local", "none"},
+                "model_discovery": {"configured", "account_specific"},
+            }
+            if (
+                not isinstance(access, dict)
+                or set(access)
+                != set(choices) | {"automation_eligible", "hosted_conversation_state"}
+                or any(
+                    not isinstance(access[k], str) or access[k] not in v for k, v in choices.items()
+                )
+                or type(access["automation_eligible"]) is not bool
+                or type(access["hosted_conversation_state"]) is not bool
+            ):
+                raise ValueError("endpoint_definition_payload_invalid")
+            normalized["access_policy"] = dict(access)
     else:
         raise ValueError("endpoint_definition_schema_unsupported")
 
@@ -137,8 +160,10 @@ def decode_endpoint_profile_definition(
     if (
         endpoint_profile_id is None
         or profile_version is None
-        or (expected_endpoint_profile_id is not None
-            and endpoint_profile_id != expected_endpoint_profile_id)
+        or (
+            expected_endpoint_profile_id is not None
+            and endpoint_profile_id != expected_endpoint_profile_id
+        )
         or (expected_profile_version is not None and profile_version != expected_profile_version)
     ):
         raise ValueError("endpoint_definition_identity_mismatch")
@@ -174,9 +199,7 @@ def _decode_v2(payload: dict[str, Any]) -> dict[str, Any]:
 def _canonicalize_unordered_fields(profile: dict[str, Any]) -> None:
     """Normalize the set-like fields shared by the frozen V1 and V2 shapes."""
     profile["capabilities"] = _sorted_string_values(profile["capabilities"])
-    profile["structured_schema_ids"] = _sorted_string_values(
-        profile["structured_schema_ids"]
-    )
+    profile["structured_schema_ids"] = _sorted_string_values(profile["structured_schema_ids"])
     buckets = profile["quota_buckets"]
     for bucket in buckets:
         bucket["operations"] = _sorted_string_values(bucket["operations"])

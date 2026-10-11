@@ -351,6 +351,10 @@ class LocalChatGPTBridge:
                             if safe_tail:
                                 yield GenerationEvent.text_delta(safe_tail)
                             metadata = event.metadata
+                            await anyio.to_thread.run_sync(
+                                self.lifecycle.observe_usage, snapshot.connection_id,
+                                snapshot.revision, metadata.error_code, metadata.status == "success",
+                            )
                             if metadata.error_code not in {
                                 "bridge_timeout_unknown",
                                 "bridge_transport_unknown",
@@ -368,7 +372,11 @@ class LocalChatGPTBridge:
                     await stream.aclose()
         except CredentialEcho:
             raise BridgeDenied("bridge_credential_echo") from None
-        except (TimeoutError, BridgeDenied, LocalStoreError, BridgeProviderFailure):
+        except BridgeProviderFailure as error:
+            await anyio.to_thread.run_sync(self.lifecycle.observe_usage,
+                str(package.connection_id), package.connection_revision, error.code)
+            raise
+        except (TimeoutError, BridgeDenied, LocalStoreError):
             # Caller handles safe denial; an already claimed receipt remains fenced.
             raise
 

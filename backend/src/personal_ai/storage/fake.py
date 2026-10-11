@@ -9,6 +9,7 @@ from uuid import UUID
 
 from personal_ai.auth.scope import scope_matches, scoped_record
 from personal_ai.entities import Conversation, Message, MessageStatus
+from personal_ai.entities.turn_execution import transition_message
 from personal_ai.storage.branches import active_path, descendant_ids, effective_message
 from personal_ai.storage.errors import (
     ConversationConflictError,
@@ -117,14 +118,19 @@ class InMemoryMessageRepository:
                 [
                     item
                     for item in self._messages.values()
-                    if item.owner_id == owner_id and item.conversation_id == conversation_id
+                    if item.owner_id == owner_id
+                    and item.conversation_id == conversation_id
                     and scope_matches(item)
                 ]
             )
             stale = [
                 item
                 for item in active
-                if item.status is MessageStatus.STREAMING and item.created_at < stale_before
+                if item.status in {MessageStatus.STREAMING, MessageStatus.PENDING}
+                and (
+                    item.created_at < stale_before
+                    or (item.execution is not None and item.execution.expires_at <= updated_at)
+                )
             ]
             if self._conversations:
                 conversation = self._conversations.get(
@@ -132,15 +138,23 @@ class InMemoryMessageRepository:
                 )
                 started = conversation.context_preparation_started_at
                 if started and started < stale_before:
-                    self._conversations.update(conversation.model_copy(update={
-                        "context_preparation_id": None, "context_preparation_started_at": None,
-                        "updated_at": updated_at,
-                    }))
+                    self._conversations.update(
+                        conversation.model_copy(
+                            update={
+                                "context_preparation_id": None,
+                                "context_preparation_started_at": None,
+                                "updated_at": updated_at,
+                            }
+                        )
+                    )
             if stale:
                 self._validate_conversation(owner_id, conversation_id)
             for item in stale:
-                self._messages[item.id] = item.model_copy(
-                    update={"status": MessageStatus.FAILED, "error_code": "turn_interrupted"}
+                self._messages[item.id] = transition_message(
+                    item,
+                    item.model_copy(
+                        update={"status": MessageStatus.FAILED, "error_code": "turn_interrupted"}
+                    ),
                 )
             if stale:
                 self._touch_conversation(owner_id, conversation_id, updated_at)
@@ -163,13 +177,16 @@ class InMemoryMessageRepository:
             stored = [
                 item
                 for item in self._messages.values()
-                if item.owner_id == owner_id and item.conversation_id == conversation_id
+                if item.owner_id == owner_id
+                and item.conversation_id == conversation_id
                 and scope_matches(item)
             ]
             active = active_path(stored)
             if [item.id for item in active] != list(expected_active_ids):
                 raise ConversationConflictError("conversation changed; retry the request")
-            if any(item.status is MessageStatus.STREAMING for item in active):
+            if any(
+                item.status in {MessageStatus.STREAMING, MessageStatus.PENDING} for item in active
+            ):
                 raise ConversationConflictError("a response is already in progress")
             if supersede_from_message_id is not None and supersede_from_message_id not in {
                 item.id for item in active
@@ -185,9 +202,11 @@ class InMemoryMessageRepository:
             if len(messages) + 1 + (supersede_from_message_id is not None) > 500:
                 raise StorageUnavailableError("message storage unavailable")
             self._validate_conversation(owner_id, conversation_id)
-            conversation = self._conversations.get(
-                owner_id=owner_id, conversation_id=conversation_id
-            ) if self._conversations else None
+            conversation = (
+                self._conversations.get(owner_id=owner_id, conversation_id=conversation_id)
+                if self._conversations
+                else None
+            )
             lease = conversation.context_preparation_id if conversation else None
             if complete_preparation and lease != preparation_id:
                 raise ConversationConflictError("context preparation expired")
@@ -203,10 +222,18 @@ class InMemoryMessageRepository:
             for message in messages:
                 self._messages[message.id] = message
             if conversation and preparation_id:
-                self._conversations.update(conversation.model_copy(update={
-                    "context_preparation_id": None if complete_preparation else preparation_id,
-                    "context_preparation_started_at": None if complete_preparation else updated_at,
-                }))
+                self._conversations.update(
+                    conversation.model_copy(
+                        update={
+                            "context_preparation_id": None
+                            if complete_preparation
+                            else preparation_id,
+                            "context_preparation_started_at": None
+                            if complete_preparation
+                            else updated_at,
+                        }
+                    )
+                )
             self._touch_conversation(owner_id, conversation_id, updated_at)
             return list(messages)
 
@@ -245,6 +272,9 @@ class InMemoryMessageRepository:
         error_code: str | None = None,
         updated_at: datetime,
         expected_status: MessageStatus | None = None,
+        expected_message: Message | None = None,
+        expected_branch_digest: str | None = None,
+        replacement: Message | None = None,
     ) -> Message | None:
         with self._mutation_lock:
             message = self.get(
@@ -252,7 +282,19 @@ class InMemoryMessageRepository:
             )
             if expected_status is not None and message.status is not expected_status:
                 return None
+            if expected_message is not None and message != expected_message:
+                return None
             self._validate_conversation(owner_id, conversation_id)
+            if expected_branch_digest is not None:
+                from personal_ai.context.contracts import fingerprint
+
+                active = self.list_active(owner_id=owner_id, conversation_id=conversation_id)
+                if (
+                    not active
+                    or active[-1].id != message_id
+                    or fingerprint(active[:-1], include_state=True) != expected_branch_digest
+                ):
+                    return None
             changes: dict[str, object] = {"status": status}
             if content is not None:
                 changes["content"] = content
@@ -260,7 +302,13 @@ class InMemoryMessageRepository:
                 changes["model"] = model
             if error_code is not None:
                 changes["error_code"] = error_code
-            updated = message.model_copy(update=changes)
+            updated = transition_message(message, replacement or message.model_copy(update=changes))
+            if (updated.id, updated.owner_id, updated.conversation_id) != (
+                message.id,
+                message.owner_id,
+                message.conversation_id,
+            ):
+                raise ConversationConflictError("message identity changed")
             self._messages[message_id] = updated
             self._touch_conversation(owner_id, conversation_id, updated_at)
             return updated

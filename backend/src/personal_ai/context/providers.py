@@ -7,6 +7,8 @@ the complete selection set before it lets any provider run.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -20,6 +22,12 @@ from personal_ai.applications.contracts import (
     CapabilityRegistration,
 )
 from personal_ai.auth.scope import ApplicationScope, RequestScope
+from personal_ai.contracts.context_references import (
+    ContextEntityReference,
+    ContextPermissionDependency,
+    ContextSourceReference,
+    ContextSourceSnapshot,
+)
 from personal_ai.memory.contracts import RetrievalResult
 
 ContextSourceClass = Literal[
@@ -41,51 +49,6 @@ ContextSensitivity = Literal["public", "personal", "sensitive", "restricted", "u
 CapabilityKind = Literal["context_provider", "tool"]
 
 PayloadT = TypeVar("PayloadT", bound=BaseModel)
-
-
-class ContextEntityReference(BaseModel):
-    """An exact entity reference that keeps its application/workspace scope."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    entity_type: str = Field(min_length=1, max_length=80)
-    entity_id: str = Field(min_length=1, max_length=200)
-    application_id: str = Field(min_length=2, max_length=42)
-    workspace_id: str | None = Field(default=None, max_length=100)
-
-
-class ContextSourceReference(BaseModel):
-    """A stable pointer to the source record or external observation."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    kind: Literal["record", "conversation_message", "evidence", "url", "tool_invocation"]
-    reference_id: str = Field(min_length=1, max_length=512)
-    uri: str | None = Field(default=None, max_length=2048)
-    fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-
-
-class ContextPermissionDependency(BaseModel):
-    """Permission or capability identity required to disclose an item."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    permission_id: str = Field(min_length=1, max_length=100)
-    version: str = Field(min_length=1, max_length=100)
-    purpose: str = Field(min_length=1, max_length=160)
-    source_application_id: str | None = Field(default=None, min_length=2, max_length=42)
-    destination_application_id: str | None = Field(default=None, min_length=2, max_length=42)
-
-    @model_validator(mode="after")
-    def grant_scopes_are_paired(self) -> ContextPermissionDependency:
-        if (self.source_application_id is None) != (self.destination_application_id is None):
-            raise ValueError("context_permission_grant_scopes_incomplete")
-        if (
-            self.source_application_id is not None
-            and self.source_application_id == self.destination_application_id
-        ):
-            raise ValueError("context_permission_grant_scopes_must_differ")
-        return self
 
 
 class ContextFieldSensitivity(BaseModel):
@@ -129,6 +92,16 @@ class ContextItem(BaseModel, Generic[PayloadT]):
     field_sensitivity: tuple[ContextFieldSensitivity, ...] = Field(default=(), max_length=32)
     payload: PayloadT
     disclosed_payload: BaseModel | None = Field(default=None, exclude=True)
+
+    def authority_snapshot(self) -> ContextSourceSnapshot:
+        payload = (self.disclosed_payload or self.payload).model_dump(mode="json")
+        return ContextSourceSnapshot(
+            provider_id=self.provider_id, source_id=self.source_id, source_version=self.source_version,
+            item_id=self.item_id, owner_id=self.owner_id, application_id=self.application_id,
+            workspace_id=self.workspace_id, operation=self.selected_operation,
+            content_fingerprint=hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            source_refs=self.source_refs, permission_dependencies=self.permission_dependencies, expires_at=self.expires_at,
+        )
 
     @field_validator("payload", mode="before")
     @classmethod

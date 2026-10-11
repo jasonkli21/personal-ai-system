@@ -8,7 +8,7 @@ import re
 import secrets
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlencode, urlsplit
 from uuid import UUID, uuid4
 
@@ -21,6 +21,7 @@ from personal_ai.llm.chatgpt.oauth import (
     OAuthFailure,
     OpenAIOAuth,
 )
+from personal_ai.local_bridge.status import CoarseUsage, RecoveryHooks, usage_observation
 from personal_ai.local_bridge.store import Credentials, ProtectedLocalStore, Registration
 
 
@@ -32,6 +33,8 @@ class SafeConnection:
     revision: int
     remote_revocation: str = "unknown"
     account_label: str = "ChatGPT account"
+    usage: CoarseUsage | None = None
+    recovery: RecoveryHooks = field(default_factory=RecoveryHooks)
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -80,7 +83,28 @@ class CredentialLifecycle:
             registration.revision,
             registration.remote_revocation,
             label,
+            registration.usage if registration.state == "connected" else CoarseUsage(),
         )
+
+    def observe_usage(
+        self, connection_id: str, revision: int, code: str | None, success: bool = False
+    ):
+        with self.store.transaction() as tx:
+            registration = tx.state.registrations.get(connection_id)
+            if (
+                registration is None
+                or registration.revision != revision
+                or registration.state != "connected"
+            ):
+                return
+            registration.usage = usage_observation(code, now=int(self.clock()), success=success)
+            if code == "bridge_auth_required":
+                registration.state = "reauth"
+                registration.revision += 1
+            elif code == "bridge_permission_denied":
+                registration.state = "permission_required"
+                registration.revision += 1
+            tx.save()
 
     def begin(
         self,
@@ -241,6 +265,7 @@ class CredentialLifecycle:
         registration.account_email = tokens.account_email or registration.account_email
         registration.refresh_pending = False
         if new_session:
+            registration.usage = CoarseUsage()
             registration.revision += 1
         registration.remote_revocation = "unknown"
         registration.state = (
@@ -295,9 +320,11 @@ class CredentialLifecycle:
                 except OAuthFailure as error:
                     if error.code in TERMINAL_REFRESH_ERRORS:
                         registration.credentials = None
+                        registration.usage = CoarseUsage()
                         registration.revision += 1
                         registration.state, registration.refresh_pending = "reauth", False
                     elif error.code == "invalid_client":
+                        registration.usage = CoarseUsage()
                         registration.revision += 1
                         registration.state, registration.refresh_pending = (
                             "configuration_error",
@@ -359,6 +386,7 @@ class CredentialLifecycle:
             if registration is None:
                 raise OAuthFailure("oauth_registration_missing")
             registration.state = "disconnected"
+            registration.usage = CoarseUsage()
             registration.revision += 1
             disconnect_revision = registration.revision
             client_id = registration.client_id
