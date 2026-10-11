@@ -42,7 +42,7 @@ from personal_ai.context.traces import ContextTraceRepository
 from personal_ai.llm import GeminiLLMClient, GenerationClient
 from personal_ai.llm.context import GeminiConversationSummarizer, GeminiTokenCounter
 from personal_ai.llm.memory import GeminiMemoryAdapter
-from personal_ai.memory.lifecycle_jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
+from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.routing.registry import EndpointRegistry

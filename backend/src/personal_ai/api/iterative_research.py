@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 
 from personal_ai.agents.research.contracts import ResearchError
-from personal_ai.agents.research.iterative_contracts import IterativeResearchRequest
-from personal_ai.agents.research.iterative_repositories import (
+from personal_ai.agents.research.iterative.contracts import IterativeResearchRequest
+from personal_ai.agents.research.iterative.repositories import (
     InMemoryIterativeResearchRepository,
 )
-from personal_ai.agents.research.iterative_service import IterativeResearchService
+from personal_ai.agents.research.iterative.service import IterativeResearchService
 from personal_ai.agents.research.repositories import InMemoryResearchRepository
 from personal_ai.api.dependencies import get_application_context, get_current_owner_id
 from personal_ai.api.research import local_repository
@@ -71,12 +71,16 @@ def iterative_research_service(
         runs = factory.iterative_research_repository()
         decisions = factory.decision_repository()
     if settings.research_search_adapter == "fake":
-        adapter = FakeSearchAdapter((SearchResult(
-            url="https://example.org/synthetic-research",
-            title="Synthetic fixture",
-            text="This is synthetic research evidence for an offline demo. "
-            "It makes no claim about the real world.",
-        ),))
+        adapter = FakeSearchAdapter(
+            (
+                SearchResult(
+                    url="https://example.org/synthetic-research",
+                    title="Synthetic fixture",
+                    text="This is synthetic research evidence for an offline demo. "
+                    "It makes no claim about the real world.",
+                ),
+            )
+        )
         counter, llm = EstimatedTokenCounter(), FakeResearchLLMClient()
     else:
         usage = persistence_factory(settings).provider_usage_accounting(settings)
@@ -112,7 +116,11 @@ def _stream(body):
     return _LifecycleStreamingResponse(
         body,
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no", "X-Content-Type-Options": "nosniff"},
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

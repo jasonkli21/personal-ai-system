@@ -17,6 +17,15 @@ from fastapi.responses import JSONResponse, Response
 from starlette.datastructures import MutableHeaders
 from starlette.routing import Match
 
+from personal_ai.api.request_safeguards import (
+    RequestAdmission,
+)
+from personal_ai.api.request_safeguards import (
+    provider_reservation as _provider_reservation,  # noqa: F401
+)
+from personal_ai.api.request_safeguards import (
+    provider_switch_is_on as _provider_switch_is_on,
+)
 from personal_ai.applications.registry import (
     ApplicationNotRegisteredError,
     application_registry_for,
@@ -116,6 +125,9 @@ def _safeguards(request: Request, settings: Settings) -> SafeguardStore:
         return configured
 
 
+_request_admission = RequestAdmission(_safeguards)
+
+
 def _ensure_active_principal(request, settings, principal, correlation_id) -> None:
     # Client construction may discover credentials, so it belongs in the same
     # worker thread as the first blocking persistence call.
@@ -124,88 +136,6 @@ def _ensure_active_principal(request, settings, principal, correlation_id) -> No
     is_fenced = getattr(directory, "owner_is_fenced", lambda owner_id: False)
     if not request.url.path.startswith("/v1/account/deletion") and is_fenced(principal.owner_id):
         raise IdentityMappingConflict
-
-
-def _enforce_safeguards(request, settings, principal) -> None:
-    store = _safeguards(request, settings)
-    store.consume_request(principal.owner_id, settings.api_rate_limit_per_minute)
-    calls, tokens = _provider_reservation(request, settings)
-    if calls or tokens:
-        store.reserve_daily(
-            principal.owner_id,
-            calls,
-            tokens,
-            settings.provider_calls_per_day_limit,
-            settings.input_tokens_per_day_limit,
-        )
-
-
-def _provider_reservation(request: Request, settings: Settings) -> tuple[int, int]:
-    """Estimate request usage; this is not accounting for every provider RPC.
-
-    Token counting, summary refresh, embeddings and worker activity can make
-    additional calls. See the operational review before treating these counters
-    as a provider-spend ceiling.
-    """
-    if request.method != "POST":
-        return (0, 0)
-    path = request.url.path
-    uses_external = False
-    if path.startswith("/v1/conversations/") and path.endswith(
-        ("/messages", "/regenerate", "/edit-and-retry")
-    ):
-        calls = 2 + int(settings.memory_enabled) + int(settings.memory_extraction_enabled)
-        uses_external = settings.ai_provider != "fake"
-        tokens = settings.max_context_tokens
-    elif path.startswith("/v1/research/") and path.endswith("/run"):
-        calls = settings.research_max_queries * settings.research_attempt_limit + 2
-        tokens = settings.research_max_evidence_context_tokens
-        uses_external = settings.research_search_adapter != "fake" or settings.ai_provider != "fake"
-    elif path == "/v1/research/iterative" or (
-        path.endswith("/resume") and path.startswith("/v1/research/iterative/runs/")
-    ):
-        calls = settings.iterative_max_queries * settings.iterative_max_iterations + 2
-        tokens = settings.iterative_max_tokens
-        uses_external = settings.research_search_adapter != "fake" or settings.ai_provider != "fake"
-    elif path.startswith("/v1/domains/") and path.endswith("/lookup"):
-        calls, tokens = 1, 0
-        uses_external = (
-            path.startswith("/v1/domains/travel/") and settings.travel_places_adapter != "fake"
-        ) or (
-            path.startswith("/v1/domains/shopping/")
-            and settings.shopping_products_adapter != "fake"
-        )
-    elif path == "/v1/travel/itinerary-proposals":
-        calls = 1
-        tokens = settings.itinerary_proposal_max_input_tokens
-        uses_external = settings.itinerary_proposal_generator == "gemini"
-    elif path == "/v1/travel/booking-extractions":
-        calls = 1
-        tokens = settings.booking_extraction_max_input_tokens
-        uses_external = settings.booking_extraction_generator == "gemini"
-    else:
-        return (0, 0)
-    return (calls, tokens) if uses_external else (0, 0)
-
-
-def _provider_switch_is_on(request: Request, settings: Settings) -> bool:
-    path = request.url.path
-    method = request.method
-    if (
-        settings.chat_kill_switch_enabled
-        and path.startswith("/v1/conversations/")
-        and method in {"POST", "PUT", "PATCH", "DELETE"}
-    ):
-        return True
-    if (
-        settings.research_kill_switch_enabled
-        and path.startswith(("/v1/research", "/v1/iterative-research"))
-        and method in {"POST", "PUT", "PATCH"}
-    ):
-        return True
-    return settings.external_providers_kill_switch_enabled and _provider_reservation(
-        request, settings
-    ) != (0, 0)
 
 
 def _safeguard_error(
@@ -550,7 +480,7 @@ async def authenticate_request(request: Request) -> Response | None:
             return None
         try:
             await anyio.to_thread.run_sync(
-                partial(_enforce_safeguards, request, settings, principal)
+                partial(_request_admission.check_request, request, settings, principal)
             )
         except SafeguardDenied as error:
             logger.info("request_rejected reason=%s", error.code)
@@ -708,7 +638,9 @@ class AuthenticationMiddleware:
 
         try:
             request_scope = getattr(request.state, "request_scope", None)
-            scope_token = bind_request_scope(request_scope) if response is None and request_scope else None
+            scope_token = (
+                bind_request_scope(request_scope) if response is None and request_scope else None
+            )
             if response is None:
                 await self.app(scope, app_receive, harden_send)
             else:
@@ -726,7 +658,8 @@ class AuthenticationMiddleware:
                 elapsed_ms,
                 correlation_id,
                 getattr(getattr(request.state, "request_scope", None), "application_id", "unknown"),
-                getattr(getattr(request.state, "request_scope", None), "workspace_id", None) or "none",
+                getattr(getattr(request.state, "request_scope", None), "workspace_id", None)
+                or "none",
             )
             if "scope_token" in locals() and scope_token is not None:
                 reset_request_scope(scope_token)

@@ -2,7 +2,7 @@ from time import monotonic
 
 import pytest
 
-from personal_ai.persistence import postgres
+from personal_ai.persistence.postgres import database as postgres
 
 
 def test_database_rejects_an_expired_caller_budget_before_acquiring_connection(monkeypatch):
@@ -12,8 +12,9 @@ def test_database_rejects_an_expired_caller_budget_before_acquiring_connection(m
     )
     opened = []
     monkeypatch.setattr(database, "open", lambda: opened.append(True))
-    with pytest.raises(TimeoutError, match="deadline"), database.transaction(
-        deadline=monotonic() - 1
+    with (
+        pytest.raises(TimeoutError, match="deadline"),
+        database.transaction(deadline=monotonic() - 1),
     ):
         pytest.fail("expired operation must not enter a transaction")
     assert opened == []

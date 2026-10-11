@@ -14,9 +14,9 @@ from personal_ai.entities import Conversation, Message
 from personal_ai.evaluation.output import emit
 from personal_ai.memory.contracts import Memory, MemoryCandidate, identity, normalize
 from personal_ai.memory.fake import FakeEmbedder
-from personal_ai.memory.lifecycle_jobs import MemoryLifecycleCoordinator, MemoryLifecycleWorker
-from personal_ai.memory.lifecycle_policy import make_event
-from personal_ai.memory.lifecycle_repositories import InMemoryMemoryLifecycleRepository
+from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, MemoryLifecycleWorker
+from personal_ai.memory.lifecycle.policy import make_event
+from personal_ai.memory.lifecycle.repositories import InMemoryMemoryLifecycleRepository
 from personal_ai.memory.policy import RATIONALES
 from personal_ai.memory.repositories import InMemoryMemoryRepository
 from personal_ai.memory.services import MemoryRetriever
@@ -28,9 +28,8 @@ VARIANTS = ("fixed", "scored", "consolidated")
 
 
 def load_fixtures():
-    return json.loads(Path(__file__).with_name("memory-lifecycle-fixtures.json").read_text())[
-        "fixtures"
-    ]
+    path = Path(__file__).parent / "fixtures" / "memory" / "memory-lifecycle-fixtures.json"
+    return json.loads(path.read_text())["fixtures"]
 
 
 def build_fixture(fixture, variant="fixed"):

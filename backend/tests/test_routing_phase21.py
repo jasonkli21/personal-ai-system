@@ -74,6 +74,9 @@ class MemoryRepository:
         assert sql == "SELECT clock_timestamp()"
         return SimpleNamespace(fetchone=lambda: (self.now,))
 
+    def current_time(self, connection):
+        return connection.execute("SELECT clock_timestamp()").fetchone()[0]
+
     @contextmanager
     def transaction(self, *, owner_id=None):
         with self.lock:
@@ -214,9 +217,7 @@ class Usage:
             else ()
         )
 
-    def routing_snapshot(
-        self, c, profile, requirements, *, operation, now, check_capacity=True
-    ):
+    def routing_snapshot(self, c, profile, requirements, *, operation, now, check_capacity=True):
         rejections = self.runtime_rejections(
             c,
             profile,
@@ -233,9 +234,7 @@ class Usage:
             rejection_reasons=rejections,
         )
 
-    def routing_snapshots(
-        self, c, profiles, requirements, *, operation, now, check_capacity=True
-    ):
+    def routing_snapshots(self, c, profiles, requirements, *, operation, now, check_capacity=True):
         return {
             profile.endpoint_profile_id: self.routing_snapshot(
                 c,

@@ -5,7 +5,7 @@ import inspect
 from datetime import UTC, datetime
 from typing import Protocol
 
-from personal_ai.routing.phase21 import (
+from personal_ai.routing.decision_models import (
     RankedCandidate,
     RoutingDecision,
     StrategyRef,
@@ -123,9 +123,7 @@ class QuotaAwareDeterministicStrategy:
             candidate = next(c for c in view.candidates if c.endpoint == row.endpoint)
             penalty, scarcity_kind = _quota_scarcity_penalty(candidate, buckets, view)
             degraded_penalty = (
-                preferences.degraded_health_penalty
-                if candidate.health_status == "degraded"
-                else 0
+                preferences.degraded_health_penalty if candidate.health_status == "degraded" else 0
             )
             components = [row.reason_code]
             if scarcity_kind == "known":

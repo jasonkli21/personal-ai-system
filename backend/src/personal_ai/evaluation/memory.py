@@ -19,7 +19,8 @@ from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMes
 
 
 def load_fixtures():
-    return json.loads(Path(__file__).with_name("memory-fixtures.json").read_text())["fixtures"]
+    path = Path(__file__).parent / "fixtures" / "memory" / "memory-fixtures.json"
+    return json.loads(path.read_text())["fixtures"]
 
 
 def fixture_settings(**overrides):

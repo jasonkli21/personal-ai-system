@@ -409,7 +409,7 @@ class Settings(BaseSettings):
         if self.p10_cloud_adapters_configured:
             if self.app_environment not in {"staging", "production"}:
                 raise ValueError("p10_cloud_adapters_require_deployed_environment")
-            from personal_ai.persistence.dynamodb_cloud import FederatedDynamoDBConfig
+            from personal_ai.persistence.dynamodb.cloud import FederatedDynamoDBConfig
             from personal_ai.persistence.neon import NeonRuntimeDatabase
 
             dsn = self.p10_neon_runtime_dsn.get_secret_value()

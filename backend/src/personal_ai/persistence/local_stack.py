@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import os
 
-from personal_ai.persistence.dynamodb import DynamoDBRuntimeTable
-from personal_ai.persistence.postgres import PostgresDatabase
+from personal_ai.persistence.dynamodb.client import DynamoDBRuntimeTable
+from personal_ai.persistence.postgres.database import PostgresDatabase
 
 
 def _targets(*, test: bool = False):

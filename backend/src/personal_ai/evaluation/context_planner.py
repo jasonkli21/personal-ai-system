@@ -45,7 +45,7 @@ from personal_ai.evaluation.output import emit
 from personal_ai.memory.contracts import Memory, RetrievalResult, ScoredMemory, normalize
 from personal_ai.settings import Settings
 
-FIXTURE_PATH = Path(__file__).with_name("context-plan-fixtures.json")
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "context" / "context-plan-fixtures.json"
 NOW = datetime(2026, 10, 7, 12, tzinfo=UTC)
 
 

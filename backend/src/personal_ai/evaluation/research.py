@@ -36,7 +36,8 @@ def _application_context(owner_id="local"):
 
 
 def load_fixtures():
-    return json.loads(Path(__file__).with_name("research-fixtures.json").read_text())
+    path = Path(__file__).parent / "fixtures" / "research" / "research-fixtures.json"
+    return json.loads(path.read_text())
 
 
 def build_fixture(fixture, **overrides):

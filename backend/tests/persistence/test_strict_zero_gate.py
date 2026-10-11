@@ -6,7 +6,7 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[3]
 _SPEC = importlib.util.spec_from_file_location(
-    "p10_strict_zero_gate", _ROOT / "infrastructure/phase10/strict_zero_release_gate.py"
+    "p10_strict_zero_gate", _ROOT / "infrastructure/policy/strict_zero/strict_zero_release_gate.py"
 )
 assert _SPEC is not None and _SPEC.loader is not None
 _GATE = importlib.util.module_from_spec(_SPEC)

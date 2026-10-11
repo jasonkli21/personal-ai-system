@@ -10,6 +10,7 @@ import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
+from personal_ai.api.chat_stream import sse_frames
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
     get_context_trace_repository,
@@ -137,7 +138,7 @@ class _LifecycleStreamingResponse(StreamingResponse):
 
 def _sse_response(stream: object, *, request_id: str) -> StreamingResponse:
     return _LifecycleStreamingResponse(
-        stream,  # type: ignore[arg-type]
+        sse_frames(stream),  # type: ignore[arg-type]
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -147,7 +148,9 @@ def _sse_response(stream: object, *, request_id: str) -> StreamingResponse:
     )
 
 
-@router.post("/{conversation_id}/messages", response_class=StreamingResponse, responses=SSE_RESPONSES)
+@router.post(
+    "/{conversation_id}/messages", response_class=StreamingResponse, responses=SSE_RESPONSES
+)
 def create_message(
     conversation_id: UUID,
     request: CreateMessageRequest,
@@ -156,7 +159,10 @@ def create_message(
 ) -> StreamingResponse:
     """Persist and stream a new chat turn."""
     request_id = _request_id(http_request)
-    return _sse_response(service.send(conversation_id, request.content, request_id=request_id), request_id=request_id)
+    return _sse_response(
+        service.send(conversation_id, request.content, request_id=request_id),
+        request_id=request_id,
+    )
 
 
 @router.post(
@@ -192,7 +198,10 @@ def regenerate_message(
 ) -> StreamingResponse:
     """Stream an append-only replacement for a completed assistant response."""
     request_id = _request_id(request)
-    return _sse_response(service.regenerate(conversation_id, message_id, request_id=request_id), request_id=request_id)
+    return _sse_response(
+        service.regenerate(conversation_id, message_id, request_id=request_id),
+        request_id=request_id,
+    )
 
 
 @router.post(
@@ -210,7 +219,9 @@ def edit_and_retry_message(
     """Replace a user message and stream its new assistant response."""
     request_id = _request_id(http_request)
     return _sse_response(
-        service.edit_and_retry(conversation_id, message_id, request.content, request_id=request_id),
+        service.edit_and_retry(
+            conversation_id, message_id, request.content, request_id=request_id
+        ),
         request_id=request_id,
     )
 
@@ -243,7 +254,8 @@ def inspect_context(
     _, active = service.get_conversation(conversation_id)
     latest_user = next(
         (
-            message for message in reversed(active)
+            message
+            for message in reversed(active)
             if message.role.value == "user" and message.status.value == "completed"
         ),
         None,

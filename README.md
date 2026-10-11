@@ -113,20 +113,23 @@ Cloud/IAM/free-tier acceptance remains unverified. See the [Phase 20 guide](docs
 │   │   ├── domains/         # thin travel/shopping capabilities
 │   │   ├── entities/        # chat and canonical research entities
 │   │   ├── evidence/        # attributable observations
-│   │   ├── evaluation/      # reproducible synthetic evaluation
-│   │   ├── memory/          # durable memory and lifecycle logic
+│   │   ├── evaluation/      # evaluators, grouped fixtures, and schemas
+│   │   ├── llm/             # provider-neutral inference contracts and adapters
+│   │   ├── memory/          # durable memory and lifecycle package
 │   │   ├── ranking/         # deterministic ranking/constraints
 │   │   ├── routing/         # endpoint profiles and strict-free admission
 │   │   ├── search/          # search adapters and pipeline
 │   │   ├── usage/           # provider invocation and attempt accounting contracts
 │   │   ├── services/        # chat/application orchestration
 │   │   ├── storage/         # repository contracts and persistence primitives
-│   │   └── persistence/    # Postgres/DynamoDB adapters and migrations
+│   │   └── persistence/     # concrete Postgres and DynamoDB adapter packages
 │   └── tests/
 ├── frontend/
 │   ├── src/                 # Next.js application and API proxies
+│   │   ├── features/chat/continuation-sidecar/ # sidecar UI, state, and bridge client
+│   │   └── lib/api/         # shared client and feature endpoint/DTO groups
 │   └── tests/
-├── infrastructure/          # local/GCP deployment assets
+├── infrastructure/          # local/GCP and semantically grouped cloud assets
 ├── experiments/             # isolated research experiments
 ├── docs/                    # architecture, ADRs, runbooks, evaluations
 ├── docker-compose.persistence.yml

@@ -15,7 +15,7 @@ from personal_ai.routing.contracts import (
     StrictFreeEligibilityAttestation,
     compute_registry_version,
 )
-from personal_ai.routing.phase21 import (
+from personal_ai.routing.decision_models import (
     AuthorizationEvidence,
     CandidateFact,
     CascadePolicy,
@@ -37,8 +37,8 @@ from personal_ai.routing.phase21 import (
     StrategyCandidate,
     StrategyRef,
     StrategyView,
-    source_reference_manifest_sha256,
 )
+from personal_ai.routing.integrity import source_reference_manifest_sha256
 from personal_ai.routing.registry import (
     CandidateSetOverflowError,
     EndpointNotAdmissibleError,

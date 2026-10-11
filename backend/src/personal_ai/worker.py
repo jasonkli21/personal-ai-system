@@ -22,14 +22,14 @@ from personal_ai.auth.service_tokens import (
     verify_google_service_token,
 )
 from personal_ai.llm.memory import GeminiMemoryAdapter
-from personal_ai.memory.lifecycle_jobs import (
+from personal_ai.memory.lifecycle.jobs import (
     MemoryJobNotification,
     MemoryLifecycleCoordinator,
     MemoryLifecycleWorker,
     PubSubMemoryJobPublisher,
 )
 from personal_ai.persistence.factory import close_persistence_clients, persistence_factory
-from personal_ai.persistence.postgres_artifacts import PostgresArtifactMetadataRepository
+from personal_ai.persistence.postgres.artifacts import PostgresArtifactMetadataRepository
 from personal_ai.settings import Settings, get_settings, validate_startup_configuration
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.errors import ResourceNotFoundError, StorageError

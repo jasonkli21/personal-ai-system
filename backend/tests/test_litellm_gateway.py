@@ -91,10 +91,12 @@ def _response(provider: str, *, text="answer", model=None, usage=True):
     if provider == "gemini":
         payload = {
             "modelVersion": model or "gemini-2.5-flash",
-            "candidates": [{
-                "content": {"role": "model", "parts": [{"text": text}]},
-                "finishReason": "STOP",
-            }],
+            "candidates": [
+                {
+                    "content": {"role": "model", "parts": [{"text": text}]},
+                    "finishReason": "STOP",
+                }
+            ],
         }
         if usage:
             payload["usageMetadata"] = {
@@ -103,19 +105,19 @@ def _response(provider: str, *, text="answer", model=None, usage=True):
                 "totalTokenCount": 6,
             }
         return payload
-    model_id = model or (
-        "fixture-model" if provider == "groq" else "@cf/meta/llama-fixture"
-    )
+    model_id = model or ("fixture-model" if provider == "groq" else "@cf/meta/llama-fixture")
     payload = {
         "id": "fixture-response-id",
         "object": "chat.completion",
         "created": 1,
         "model": model_id,
-        "choices": [{
-            "index": 0,
-            "message": {"role": "assistant", "content": text},
-            "finish_reason": "stop",
-        }],
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": text},
+                "finish_reason": "stop",
+            }
+        ],
     }
     if usage:
         payload["usage"] = {
@@ -127,11 +129,14 @@ def _response(provider: str, *, text="answer", model=None, usage=True):
 
 
 def _adapter(provider, transport_factory, *, async_mode=False, settings=None):
-    settings = settings or {
-        "gemini": _settings,
-        "groq": _groq_settings,
-        "cloudflare_workers_ai": _cloudflare_settings,
-    }[provider]()
+    settings = (
+        settings
+        or {
+            "gemini": _settings,
+            "groq": _groq_settings,
+            "cloudflare_workers_ai": _cloudflare_settings,
+        }[provider]()
+    )
     keyword = "async_transport_factory" if async_mode else "sync_transport_factory"
     options = {keyword: transport_factory}
     cls = {
@@ -252,9 +257,7 @@ def test_schema_inclusive_count_over_near_ceiling_blocks_generation():
         ),
         (
             "cloudflare_workers_ai",
-            "https://api.cloudflare.com/client/v4/accounts/"
-            + "a" * 32
-            + "/ai/v1/chat/completions",
+            "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/ai/v1/chat/completions",
             "authorization",
             "Bearer fixture-cloudflare-token",
             "max_tokens",
@@ -275,9 +278,7 @@ def test_openai_compatible_providers_use_explicit_sdk_endpoint_and_schema(
             headers={"x-ratelimit-remaining-tokens": "91"},
         )
 
-    adapter = _adapter(
-        provider, lambda: httpx.MockTransport(handle)
-    )
+    adapter = _adapter(provider, lambda: httpx.MockTransport(handle))
     result = adapter.generate_structured(
         [ChatMessage("system", "Only return JSON."), ChatMessage("user", "hello")],
         response_schema=schema,
@@ -299,13 +300,15 @@ def test_openai_compatible_providers_use_explicit_sdk_endpoint_and_schema(
         }
         assert "tools" not in body
     else:
-        assert body["tools"] == [{
-            "type": "function",
-            "function": {
-                "name": "json_tool_call",
-                "parameters": schema,
-            },
-        }]
+        assert body["tools"] == [
+            {
+                "type": "function",
+                "function": {
+                    "name": "json_tool_call",
+                    "parameters": schema,
+                },
+            }
+        ]
         assert body["tool_choice"] == {
             "type": "function",
             "function": {"name": "json_tool_call"},
@@ -388,10 +391,12 @@ def _stream_payload(provider, *, include_done=True):
         events = [
             {
                 "modelVersion": _model(provider),
-                "candidates": [{
-                    "content": {"role": "model", "parts": [{"text": "hello"}]},
-                    "finishReason": "STOP",
-                }],
+                "candidates": [
+                    {
+                        "content": {"role": "model", "parts": [{"text": "hello"}]},
+                        "finishReason": "STOP",
+                    }
+                ],
                 "usageMetadata": {
                     "promptTokenCount": 4,
                     "candidatesTokenCount": 2,
@@ -399,9 +404,7 @@ def _stream_payload(provider, *, include_done=True):
                 },
             }
         ]
-        return b"".join(
-            b"data: " + json.dumps(event).encode() + b"\n\n" for event in events
-        )
+        return b"".join(b"data: " + json.dumps(event).encode() + b"\n\n" for event in events)
     model = _model(provider)
     events = [
         {
@@ -464,18 +467,23 @@ def test_streaming_uses_sdk_and_preserves_terminal_and_usage(provider):
     adapter = _adapter(
         provider,
         lambda: httpx.MockTransport(
-            lambda _: httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+            lambda _: httpx.Response(
+                200, content=body, headers={"content-type": "text/event-stream"}
+            )
         ),
         async_mode=True,
     )
 
     async def collect():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")],
-            max_output_tokens=20,
-            timeout_seconds=3,
-            inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=20,
+                timeout_seconds=3,
+                inference_context=_context(),
+            )
+        ]
 
     events = asyncio.run(collect())
     terminal = events[-1]
@@ -495,26 +503,34 @@ def test_openai_stream_without_done_is_incomplete():
     adapter = _adapter(
         "groq",
         lambda: httpx.MockTransport(
-            lambda _: httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+            lambda _: httpx.Response(
+                200, content=body, headers={"content-type": "text/event-stream"}
+            )
         ),
         async_mode=True,
     )
 
     async def collect():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")],
-            max_output_tokens=20,
-            timeout_seconds=3,
-            inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=20,
+                timeout_seconds=3,
+                inference_context=_context(),
+            )
+        ]
 
     events = asyncio.run(collect())
     assert events[-1].metadata.status == "incomplete"
 
     async def consume_text():
-        return [delta async for delta in adapter.stream(
-            [ChatMessage("user", "hello")], inference_context=_context()
-        )]
+        return [
+            delta
+            async for delta in adapter.stream(
+                [ChatMessage("user", "hello")], inference_context=_context()
+            )
+        ]
 
     with pytest.raises(LLMIncompleteGenerationError):
         asyncio.run(consume_text())
@@ -527,10 +543,12 @@ def test_cancelling_sdk_stream_closes_the_underlying_response():
         async def __aiter__(self):
             payload = {
                 "modelVersion": "gemini-2.5-flash",
-                "candidates": [{
-                    "content": {"role": "model", "parts": [{"text": "partial"}]},
-                    "finishReason": None,
-                }],
+                "candidates": [
+                    {
+                        "content": {"role": "model", "parts": [{"text": "partial"}]},
+                        "finishReason": None,
+                    }
+                ],
             }
             yield b"data: " + json.dumps(payload).encode() + b"\n\n"
             await asyncio.Event().wait()
@@ -651,10 +669,10 @@ def test_gemini_request_and_completion_bounds_precede_sdk_parsing(monkeypatch):
 
 
 def test_stream_line_and_event_caps_stop_before_sdk_parsing(monkeypatch):
-    import personal_ai.llm.litellm_gateway as gateway
+    from personal_ai.llm.litellm import transport
 
-    monkeypatch.setattr(gateway, "_MAX_STREAM_LINE_BYTES", 256)
-    monkeypatch.setattr(gateway, "_MAX_STREAM_EVENT_BYTES", 256)
+    monkeypatch.setattr(transport, "_MAX_STREAM_LINE_BYTES", 256)
+    monkeypatch.setattr(transport, "_MAX_STREAM_EVENT_BYTES", 256)
     long_event = (
         b"data: "
         + json.dumps({"model": "fixture-model", "choices": [], "padding": "x" * 500}).encode()
@@ -668,12 +686,15 @@ def test_stream_line_and_event_caps_stop_before_sdk_parsing(monkeypatch):
     )
 
     async def consume():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")],
-            max_output_tokens=10,
-            timeout_seconds=3,
-            inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=10,
+                timeout_seconds=3,
+                inference_context=_context(),
+            )
+        ]
 
     with pytest.raises(LLMInvalidResponseError, match="size limit"):
         asyncio.run(consume())
@@ -696,10 +717,15 @@ def test_total_stream_cap_stops_many_small_events_before_sdk_parsing(monkeypatch
     )
 
     async def consume():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=3, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=10,
+                timeout_seconds=3,
+                inference_context=_context(),
+            )
+        ]
 
     with pytest.raises(LLMInvalidResponseError, match="size limit"):
         asyncio.run(consume())
@@ -715,8 +741,10 @@ def test_external_provider_preflight_blocks_dispatch_and_structured_capability()
     )
     with pytest.raises(LLMInvalidConfigurationError, match="disabled"):
         disabled.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=5,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=5,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
     assert called == []
 
@@ -725,8 +753,11 @@ def test_external_provider_preflight_blocks_dispatch_and_structured_capability()
     )
     with pytest.raises(LLMUnsupportedCapabilityError):
         not_structured.generate_structured(
-            [ChatMessage("user", "hello")], response_schema={"type": "object"},
-            max_output_tokens=5, timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            response_schema={"type": "object"},
+            max_output_tokens=5,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
     assert called == []
 
@@ -756,13 +787,17 @@ def test_ambient_hooks_fail_closed_and_disabled_logging_and_cache_hold(caplog, m
     adapter = GeminiLLMClient(
         _settings(),
         sync_transport_factory=lambda: httpx.MockTransport(
-            lambda request: (called.append(request), httpx.Response(200, json=_response("gemini")))[-1]
+            lambda request: (called.append(request), httpx.Response(200, json=_response("gemini")))[
+                -1
+            ]
         ),
     )
     with pytest.raises(LLMInvalidConfigurationError, match="content hooks"):
         adapter.complete(
-            [ChatMessage("user", "prompt-canary")], max_output_tokens=5,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "prompt-canary")],
+            max_output_tokens=5,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
     assert called == []
 
@@ -777,8 +812,10 @@ def test_ambient_hooks_fail_closed_and_disabled_logging_and_cache_hold(caplog, m
     )
     with caplog.at_level(logging.DEBUG):
         result = adapter.complete(
-            [ChatMessage("user", "prompt-canary")], max_output_tokens=5,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "prompt-canary")],
+            max_output_tokens=5,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
     assert result.text == response_secret
     assert sdk.callbacks == []
@@ -805,18 +842,32 @@ def test_concurrent_cloudflare_calls_keep_account_and_token_isolated():
             settings, sync_transport_factory=lambda: httpx.MockTransport(handle)
         )
         return adapter.complete(
-            [ChatMessage("user", "isolated")], max_output_tokens=5,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "isolated")],
+            max_output_tokens=5,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(call, [("1" * 32, "token-one"), ("2" * 32, "token-two")]))
 
     assert [result.metadata.status for result in results] == ["success", "success"]
-    assert sorted(captured) == sorted([
-        ("https://api.cloudflare.com/client/v4/accounts/" + "1" * 32 + "/ai/v1/chat/completions", "Bearer token-one"),
-        ("https://api.cloudflare.com/client/v4/accounts/" + "2" * 32 + "/ai/v1/chat/completions", "Bearer token-two"),
-    ])
+    assert sorted(captured) == sorted(
+        [
+            (
+                "https://api.cloudflare.com/client/v4/accounts/"
+                + "1" * 32
+                + "/ai/v1/chat/completions",
+                "Bearer token-one",
+            ),
+            (
+                "https://api.cloudflare.com/client/v4/accounts/"
+                + "2" * 32
+                + "/ai/v1/chat/completions",
+                "Bearer token-two",
+            ),
+        ]
+    )
 
 
 def test_gemini_embeddings_use_litellm_and_preserve_persisted_space():
@@ -859,14 +910,16 @@ def test_chunked_streams_drain_to_eof_and_allow_split_done_and_usage(provider):
     body = _stream_payload(provider)
     if provider != "gemini":
         done_marker = b"data: [DONE]\n\n"
-        usage = _sse({
-            "id": "usage",
-            "object": "chat.completion.chunk",
-            "created": 1,
-            "model": _model(provider),
-            "choices": [],
-            "usage": {"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
-        })
+        usage = _sse(
+            {
+                "id": "usage",
+                "object": "chat.completion.chunk",
+                "created": 1,
+                "model": _model(provider),
+                "choices": [],
+                "usage": {"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
+            }
+        )
         body = body.replace(done_marker, usage + done_marker)
     if provider == "gemini":
         midpoint = len(body) // 2
@@ -886,10 +939,15 @@ def test_chunked_streams_drain_to_eof_and_allow_split_done_and_usage(provider):
     )
 
     async def collect():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=20,
-            timeout_seconds=3, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=20,
+                timeout_seconds=3,
+                inference_context=_context(),
+            )
+        ]
 
     events = asyncio.run(collect())
     terminal = events[-1]
@@ -919,10 +977,15 @@ def test_stream_deadline_closes_a_reader_blocked_after_done(provider):
     )
 
     async def collect():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=20,
-            timeout_seconds=0.1, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=20,
+                timeout_seconds=0.1,
+                inference_context=_context(),
+            )
+        ]
 
     with pytest.raises(LLMTimeoutError):
         asyncio.run(collect())
@@ -930,7 +993,13 @@ def test_stream_deadline_closes_a_reader_blocked_after_done(provider):
 
 
 @pytest.mark.parametrize("provider", ["groq", "cloudflare_workers_ai"])
-@pytest.mark.parametrize("terminal_suffix", [b"data: [DONE]\n\ndata: [DONE]\n\n", b"data: [DONE]\n\ndata: {\"model\":\"fixture-model\",\"choices\":[]}\n\n"])
+@pytest.mark.parametrize(
+    "terminal_suffix",
+    [
+        b"data: [DONE]\n\ndata: [DONE]\n\n",
+        b'data: [DONE]\n\ndata: {"model":"fixture-model","choices":[]}\n\n',
+    ],
+)
 def test_chunked_openai_stream_rejects_duplicate_or_trailing_data(provider, terminal_suffix):
     body = _stream_payload(provider).replace(b"data: [DONE]\n\n", terminal_suffix)
     chunks = [body[index : index + 30] for index in range(0, len(body), 30)]
@@ -947,10 +1016,15 @@ def test_chunked_openai_stream_rejects_duplicate_or_trailing_data(provider, term
     )
 
     async def collect():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=20,
-            timeout_seconds=3, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=20,
+                timeout_seconds=3,
+                inference_context=_context(),
+            )
+        ]
 
     with pytest.raises(LLMInvalidResponseError):
         asyncio.run(collect())
@@ -980,8 +1054,10 @@ def test_unapproved_stream_identity_is_rejected_before_any_text(provider):
 
     async def consume():
         async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=20,
-            timeout_seconds=3, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=20,
+            timeout_seconds=3,
+            inference_context=_context(),
         ):
             if event.kind == "delta":
                 deltas.append(event.delta)
@@ -1005,7 +1081,12 @@ def test_conflicting_stream_identity_withholds_that_events_text(provider):
         lambda: httpx.MockTransport(
             lambda _: httpx.Response(
                 200,
-                stream=_ChunkedAsyncByteStream([body[: len(_sse(_openai_stream_event(_model(provider), "hello")))], body[len(_sse(_openai_stream_event(_model(provider), "hello"))) :]]),
+                stream=_ChunkedAsyncByteStream(
+                    [
+                        body[: len(_sse(_openai_stream_event(_model(provider), "hello")))],
+                        body[len(_sse(_openai_stream_event(_model(provider), "hello"))) :],
+                    ]
+                ),
                 headers={"content-type": "text/event-stream"},
             )
         ),
@@ -1015,8 +1096,10 @@ def test_conflicting_stream_identity_withholds_that_events_text(provider):
 
     async def consume():
         async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=20,
-            timeout_seconds=3, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=20,
+            timeout_seconds=3,
+            inference_context=_context(),
         ):
             if event.kind == "delta":
                 deltas.append(event.delta)
@@ -1042,8 +1125,10 @@ def test_ambient_litellm_retries_fail_closed_before_dispatch(cache_loaded, monke
     )
     with pytest.raises(LLMInvalidConfigurationError, match="runtime settings"):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
     assert calls == []
 
@@ -1065,8 +1150,10 @@ def test_generation_transport_fences_sdk_replay_even_if_global_changes_mid_call(
     )
     with pytest.raises(LLMUnavailableError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
     assert len(calls) == 1
 
@@ -1089,10 +1176,15 @@ def test_async_generation_transport_fences_sdk_replay(monkeypatch):
     )
 
     async def consume():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=10,
+                timeout_seconds=2,
+                inference_context=_context(),
+            )
+        ]
 
     with pytest.raises(LLMUnavailableError):
         asyncio.run(consume())
@@ -1139,8 +1231,10 @@ def test_usage_reservation_precedes_send_and_settles_one_attempt(monkeypatch):
         usage_accounting=ledger,
     )
     result = adapter.complete(
-        [ChatMessage("user", "hello")], max_output_tokens=10,
-        timeout_seconds=2, inference_context=_context(),
+        [ChatMessage("user", "hello")],
+        max_output_tokens=10,
+        timeout_seconds=2,
+        inference_context=_context(),
     )
 
     assert result.metadata.status == "success"
@@ -1148,7 +1242,10 @@ def test_usage_reservation_precedes_send_and_settles_one_attempt(monkeypatch):
     assert result.metadata.invocation_id == str(ledger.events[0][1].invocation_id)
     assert result.metadata.attempt_ids == (str(ledger.attempts[0].attempt_id),)
     assert [kind for kind, _ in ledger.events] == [
-        "begin", "reserve", "settle", "complete",
+        "begin",
+        "reserve",
+        "settle",
+        "complete",
     ]
 
 
@@ -1161,15 +1258,19 @@ def test_usage_admission_denial_happens_before_provider_send(monkeypatch):
     adapter = GeminiLLMClient(
         _settings(),
         sync_transport_factory=lambda: httpx.MockTransport(
-            lambda request: (sends.append(request), httpx.Response(200, json=_response("gemini")))[-1]
+            lambda request: (sends.append(request), httpx.Response(200, json=_response("gemini")))[
+                -1
+            ]
         ),
         usage_accounting=ledger,
     )
 
     with pytest.raises(LLMUnavailableError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
 
     assert sends == []
@@ -1197,8 +1298,10 @@ def test_usage_ledger_counts_only_physical_sends_when_sdk_retry_is_intercepted(m
     )
     with pytest.raises(LLMUnavailableError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=2,
+            inference_context=_context(),
         )
 
     assert len(sends) == len(ledger.attempts) == 1
@@ -1229,10 +1332,15 @@ def test_async_generation_status_failures_make_one_physical_send(provider, statu
     )
 
     async def consume():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=10,
+                timeout_seconds=2,
+                inference_context=_context(),
+            )
+        ]
 
     with pytest.raises(error_type) as raised:
         asyncio.run(consume())
@@ -1256,10 +1364,15 @@ def test_async_transport_failures_make_one_physical_send(provider, exception_typ
     )
 
     async def consume():
-        return [event async for event in adapter.stream_events(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=2, inference_context=_context(),
-        )]
+        return [
+            event
+            async for event in adapter.stream_events(
+                [ChatMessage("user", "hello")],
+                max_output_tokens=10,
+                timeout_seconds=2,
+                inference_context=_context(),
+            )
+        ]
 
     expected = LLMTimeoutError if exception_type is httpx.ReadTimeout else LLMUnavailableError
     with pytest.raises(expected) as raised:
@@ -1280,8 +1393,10 @@ def test_sync_generation_deadline_rejects_slow_success(provider):
     )
     with pytest.raises(LLMTimeoutError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=0.05, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=0.05,
+            inference_context=_context(),
         )
     with pytest.raises(LLMTimeoutError):
         adapter.generate_structured(
@@ -1313,15 +1428,19 @@ def test_sync_generation_deadline_bounds_trickle_reads_and_parsing(monkeypatch):
     )
     with pytest.raises(LLMTimeoutError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=0.02, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=0.02,
+            inference_context=_context(),
         )
 
     sent = []
     adapter = GeminiLLMClient(
         _settings(),
         sync_transport_factory=lambda: httpx.MockTransport(
-            lambda request: (sent.append(request), httpx.Response(200, json=_response("gemini")))[-1]
+            lambda request: (sent.append(request), httpx.Response(200, json=_response("gemini")))[
+                -1
+            ]
         ),
     )
     original_arguments = gateway.LiteLLMGenerationClient._completion_arguments
@@ -1333,8 +1452,10 @@ def test_sync_generation_deadline_bounds_trickle_reads_and_parsing(monkeypatch):
     monkeypatch.setattr(gateway.LiteLLMGenerationClient, "_completion_arguments", slow_setup)
     with pytest.raises(LLMTimeoutError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=0.02, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=0.02,
+            inference_context=_context(),
         )
     assert sent == []
 
@@ -1353,8 +1474,10 @@ def test_sync_generation_deadline_bounds_trickle_reads_and_parsing(monkeypatch):
     monkeypatch.setattr(gateway, "_parse_generation_wire", slow_parse)
     with pytest.raises(LLMTimeoutError):
         adapter.complete(
-            [ChatMessage("user", "hello")], max_output_tokens=10,
-            timeout_seconds=0.02, inference_context=_context(),
+            [ChatMessage("user", "hello")],
+            max_output_tokens=10,
+            timeout_seconds=0.02,
+            inference_context=_context(),
         )
 
 
@@ -1467,9 +1590,7 @@ def test_embedding_deadline_is_forwarded_to_each_batch_and_stops_late_work():
         sync_transport_factory=lambda: httpx.MockTransport(exhaust_deadline),
     )
     with pytest.raises(LLMTimeoutError):
-        late_embedder.embed(
-            ["one", "two", "three"], timeout=0.2, inference_context=_context()
-        )
+        late_embedder.embed(["one", "two", "three"], timeout=0.2, inference_context=_context())
     assert len(calls) == 1
 
     class StalledBatch(httpx.SyncByteStream):
@@ -1495,9 +1616,7 @@ def test_embedding_deadline_is_forwarded_to_each_batch_and_stops_late_work():
         sync_transport_factory=lambda: httpx.MockTransport(stall_later_batch),
     )
     with pytest.raises(LLMTimeoutError):
-        stalled_embedder.embed(
-            ["one", "two", "three"], timeout=0.15, inference_context=_context()
-        )
+        stalled_embedder.embed(["one", "two", "three"], timeout=0.15, inference_context=_context())
     assert len(calls) == 2
     assert second_batch_timeouts[1] < second_batch_timeouts[0]
 
@@ -1550,13 +1669,16 @@ def test_transport_attribution_uses_ledger_assigned_physical_attempt(monkeypatch
 
     ledger = Ledger()
     adapter = GeminiLLMClient(
-        _settings(), usage_accounting=ledger,
+        _settings(),
+        usage_accounting=ledger,
         sync_transport_factory=lambda: httpx.MockTransport(
             lambda request: httpx.Response(200, json=_response("gemini"))
         ),
     )
     result = adapter.complete(
-        [ChatMessage("user", "hello")], max_output_tokens=10,
-        timeout_seconds=2, inference_context=_context(),
+        [ChatMessage("user", "hello")],
+        max_output_tokens=10,
+        timeout_seconds=2,
+        inference_context=_context(),
     )
     assert result.metadata.attempt_ids == (str(assigned_id),)

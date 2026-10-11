@@ -35,15 +35,14 @@ from personal_ai.evaluation.provider_matrix_contracts import (
 from personal_ai.llm.client import ChatMessage, GenerationClient, InferenceContext
 from personal_ai.llm.providers import build_generation_adapter
 from personal_ai.routing.contracts import EndpointOperation, EndpointProfile, EndpointRef
-from personal_ai.routing.phase21 import (
+from personal_ai.routing.decision_models import (
     EvaluationQualityGate,
     PreparationIdentity,
     RoutingRequestFacts,
     RoutingTaskProfile,
     StrategyView,
-    endpoint_configuration_sha256,
-    task_configuration_sha256,
 )
+from personal_ai.routing.integrity import endpoint_configuration_sha256, task_configuration_sha256
 from personal_ai.routing.strategy import DeterministicScoringStrategy
 from personal_ai.usage.contracts import AttemptResult
 
@@ -70,7 +69,9 @@ class EvaluationRunRepository(Protocol):
     def complete_run(self, summary: EvaluationRunSummary) -> None: ...
     def save_quality_profile(self, profile: QualityProfile) -> None: ...
     def get_quality_profile(self, evidence_id: UUID) -> QualityProfile: ...
-    def publish_quality_profile(self, profile: QualityProfile, *, expected_revision: int) -> None: ...
+    def publish_quality_profile(
+        self, profile: QualityProfile, *, expected_revision: int
+    ) -> None: ...
     def quality_evidence(
         self,
         *,
@@ -111,7 +112,9 @@ class OutputRetentionApproval(BaseModel):
     endpoint: EndpointRef
     evidence_source: Literal["synthetic", "live"]
     account_scope_id: str | None = None
-    reference: str = Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][-A-Za-z0-9._:+/]{0,199}$")
+    reference: str = Field(
+        min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][-A-Za-z0-9._:+/]{0,199}$"
+    )
     valid_until: datetime
 
     @field_validator("valid_until")
@@ -169,9 +172,14 @@ class LiteLLMProfileExecutor:
         from personal_ai.routing.configured import build_initial_endpoint_profiles
 
         configured = {
-            item.endpoint_profile_id: item for item in build_initial_endpoint_profiles(self.settings)
+            item.endpoint_profile_id: item
+            for item in build_initial_endpoint_profiles(self.settings)
         }.get(endpoint.endpoint_profile_id)
-        if configured is None or configured.model_copy(update={"profile_version": endpoint.profile_version}) != endpoint:
+        if (
+            configured is None
+            or configured.model_copy(update={"profile_version": endpoint.profile_version})
+            != endpoint
+        ):
             raise ValueError("evaluation_endpoint_configuration_mismatch")
         generator = build_generation_adapter(
             self.settings,
@@ -204,7 +212,10 @@ class InMemoryEvaluationRunRepository:
         with self.lock:
             if run.evaluation_run_id in self.runs:
                 previous = self.runs[run.evaluation_run_id][0]
-                if _run_start_identity(previous) != _run_start_identity(run) or previous.gate_bindings != run.gate_bindings:
+                if (
+                    _run_start_identity(previous) != _run_start_identity(run)
+                    or previous.gate_bindings != run.gate_bindings
+                ):
                     raise EvaluationRunConflict("evaluation_run_idempotency_conflict")
                 return
             self.runs[run.evaluation_run_id] = (run, "running", None)
@@ -214,9 +225,7 @@ class InMemoryEvaluationRunRepository:
             stored = self.runs.get(evaluation_run_id)
             if stored is None:
                 raise LookupError("evaluation_run_unavailable")
-            cases = tuple(
-                case for key, case in self.cases.items() if key[0] == evaluation_run_id
-            )
+            cases = tuple(case for key, case in self.cases.items() if key[0] == evaluation_run_id)
             return stored[0], stored[2], cases
 
     def save_case(self, case):
@@ -241,7 +250,10 @@ class InMemoryEvaluationRunRepository:
                 raise EvaluationRunConflict("evaluation_run_completion_conflict")
             run_start = previous[0]
             cases = [key for key in self.cases if key[0] == summary.evaluation_run_id]
-            if len(cases) != run_start.expected_cases or summary.total_cases != run_start.expected_cases:
+            if (
+                len(cases) != run_start.expected_cases
+                or summary.total_cases != run_start.expected_cases
+            ):
                 raise EvaluationRunConflict("evaluation_run_case_count_mismatch")
             self.runs[summary.evaluation_run_id] = (previous[0], summary.status, summary)
 
@@ -274,7 +286,8 @@ class InMemoryEvaluationRunRepository:
                     or baseline.evaluation_suite_id != profile.evaluation_suite_id
                     or baseline.evaluation_suite_version != profile.evaluation_suite_version
                     or baseline.fixture_manifest_sha256 != profile.fixture_manifest_sha256
-                    or baseline.evaluation_configuration_sha256 != profile.evaluation_configuration_sha256
+                    or baseline.evaluation_configuration_sha256
+                    != profile.evaluation_configuration_sha256
                     or profile.comparison_baseline_endpoint != baseline.endpoint
                     or profile.comparison_baseline_configuration_sha256
                     != baseline.endpoint_configuration_sha256
@@ -308,7 +321,9 @@ class InMemoryEvaluationRunRepository:
         ]
         if not matches:
             return None
-        return max(matches, key=lambda profile: (profile.measured_at, profile.quality_evidence_id.int)).as_routing_evidence()
+        return max(
+            matches, key=lambda profile: (profile.measured_at, profile.quality_evidence_id.int)
+        ).as_routing_evidence()
 
     def authorize(self, *, connection, owner_id, scope, gate, task, request, now):
         del connection, now
@@ -376,7 +391,9 @@ class ProviderMatrixRunner:
         )
         if approved_evaluation_suites is None:
             canonical_fixtures, _, _ = load_provider_matrix_configuration()
-            suite_id, suite_version, _, _, suite_digest = evaluation_suite_identity(canonical_fixtures)
+            suite_id, suite_version, _, _, suite_digest = evaluation_suite_identity(
+                canonical_fixtures
+            )
             approved_evaluation_suites = {(suite_id, suite_version): suite_digest}
         self.approved_evaluation_suites = dict(approved_evaluation_suites)
         self.owner_id = owner_id
@@ -414,7 +431,9 @@ class ProviderMatrixRunner:
             for fixture in fixtures
         ):
             raise ValueError("evaluation_fixture_policy_mismatch")
-        suite_id, suite_version, scoring_id, scoring_version, suite_digest = evaluation_suite_identity(fixtures)
+        suite_id, suite_version, scoring_id, scoring_version, suite_digest = (
+            evaluation_suite_identity(fixtures)
+        )
         if self.approved_evaluation_suites.get((suite_id, suite_version)) != suite_digest:
             raise ValueError("evaluation_suite_not_approved")
         if (
@@ -428,8 +447,7 @@ class ProviderMatrixRunner:
         context_policy = ContextBuildPolicy(
             global_input_tokens=MAX_EVALUATION_CONTEXT_TOKENS,
             source_max_tokens={
-                source_class: MAX_EVALUATION_CONTEXT_TOKENS
-                for source_class in SOURCE_CLASSES
+                source_class: MAX_EVALUATION_CONTEXT_TOKENS for source_class in SOURCE_CLASSES
             },
         )
         context_builder = ContextBuilder(EstimatedTokenCounter(), clock=self.clock)
@@ -462,7 +480,8 @@ class ProviderMatrixRunner:
             for fixture in fixtures
         }
         profiles = tuple(
-            profile for profile in self.routing_service.registry.profiles
+            profile
+            for profile in self.routing_service.registry.profiles
             if operation in profile.capabilities
         )
         if not profiles:
@@ -529,9 +548,7 @@ class ProviderMatrixRunner:
                     task,
                     prepared_input_sha256=endpoint_prepared_identities[
                         (fixture.fixture_id, endpoint.ref)
-                    ][
-                        "prepared_input_sha256"
-                    ],
+                    ]["prepared_input_sha256"],
                     context_manifest_sha256=prepared_identities[fixture.fixture_id][
                         "context_manifest_sha256"
                     ],
@@ -571,7 +588,9 @@ class ProviderMatrixRunner:
         )
         created_at = stored_start.created_at
 
-        def case_for(evaluation_run_id, fixture, endpoint, policy_version, tested_revision, **values):
+        def case_for(
+            evaluation_run_id, fixture, endpoint, policy_version, tested_revision, **values
+        ):
             return self._case(
                 evaluation_run_id,
                 fixture,
@@ -600,7 +619,7 @@ class ProviderMatrixRunner:
             for endpoint in profiles
         }
         retention_approvals = {}
-        for fixture in (() if stored_completion is not None else fixtures):
+        for fixture in () if stored_completion is not None else fixtures:
             if all(
                 (fixture.fixture_id, endpoint.ref) in existing_cases_by_identity
                 for endpoint in profiles
@@ -612,7 +631,9 @@ class ProviderMatrixRunner:
             prepared_identity = prepared_identities[fixture.fixture_id]
             request_requirements = requirements_by_fixture[fixture.fixture_id]
             source_digests = tuple(
-                sorted(hashlib.sha256(item.encode("utf-8")).hexdigest() for item in fixture.source_ids)
+                sorted(
+                    hashlib.sha256(item.encode("utf-8")).hexdigest() for item in fixture.source_ids
+                )
             )
             for endpoint in profiles:
                 if (fixture.fixture_id, endpoint.ref) in existing_cases_by_identity:
@@ -623,8 +644,7 @@ class ProviderMatrixRunner:
                 gate = next(
                     binding
                     for binding in gate_bindings
-                    if binding.fixture_id == fixture.fixture_id
-                    and binding.endpoint == endpoint.ref
+                    if binding.fixture_id == fixture.fixture_id and binding.endpoint == endpoint.ref
                 )
                 excluded = tuple(
                     sorted(
@@ -673,9 +693,10 @@ class ProviderMatrixRunner:
                     (item for item in decision.candidates if item.endpoint == endpoint.ref), None
                 )
                 if decision.selected != endpoint.ref or candidate is None or not candidate.eligible:
-                    reason = (
-                        decision.no_route_reason
-                        or (candidate.rejection_reasons[0] if candidate and candidate.rejection_reasons else "endpoint_not_eligible")
+                    reason = decision.no_route_reason or (
+                        candidate.rejection_reasons[0]
+                        if candidate and candidate.rejection_reasons
+                        else "endpoint_not_eligible"
                     )
                     endpoint_cases.append(
                         case_for(
@@ -709,9 +730,7 @@ class ProviderMatrixRunner:
                         }
                     )
 
-            decisions_by_endpoint = {
-                endpoint.ref: decision for decision, endpoint in decisions
-            }
+            decisions_by_endpoint = {endpoint.ref: decision for decision, endpoint in decisions}
             cases_by_endpoint = {case.endpoint: case for case in endpoint_cases}
             for endpoint in profiles:
                 endpoint_prepared_identity = endpoint_prepared_identities[
@@ -766,9 +785,7 @@ class ProviderMatrixRunner:
                         count_source=preparation_counter.counter_version,
                         count_confidence=prepared_count.kind,
                         source_reference_sha256s=source_digests,
-                        prepared_input_sha256=endpoint_prepared_identity[
-                            "prepared_input_sha256"
-                        ],
+                        prepared_input_sha256=endpoint_prepared_identity["prepared_input_sha256"],
                         prepared_at=self.routing_service.current_time(owner_id=self.owner_id),
                     )
                     try:
@@ -837,12 +854,16 @@ class ProviderMatrixRunner:
                                 timeout_seconds=_remaining_seconds(permit),
                                 inference_context=context,
                             )
-                        latency = min(600_000, max(0, int((monotonic() - monotonic_started) * 1000)))
+                        latency = min(
+                            600_000, max(0, int((monotonic() - monotonic_started) * 1000))
+                        )
                         if (
                             result.metadata.identity.provider_id != selected_profile.provider_id
                             or result.metadata.identity.model_id != selected_profile.model_id
-                            or result.metadata.identity.serializer_id != selected_profile.serializer_id
-                            or result.metadata.invocation_id not in {
+                            or result.metadata.identity.serializer_id
+                            != selected_profile.serializer_id
+                            or result.metadata.invocation_id
+                            not in {
                                 None,
                                 str(invocation.invocation_id),
                             }
@@ -867,7 +888,11 @@ class ProviderMatrixRunner:
                         else:
                             usage_source = usage.source
                             total = usage.total_tokens
-                            if total is None and usage.input_tokens is not None and usage.output_tokens is not None:
+                            if (
+                                total is None
+                                and usage.input_tokens is not None
+                                and usage.output_tokens is not None
+                            ):
                                 total = usage.input_tokens + usage.output_tokens
                             unit_usage = (("tokens", total),) if total is not None else ()
                             unit_confidence = usage_confidence if unit_usage else "unknown"
@@ -1072,7 +1097,8 @@ class ProviderMatrixRunner:
         skipped = sum(case.status == "not_run" for case in summaries)
         completed_at = (
             stored_completion.completed_at
-            if stored_completion else self.routing_service.current_time(owner_id=self.owner_id)
+            if stored_completion
+            else self.routing_service.current_time(owner_id=self.owner_id)
         )
         if stored_completion is not None:
             summary = stored_completion
@@ -1095,53 +1121,54 @@ class ProviderMatrixRunner:
         strategy_ref = self.deterministic_baseline_strategy.ref
         if stored_completion is None:
             summary = EvaluationRunSummary(
-            evaluation_run_id=evaluation_run_id,
-            task_profile_id=task.profile_id,
-            task_profile_version=task.profile_version,
-            task_configuration_sha256=task_configuration_sha256(task),
-            evaluation_suite_id=suite_id,
-            evaluation_suite_version=suite_version,
-            scoring_policy_id=scoring_id,
-            scoring_policy_version=scoring_version,
-            output_tokens=output_tokens,
-            source=source,
-            status=status,
-            tested_revision=tested_revision,
-            configuration_sha256=configuration_digest,
-            policy_version=policy_version,
-            fixture_manifest_sha256=manifest_sha,
-            seed=seed,
-            total_cases=len(summaries),
-            measured_cases=measured,
-            synthetic_cases=synthetic,
-            skipped_cases=skipped,
-            failed_cases=failed,
-            single_provider_baseline_endpoint_profile_id=(
-                baseline_profile.endpoint_profile_id if baseline_profile else None
-            ),
-            single_provider_baseline_endpoint_profile_version=(
-                baseline_profile.profile_version if baseline_profile else None
-            ),
-            single_provider_baseline_configuration_sha256=(
-                endpoint_configuration_sha256(baseline_profile) if baseline_profile else None
-            ),
-            deterministic_strategy_id=strategy_ref.strategy_id,
-            deterministic_strategy_version=strategy_ref.semantic_version,
-            deterministic_baseline_endpoint_profile_ids=tuple(decision_baselines),
-            artifact_publications=tuple(
-                EvaluationArtifactPublication(
-                    endpoint=endpoint.ref,
-                    status=_artifact_publication_status(artifact_publications[endpoint.ref]),
-                    artifact_ids=tuple(artifact_publications[endpoint.ref]["artifact_ids"]),
-                    error_code=(
-                        "artifact_write_not_ready"
-                        if artifact_publications[endpoint.ref]["failed"] else None
-                    ),
-                )
-                for endpoint in profiles
-            ),
-            created_at=created_at,
-            completed_at=completed_at,
+                evaluation_run_id=evaluation_run_id,
+                task_profile_id=task.profile_id,
+                task_profile_version=task.profile_version,
+                task_configuration_sha256=task_configuration_sha256(task),
+                evaluation_suite_id=suite_id,
+                evaluation_suite_version=suite_version,
+                scoring_policy_id=scoring_id,
+                scoring_policy_version=scoring_version,
+                output_tokens=output_tokens,
+                source=source,
+                status=status,
+                tested_revision=tested_revision,
+                configuration_sha256=configuration_digest,
+                policy_version=policy_version,
+                fixture_manifest_sha256=manifest_sha,
+                seed=seed,
+                total_cases=len(summaries),
+                measured_cases=measured,
+                synthetic_cases=synthetic,
+                skipped_cases=skipped,
+                failed_cases=failed,
+                single_provider_baseline_endpoint_profile_id=(
+                    baseline_profile.endpoint_profile_id if baseline_profile else None
+                ),
+                single_provider_baseline_endpoint_profile_version=(
+                    baseline_profile.profile_version if baseline_profile else None
+                ),
+                single_provider_baseline_configuration_sha256=(
+                    endpoint_configuration_sha256(baseline_profile) if baseline_profile else None
+                ),
+                deterministic_strategy_id=strategy_ref.strategy_id,
+                deterministic_strategy_version=strategy_ref.semantic_version,
+                deterministic_baseline_endpoint_profile_ids=tuple(decision_baselines),
+                artifact_publications=tuple(
+                    EvaluationArtifactPublication(
+                        endpoint=endpoint.ref,
+                        status=_artifact_publication_status(artifact_publications[endpoint.ref]),
+                        artifact_ids=tuple(artifact_publications[endpoint.ref]["artifact_ids"]),
+                        error_code=(
+                            "artifact_write_not_ready"
+                            if artifact_publications[endpoint.ref]["failed"]
+                            else None
+                        ),
+                    )
+                    for endpoint in profiles
+                ),
+                created_at=created_at,
+                completed_at=completed_at,
             )
             self.repository.complete_run(summary)
 
@@ -1173,7 +1200,9 @@ class ProviderMatrixRunner:
     def _strategy_baseline(self, task, decisions):
         candidates = []
         for decision, _ in decisions:
-            candidates.extend(candidate.strategy_view() for candidate in decision.candidates if candidate.eligible)
+            candidates.extend(
+                candidate.strategy_view() for candidate in decision.candidates if candidate.eligible
+            )
         if not candidates:
             return ()
         by_endpoint = {candidate.endpoint: candidate for candidate in candidates}
@@ -1274,7 +1303,8 @@ class ProviderMatrixRunner:
                 )
                 approval = (
                     OutputRetentionApproval.model_validate(approval.model_dump())
-                    if approval is not None else None
+                    if approval is not None
+                    else None
                 )
             except Exception:  # noqa: BLE001 - retention is fail closed and optional
                 approval = None
@@ -1328,8 +1358,13 @@ class ProviderMatrixRunner:
             or byte_counts[key] + size > MAX_RAW_OUTPUT_BUFFER_BYTES
         ):
             self._flush_buffer(
-                key, buffers, byte_counts, evaluation_run_id, endpoint,
-                approval.reference, approval.valid_until,
+                key,
+                buffers,
+                byte_counts,
+                evaluation_run_id,
+                endpoint,
+                approval.reference,
+                approval.valid_until,
                 sequence=sequences.get(key, 0) + 1,
                 publication_state=publication_state,
             )
@@ -1353,7 +1388,13 @@ class ProviderMatrixRunner:
                 continue
             sequence = sequences.get(key, 0) + 1
             written[key] = self._flush_buffer(
-                key, buffers, byte_counts, evaluation_run_id, endpoint, reference, valid_until,
+                key,
+                buffers,
+                byte_counts,
+                evaluation_run_id,
+                endpoint,
+                reference,
+                valid_until,
                 sequence=sequence,
                 publication_state=publication_state,
             )
@@ -1456,8 +1497,7 @@ def _usage_confidence(usage) -> Literal["exact", "derived", "configured", "unkno
     if usage is None:
         return "unknown"
     has_counts = any(
-        value is not None
-        for value in (usage.input_tokens, usage.output_tokens, usage.total_tokens)
+        value is not None for value in (usage.input_tokens, usage.output_tokens, usage.total_tokens)
     )
     if not has_counts:
         return "unknown"
@@ -1495,8 +1535,7 @@ def _response_schema(fixture):
         "type": "object",
         "required": list(fixture.output_schema.required_fields),
         "properties": {
-            name: {"type": kind}
-            for name, kind in fixture.output_schema.field_types.items()
+            name: {"type": kind} for name, kind in fixture.output_schema.field_types.items()
         },
         "additionalProperties": True,
     }
@@ -1578,8 +1617,11 @@ def _configuration_digest(
 ):
     payload = {
         "endpoint_configurations": sorted(
-            (profile.endpoint_profile_id, profile.profile_version,
-             endpoint_configuration_sha256(profile))
+            (
+                profile.endpoint_profile_id,
+                profile.profile_version,
+                endpoint_configuration_sha256(profile),
+            )
             for profile in profiles
         ),
         "fixture_manifest_sha256": fixture_manifest_sha256(fixtures),
@@ -1605,7 +1647,8 @@ def _configuration_digest(
                 "profile_version": single_provider_baseline.profile_version,
                 "configuration_sha256": endpoint_configuration_sha256(single_provider_baseline),
             }
-            if single_provider_baseline is not None else None
+            if single_provider_baseline is not None
+            else None
         ),
         "scoring_policy_id": scoring_policy_id,
         "scoring_policy_version": scoring_policy_version,
@@ -1624,9 +1667,14 @@ def _safe_code(error: BaseException, default: str) -> str:
 
 
 def _safe_result_code(code, default: str) -> str:
-    if not isinstance(code, str) or not code or len(code) > 100 or any(
-        character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:+/-"
-        for character in code
+    if (
+        not isinstance(code, str)
+        or not code
+        or len(code) > 100
+        or any(
+            character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:+/-"
+            for character in code
+        )
     ):
         return default
     return code

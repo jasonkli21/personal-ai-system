@@ -31,7 +31,7 @@ from personal_ai.evaluation.output import emit
 from personal_ai.ranking.policy import evaluate_candidates
 from personal_ai.settings import Settings
 
-FIXTURE_PATH = Path(__file__).with_name("decision-fixtures.json")
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "decisions" / "decision-fixtures.json"
 NOW = datetime(2026, 10, 2, 12, tzinfo=UTC)
 
 

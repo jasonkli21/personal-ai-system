@@ -9,6 +9,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import BaseModel
 
+from personal_ai.api.chat_stream import sse_frames
 from personal_ai.applications.contracts import (
     ApplicationContextPolicy,
     ApplicationContextRequest,
@@ -402,7 +403,10 @@ def test_reference_and_synthetic_hosts_share_one_launch_package_and_turn_contrac
 
         async def collect_events():
             return [
-                event async for event in service.chat.continue_turn(conversation.id, next_request)
+                event
+                async for event in sse_frames(
+                    service.chat.continue_turn(conversation.id, next_request)
+                )
             ]
 
         events = asyncio.run(collect_events())
@@ -662,7 +666,10 @@ def test_domain_policy_can_prevent_manual_import_reuse_as_automatic_context():
 
 
 async def _collect_stream(service, conversation_id, request):
-    return [event async for event in service.chat.continue_turn(conversation_id, request)]
+    return [
+        event
+        async for event in sse_frames(service.chat.continue_turn(conversation_id, request))
+    ]
 
 
 def test_manual_import_reuse_can_narrow_by_effective_sensitivity():

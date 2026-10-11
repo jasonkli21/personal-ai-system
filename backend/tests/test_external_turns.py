@@ -9,6 +9,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import ValidationError
 
+from personal_ai.api.chat_stream import sse_frames
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.dispatch_grants import DispatchGrantVerifier
@@ -587,7 +588,7 @@ def test_external_to_automatic_to_connected_reuses_shared_context(setup, first):
     )
 
     async def collect():
-        return [event async for event in service.chat.continue_turn(cid, request)]
+        return [event async for event in sse_frames(service.chat.continue_turn(cid, request))]
 
     events = asyncio.run(collect())
     assert any("response.completed" in event for event in events)
@@ -728,7 +729,7 @@ def test_automatic_continuation_resumes_and_replays_same_key(setup, monkeypatch)
     monkeypatch.setattr(service.chat._context, "plan_context", original)
 
     async def collect(stream):
-        return [event async for event in stream]
+        return [event async for event in sse_frames(stream)]
 
     first = asyncio.run(collect(service.chat.continue_turn(cid, request)))
     replay = asyncio.run(collect(service.chat.continue_turn(cid, request)))
@@ -1019,8 +1020,10 @@ def test_external_completions_use_shared_post_completion_lifecycle_once(setup):
     async def automatic_turn():
         events = [
             event
-            async for event in service.chat.continue_turn(
-                cid, ContinuationRequest(content="Automatic completion", idempotency_key=uuid4())
+            async for event in sse_frames(
+                service.chat.continue_turn(
+                    cid, ContinuationRequest(content="Automatic completion", idempotency_key=uuid4())
+                )
             )
         ]
         pending = tuple(service.chat._post_completion_tasks)

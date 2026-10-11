@@ -7,7 +7,8 @@ from datetime import UTC, datetime, timedelta
 from time import monotonic
 
 from personal_ai.auth.scope import ApplicationScope
-from personal_ai.persistence.dynamodb import DynamoDBRuntimeTable, _b64
+from personal_ai.persistence.dynamodb._helpers import _b64
+from personal_ai.persistence.dynamodb.client import DynamoDBRuntimeTable
 from personal_ai.persistence.postgres import (
     PostgresDatabase,
     PostgresPayloadRepository,

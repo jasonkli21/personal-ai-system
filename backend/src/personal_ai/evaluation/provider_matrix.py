@@ -19,15 +19,15 @@ from personal_ai.evaluation.provider_matrix_contracts import (
     QualityProfile,
 )
 from personal_ai.routing.contracts import EndpointProfile
-from personal_ai.routing.phase21 import (
-    RoutingTaskProfile,
+from personal_ai.routing.decision_models import RoutingTaskProfile
+from personal_ai.routing.integrity import (
     endpoint_configuration_sha256,
     quality_identity_sha256,
     task_configuration_sha256,
 )
 from personal_ai.validation.checks import constraint_passes, json_object, type_matches
 
-FIXTURE_PATH = Path(__file__).with_name("provider-matrix-fixtures.json")
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "routing" / "provider-matrix-fixtures.json"
 SCORING_POLICY_ID = "deterministic-task-matrix"
 SCORING_POLICY_VERSION = 1
 MAX_FIXTURES = 512
@@ -90,7 +90,8 @@ def _score_synthesis(fixture: EvaluationFixture, output: dict | None) -> Semanti
     answer_relevance = (
         sum(term.casefold() in answer_folded for term in fixture.required_terms)
         / len(fixture.required_terms)
-        if fixture.required_terms else 1.0
+        if fixture.required_terms
+        else 1.0
     )
     raw_citations = output.get("citations", []) if output is not None else []
     citations = raw_citations if isinstance(raw_citations, list) else []
@@ -105,7 +106,8 @@ def _score_synthesis(fixture: EvaluationFixture, output: dict | None) -> Semanti
     expected_sources = {source for claim in fixture.expected_claims for source in claim.source_ids}
     citation_coverage = (
         len(expected_sources.intersection(valid_citations)) / len(expected_sources)
-        if expected_sources else 1.0
+        if expected_sources
+        else 1.0
     )
     return SemanticScore(
         citation_precision=citation_precision,
@@ -131,12 +133,25 @@ def load_provider_matrix_configuration():
         raise ValueError("evaluation_fixture_count_invalid")
     if len({fixture.fixture_id for fixture in fixtures}) != len(fixtures):
         raise ValueError("evaluation_fixture_id_duplicate")
-    if len({(fixture.evaluation_suite_id, fixture.evaluation_suite_version) for fixture in fixtures}) != 1:
+    if (
+        len(
+            {
+                (fixture.evaluation_suite_id, fixture.evaluation_suite_version)
+                for fixture in fixtures
+            }
+        )
+        != 1
+    ):
         raise ValueError("evaluation_fixture_suite_identity_mismatch")
-    if len({(fixture.scoring_policy_id, fixture.scoring_policy_version) for fixture in fixtures}) != 1:
+    if (
+        len({(fixture.scoring_policy_id, fixture.scoring_policy_version) for fixture in fixtures})
+        != 1
+    ):
         raise ValueError("evaluation_fixture_scoring_policy_mismatch")
     declared_suite = raw.get("evaluation_suite", {})
-    suite_id, suite_version, _scoring_id, _scoring_version, _suite_sha = evaluation_suite_identity(fixtures)
+    suite_id, suite_version, _scoring_id, _scoring_version, _suite_sha = evaluation_suite_identity(
+        fixtures
+    )
     if (declared_suite.get("id"), declared_suite.get("version")) != (suite_id, suite_version):
         raise ValueError("evaluation_suite_declaration_mismatch")
     task = RoutingTaskProfile.model_validate(raw["task_profile"])
@@ -175,8 +190,12 @@ def evaluation_suite_identity(fixtures: Iterable[EvaluationFixture]):
     if not fixtures:
         raise ValueError("evaluation_fixture_count_invalid")
     suite_keys = {
-        (fixture.evaluation_suite_id, fixture.evaluation_suite_version,
-         fixture.scoring_policy_id, fixture.scoring_policy_version)
+        (
+            fixture.evaluation_suite_id,
+            fixture.evaluation_suite_version,
+            fixture.scoring_policy_id,
+            fixture.scoring_policy_version,
+        )
         for fixture in fixtures
     }
     if len(suite_keys) != 1:
@@ -193,7 +212,6 @@ def evaluation_suite_identity(fixtures: Iterable[EvaluationFixture]):
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     return suite_id, suite_version, scoring_id, scoring_version, digest
-
 
 
 def score_output(
@@ -228,7 +246,9 @@ def score_output(
     constraints = [constraint_passes(output or {}, row) for row in fixture.hard_constraints]
     hard_constraint_satisfaction = sum(constraints) / len(constraints) if constraints else 1.0
     privacy = float(
-        not any(marker.casefold() in output_text.casefold() for marker in fixture.forbidden_literals)
+        not any(
+            marker.casefold() in output_text.casefold() for marker in fixture.forbidden_literals
+        )
     )
     dimensions = (
         schema_validity,
@@ -343,8 +363,11 @@ def build_quality_profile(
     ):
         raise ValueError("evaluation_case_profile_identity_mismatch")
     preparation_identities = {
-        (case.preparation_counter_id, case.preparation_counter_confidence,
-         case.preparation_count_source or "unknown")
+        (
+            case.preparation_counter_id,
+            case.preparation_counter_confidence,
+            case.preparation_count_source or "unknown",
+        )
         for case in measured
     }
     if len(preparation_identities) != 1:
@@ -388,8 +411,7 @@ def build_quality_profile(
         output_tokens=output_tokens,
         comparison_baseline_endpoint=(comparison_baseline.ref if comparison_baseline else None),
         comparison_baseline_configuration_sha256=(
-            endpoint_configuration_sha256(comparison_baseline)
-            if comparison_baseline else None
+            endpoint_configuration_sha256(comparison_baseline) if comparison_baseline else None
         ),
         endpoint=endpoint.ref,
         provider_id=endpoint.provider_id,
@@ -428,8 +450,14 @@ def build_quality_profile(
         mean_metrics={
             name: fmean(getattr(metric, name) for metric in metrics)
             for name in (
-                "schema_validity", "citation_precision", "citation_coverage", "provenance",
-                "answer_support", "answer_relevance", "hard_constraint_satisfaction", "privacy",
+                "schema_validity",
+                "citation_precision",
+                "citation_coverage",
+                "provenance",
+                "answer_support",
+                "answer_relevance",
+                "hard_constraint_satisfaction",
+                "privacy",
             )
         },
         measured_at=measured_at,
@@ -578,9 +606,5 @@ def git_revision(root: Path | None = None) -> str:
 
 
 def fixture_manifest_sha256(fixtures: Iterable[EvaluationFixture]) -> str:
-    normalized = sorted(
-        (fixture.fixture_id, fixture.case_identity_sha256) for fixture in fixtures
-    )
-    return hashlib.sha256(
-        json.dumps(normalized, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    normalized = sorted((fixture.fixture_id, fixture.case_identity_sha256) for fixture in fixtures)
+    return hashlib.sha256(json.dumps(normalized, separators=(",", ":")).encode("utf-8")).hexdigest()

@@ -18,7 +18,7 @@ from personal_ai.services import ChatTurnService
 from personal_ai.settings import Settings
 from personal_ai.storage import InMemoryConversationRepository, InMemoryMessageRepository
 
-FIXTURE_PATH = Path(__file__).with_name("context-fixtures.json")
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "context" / "context-fixtures.json"
 
 
 class FactSummarizer:

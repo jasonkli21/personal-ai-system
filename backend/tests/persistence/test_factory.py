@@ -51,8 +51,8 @@ def test_local_factory_uses_explicit_local_stores_and_is_shared(monkeypatch):
         def close(self):
             calls.append(("close-dynamodb",))
 
-    monkeypatch.setattr("personal_ai.persistence.postgres.PostgresDatabase", Database)
-    monkeypatch.setattr("personal_ai.persistence.dynamodb.DynamoDBRuntimeTable", Table)
+    monkeypatch.setattr("personal_ai.persistence.postgres.database.PostgresDatabase", Database)
+    monkeypatch.setattr("personal_ai.persistence.dynamodb.client.DynamoDBRuntimeTable", Table)
     settings = _settings()
 
     factory = persistence_factory(settings)
@@ -86,7 +86,7 @@ def test_deployed_factory_uses_neon_and_federated_dynamodb(monkeypatch):
 
     monkeypatch.setattr("personal_ai.persistence.neon.NeonRuntimeDatabase", Database)
     monkeypatch.setattr(
-        "personal_ai.persistence.dynamodb_cloud.FederatedDynamoDBRuntimeTable", Table
+        "personal_ai.persistence.dynamodb.cloud.FederatedDynamoDBRuntimeTable", Table
     )
     settings = _settings(
         app_environment="production",

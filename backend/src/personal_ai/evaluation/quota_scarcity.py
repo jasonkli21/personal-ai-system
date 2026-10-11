@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from personal_ai.routing.phase21 import (
+from personal_ai.routing.decision_models import (
     MAX_ROUTING_QUOTA_BUCKET_FACTS,
     EndpointRef,
     QuotaBucketDecisionFact,
@@ -26,7 +26,7 @@ from personal_ai.routing.strategy import (
     QuotaAwareDeterministicStrategy,
 )
 
-FIXTURE_PATH = Path(__file__).with_name("quota-scarcity-fixtures.json")
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "routing" / "quota-scarcity-fixtures.json"
 MAX_SCENARIOS = 16
 MAX_DEMANDS_PER_SCENARIO = 10_000
 _QUALITY_TOLERANCE = 1e-12
@@ -50,9 +50,7 @@ class QuotaScenarioEndpoint(_FrozenModel):
     )
     cooldown_until: datetime | None = None
     quota_bucket_ids: tuple[str, ...] = Field(min_length=1, max_length=32)
-    quota_requirements: tuple[QuotaReservationRequirement, ...] = Field(
-        min_length=1, max_length=32
-    )
+    quota_requirements: tuple[QuotaReservationRequirement, ...] = Field(min_length=1, max_length=32)
 
     @field_validator("rejection_reason")
     @classmethod
@@ -115,9 +113,9 @@ class QuotaDemandScenario(_FrozenModel):
             raise ValueError("quota_scarcity_protected_bucket_duplicate")
         for endpoint in self.endpoints:
             requirement_ids = tuple(row.bucket_id for row in endpoint.quota_requirements)
-            if set(requirement_ids) != set(endpoint.quota_bucket_ids) or len(requirement_ids) != len(
-                endpoint.quota_bucket_ids
-            ):
+            if set(requirement_ids) != set(endpoint.quota_bucket_ids) or len(
+                requirement_ids
+            ) != len(endpoint.quota_bucket_ids):
                 raise ValueError("quota_scarcity_reservation_requirements_incomplete")
         return self
 
@@ -138,7 +136,9 @@ class QuotaEvaluationThresholds(_FrozenModel):
     minimum_scenario_quality_delta: float = Field(default=-0.05, ge=-1, le=1)
     maximum_unavailable_increase: int = Field(default=0, ge=0, le=MAX_DEMANDS_PER_SCENARIO)
     maximum_latency_increase_per_demand_ms: int = Field(default=150, ge=0, le=600_000)
-    minimum_protected_send_equivalents_saved: int = Field(default=1, ge=0, le=MAX_DEMANDS_PER_SCENARIO)
+    minimum_protected_send_equivalents_saved: int = Field(
+        default=1, ge=0, le=MAX_DEMANDS_PER_SCENARIO
+    )
     maximum_uncertain_dispatches: int = Field(default=0, ge=0, le=MAX_DEMANDS_PER_SCENARIO)
 
 
@@ -232,24 +232,27 @@ def run_quota_scarcity_evaluation(
         for scenario in suite.scenarios
     )
     total_demands = sum(scenario.demand_count for scenario in suite.scenarios)
-    aggregate_quality_delta = sum(
-        result.quality_delta * scenario.demand_count
-        for result, scenario in zip(paired, suite.scenarios, strict=True)
-    ) / total_demands
+    aggregate_quality_delta = (
+        sum(
+            result.quality_delta * scenario.demand_count
+            for result, scenario in zip(paired, suite.scenarios, strict=True)
+        )
+        / total_demands
+    )
     aggregate_unavailable_delta = sum(result.unavailable_delta for result in paired)
-    aggregate_latency_delta = sum(
-        result.latency_delta_per_demand_ms * scenario.demand_count
-        for result, scenario in zip(paired, suite.scenarios, strict=True)
-    ) / total_demands
+    aggregate_latency_delta = (
+        sum(
+            result.latency_delta_per_demand_ms * scenario.demand_count
+            for result, scenario in zip(paired, suite.scenarios, strict=True)
+        )
+        / total_demands
+    )
     saved = sum(result.protected_send_equivalents_saved for result in paired)
     uncertain = sum(result.scarcity.uncertain_dispatches for result in paired)
     floor_violations = sum(result.scarcity.quality_floor_violations for result in paired)
     hard_filter_violations = sum(result.scarcity.hard_filter_violations for result in paired)
     conservation_violations = sum(
-        1
-        for result in paired
-        for bucket in result.scarcity.buckets
-        if not bucket.conserved
+        1 for result in paired for bucket in result.scarcity.buckets if not bucket.conserved
     )
     gate_results = {
         "task_quality_floor": floor_violations == 0,
@@ -259,9 +262,7 @@ def run_quota_scarcity_evaluation(
             and conservation_violations == 0
         ),
         "availability": aggregate_unavailable_delta <= thresholds.maximum_unavailable_increase,
-        "latency": (
-            aggregate_latency_delta <= thresholds.maximum_latency_increase_per_demand_ms
-        ),
+        "latency": (aggregate_latency_delta <= thresholds.maximum_latency_increase_per_demand_ms),
         "uncertainty": uncertain <= thresholds.maximum_uncertain_dispatches,
         "hard_eligibility": hard_filter_violations == 0,
         "scenario_protection": all(_scenario_passes_gates(result) for result in paired),
@@ -287,9 +288,7 @@ def run_quota_scarcity_evaluation(
         uncertain_dispatches=uncertain,
         promoted=promoted,
         selected_strategy_id=(
-            scarcity_strategy.ref.strategy_id
-            if promoted
-            else baseline_strategy.ref.strategy_id
+            scarcity_strategy.ref.strategy_id if promoted else baseline_strategy.ref.strategy_id
         ),
         rollback_strategy_id=baseline_strategy.ref.strategy_id,
         gate_results=gate_results,
@@ -311,9 +310,7 @@ def _evaluate_scenario(scenario, baseline_strategy, scarcity_strategy, threshold
     )
     quality_delta = round(scarcity.quality_per_demand - baseline.quality_per_demand, 6)
     unavailable_delta = scarcity.unavailable - baseline.unavailable
-    latency_delta = round(
-        scarcity.latency_per_demand_ms - baseline.latency_per_demand_ms, 3
-    )
+    latency_delta = round(scarcity.latency_per_demand_ms - baseline.latency_per_demand_ms, 3)
     return PairedQuotaScenarioResult(
         scenario_id=scenario.scenario_id,
         baseline=baseline,
@@ -429,7 +426,9 @@ def _simulate(scenario: QuotaDemandScenario, strategy):
             for endpoint in available
         )
         relevant_ids = {
-            bucket_id for candidate in strategy_candidates for bucket_id in candidate.quota_bucket_ids
+            bucket_id
+            for candidate in strategy_candidates
+            for bucket_id in candidate.quota_bucket_ids
         }
         view = StrategyView(
             preferences=scenario.preferences,
@@ -535,9 +534,7 @@ def _simulate(scenario: QuotaDemandScenario, strategy):
 def _advance_bucket(fact: QuotaBucketDecisionFact, now: datetime) -> QuotaBucketDecisionFact:
     """Advance only declared reset/freshness facts; never infer provider capacity."""
     if fact.confidence == "unknown":
-        return fact.model_copy(
-            update={"remaining_units": None, "time_to_reset_seconds": None}
-        )
+        return fact.model_copy(update={"remaining_units": None, "time_to_reset_seconds": None})
     if fact.fresh_until is not None and fact.fresh_until <= now:
         return fact.model_copy(
             update={
@@ -566,9 +563,7 @@ def _advance_bucket(fact: QuotaBucketDecisionFact, now: datetime) -> QuotaBucket
         remaining = fact.limit_units
         consumed = 0
         reserved = 0
-    time_to_reset = (
-        max(0, int((reset_at - now).total_seconds())) if reset_at is not None else None
-    )
+    time_to_reset = max(0, int((reset_at - now).total_seconds())) if reset_at is not None else None
     return fact.model_copy(
         update={
             "window_start": window_start,

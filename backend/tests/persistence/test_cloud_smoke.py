@@ -29,7 +29,7 @@ def _reviewed_opt_in() -> bool:
 
 def _gate_validator():
     root = Path(__file__).resolve().parents[3]
-    module_path = root / "infrastructure/phase10/strict_zero_release_gate.py"
+    module_path = root / "infrastructure/policy/strict_zero/strict_zero_release_gate.py"
     spec = importlib.util.spec_from_file_location("p10_strict_zero_gate", module_path)
     if spec is None or spec.loader is None:
         raise RuntimeError("strict_zero_release_gate_unavailable")

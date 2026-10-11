@@ -8,19 +8,19 @@ from pathlib import Path
 from uuid import uuid4
 
 from personal_ai.agents.research.contracts import ResearchRequest
-from personal_ai.agents.research.iterative_contracts import (
+from personal_ai.agents.research.iterative.contracts import (
     DecisionIntent,
     IterativeResearchRequest,
     RunState,
 )
-from personal_ai.agents.research.iterative_fakes import (
+from personal_ai.agents.research.iterative.fakes import (
     DeterministicClock,
     FakeIterativeSearchAdapter,
 )
-from personal_ai.agents.research.iterative_repositories import (
+from personal_ai.agents.research.iterative.repositories import (
     InMemoryIterativeResearchRepository,
 )
-from personal_ai.agents.research.iterative_service import IterativeResearchService
+from personal_ai.agents.research.iterative.service import IterativeResearchService
 from personal_ai.agents.research.repositories import InMemoryResearchRepository
 from personal_ai.agents.research.service import ResearchService
 from personal_ai.applications.contracts import ApplicationContextRequest
@@ -37,8 +37,8 @@ from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
 from personal_ai.search.providers.brave import SearchError
 from personal_ai.settings import Settings
 
-FIXTURES = Path(__file__).with_name("iterative-research-fixtures.json")
-RESULT_SCHEMA = Path(__file__).with_name("iterative-research-evaluation.schema.json")
+FIXTURES = Path(__file__).parent / "fixtures" / "iterative_research" / "iterative-research-fixtures.json"
+RESULT_SCHEMA = Path(__file__).parent / "schemas" / "iterative-research-evaluation.schema.json"
 
 
 def _application_context(owner_id="local"):
@@ -111,6 +111,7 @@ async def _decision_state(settings, session, intent, clock):
         owner_id=session.owner_id,
         clock=clock,
     )
+
     class SessionView:
         def get(self, owner_id, session_id):
             if owner_id != session.owner_id or session_id != session.id:
@@ -120,13 +121,15 @@ async def _decision_state(settings, session, intent, clock):
             return session
 
     service.research_repository = SessionView()
-    result = service.create(DecisionCreateRequest(
-        idempotency_key=uuid4(),
-        research_session_id=session.id,
-        candidates=intent.candidates,
-        constraints=intent.constraints,
-        preferences=intent.preferences,
-    ))
+    result = service.create(
+        DecisionCreateRequest(
+            idempotency_key=uuid4(),
+            research_session_id=session.id,
+            candidates=intent.candidates,
+            constraints=intent.constraints,
+            preferences=intent.preferences,
+        )
+    )
     return result.decision.state
 
 
@@ -177,7 +180,7 @@ class _FixturePlanner:
     def propose(self, request, gap, candidates, domains):
         if self.override is not None:
             return self.override
-        from personal_ai.agents.research.iterative_service import FollowupPlanner
+        from personal_ai.agents.research.iterative.service import FollowupPlanner
 
         return FollowupPlanner().propose(request, gap, candidates, domains)
 
@@ -276,7 +279,9 @@ def _result_record(fixture, baseline, run, session, events, adapter, decision_re
     latest_gaps = {}
     for gap in run.gaps:
         latest_gaps[gap.semantic_key] = gap
-    unresolved_gaps = tuple(gap for gap in latest_gaps.values() if gap.status in {"open", "unresolvable"})
+    unresolved_gaps = tuple(
+        gap for gap in latest_gaps.values() if gap.status in {"open", "unresolvable"}
+    )
     verified_claim_count = sum(
         claim.claim_status == "verified"
         for decision_id in run.decision_ids
@@ -327,7 +332,9 @@ def _result_record(fixture, baseline, run, session, events, adapter, decision_re
         passed = passed and expected["gap_classes"] == actual["gap_classes"]
     if "followup_query_contains" in expected:
         query = actual["followup_queries"][0] if actual["followup_queries"] else ""
-        passed = passed and all(part.casefold() in query.casefold() for part in expected["followup_query_contains"])
+        passed = passed and all(
+            part.casefold() in query.casefold() for part in expected["followup_query_contains"]
+        )
 
     expectation = fixture["comparison_expectation"]
     comparison_passed = {
@@ -429,8 +436,10 @@ def _result_record(fixture, baseline, run, session, events, adapter, decision_re
         "claim": fixture["meaningful_improvement"],
         "passed": bool(comparison_passed),
         "query_delta": actual["query_count"] - baseline["query_count"],
-        "accepted_source_delta": actual["accepted_source_count"] - baseline["accepted_source_count"],
-        "selected_evidence_delta": actual["selected_evidence_count"] - baseline["selected_evidence"],
+        "accepted_source_delta": actual["accepted_source_count"]
+        - baseline["accepted_source_count"],
+        "selected_evidence_delta": actual["selected_evidence_count"]
+        - baseline["selected_evidence"],
     }
     passed = passed and comparison["passed"]
     passed = passed and (
@@ -445,7 +454,10 @@ def _result_record(fixture, baseline, run, session, events, adapter, decision_re
         )
         and run.usage.allowed_domains <= len(run.budget.allowed_domains)
         and len(run.events) <= 128
-        and (run.state != RunState.COMPLETED or not any(g.status == "open" and g.required for g in run.gaps))
+        and (
+            run.state != RunState.COMPLETED
+            or not any(g.status == "open" and g.required for g in run.gaps)
+        )
     )
     return {
         "name": fixture["name"],
@@ -469,21 +481,35 @@ def _validate_schema(report):
         raise ValueError("at least ten complete paired fixtures are required")
     if not isinstance(report["passed"], bool):
         raise TypeError("invalid evaluation pass state")
-    required_iterative = set(schema["properties"]["results"]["items"]["properties"]["iterative"]["required"])
+    required_iterative = set(
+        schema["properties"]["results"]["items"]["properties"]["iterative"]["required"]
+    )
     for result in report["results"]:
         if set(result) != {"name", "passed", "single_pass", "iterative", "comparison"}:
             raise ValueError("invalid paired result fields")
-        if not isinstance(result["single_pass"], dict) or set(result["iterative"]) != required_iterative:
+        if (
+            not isinstance(result["single_pass"], dict)
+            or set(result["iterative"]) != required_iterative
+        ):
             raise ValueError("invalid paired result payload")
         if set(result["comparison"]) != {
-            "expectation", "claim", "passed", "query_delta", "accepted_source_delta",
+            "expectation",
+            "claim",
+            "passed",
+            "query_delta",
+            "accepted_source_delta",
             "selected_evidence_delta",
         }:
             raise ValueError("invalid comparative outcome")
         if not result["comparison"]["passed"]:
             raise ValueError("fixture did not meet its comparative acceptance assertion")
         item = result["iterative"]
-        if item["state"] not in schema["properties"]["results"]["items"]["properties"]["iterative"]["properties"]["state"]["enum"]:
+        if (
+            item["state"]
+            not in schema["properties"]["results"]["items"]["properties"]["iterative"][
+                "properties"
+            ]["state"]["enum"]
+        ):
             raise ValueError("invalid iterative terminal state")
         if item["event_count"] < 1 or item["event_count"] > 128:
             raise ValueError("invalid persisted event count")
@@ -494,7 +520,9 @@ async def evaluate():
     for fixture in load_fixtures():
         baseline = await _run_single_pass(fixture)
         run, session, events, adapter, decision_repository = await _run_iterative(fixture)
-        results.append(_result_record(fixture, baseline, run, session, events, adapter, decision_repository))
+        results.append(
+            _result_record(fixture, baseline, run, session, events, adapter, decision_repository)
+        )
     report = {
         "schema_version": "iterative-research-evaluation-v1",
         "synthetic": True,

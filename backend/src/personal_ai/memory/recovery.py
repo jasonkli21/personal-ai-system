@@ -3,7 +3,7 @@
 import argparse
 import json
 
-from personal_ai.memory.lifecycle_jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
+from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.settings import get_settings
 

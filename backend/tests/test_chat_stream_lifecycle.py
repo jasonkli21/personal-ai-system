@@ -14,6 +14,7 @@ import httpx
 import pytest
 from starlette.requests import ClientDisconnect
 
+from personal_ai.api.chat_stream import sse_frames
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
     get_conversation_repository,
@@ -643,10 +644,12 @@ def test_gemini_timeout_after_first_delta_finalizes_partial_turn() -> None:
         async def collect() -> list[str]:
             return [
                 frame
-                async for frame in service.send(
-                    conversation.id,
-                    "Hello",
-                    request_id="timeout-regression",
+                async for frame in sse_frames(
+                    service.send(
+                        conversation.id,
+                        "Hello",
+                        request_id="timeout-regression",
+                    )
                 )
             ]
 
@@ -714,8 +717,10 @@ def test_chat_rejects_data_or_errors_after_terminal_without_persisting_success(v
     async def collect():
         return [
             frame
-            async for frame in service.send(
-                conversation.id, "hello", request_id=f"protocol-{violation}"
+            async for frame in sse_frames(
+                service.send(
+                    conversation.id, "hello", request_id=f"protocol-{violation}"
+                )
             )
         ]
 

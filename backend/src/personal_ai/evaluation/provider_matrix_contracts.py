@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from personal_ai.routing.contracts import CounterConfidence, EndpointRef
-from personal_ai.routing.phase21 import EvaluationQualityGate, QualityEvidence
+from personal_ai.routing.decision_models import EvaluationQualityGate, QualityEvidence
 
 _SAFE_ID = r"^[A-Za-z0-9@][A-Za-z0-9._:/@+_-]{0,199}$"
 _REVISION = r"^[0-9a-f]{7,64}(-working-tree-[0-9a-f]{12})?$"
@@ -85,7 +85,9 @@ class EvaluationFixture(FrozenContract):
     @field_validator("source_ids", "required_terms", "forbidden_literals")
     @classmethod
     def values_are_unique_and_bounded(cls, values):
-        if len(set(values)) != len(values) or any(not value or len(value) > 200 for value in values):
+        if len(set(values)) != len(values) or any(
+            not value or len(value) > 200 for value in values
+        ):
             raise ValueError("evaluation_fixture_values_invalid")
         return values
 
@@ -93,8 +95,10 @@ class EvaluationFixture(FrozenContract):
     def fixture_is_safe(self):
         if not self.held_out:
             raise ValueError("evaluation_fixture_must_be_held_out")
-        if any(claim.source_ids and not set(claim.source_ids).issubset(self.source_ids)
-               for claim in self.expected_claims):
+        if any(
+            claim.source_ids and not set(claim.source_ids).issubset(self.source_ids)
+            for claim in self.expected_claims
+        ):
             raise ValueError("evaluation_fixture_claim_source_invalid")
         if len({claim.claim_id for claim in self.expected_claims}) != len(self.expected_claims):
             raise ValueError("evaluation_fixture_claim_duplicate")
@@ -170,7 +174,9 @@ class EvaluationCaseSummary(FrozenContract):
     single_provider_baseline: bool = False
     deterministic_strategy_baseline: bool = False
     deterministic_strategy_rank: int | None = Field(default=None, ge=1, le=32)
-    deterministic_strategy_score: int | None = Field(default=None, ge=-2_147_483_648, le=2_147_483_647)
+    deterministic_strategy_score: int | None = Field(
+        default=None, ge=-2_147_483_648, le=2_147_483_647
+    )
     metrics: EvaluationMetrics | None = None
     measured_at: datetime
 
@@ -186,7 +192,9 @@ class EvaluationCaseSummary(FrozenContract):
         if (self.status in {"measured", "synthetic_baseline"}) != (self.metrics is not None):
             raise ValueError("evaluation_case_metrics_status_mismatch")
         if self.status == "measured" and (
-            self.routing_decision_id is None or self.invocation_id is None or self.attempt_id is None
+            self.routing_decision_id is None
+            or self.invocation_id is None
+            or self.attempt_id is None
         ):
             raise ValueError("evaluation_case_dispatch_identity_missing")
         return self
@@ -230,7 +238,9 @@ class EvaluationRunSummary(FrozenContract):
     deterministic_strategy_id: str = Field(pattern=_SAFE_ID)
     deterministic_strategy_version: str = Field(pattern=_SAFE_ID)
     deterministic_baseline_endpoint_profile_ids: tuple[str, ...] = Field(default=(), max_length=128)
-    artifact_publications: tuple[EvaluationArtifactPublication, ...] = Field(default=(), max_length=128)
+    artifact_publications: tuple[EvaluationArtifactPublication, ...] = Field(
+        default=(), max_length=128
+    )
     created_at: datetime
     completed_at: datetime
 
@@ -250,9 +260,7 @@ class EvaluationRunSummary(FrozenContract):
             != self.total_cases
         ):
             raise ValueError("evaluation_run_case_counts_invalid")
-        if (
-            self.synthetic_cases and self.source != "synthetic"
-        ) or (
+        if (self.synthetic_cases and self.source != "synthetic") or (
             self.measured_cases and self.source != "live"
         ):
             raise ValueError("evaluation_run_source_counts_invalid")
@@ -353,7 +361,10 @@ class QualityProfile(FrozenContract):
     def profile_identity_and_metric_bounds(self):
         if self.fresh_until <= self.measured_at:
             raise ValueError("quality_profile_freshness_invalid")
-        if any(not key or len(key) > 80 or not 0 <= value <= 1 for key, value in self.mean_metrics.items()):
+        if any(
+            not key or len(key) > 80 or not 0 <= value <= 1
+            for key, value in self.mean_metrics.items()
+        ):
             raise ValueError("quality_profile_metric_invalid")
         if self.status == "qualified" and (
             self.sample_count < self.minimum_samples

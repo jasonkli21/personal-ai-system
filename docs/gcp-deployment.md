@@ -43,11 +43,11 @@ or DynamoDB. Before deployment:
    operator permission to bind Secret Manager access; the script grants the API
    and worker identities access to the configured secret.
 3. Provision the DynamoDB Standard table and required GSIs using
-   [`infrastructure/phase10/dynamodb-cloudformation.yaml`](../infrastructure/phase10/dynamodb-cloudformation.yaml).
+   [`infrastructure/aws/dynamodb/dynamodb-cloudformation.yaml`](../infrastructure/aws/dynamodb/dynamodb-cloudformation.yaml).
    Set up Google OIDC-to-AWS-STS trust from
-   [`infrastructure/phase10/aws-google-oidc-trust-policy.json.tmpl`](../infrastructure/phase10/aws-google-oidc-trust-policy.json.tmpl)
+   [`infrastructure/aws/identity/aws-google-oidc-trust-policy.json.tmpl`](../infrastructure/aws/identity/aws-google-oidc-trust-policy.json.tmpl)
    and grant only the runtime policy in
-   [`infrastructure/phase10/dynamodb-runtime-policy.json.tmpl`](../infrastructure/phase10/dynamodb-runtime-policy.json.tmpl).
+   [`infrastructure/aws/dynamodb/dynamodb-runtime-policy.json.tmpl`](../infrastructure/aws/dynamodb/dynamodb-runtime-policy.json.tmpl).
    Bootstrap/schema permissions are separate from runtime access.
 4. Create the Gemini API-key secret and numeric version. Keep secret values out
    of repository files, logs, and command-line arguments.
@@ -124,7 +124,7 @@ the model.
 Cloud Run can scale to zero, but that does not establish a zero-cost deployment.
 Review current account-specific Neon plan limits, DynamoDB table/GSI capacity,
 cross-cloud egress, GCP quotas, external providers, and model usage. The
-[strict-$0 validator](../infrastructure/phase10/strict_zero_release_gate.py)
+[strict-$0 validator](../infrastructure/policy/strict_zero/strict_zero_release_gate.py)
 needs current reviewed evidence; fake/unit tests and local DynamoDB do not prove
 cloud IAM, production capacity, GSI behavior, or free-tier eligibility.
 
