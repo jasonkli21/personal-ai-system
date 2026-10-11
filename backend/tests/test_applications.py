@@ -87,7 +87,7 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
         assert all(not tool.available for tool in registration.tools)
     for application_id in ("finance", "health"):
         policy = registry.get(application_id).context_policy.sidecar
-        assert policy.allow_manual_import_context is False
+        assert policy.manual_import_reuse.allowed is False
         assert policy.copy_allowed is True
         assert policy.draft_insert_target_ids == ()
     assert registry.registration("travel").comparison_modules[0].registration.domain_id == "travel"

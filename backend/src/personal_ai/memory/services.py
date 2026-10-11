@@ -8,6 +8,7 @@ from time import monotonic
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.authorization import authorize_memory_disclosure
 from personal_ai.context.contracts import complete_turns, fingerprint
+from personal_ai.context.history import manual_import_is_reusable
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.llm.client import EmbeddingResult
 from personal_ai.memory.contracts import (
@@ -39,6 +40,25 @@ def source_messages(memory, messages, *, timeout=5):
         return None
     completed_users = {u.id for u, a in complete_turns(active)}
     return source if set(memory.source_message_ids) <= completed_users else None
+
+
+def source_turn_reuse_reason(memory, messages, application_context, *, timeout=5):
+    """Revalidate manual-import reuse against the source turn's current policy."""
+    if application_context is None:
+        return None
+    active = messages.list_active(
+        owner_id=memory.owner_id,
+        conversation_id=memory.source_conversation_id,
+        timeout=timeout,
+    )
+    turn = next(
+        (pair for pair in complete_turns(active) if pair[1].id == memory.source_turn_id),
+        None,
+    )
+    if turn is None:
+        return "branch_mismatch"
+    policy = application_context.definition.context_policy.sidecar.manual_import_reuse
+    return None if manual_import_is_reusable(turn[1], policy) else "source_policy_denied"
 
 
 def _validate_embedding_result(result, settings, *, task):
@@ -84,6 +104,11 @@ class MemoryExtractionService:
                 inference_context = authorize_memory_disclosure(application_context)
             except ContextPreparationError:
                 return ExtractionResult(reasons=("policy_denied",))
+            if not manual_import_is_reusable(
+                completed,
+                application_context.definition.context_policy.sidecar.manual_import_reuse,
+            ):
+                return ExtractionResult(reasons=("source_policy_denied",))
         elif any(
             getattr(component, "requires_inference_context", False)
             for component in (self.extractor, self.embedder)
@@ -220,7 +245,7 @@ class MemoryRetriever:
             return MemoryLifecycleState(owner_id=owner_id, memory_id=memory_id)
         return self.lifecycle.get_state(owner_id=owner_id, memory_id=memory_id)
 
-    def _valid_derived(self, record, owner_id, deadline):
+    def _valid_derived(self, record, owner_id, deadline, application_context):
         if not isinstance(record, DerivedMemory) or record.owner_id != owner_id:
             return False, "malformed_record"
         if (
@@ -255,6 +280,14 @@ class MemoryRetriever:
                 or content_reason(memory.content, self.settings)
             ):
                 return False, "source_mismatch"
+            reuse_reason = source_turn_reuse_reason(
+                memory,
+                self.messages,
+                application_context,
+                timeout=max(0.001, deadline - monotonic()),
+            )
+            if reuse_reason is not None:
+                return False, reuse_reason
             state = self._state(owner_id, memory.id)
             if state.retrieval_status != "active":
                 return False, "source_inactive"
@@ -399,7 +432,9 @@ class MemoryRetriever:
                     if requested != "consolidated":
                         reason = "variant_excludes_derived"
                     else:
-                        reason = self._valid_derived(m, owner_id, deadline)[1]
+                        reason = self._valid_derived(
+                            m, owner_id, deadline, application_context
+                        )[1]
                 else:
                     try:
                         Memory.model_validate(m.model_dump())
@@ -413,7 +448,15 @@ class MemoryRetriever:
                     reason = (
                         "branch_mismatch"
                         if source is None
-                        else candidate_reason(
+                        else source_turn_reuse_reason(
+                            m,
+                            self.messages,
+                            application_context,
+                            timeout=max(0.001, deadline - monotonic()),
+                        )
+                    )
+                    if reason is None:
+                        reason = candidate_reason(
                             m.model_copy(
                                 update={
                                     "effective_at": (
@@ -424,7 +467,6 @@ class MemoryRetriever:
                             source,
                             self.settings,
                         )
-                    )
                 if reason is None:
                     state = self._state(owner_id, m.id)
                     states[m.id] = state

@@ -13,10 +13,9 @@ const contextCategories = [
 const sidecarActions = {
   connected_provider_disclosure: { allowed: true, allowed_context_categories: contextCategories, maximum_sensitivity: "sensitive" },
   manual_external_disclosure: { allowed: true, allowed_context_categories: contextCategories, maximum_sensitivity: "sensitive" },
-  allow_manual_import_context: true,
+  manual_import_reuse: { allowed: true, maximum_sensitivity: "restricted" },
   copy_allowed: true,
   draft_insert_target_ids: ["personal_ai.message_composer"],
-  future_apply_operation_ids: [],
 };
 function jsonResponse(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }); }
 function sseResponse(events: string[]) {

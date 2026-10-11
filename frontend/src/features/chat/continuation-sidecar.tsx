@@ -188,6 +188,12 @@ const CONTEXT_CLASSES: ContextSourceClass[] = [
   "global_profile", "domain_profile", "domain_current", "domain_history", "ai_memory",
   "conversation", "external_research", "tool_result", "client_context",
 ];
+const SENSITIVITY_RANK: Record<"public" | "personal" | "sensitive" | "restricted", number> = {
+  public: 0,
+  personal: 1,
+  sensitive: 2,
+  restricted: 3,
+};
 
 function launchFor(
   conversationId: string,
@@ -367,6 +373,15 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
     && !!actionOptions?.connected_provider_disclosure.allowed && profiles.length > 0;
   const manualAvailable = !!options?.modes.includes("manual_external")
     && !!actionOptions?.manual_external_disclosure.allowed && !!actionOptions.copy_allowed;
+  const manualImportTarget = target.attribution?.execution_origin === "manual_import";
+  const targetSensitivity = target.execution?.effective_sensitivity;
+  const manualTargetPolicy = actionOptions?.manual_import_reuse;
+  const manualTargetDenied = manualImportTarget && (
+    !manualTargetPolicy?.allowed
+    || !targetSensitivity
+    || SENSITIVITY_RANK[targetSensitivity] > SENSITIVITY_RANK[manualTargetPolicy.maximum_sensitivity]
+  );
+  const includeTargetEffective = includeTarget && !manualTargetDenied;
   const currentDisclosure = mode === "connected_provider"
     ? actionOptions?.connected_provider_disclosure
     : actionOptions?.manual_external_disclosure;
@@ -400,7 +415,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
   function submitAutomatic(event: FormEvent) {
     event.preventDefault();
     if (!instruction.trim() || busy) return;
-    onAutomatic(instruction.trim(), target, includeTarget, requestScope, effectiveLaunch);
+    onAutomatic(instruction.trim(), target, includeTargetEffective, requestScope, effectiveLaunch);
   }
 
   function requestFor(modeChoice: "manual_external" | "connected_provider", idempotencyKey: string) {
@@ -427,7 +442,7 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
       content: instruction.trim(),
       idempotency_key: idempotencyKey,
       choice,
-      candidate_message_ids: includeTarget ? [target.id] : [],
+      candidate_message_ids: includeTargetEffective ? [target.id] : [],
       launch_context: effectiveLaunch,
       excluded_source_classes: [...new Set([...excludedSources, ...policyExcludedSources])],
     };
@@ -797,9 +812,10 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
       <label htmlFor="continuation-instruction">What should happen next?</label>
       <textarea id="continuation-instruction" value={instruction} onChange={event => { setInstruction(event.target.value); setPreview(null); setPreviewReviewed(false); }} maxLength={20000} disabled={busy || !!prepared} />
       <label className={styles.checkboxLabel} htmlFor="include-selected-answer">
-        <input id="include-selected-answer" type="checkbox" checked={includeTarget} disabled={busy || !!prepared} onChange={event => { setIncludeTarget(event.target.checked); setPreview(null); setPreviewReviewed(false); }} />
+        <input id="include-selected-answer" type="checkbox" checked={includeTargetEffective} disabled={busy || !!prepared || manualTargetDenied} onChange={event => { setIncludeTarget(event.target.checked); setPreview(null); setPreviewReviewed(false); }} />
         Include this completed turn as a context candidate
       </label>
+      {manualTargetDenied && <p className={styles.note} role="status">This imported turn is excluded by the application’s manual reuse policy.</p>}
       {mode !== "automatic" && <fieldset className={styles.form} disabled={busy || !!prepared}>
         <legend>Narrow sources for this external turn</legend>
         <p className={styles.note}>These controls only omit sources from the shared authorized planner. They cannot force a source into the package.</p>

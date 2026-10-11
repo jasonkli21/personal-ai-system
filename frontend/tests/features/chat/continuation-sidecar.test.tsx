@@ -111,10 +111,9 @@ function executionOptions(
         allowed_context_categories: contextCategories,
         maximum_sensitivity: "sensitive",
       },
-      allow_manual_import_context: true,
+      manual_import_reuse: { allowed: true, maximum_sensitivity: "restricted" },
       copy_allowed: true,
       draft_insert_target_ids: ["host.edit_draft"],
-      future_apply_operation_ids: [],
       ...policyOverrides,
     },
   };
@@ -214,6 +213,42 @@ describe("continuation sidecar", () => {
       expect(headers.get("X-Application-ID")).toBe("synthetic_app");
       expect(headers.get("X-Workspace-ID")).toBe("workspace-1");
     }
+  });
+
+  it("disables an explicitly selected manual turn above the reuse sensitivity ceiling", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(executionOptions(
+      ["automatic", "manual_external"],
+      [],
+      { manual_import_reuse: { allowed: true, maximum_sensitivity: "personal" } },
+    )));
+    vi.stubGlobal("fetch", fetchMock);
+    const importedTarget: Message = {
+      ...target,
+      attribution: {
+        fact_source: "user_declared",
+        execution_origin: "manual_import",
+        provider_id: null,
+        model_id: null,
+        recorded_at: "2026-10-10T00:00:00Z",
+        model_verified: false,
+      },
+      execution: { effective_sensitivity: "sensitive" },
+    };
+
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      scope={{ applicationId: "synthetic_app", workspaceId: "workspace-1" }}
+      target={importedTarget}
+      onClose={vi.fn()}
+      onAutomatic={vi.fn()}
+      onSaved={vi.fn()}
+    />);
+
+    const include = screen.getByLabelText("Include this completed turn as a context candidate");
+    await waitFor(() => expect(include).toBeDisabled());
+    expect(screen.getByText(
+      "This imported turn is excluded by the application’s manual reuse policy.",
+    )).toBeInTheDocument();
   });
 
   it("uses the shared automatic continuation callback without preparing an external reservation", async () => {

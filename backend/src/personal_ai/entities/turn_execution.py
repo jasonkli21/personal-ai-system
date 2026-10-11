@@ -1,7 +1,7 @@
 """Canonical safe turn state; credentials and provider account state live elsewhere."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -13,10 +13,8 @@ from personal_ai.contracts.context_references import (
 
 class TurnAttribution(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    mode: Literal["connected_provider", "manual_external"]
     fact_source: Literal["server_observed", "client_reported", "user_declared"]
-    # Legacy records may omit origin; new writers state the execution lane explicitly.
-    execution_origin: Literal["automatic_managed", "connected_local", "manual_import"] | None = None
+    execution_origin: Literal["automatic_managed", "connected_local", "manual_import"]
     provider_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/ -]{0,199}$")
     model_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/ -]{0,199}$")
     task: Literal["chat"] = "chat"
@@ -35,11 +33,37 @@ class TurnAttribution(BaseModel):
     source_message_ids: tuple[UUID, ...] = Field(default=(), max_length=10000)
     source_snapshots: tuple[ContextSourceSnapshot, ...] = Field(default=(), max_length=512)
 
+    @model_validator(mode="before")
+    @classmethod
+    def decode_legacy_mode(cls, value: Any) -> Any:
+        """Read legacy mode-shaped records while writing one canonical origin fact."""
+        if not isinstance(value, dict) or "mode" not in value:
+            return value
+        data = dict(value)
+        legacy_mode = data.pop("mode")
+        if legacy_mode not in {"connected_provider", "manual_external"}:
+            raise ValueError("turn_attribution_legacy_mode_invalid")
+        if data.get("execution_origin") is None:
+            if legacy_mode == "manual_external":
+                data["execution_origin"] = "manual_import"
+            elif legacy_mode == "connected_provider":
+                data["execution_origin"] = (
+                    "connected_local" if data.get("connection_id") is not None
+                    or data.get("fact_source") == "client_reported"
+                    else "automatic_managed"
+                )
+        elif (
+            (legacy_mode == "manual_external" and data["execution_origin"] != "manual_import")
+            or (legacy_mode == "connected_provider" and data["execution_origin"] == "manual_import")
+        ):
+            raise ValueError("turn_attribution_legacy_mode_mismatch")
+        return data
+
     @model_validator(mode="after")
     def trust(self):
         if self.recorded_at.tzinfo is None:
             raise ValueError("timestamp_requires_timezone")
-        if self.mode == "manual_external":
+        if self.execution_origin == "manual_import":
             if self.fact_source != "user_declared" or any(
                 v is not None
                 for v in (
@@ -51,14 +75,10 @@ class TurnAttribution(BaseModel):
                 )
             ):
                 raise ValueError("manual_import_cannot_claim_observations")
-            if self.execution_origin not in {None, "manual_import"} or any(
-                value is not None for value in (self.connection_id, self.connection_revision)
-            ):
+            if any(value is not None for value in (self.connection_id, self.connection_revision)):
                 raise ValueError("manual_import_cannot_claim_connection")
         elif self.fact_source == "user_declared" or not self.provider_id or not self.model_id:
-            raise ValueError("connected_attribution_requires_producer")
-        elif self.execution_origin == "manual_import":
-            raise ValueError("connected_attribution_origin_invalid")
+            raise ValueError("managed_attribution_requires_producer")
         if (self.connection_id is None) != (self.connection_revision is None):
             raise ValueError("connection_attribution_incomplete")
         if self.execution_origin == "connected_local" and self.connection_id is None:
@@ -201,7 +221,9 @@ def transition_message(current, candidate):
     if next_reservation.state == "completed" and (
         candidate.status != MessageStatus.COMPLETED
         or candidate.attribution is None
-        or candidate.attribution.mode != reservation.mode
+        or candidate.attribution.execution_origin != (
+            "manual_import" if reservation.mode == "manual_external" else "connected_local"
+        )
     ):
         raise ValueError("completion_requires_attribution")
     if next_reservation.state == "completed":

@@ -24,7 +24,10 @@ from personal_ai.context import ContextAssembler
 from personal_ai.context.authorization import make_inference_context
 from personal_ai.context.contracts import ContextError
 from personal_ai.context.deadline import remaining
-from personal_ai.context.history import conversation_context_messages
+from personal_ai.context.history import (
+    conversation_context_messages,
+    manual_import_is_reusable,
+)
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
 from personal_ai.contracts.context_references import ContextEntityReference
@@ -151,6 +154,24 @@ class ChatTurnService:
         return self._messages.get(
             owner_id=self._owner_id, conversation_id=conversation_id, message_id=message_id
         )
+
+    def validate_manual_import_candidates(self, conversation_id: UUID, candidate_message_ids) -> None:
+        """Reject an explicit target that the current reuse policy categorically excludes."""
+        if candidate_message_ids is None or self._application_context is None:
+            return
+        from personal_ai.context.contracts import complete_turns
+
+        requested = set(candidate_message_ids)
+        active = self._messages.list_active(
+            owner_id=self._owner_id, conversation_id=conversation_id
+        )
+        policy = self._application_context.definition.context_policy.sidecar.manual_import_reuse
+        for _user, assistant in complete_turns(active):
+            if (
+                ({_user.id, assistant.id} & requested)
+                and not manual_import_is_reusable(assistant, policy)
+            ):
+                raise ContextPreparationError("continuation_source_policy_denied")
 
     def transition(self, current: Message, replacement: Message) -> Message:
         result = self._messages.update_status(
@@ -285,11 +306,15 @@ class ChatTurnService:
             ]
         history = conversation_context_messages(
             history,
-            allow_manual_external=(
+            manual_import_reuse=(
                 self._application_context.definition.context_policy.sidecar
-                .allow_manual_import_context
+                .manual_import_reuse
             ),
         )
+        if candidate_message_ids is not None and set(candidate_message_ids) - {
+            message.id for message in history
+        }:
+            raise ContextPreparationError("continuation_source_policy_denied")
         if history_authorizer is not None:
             history_authorizer(tuple(message.id for message in history))
         plan = context.plan_context(
@@ -512,11 +537,15 @@ class ChatTurnService:
             if self._application_context is not None:
                 history_for_context = list(conversation_context_messages(
                     history_for_context,
-                    allow_manual_external=(
+                    manual_import_reuse=(
                         self._application_context.definition.context_policy.sidecar
-                        .allow_manual_import_context
+                        .manual_import_reuse
                     ),
                 ))
+                if candidate_message_ids is not None and set(candidate_message_ids) - {
+                    message.id for message in history_for_context
+                }:
+                    raise ContextPreparationError("continuation_source_policy_denied")
             if history_authorizer is not None:
                 history_authorizer(tuple(m.id for m in history_for_context))
             context_plan = None
@@ -672,6 +701,15 @@ class ChatTurnService:
         self, message: Message, selected_memory_ids: Sequence[UUID], *, request_id: str
     ) -> None:
         """Run the same optional lifecycle after any canonical assistant completion."""
+        if (
+            self._application_context is not None
+            and not manual_import_is_reusable(
+                message,
+                self._application_context.definition.context_policy.sidecar
+                .manual_import_reuse,
+            )
+        ):
+            return
         if self._memory_extraction is None and self._memory_lifecycle is None:
             return
 
@@ -806,7 +844,6 @@ class ChatTurnService:
                         "content": content,
                         "model": generation_metadata.identity.model_id,
                         "attribution": TurnAttribution(
-                            mode="connected_provider",
                             fact_source="server_observed",
                             execution_origin="automatic_managed",
                             provider_id=generation_metadata.identity.provider_id,

@@ -157,6 +157,9 @@ class ExternalTurnService:
         excluded = self._excluded_for_disclosure(
             request.excluded_source_classes, disclosure
         )
+        self.chat.validate_manual_import_candidates(
+            conversation_id, request.candidate_message_ids
+        )
         candidate_message_ids = (
             () if "conversation" in excluded
             else request.candidate_message_ids
@@ -504,6 +507,9 @@ class ExternalTurnService:
                 update={"execution": reservation, "status": MessageStatus.PENDING}
             )
 
+        self.chat.validate_manual_import_candidates(
+            conversation_id, request.candidate_message_ids
+        )
         self.chat.prepare_external(
             conversation_id,
             request.content,
@@ -782,7 +788,6 @@ class ExternalTurnService:
                 raise ConversationConflictError("endpoint_changed")
         usage = completion.generation.usage if completion.generation else None
         attribution = TurnAttribution(
-            mode=reservation.mode,
             fact_source="user_declared"
             if reservation.mode == "manual_external"
             else "client_reported",

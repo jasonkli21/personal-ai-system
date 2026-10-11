@@ -25,6 +25,7 @@ from personal_ai.auth.middleware import AuthenticationMiddleware
 from personal_ai.booking_extractions.repositories import ExtractionError
 from personal_ai.context import ContextError
 from personal_ai.context.providers import ContextPreparationError
+from personal_ai.context.runtime import EMPTY_CONTEXT_RUNTIME_REGISTRY
 from personal_ai.decisions.repositories import DecisionError
 from personal_ai.domains.contracts import DomainContractError
 from personal_ai.domains.providers import DomainProviderError
@@ -47,6 +48,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Personal AI System", version="0.1.0", lifespan=lifespan)
 app.state.application_registry = default_application_registry()
+app.state.context_runtime_registry = EMPTY_CONTEXT_RUNTIME_REGISTRY
 app.add_middleware(AuthenticationMiddleware)
 app.include_router(external_turns_router)
 app.include_router(conversations_router)
@@ -145,7 +147,10 @@ async def context_error(_: Request, error: ContextError) -> JSONResponse:
 
 @app.exception_handler(ContextPreparationError)
 async def context_preparation_error(_: Request, error: ContextPreparationError) -> JSONResponse:
-    status = 422 if error.code.startswith("context_") else 503
+    status = 422 if error.code.startswith("context_") or error.code in {
+        "continuation_source_policy_denied",
+        "continuation_source_not_active_completed",
+    } else 503
     return _error_response(status, error.code, "Context preparation could not complete.")
 
 

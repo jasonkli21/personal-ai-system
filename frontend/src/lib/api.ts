@@ -26,12 +26,12 @@ export type Message = {
   model: string | null;
   error_code: string | null;
   attribution?: TurnAttribution | null;
+  execution?: { effective_sensitivity: "public" | "personal" | "sensitive" | "restricted" } | null;
 };
 
 export type TurnAttribution = {
-  mode: "connected_provider" | "manual_external";
   fact_source: "server_observed" | "client_reported" | "user_declared";
-  execution_origin?: "automatic_managed" | "connected_local" | "manual_import" | null;
+  execution_origin: "automatic_managed" | "connected_local" | "manual_import";
   provider_id: string | null;
   model_id: string | null;
   recorded_at: string;
@@ -75,10 +75,12 @@ export type ExternalDisclosureOptions = {
 export type SidecarActionOptions = {
   connected_provider_disclosure: ExternalDisclosureOptions;
   manual_external_disclosure: ExternalDisclosureOptions;
-  allow_manual_import_context: boolean;
+  manual_import_reuse: {
+    allowed: boolean;
+    maximum_sensitivity: "public" | "personal" | "sensitive" | "restricted";
+  };
   copy_allowed: boolean;
   draft_insert_target_ids: string[];
-  future_apply_operation_ids: string[];
 };
 
 export type ConversationDetail = { conversation: Conversation; messages: Message[] };

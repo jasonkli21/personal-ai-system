@@ -5,7 +5,6 @@ import type { TurnAttribution } from "../../../src/lib/api";
 
 function attribution(overrides: Partial<TurnAttribution>): TurnAttribution {
   return {
-    mode: "connected_provider",
     fact_source: "server_observed",
     execution_origin: "automatic_managed",
     provider_id: "gemini",
@@ -32,7 +31,6 @@ describe("attribution labels", () => {
 
   it("labels manual imports as user declared and unverified", () => {
     expect(attributionLabel(attribution({
-      mode: "manual_external",
       fact_source: "user_declared",
       execution_origin: "manual_import",
       provider_id: null,

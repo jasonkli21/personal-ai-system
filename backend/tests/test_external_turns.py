@@ -162,6 +162,36 @@ def choice(mode, provider="openai_chatgpt_plan"):
     )
 
 
+def test_legacy_attribution_modes_decode_to_one_canonical_execution_origin():
+    recorded_at = datetime.now(UTC)
+    manual = TurnAttribution.model_validate({
+        "mode": "manual_external",
+        "fact_source": "user_declared",
+        "recorded_at": recorded_at,
+    })
+    automatic = TurnAttribution.model_validate({
+        "mode": "connected_provider",
+        "fact_source": "server_observed",
+        "provider_id": "gemini",
+        "model_id": "gemini-fixture",
+        "recorded_at": recorded_at,
+    })
+    connected = TurnAttribution.model_validate({
+        "mode": "connected_provider",
+        "fact_source": "client_reported",
+        "provider_id": "openai_chatgpt_plan",
+        "model_id": "gpt-fixture",
+        "connection_id": uuid4(),
+        "connection_revision": 1,
+        "recorded_at": recorded_at,
+    })
+
+    assert manual.execution_origin == "manual_import"
+    assert automatic.execution_origin == "automatic_managed"
+    assert connected.execution_origin == "connected_local"
+    assert all("mode" not in item.model_dump() for item in (manual, automatic, connected))
+
+
 def prepare(
     setup, mode="manual_external", *, provider="openai_chatgpt_plan", candidates=None, key=None
 ):
@@ -1290,7 +1320,7 @@ def test_authenticated_external_turn_routes_prepare_and_import_through_shared_se
         assert imported.status_code == 200
         payload = imported.json()
         assert payload["content"] == "Imported response"
-        assert payload["attribution"]["mode"] == "manual_external"
+        assert payload["attribution"]["execution_origin"] == "manual_import"
         assert payload["attribution"]["fact_source"] == "user_declared"
         assert payload["attribution"]["model_verified"] is False
 

@@ -30,8 +30,13 @@ from personal_ai.context.adapters import (
     ResearchEvidenceContextProviderFactory,
 )
 from personal_ai.context.contracts import ConversationSummaryRepository
+from personal_ai.context.planner import ContextPlanner
 from personal_ai.context.profile import GlobalProfileContextProviderFactory
 from personal_ai.context.providers import ContextProviderCoordinator
+from personal_ai.context.runtime import (
+    EMPTY_CONTEXT_RUNTIME_REGISTRY,
+    ContextRuntimeRegistry,
+)
 from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.context.traces import ContextTraceRepository
 from personal_ai.llm import GeminiLLMClient, GenerationClient
@@ -191,6 +196,15 @@ def get_context_trace_repository(
     return repository
 
 
+def get_context_runtime_registry(request: Request) -> ContextRuntimeRegistry:
+    """Return deployment-installed adapters/rules, separate from app permissions."""
+    return getattr(
+        request.app.state,
+        "context_runtime_registry",
+        EMPTY_CONTEXT_RUNTIME_REGISTRY,
+    )
+
+
 def get_global_profile_repository(
     settings: Annotated[Settings, Depends(get_settings)],
 ):
@@ -198,19 +212,24 @@ def get_global_profile_repository(
 
 
 def get_context_assembler(
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     settings: Annotated[Settings, Depends(get_settings)],
     summaries: Annotated[ConversationSummaryRepository, Depends(get_summary_repository)],
     profile_repository: Annotated[object, Depends(get_global_profile_repository)],
     usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
 ) -> ContextAssembler:
+    built_in_providers = {
+        "ai_memory": MemoryContextProviderFactory(settings),
+        "client_context": ClientContextProviderFactory(),
+        "conversation_history": ConversationContextProviderFactory(),
+        "external_research": ResearchEvidenceContextProviderFactory(),
+        "global_profile": GlobalProfileContextProviderFactory(profile_repository),
+    }
+    overlap = set(built_in_providers).intersection(runtime.provider_factories)
+    if overlap:
+        raise ValueError("context_runtime_provider_conflicts_with_builtin")
     providers = ContextProviderCoordinator(
-        {
-            "ai_memory": MemoryContextProviderFactory(settings),
-            "client_context": ClientContextProviderFactory(),
-            "conversation_history": ConversationContextProviderFactory(),
-            "external_research": ResearchEvidenceContextProviderFactory(),
-            "global_profile": GlobalProfileContextProviderFactory(profile_repository),
-        },
+        {**built_in_providers, **runtime.provider_factories},
         feature_flags={"memory_enabled": settings.memory_enabled},
     )
     return ContextAssembler(
@@ -219,6 +238,7 @@ def get_context_assembler(
         summaries,
         GeminiConversationSummarizer(settings, usage_accounting=usage),
         context_provider_coordinator=providers,
+        context_planner=ContextPlanner(runtime.planning_rules),
         permission_revalidator=BuiltInContextPermissionRevalidator(
             settings, profile_repository
         ),

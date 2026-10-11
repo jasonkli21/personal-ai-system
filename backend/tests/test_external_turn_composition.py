@@ -46,7 +46,7 @@ def test_main_app_execution_options_route_is_not_shadowed_by_conversation_id():
     assert payload["sidecar"]["draft_insert_target_ids"] == [
         "personal_ai.message_composer"
     ]
-    assert payload["sidecar"]["future_apply_operation_ids"] == []
+    assert "future_apply_operation_ids" not in payload["sidecar"]
 
 
 def test_external_prepare_is_rejected_before_repository_dependencies_when_gate_is_closed():

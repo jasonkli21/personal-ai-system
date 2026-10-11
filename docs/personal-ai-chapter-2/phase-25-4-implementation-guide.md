@@ -11,16 +11,21 @@ revision, checks, and open gates.
 | Interface | Behavior |
 | --- | --- |
 | `ApplicationLaunchContext` | Versioned app/workspace/entity/view/conversation metadata and bounded client context. The server binds it to authenticated request scope and the route conversation. It carries no owner ID and never authorizes a selected entity. |
-| `ApplicationSidecarPolicy` | Separate connected/manual disclosure allowlists, per-lane maximum sensitivity, manual-import history reuse, Copy, declared draft target IDs, and reserved future Apply operation IDs. |
+| `ApplicationSidecarPolicy` | Separate connected/manual disclosure allowlists, per-lane maximum sensitivity, typed manual-import reuse (allow/deny plus a sensitivity ceiling), Copy, and declared draft target IDs. Apply capability identity is deferred to Phase 31's typed registry. |
 | `ContinuationRequest.launch_context` | One source of entity references for automatic, connected, and manual continuation. The reference set participates in the request digest; absent launch metadata preserves the old digest shape. |
-| Shared context seam | `ContextPlanner` consumes entity references and source-category narrowing. Shared provider and field authorization plus `ContextAssembler` produce the same typed bounded package. The context source category type/list has one canonical definition. |
-| Sidecar actions | The API returns the registered app policy. Manual Copy requires both an allowed manual lane and `copy_allowed`. Draft Insert requires a target declared by the host and allowed by policy. Import returns through the existing completion callback. Apply IDs are descriptive policy metadata only; there is no Apply control or endpoint. |
-| Imported history | Shared filtering leaves canonical messages and attribution unchanged while removing manual imported turns and paired prompts from later context when the app policy denies reuse. Filtering precedes summary compatibility so a prior summary cannot reintroduce an excluded turn. |
+| Shared context seam | `ContextPlanner` consumes entity references and source-category narrowing. `ContextRuntimeRegistry` supplies provider implementations and planning-rule contributions through the canonical FastAPI dependency path; app capability metadata and authorization remain separate. Shared provider and field authorization plus `ContextAssembler` produce the same typed bounded package. |
+| Sidecar actions | The API returns the registered app policy. Manual Copy requires both an allowed manual lane and `copy_allowed`. Draft Insert requires a target declared by the host and allowed by policy. Import returns through the existing completion callback. Apply operation IDs are not declared by this contract; Phase 31's typed capability registry owns that future boundary. |
+| Imported history | Shared filtering leaves canonical messages and attribution unchanged while removing manual imported turns and paired prompts when the reuse policy denies them or their sensitivity exceeds its ceiling. The same source check blocks memory extraction and retrieval. Filtering precedes summary compatibility. Explicitly selected denied turns return a stable policy error. |
 
 Application-specific behavior belongs in each app’s provider, manifest, and host
-callbacks. The integration contract test uses one synthetic read adapter and the same
+callbacks. Integration tests use one synthetic read adapter and the same
 policy/orchestration path for `travel`, `shopping`, `finance`, `health`, and a
-synthetic fifth application. It does not connect to those applications’ databases.
+synthetic fifth application. The fifth-app runtime test installs its provider and
+planner rule through `ContextRuntimeRegistry`, enters through the FastAPI assembler
+dependency, and verifies that a declared provider without an implementation stays
+unavailable. The domain-lane fixture covers manual, connected, and automatic
+execution with the same launch context. These tests do not connect to the
+applications’ databases or a live external provider.
 
 ## Live integration handoff
 

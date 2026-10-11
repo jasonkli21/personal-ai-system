@@ -174,9 +174,9 @@ class ContextAssembler:
             authorize_base_disclosure(application_context)
             active_messages = conversation_context_messages(
                 active_messages,
-                allow_manual_external=(
+                manual_import_reuse=(
                     application_context.definition.context_policy.sidecar
-                    .allow_manual_import_context
+                    .manual_import_reuse
                 ),
             )
             messages = (*active_messages, pending_user_message)

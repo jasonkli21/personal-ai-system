@@ -43,7 +43,7 @@ sequenceDiagram
 | Canonical state | Existing conversation/message repositories own the user prompt, prepared reservation, completed text, attribution, source identity, and replay state. Existing idempotency identity and CAS remain in force. No second sidecar or domain conversation is created. |
 | Authorization | Verified principal and server-built `RequestScope` remain authoritative. Host metadata must match them; domain adapters own source membership checks and return current permission dependencies. Existing external authority rechecks those facts at external turn transitions, subject to the unresolved Phase 15 acceptance gates. |
 | Post-completion | Manual import and connected completion use the existing `onExternalCompleted`/`onSaved` callbacks. Automatic continuation uses the existing chat/SSE callback. Original attribution is immutable when another mode continues a turn. |
-| Host actions | The server-owned app policy declares Copy, context inclusion, draft target IDs, and future typed Apply IDs. Draft insertion requires both a host-declared target and an ID allowed by server policy. It is a host callback and does not call a domain write API. There is no Apply UI or Apply execution path in this phase. |
+| Host actions | The server-owned app policy declares Copy, context inclusion, and draft target IDs. Draft insertion requires both a host-declared target and an ID allowed by server policy. It is a host callback and does not call a domain write API. The sidecar declares no Apply operation IDs; Phase 31's typed capability registry will own operation identity and execution validation. There is no Apply UI or Apply execution path in this phase. |
 
 ## Policy and data flow
 
@@ -53,14 +53,26 @@ manual-external disclosure by allow/deny, allowed source categories, and maximum
 sensitivity. The shared `ContextAssembler.plan_context` authorizes selected
 operations and sensitivity before retrieval; the assembled effective sensitivity is
 checked again before the reservation is bound. Application policy can only remove
-sources from the registered plan.
+sources from the registered plan. Deployment-installed implementations and planning
+rules are composed through `ContextRuntimeRegistry`, separately from application
+capability metadata and policy authorization. The canonical FastAPI assembler
+dependency merges those contributions with built-ins for both automatic and
+external preparation; a declared capability without an installed implementation
+remains unavailable.
 
 Manual imported responses remain canonical Personal AI conversation turns with
-`manual_external` and user-declared/unverified provenance. When an application sets
-`allow_manual_import_context` false, the shared history projection omits both the
-imported assistant turn and its paired user prompt before history authorization,
-summary compatibility, or context building. Canonical messages and their original
-attribution remain intact. External preparation still obeys Phase 25.3’s shared
+`execution_origin="manual_import"` and user-declared/unverified provenance. Their
+shared `ManualImportReusePolicy` can deny reuse or narrow it by the original
+reservation's effective-sensitivity ceiling. The shared history projection omits
+both the imported assistant turn and its paired user prompt before history
+authorization, summary compatibility, or context building. The same source check
+prevents denied turns from creating memories and rejects existing memories sourced
+from them at retrieval. An explicitly selected, ineligible manual turn returns
+`continuation_source_policy_denied`; the sidecar disables its inclusion control when
+the current policy says it cannot be reused. Canonical messages and their original
+attribution remain intact. Broader transitive invalidation of every derived answer,
+summary, artifact, and external source dependency remains part of the open Phase 15
+revocation acceptance. External preparation still obeys Phase 25.3’s shared
 external-context rules, including its existing memory exclusion.
 
 Built-in Finance and Health manifests default to excluding manual imported turns
@@ -82,8 +94,9 @@ existing canonical turns remain stable.
 - Domain records and validation stay with domain applications. Personal AI stores
   only conversation turns and existing shared execution metadata.
 - Copy and manual import never invoke a domain mutation endpoint. Draft insertion
-  writes only into a declared non-authoritative client surface. Phase 31 remains the
-  only planned typed proposal/Apply boundary and must add domain validation and
+  writes only into a declared non-authoritative client surface. Apply operation IDs
+  are not declared by this sidecar contract; Phase 31's typed capability registry
+  remains the future authority for operation identity, schema, validation, and
   confirmation before any authoritative write.
 - Connected provider credentials, account/model discovery, transport, and physical
   send continue through the Phase 25.1 user-local bridge and the Phase 25.2/25.3

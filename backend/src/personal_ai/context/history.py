@@ -2,25 +2,36 @@
 
 from collections.abc import Sequence
 
+from personal_ai.applications.contracts import ManualImportReusePolicy
 from personal_ai.entities import Message, MessageRole
 
 
+def manual_import_is_reusable(
+    message: Message, policy: ManualImportReusePolicy
+) -> bool:
+    """Fail closed when a manual turn has no current, bounded sensitivity fact."""
+    attribution = message.attribution
+    if attribution is None or attribution.execution_origin != "manual_import":
+        return True
+    sensitivity = (
+        message.execution.effective_sensitivity if message.execution is not None else None
+    )
+    return policy.allows(sensitivity)
+
+
 def conversation_context_messages(
-    messages: Sequence[Message], *, allow_manual_external: bool
+    messages: Sequence[Message], *, manual_import_reuse: ManualImportReusePolicy
 ) -> tuple[Message, ...]:
-    """Omit imported manual responses and their paired user prompts when denied.
+    """Omit ineligible manual turns and their paired user prompts.
 
     The canonical conversation remains untouched. Filtering before summary selection
     also prevents an existing derived summary from reintroducing a denied turn.
     """
-    if allow_manual_external:
-        return tuple(messages)
     excluded_ids = {
         message.id
         for message in messages
         if message.role is MessageRole.ASSISTANT
-        and message.attribution is not None
-        and message.attribution.mode == "manual_external"
+        and not manual_import_is_reusable(message, manual_import_reuse)
     }
     excluded_ids.update(
         message.parent_message_id

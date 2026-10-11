@@ -4,7 +4,7 @@ function producer(attribution: TurnAttribution) {
   return [attribution.provider_id, attribution.model_id].filter(Boolean).join(" / ");
 }
 
-/** Present canonical producer origin and observation trust without inferring from mode. */
+/** Present canonical producer origin and its separately recorded observation trust. */
 export function attributionLabel(attribution: TurnAttribution): string {
   const identity = producer(attribution);
   if (attribution.execution_origin === "automatic_managed") {

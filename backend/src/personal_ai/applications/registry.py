@@ -328,7 +328,7 @@ def default_application_registry() -> ApplicationRegistry:
                     external_execution_modes=("connected_provider", "manual_external"),
                     maximum_model_sensitivity="sensitive",
                     sidecar=ApplicationSidecarPolicy(
-                        allow_manual_import_context=True,
+                        manual_import_reuse={"allowed": True},
                         copy_allowed=True,
                         draft_insert_target_ids=("personal_ai.message_composer",),
                     ),
@@ -434,7 +434,7 @@ def default_application_registry() -> ApplicationRegistry:
                         ),
                     ),
                     sidecar=ApplicationSidecarPolicy(
-                        allow_manual_import_context=False,
+                        manual_import_reuse={"allowed": False},
                         copy_allowed=True,
                     ),
                 ),
@@ -478,7 +478,7 @@ def default_application_registry() -> ApplicationRegistry:
                         ),
                     ),
                     sidecar=ApplicationSidecarPolicy(
-                        allow_manual_import_context=False,
+                        manual_import_reuse={"allowed": False},
                         copy_allowed=True,
                     ),
                 ),

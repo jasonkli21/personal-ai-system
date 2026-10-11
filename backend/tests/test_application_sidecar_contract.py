@@ -6,6 +6,7 @@ from hashlib import sha256
 from uuid import uuid4
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import BaseModel
 
 from personal_ai.applications.contracts import (
@@ -21,6 +22,7 @@ from personal_ai.applications.contracts import (
     ExternalDisclosurePolicy,
 )
 from personal_ai.applications.registry import ApplicationRegistry
+from personal_ai.auth.dispatch_grants import DispatchGrantSigner
 from personal_ai.auth.scope import ApplicationScope, RequestScope, application_scope_context
 from personal_ai.context import ContextAssembler
 from personal_ai.context.planner import ContextPlanner, ContextPlanningRule
@@ -37,6 +39,7 @@ from personal_ai.context.providers import (
 from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.entities import Conversation
+from personal_ai.routing.contracts import DataUsePolicy, EndpointProfile, ProviderAccessPolicy
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services.chat_turns import ChatTurnService
 from personal_ai.services.external_turns import ExternalTurnService
@@ -154,14 +157,49 @@ class CurrentSelectedRecordPermission:
         )
 
 
+def _connected_profile():
+    return EndpointProfile(
+        endpoint_profile_id="synthetic-provider:responses",
+        profile_version=1,
+        provider_id="synthetic_provider",
+        model_id="model-1",
+        endpoint_id="responses-v1",
+        deployment_id="synthetic-v1",
+        credential_source="user_runtime",
+        credential_reference="user_runtime:local",
+        tier_id="subscription",
+        execution_mode="CHATGPT_PLAN",
+        cost_class="SUBSCRIPTION",
+        billing_owner="subscription",
+        enabled=True,
+        capabilities=frozenset({"streaming"}),
+        context_limit_tokens=10000,
+        serializer_id="synthetic-v1",
+        runtime_id="synthetic-v1",
+        external_transport_id="chatgpt_local_v1",
+        data_use_policy=DataUsePolicy(
+            status="approved", max_sensitivity="sensitive", policy_reference="fixture"
+        ),
+        access_policy=ProviderAccessPolicy(
+            auth_mode="oauth_public_client",
+            selection_mode="explicit_only",
+            credential_runtime="user_local",
+            model_discovery="account_specific",
+            automation_eligible=False,
+        ),
+    )
+
+
 def _runtime(
     application_id: str,
     *,
     categories=None,
     maximum_sensitivity="sensitive",
     manual_disclosure_allowed=True,
-    allow_manual_import_context=True,
+    manual_import_reuse_allowed=True,
+    manual_import_maximum_sensitivity="restricted",
     copy_allowed=True,
+    connected_enabled=False,
 ):
     workspace_id = "workspace-1"
     reference = ContextEntityReference(
@@ -187,8 +225,15 @@ def _runtime(
             )),
             maximum_sensitivity=maximum_sensitivity,
         ),
-        connected_provider_disclosure=ExternalDisclosurePolicy(allowed=False),
-        allow_manual_import_context=allow_manual_import_context,
+        connected_provider_disclosure=ExternalDisclosurePolicy(
+            allowed=connected_enabled,
+            allowed_context_categories=tuple(categories or ("conversation", "domain_current")),
+            maximum_sensitivity=maximum_sensitivity,
+        ),
+        manual_import_reuse={
+            "allowed": manual_import_reuse_allowed,
+            "maximum_sensitivity": manual_import_maximum_sensitivity,
+        },
         copy_allowed=copy_allowed,
         draft_insert_target_ids=("host.edit_draft",),
     )
@@ -200,7 +245,10 @@ def _runtime(
         context_policy=ApplicationContextPolicy(
             version="synthetic-sidecar-policy-v1",
             provider_policies=(*base_policy.provider_policies, provider_policy),
-            external_execution_modes=("manual_external",),
+            external_execution_modes=(
+                ("manual_external", "connected_provider")
+                if connected_enabled else ("manual_external",)
+            ),
             maximum_model_sensitivity="sensitive",
             sidecar=sidecar,
         ),
@@ -285,11 +333,21 @@ def _runtime(
         application_context=context,
         context_assembler=assembler,
     )
+    endpoint_profile = _connected_profile() if connected_enabled else None
+    signer = (
+        DispatchGrantSigner(
+            issuer="synthetic-fixture",
+            key_id="synthetic-key",
+            key=Ed25519PrivateKey.generate(),
+        )
+        if connected_enabled else None
+    )
     service = ExternalTurnService(
         chat=chat,
         context=context,
-        registry=EndpointRegistry(()),
+        registry=EndpointRegistry((endpoint_profile,) if endpoint_profile else ()),
         authority=FakeExternalAuthority(),
+        signer=signer,
         context_assembler=assembler,
     )
     return service, context, conversation, messages, launch, reference, adapter, app_scope
@@ -324,7 +382,7 @@ def test_reference_and_synthetic_hosts_share_one_launch_package_and_turn_contrac
             prepared.reservation.package_fingerprint,
             "Imported response from a user-controlled external session.",
         )
-        assert completed.attribution.mode == "manual_external"
+        assert completed.attribution.execution_origin == "manual_import"
         assert completed.attribution.fact_source == "user_declared"
         original_attribution = completed.attribution
 
@@ -363,6 +421,89 @@ def test_reference_and_synthetic_hosts_share_one_launch_package_and_turn_contrac
             conversation_id=conversation.id,
             message_id=completed.id,
         ).attribution == original_attribution
+
+
+def test_domain_launch_contract_spans_manual_connected_and_automatic_lanes():
+    service, context, conversation, messages, launch, reference, adapter, app_scope = _runtime(
+        "synthetic_fifth", connected_enabled=True
+    )
+    from personal_ai.contracts.execution import ContinuationRequest, ExecutionChoice
+    from personal_ai.llm.fake import FakeLLMClient
+
+    manual_request = ContinuationRequest(
+        content="Use the selected record to continue.",
+        idempotency_key=uuid4(),
+        choice=ExecutionChoice(mode="manual_external"),
+        launch_context=launch,
+    )
+    with application_scope_context(app_scope):
+        manual_prepared = service.prepare(conversation.id, manual_request)
+        imported = service.import_manual(
+            conversation.id,
+            manual_prepared.message_id,
+            manual_prepared.reservation.package_fingerprint,
+            "Manual source response for the connected follow-up.",
+        )
+        original_attribution = imported.attribution
+
+        endpoint = _connected_profile()
+        connected_choice = ExecutionChoice(
+            mode="connected_provider",
+            endpoint=endpoint.ref,
+            model_id="account-visible-model",
+            connection_id=uuid4(),
+            connection_revision=1,
+            caller_id=uuid4(),
+            audience=uuid4(),
+        )
+        connected_request = ContinuationRequest(
+            content="Use the selected record and imported result.",
+            idempotency_key=uuid4(),
+            choice=connected_choice,
+            candidate_message_ids=(imported.id,),
+            launch_context=launch,
+        )
+        connected_prepared = service.prepare(conversation.id, connected_request)
+        assert connected_prepared.connected_package is not None
+        assert any(
+            item.entity_refs == (reference,) for item in adapter.calls
+        )
+        assert any(
+            "Manual source response for the connected follow-up." in message.content
+            for message in connected_prepared.connected_package.messages
+        )
+        service.dispatch(conversation.id, connected_prepared, connected_choice)
+        connected = service.finalize_connected(
+            conversation.id,
+            connected_prepared.message_id,
+            connected_prepared.reservation.package_fingerprint,
+            "Connected result using the synthetic domain source.",
+        )
+        assert connected.attribution.execution_origin == "connected_local"
+        assert messages.get(
+            owner_id=context.scope.owner_id,
+            conversation_id=conversation.id,
+            message_id=imported.id,
+        ).attribution == original_attribution
+
+        automatic_llm = FakeLLMClient(["Automatic result"], provider_id="automatic-fixture")
+        service.chat._llm = automatic_llm
+        automatic_request = connected_request.model_copy(update={
+            "idempotency_key": uuid4(),
+            "choice": ExecutionChoice(mode="automatic"),
+            "candidate_message_ids": (connected.id,),
+            "content": "Use the selected record to continue automatically.",
+        })
+        import asyncio
+
+        asyncio.run(_collect_stream(service, conversation.id, automatic_request))
+        automatic = messages.list_active(
+            owner_id=context.scope.owner_id, conversation_id=conversation.id
+        )[-1]
+
+    assert adapter.calls[-1].entity_refs == (reference,)
+    assert automatic.attribution.execution_origin == "automatic_managed"
+    assert imported.attribution == original_attribution
 
 
 def test_external_category_and_sensitivity_narrowing_happen_before_domain_fetch():
@@ -424,7 +565,7 @@ def test_application_can_disable_manual_external_disclosure_without_adapter_work
 
 def test_domain_policy_can_prevent_manual_import_reuse_as_automatic_context():
     service, context, conversation, messages, launch, _reference, _adapter, app_scope = _runtime(
-        "health", allow_manual_import_context=False
+        "health", manual_import_reuse_allowed=False
     )
     from personal_ai.contracts.execution import ContinuationRequest, ExecutionChoice
     from personal_ai.llm.fake import FakeLLMClient
@@ -435,6 +576,13 @@ def test_domain_policy_can_prevent_manual_import_reuse_as_automatic_context():
         choice=ExecutionChoice(mode="manual_external"),
         launch_context=launch,
     )
+    extraction_calls = []
+
+    class RecordingExtraction:
+        def run(self, completed, *, application_context=None):
+            extraction_calls.append((completed.id, application_context))
+
+    service.chat._memory_extraction = RecordingExtraction()
     with application_scope_context(app_scope):
         prepared = service.prepare(conversation.id, request)
         imported = service.import_manual(
@@ -482,13 +630,30 @@ def test_domain_policy_can_prevent_manual_import_reuse_as_automatic_context():
 
         import asyncio
 
-        asyncio.run(_collect_stream(service, conversation.id, continuation))
+        from personal_ai.context.providers import ContextPreparationError
+
+        with pytest.raises(ContextPreparationError, match="continuation_source_policy_denied"):
+            asyncio.run(_collect_stream(service, conversation.id, continuation))
+
+        external_continuation = continuation.model_copy(update={
+            "idempotency_key": uuid4(),
+            "choice": ExecutionChoice(mode="manual_external"),
+        })
+        with pytest.raises(ContextPreparationError, match="continuation_source_policy_denied"):
+            service.preview(conversation.id, external_continuation)
+
+        without_explicit_target = continuation.model_copy(update={
+            "idempotency_key": uuid4(),
+            "candidate_message_ids": None,
+        })
+        asyncio.run(_collect_stream(service, conversation.id, without_explicit_target))
         assert messages.get(
             owner_id=context.scope.owner_id,
             conversation_id=conversation.id,
             message_id=imported.id,
         ).attribution == imported.attribution
 
+    assert extraction_calls == []
     assert all(
         "Sensitive manual response that health policy excludes from future context." not in message.content
         for message in llm.requests[-1]
@@ -498,6 +663,47 @@ def test_domain_policy_can_prevent_manual_import_reuse_as_automatic_context():
 
 async def _collect_stream(service, conversation_id, request):
     return [event async for event in service.chat.continue_turn(conversation_id, request)]
+
+
+def test_manual_import_reuse_can_narrow_by_effective_sensitivity():
+    service, _context, conversation, _messages, launch, _reference, _adapter, app_scope = _runtime(
+        "synthetic_fifth", manual_import_maximum_sensitivity="personal"
+    )
+    from personal_ai.contracts.execution import ContinuationRequest, ExecutionChoice
+    from personal_ai.llm.fake import FakeLLMClient
+
+    request = ContinuationRequest(
+        content="Use the selected record to continue.",
+        idempotency_key=uuid4(),
+        choice=ExecutionChoice(mode="manual_external"),
+        launch_context=launch,
+    )
+    with application_scope_context(app_scope):
+        prepared = service.prepare(conversation.id, request)
+        imported = service.import_manual(
+            conversation.id,
+            prepared.message_id,
+            prepared.reservation.package_fingerprint,
+            "Imported answer excluded by the personal reuse ceiling.",
+        )
+        assert imported.execution.effective_sensitivity == "sensitive"
+
+        llm = FakeLLMClient(["Follow-up without imported detail"], provider_id="automatic-fixture")
+        service.chat._llm = llm
+        automatic = request.model_copy(update={
+            "idempotency_key": uuid4(),
+            "choice": ExecutionChoice(mode="automatic"),
+            "launch_context": launch,
+        })
+        import asyncio
+
+        asyncio.run(_collect_stream(service, conversation.id, automatic))
+
+    assert all(
+        "Imported answer excluded by the personal reuse ceiling."
+        not in message.content
+        for message in llm.requests[-1]
+    )
 
 
 def test_launch_context_is_advisory_and_must_match_authenticated_request_scope():

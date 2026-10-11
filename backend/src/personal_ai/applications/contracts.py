@@ -225,6 +225,20 @@ class ExternalDisclosurePolicy(BaseModel):
         return self
 
 
+class ManualImportReusePolicy(BaseModel):
+    """Narrow whether imported manual turns may feed later derived context."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    allowed: bool = True
+    maximum_sensitivity: Literal["public", "personal", "sensitive", "restricted"] = "restricted"
+
+    def allows(self, sensitivity: ContextSensitivity | None) -> bool:
+        if not self.allowed or sensitivity is None or sensitivity == "unknown":
+            return False
+        return SENSITIVITY_RANK[sensitivity] <= SENSITIVITY_RANK[self.maximum_sensitivity]
+
+
 class ApplicationSidecarPolicy(BaseModel):
     """Application-owned narrowing hooks for shared sidecar disclosure and actions."""
 
@@ -236,22 +250,19 @@ class ApplicationSidecarPolicy(BaseModel):
     manual_external_disclosure: ExternalDisclosurePolicy = Field(
         default_factory=ExternalDisclosurePolicy
     )
-    allow_manual_import_context: bool = True
+    manual_import_reuse: ManualImportReusePolicy = Field(
+        default_factory=ManualImportReusePolicy
+    )
     copy_allowed: bool = True
     draft_insert_target_ids: tuple[str, ...] = Field(default=(), max_length=16)
-    # Declarations reserve a policy seam for Phase 31; no Apply operation is executable here.
-    future_apply_operation_ids: tuple[str, ...] = Field(default=(), max_length=16)
 
     @model_validator(mode="after")
     def action_targets_are_valid(self) -> "ApplicationSidecarPolicy":
-        for name, values in (
-            ("draft_insert_target_ids", self.draft_insert_target_ids),
-            ("future_apply_operation_ids", self.future_apply_operation_ids),
+        values = self.draft_insert_target_ids
+        if len(values) != len(set(values)) or any(
+            not re.fullmatch(_VIEW_ID_PATTERN, value) for value in values
         ):
-            if len(values) != len(set(values)) or any(
-                not re.fullmatch(_VIEW_ID_PATTERN, value) for value in values
-            ):
-                raise ValueError(f"sidecar_{name}_invalid")
+            raise ValueError("sidecar_draft_insert_target_ids_invalid")
         return self
 
     def disclosure_for(

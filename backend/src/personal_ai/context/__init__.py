@@ -27,6 +27,7 @@ from personal_ai.context.providers import (
     ContextSelection,
     ContextSourceReference,
 )
+from personal_ai.context.runtime import ContextRuntimeRegistry
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "ContextProviderFailure",
     "ContextProviderResult",
     "ContextProviderSpec",
+    "ContextRuntimeRegistry",
     "ContextSelection",
     "ContextSourceReference",
     "ContextTraceManifest",

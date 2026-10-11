@@ -1,14 +1,21 @@
 """Phase 3 contracts, repositories, extraction and retrieval on shared fixtures."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
+from personal_ai.applications.contracts import (
+    ApplicationContextRequest,
+    ManualImportReusePolicy,
+)
+from personal_ai.applications.registry import default_application_registry
+from personal_ai.auth.scope import RequestScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.entities import MessageStatus
+from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.evaluation.memory import build_fixture, evaluate, fixture_settings, load_fixtures
 from personal_ai.llm import LLMUnavailableError
 from personal_ai.memory.contracts import MemoryCandidate, RetrievalResult, ScoredMemory, vector
@@ -299,6 +306,65 @@ def test_malicious_index_results_revalidated(monkeypatch):
         )
         assert result.excluded == ((memory.id, reason),)
         assert not result.selected
+
+
+def test_denied_manual_import_cannot_create_or_reintroduce_durable_memory():
+    settings, _, messages, repo, turns, candidates, pending, embedder = seeded()
+    _source_user, source_assistant = turns[0]
+    current_assistant = messages.get(
+        owner_id=source_assistant.owner_id,
+        conversation_id=source_assistant.conversation_id,
+        message_id=source_assistant.id,
+    )
+    manual = current_assistant.model_copy(update={
+        "attribution": TurnAttribution(
+            execution_origin="manual_import",
+            fact_source="user_declared",
+            recorded_at=datetime.now(UTC),
+        ),
+    })
+    messages.update_status(
+        owner_id=source_assistant.owner_id,
+        conversation_id=source_assistant.conversation_id,
+        message_id=source_assistant.id,
+        status=MessageStatus.COMPLETED,
+        replacement=manual,
+        expected_message=current_assistant,
+        updated_at=datetime.now(UTC),
+    )
+    registry = default_application_registry()
+    registration = registry.registration("personal_ai")
+    definition = registration.definition.model_copy(update={
+        "context_policy": registration.definition.context_policy.model_copy(update={
+            "sidecar": registration.definition.context_policy.sidecar.model_copy(update={
+                    "manual_import_reuse": ManualImportReusePolicy(allowed=False),
+            }),
+        }),
+    })
+    application_context = ApplicationContextRequest(
+        definition=definition,
+        scope=RequestScope(owner_id="local", request_id="manual-memory", application_id="personal_ai"),
+        context_provider_capabilities=registration.context_providers,
+        tool_capabilities=registration.tools,
+    )
+
+    extraction = MemoryExtractionService(
+        settings, repo, messages, FakeMemoryExtractor(candidates[:1]), embedder
+    ).run(manual, application_context=application_context)
+    assert extraction.reasons == ("source_policy_denied",)
+
+    retrieval = MemoryRetriever(settings, repo, messages, embedder).retrieve(
+        "local",
+        pending.content,
+        [pending],
+        application_context=application_context,
+    )
+    assert retrieval.selected == ()
+    target_memory = next(
+        memory for memory in repo.records.values()
+        if memory.source_turn_id == source_assistant.id
+    )
+    assert (target_memory.id, "source_policy_denied") in retrieval.excluded
 
 
 def test_retrieval_failure_disabled_and_sensitive_query_fallback(monkeypatch):
