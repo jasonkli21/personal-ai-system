@@ -70,10 +70,11 @@ class ResearchRequest(ResearchRecord):
         )
         return sha256(self.model_dump_json(exclude=excluded).encode()).hexdigest()
 
-    def source_bounds(self):
+    def source_bounds(self, allowed_domains=None):
         literal_allowed, literal_excluded = domains_from_question(self.question)
         # Both allowlists must apply, rather than widening either one by union.
-        return self.allowed_domains, literal_allowed, (*self.excluded_domains, *literal_excluded)
+        typed_allowed = self.allowed_domains if allowed_domains is None else tuple(allowed_domains)
+        return typed_allowed, literal_allowed, (*self.excluded_domains, *literal_excluded)
 
 
 class Citation(ScopedResearchRecord):
@@ -164,8 +165,12 @@ class ResearchSession(ScopedResearchRecord):
                     or parent.query_id != attempt.query_id
                     or parent.attempt_number != attempt.attempt_number
                     or parent.started_at != attempt.started_at
-                    or parent.usage_invocation_id != attempt.usage_invocation_id
-                    or parent.usage_attempt_id != attempt.usage_attempt_id
+                    or parent.operation_identity != attempt.operation_identity
+                    or parent.strategy_id != attempt.strategy_id
+                    or parent.strategy_version != attempt.strategy_version
+                    or parent.strategy_reason != attempt.strategy_reason
+                    or parent.usage_invocation_id not in {None, attempt.usage_invocation_id}
+                    or parent.usage_attempt_id not in {None, attempt.usage_attempt_id}
                     or attempt.completed_at < attempt.started_at
                 ):
                     raise ValueError("invalid terminal attempt")

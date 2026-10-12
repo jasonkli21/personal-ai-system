@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Literal
-from uuid import UUID, uuid5
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -70,18 +70,25 @@ class AdapterAttempt(ScopedResearchRecord):
     error_code: str | None = Field(default=None, max_length=80)
     usage_invocation_id: UUID | None = None
     usage_attempt_id: UUID | None = None
+    operation_identity: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    strategy_id: str | None = Field(default=None, max_length=100)
+    strategy_version: int | None = Field(default=None, ge=1)
+    strategy_reason: str | None = Field(default=None, max_length=80)
 
     @model_validator(mode="after")
     def usage_identity(self):
-        if (self.usage_invocation_id is None) != (self.usage_attempt_id is None):
-            raise ValueError("incomplete usage link")
-        if self.usage_invocation_id is not None and (
-            self.usage_invocation_id != uuid5(self.query_id, "provider-usage-search")
-            or self.usage_attempt_id != uuid5(
-                self.usage_invocation_id, f"provider-attempt:{self.attempt_number}"
-            )
+        if self.usage_attempt_id is not None and self.usage_invocation_id is None:
+            raise ValueError("physical attempt requires canonical invocation")
+        operation_fields = (
+            self.operation_identity,
+            self.strategy_id,
+            self.strategy_version,
+            self.strategy_reason,
+        )
+        if any(value is not None for value in operation_fields) and any(
+            value is None for value in operation_fields
         ):
-            raise ValueError("incorrect usage link")
+            raise ValueError("incomplete admitted search operation reference")
         return self
 
 
@@ -102,6 +109,8 @@ class SourceObservation(ScopedResearchRecord):
     ]
     attempt_id: UUID
     rights_reference: str | None = Field(default=None, max_length=200)
+    rights_authority_id: str | None = Field(default=None, max_length=200)
+    rights_epoch: str | None = Field(default=None, max_length=100)
     sensitivity: Literal["public"] = "public"
     result_index: int | None = Field(default=None, ge=0, le=11)
     passage: str | None = Field(default=None, max_length=1200)
@@ -120,6 +129,8 @@ class SourceObservation(ScopedResearchRecord):
         if self.observation_version == "snippet-observation-v2" and self.status == "accepted":
             if not self.rights_reference or not self.passage or self.result_index is None:
                 raise ValueError("missing observation provenance")
+            if self.rights_authority_id is not None and not self.rights_epoch:
+                raise ValueError("missing source-rights epoch")
             if sha256(" ".join(self.passage.split()).encode()).hexdigest() != self.content_fingerprint:
                 raise ValueError("observation fingerprint")
         return self

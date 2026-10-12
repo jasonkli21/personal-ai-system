@@ -93,7 +93,7 @@ async def test_disconnect_and_abandoned_execution():
 async def test_deadline_and_provider_failure_safe():
     service, request = build_fixture(load_fixtures()[0], research_timeout_seconds=0.01)
 
-    async def slow(query, limit):
+    async def slow(operation):
         await asyncio.sleep(1)
 
     service.adapter.search = slow

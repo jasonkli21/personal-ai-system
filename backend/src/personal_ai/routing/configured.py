@@ -29,8 +29,11 @@ def build_initial_endpoint_profiles(settings: Settings) -> tuple[EndpointProfile
         profiles.append(_groq_profile(settings))
     if settings.cloudflare_model:
         profiles.append(_cloudflare_profile(settings))
-    if settings.research_search_adapter == "brave":
-        profiles.append(_brave_search_profile(settings))
+    from personal_ai.search.runtime import SEARCH_ADAPTERS
+
+    search_registration = SEARCH_ADAPTERS.get(settings.research_search_adapter)
+    if search_registration is not None and search_registration.endpoint_profile_factory is not None:
+        profiles.append(search_registration.endpoint_profile_factory(settings))
     by_id = {profile.endpoint_profile_id: profile for profile in profiles}
     for raw_profile in settings.inference_additional_endpoint_profiles:
         profile = EndpointProfile.model_validate(raw_profile)
@@ -315,7 +318,6 @@ def _brave_search_profile(settings: Settings) -> EndpointProfile:
         billing_owner="unknown",
         enabled=(
             settings.research_enabled
-            and settings.research_search_adapter == "brave"
             and bool(settings.research_api_key.get_secret_value())
         ),
         strict_free_enabled=False,

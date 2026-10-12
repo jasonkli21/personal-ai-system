@@ -279,6 +279,7 @@ class Settings(BaseSettings):
     research_brave_account_scope_id: str = Field(default="", max_length=200)
     research_brave_credential_scope_id: str = Field(default="brave-primary-key", max_length=200)
     research_brave_preflight_reference: str = Field(default="", max_length=500)
+    research_brave_rights_epoch: str = Field(default="", max_length=100)
     research_brave_quota_buckets: tuple[dict[str, object], ...] = Field(default=(), max_length=32)
     research_max_queries: int = Field(default=1, ge=1, le=3)
     research_max_sources: int = Field(default=8, ge=1, le=12)
@@ -673,22 +674,6 @@ class Settings(BaseSettings):
             or any(not domain or "." not in domain or ".." in domain for domain in domains)
         ):
             raise ValueError("iterative_research_configuration_invalid")
-        if (
-            self.research_enabled
-            and self.research_search_adapter == "brave"
-            and (
-                self.research_storage != "postgres"
-                or not self.research_provider_storage_approved
-                or not self.research_api_key.get_secret_value()
-                or not self.research_brave_prepaid_verified
-                or not self.research_brave_auto_reload_disabled
-                or not self.research_brave_no_paid_balance_verified
-                or not self.research_brave_source_rights_verified
-                or not self.research_brave_account_scope_id.strip()
-                or not self.research_brave_preflight_reference.strip()
-            )
-        ):
-            raise ValueError("research_configuration_invalid")
         decision_weights = (self.decision_feature_preference_weight,)
         domain_gates = (self.travel_enabled, self.shopping_enabled)
         if (

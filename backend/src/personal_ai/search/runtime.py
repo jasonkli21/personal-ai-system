@@ -1,18 +1,24 @@
 """Installed adapter composition shared by single-pass and iterative research."""
 
-from dataclasses import dataclass
-from uuid import uuid5
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from personal_ai.agents.research.contracts import ResearchError
-from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
+from personal_ai.search.contracts import FakeSearchAdapter, SearchCostProfile, SearchResult
 from personal_ai.search.providers.brave import BraveSearchAdapter
 
 
 @dataclass(frozen=True)
 class SearchAdapterRegistration:
-    factory: object
+    factory: Callable
     synthetic: bool = False
     operations: tuple[str, ...] = ("search",)
+    cost_profile: SearchCostProfile = field(
+        default_factory=lambda: SearchCostProfile("external-search-v1", 0.005)
+    )
+    settings_validator: Callable | None = None
+    endpoint_profile_factory: Callable | None = None
+    cost_profile_factory: Callable | None = None
 
 
 def _synthetic(settings, usage):
@@ -24,43 +30,68 @@ def _synthetic(settings, usage):
     ),))
 
 
+def _brave_endpoint_profile(settings):
+    from personal_ai.routing.configured import _brave_search_profile
+
+    return _brave_search_profile(settings)
+
+
+def _brave_cost_profile(settings):
+    return SearchCostProfile(
+        "brave-search-v1", float(settings.iterative_search_cost_usd)
+    )
+
+
 SEARCH_ADAPTERS = {
-    "fake": SearchAdapterRegistration(_synthetic, synthetic=True),
+    "fake": SearchAdapterRegistration(
+        _synthetic,
+        synthetic=True,
+        cost_profile=SearchCostProfile("synthetic-zero-cost-v1", 0.0),
+    ),
     "brave": SearchAdapterRegistration(
-        lambda settings, usage: BraveSearchAdapter(settings, usage_accounting=usage)
+        lambda settings, usage: BraveSearchAdapter(settings, usage_accounting=usage),
+        settings_validator=BraveSearchAdapter.validate_settings,
+        endpoint_profile_factory=_brave_endpoint_profile,
+        cost_profile_factory=_brave_cost_profile,
     ),
 }
 
 
-def search_usage_links(adapter, query_id, send_number):
-    """References only; P19 remains authoritative for admission and settlement."""
-    if getattr(adapter, "usage_accounting", None) is None:
-        return {}
-    invocation_id = uuid5(query_id, "provider-usage-search")
-    return {"usage_invocation_id": invocation_id,
-            "usage_attempt_id": uuid5(invocation_id, f"provider-attempt:{send_number}")}
-
-
-def compose_research_clients(settings, usage_factory, *, registrations=None):
-    from personal_ai.context.tokens import EstimatedTokenCounter
-    from personal_ai.llm.context import GeminiTokenCounter
-    from personal_ai.llm.fake import FakeResearchLLMClient
-    from personal_ai.llm.gemini import GeminiLLMClient
-
+def validate_search_settings(settings, *, registrations=None):
     catalog = SEARCH_ADAPTERS if registrations is None else registrations
     registration = catalog.get(settings.research_search_adapter)
     if registration is None or registration.operations != ("search",):
         raise ResearchError("research_configuration_invalid")
+    if registration.settings_validator is not None:
+        registration.settings_validator(settings)
+
+
+def compose_search_adapter(settings, usage_factory, *, registrations=None):
+    """Compose only the registered search implementation and its policy profile."""
+    catalog = SEARCH_ADAPTERS if registrations is None else registrations
+    registration = catalog.get(settings.research_search_adapter)
+    if registration is None or registration.operations != ("search",):
+        raise ResearchError("research_configuration_invalid")
+    validate_search_settings(settings, registrations=catalog)
     usage = None if registration.synthetic else usage_factory()
     adapter = registration.factory(settings, usage)
+    expected_origin = "synthetic" if registration.synthetic else "external"
     if not callable(getattr(adapter, "search", None)) or not callable(
         getattr(adapter, "authorize_snippets", None)
     ) or (
-        getattr(adapter, "source_origin", None) not in {"synthetic", "external"}
+        getattr(adapter, "source_origin", None) != expected_origin
     ):
         raise ResearchError("research_configuration_invalid")
-    if registration.synthetic:
-        return adapter, EstimatedTokenCounter(), FakeResearchLLMClient()
-    return adapter, GeminiTokenCounter(settings, usage_accounting=usage), GeminiLLMClient(
-        settings, usage_accounting=usage
+    cost_profile = (
+        registration.cost_profile_factory(settings)
+        if registration.cost_profile_factory is not None
+        else registration.cost_profile
     )
+    try:
+        adapter.cost_profile = cost_profile
+    except (AttributeError, TypeError):
+        if getattr(adapter, "cost_profile", None) != cost_profile:
+            raise ResearchError("research_configuration_invalid") from None
+    if not isinstance(getattr(adapter, "cost_profile", None), SearchCostProfile):
+        raise ResearchError("research_configuration_invalid")
+    return adapter

@@ -405,7 +405,10 @@ class ArtifactService:
         estimated_bytes = snapshot_bytes + 4096
         from personal_ai.search.authority import research_export_dependencies
 
-        permission_dependencies = research_export_dependencies(exported)
+        permission_dependency_map = {
+            dependency.model_dump_json(): dependency
+            for dependency in research_export_dependencies(exported)
+        }
         manifest, bodies, dependencies, expiries = [], [], set(), []
         for row in rows:
             ref = ArtifactRef.model_validate(row["data"])
@@ -425,7 +428,14 @@ class ArtifactService:
             )
             manifest.append(ref.model_dump(mode="json"))
             dependencies.update(ref.grant_dependencies)
+            for dependency in ref.permission_dependencies:
+                permission_dependency_map[dependency.model_dump_json()] = dependency
             expiries.append(ref.expires_at)
+        if len(permission_dependency_map) > 16:
+            raise ArtifactUnavailable("export_permission_dependency_limit")
+        permission_dependencies = tuple(
+            permission_dependency_map[key] for key in sorted(permission_dependency_map)
+        )
         envelope = {
             "schema_version": "account-artifact-export-v1",
             "snapshot": exported,

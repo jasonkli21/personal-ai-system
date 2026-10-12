@@ -32,7 +32,7 @@ from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.llm.fake import FakeResearchLLMClient
-from personal_ai.search.contracts import SearchResult
+from personal_ai.search.contracts import SearchCostProfile, SearchResult
 from personal_ai.search.providers.brave import SearchError
 from personal_ai.settings import Settings
 from personal_ai.storage.errors import ResourceNotFoundError
@@ -153,6 +153,35 @@ async def test_search_reservations_are_durable_before_adapter_and_ledgers_reconc
 
 
 @pytest.mark.anyio
+async def test_iterative_dispatch_uses_common_typed_search_operation_envelope():
+    service, adapter, _, _, _ = build_service(sources=(
+        result("https://example.org/schedule", "Synthetic observatory opens Saturday.",
+               published_at=NOW - timedelta(hours=1)),
+        result("https://blocked.example.org/schedule", "Synthetic observatory opens Friday.",
+               published_at=NOW - timedelta(hours=1)),
+    ))
+    req = request(
+        "Synthetic observatory schedule? site:example.org -site:blocked.example.org"
+    ).model_copy(update={
+        "excluded_domains": ("blocked.example.org",),
+        "published_after": NOW - timedelta(days=1),
+    })
+    final, _ = await execute(service, req)
+    session = await service.session(final.id)
+    operation = adapter.calls[0]
+    assert operation.schema_version == "research-search-operation-v1"
+    assert operation.allowed_domains == ("example.org",)
+    assert operation.literal_allowed_domains == ("example.org",)
+    assert "blocked.example.org" in operation.excluded_domains
+    assert operation.published_after == req.published_after
+    assert session.observations[0].status == "accepted"
+    assert len(session.observations) == 1
+    assert all("blocked.example.org" not in source.canonical_url for source in session.observations)
+    assert session.attempts[-1].strategy_id == "iterative-followup"
+    assert session.attempts[-1].operation_identity == operation.identity
+
+
+@pytest.mark.anyio
 async def test_followup_has_parent_gap_domain_fence_and_deduplicates_repeats():
     intent = DecisionIntent.model_validate({
         "candidates": [{"entity_type": "object", "canonical_name": "Synthetic Widget"}],
@@ -181,7 +210,8 @@ async def test_followup_has_parent_gap_domain_fence_and_deduplicates_repeats():
     assert session.queries[1].parent_query_id == session.queries[0].id
     assert session.queries[1].gap_id is not None
     assert "Synthetic Widget price?" in session.queries[1].normalized_query
-    assert "site:example.org" in session.queries[1].normalized_query
+    assert "site:" not in session.queries[1].normalized_query
+    assert adapter.calls[1].allowed_domains == ("example.org",)
     assert all("unlisted.example.net" not in source.canonical_url for source in session.observations)
     assert all("other.example.org" not in source.canonical_url for source in session.observations)
     assert any(gap.status == "open" for gap in run.gaps)
@@ -524,7 +554,7 @@ async def test_iteration_source_and_provider_cost_limits_refuse_work_before_sear
             "iterative_synthesis_cost_usd": Decimal("0.005"),
         },
     )
-    cost_adapter.name = "brave"  # fake response with configured provider cost
+    cost_adapter.cost_profile = SearchCostProfile("test-provider-cost-v1", 0.005)
     cost_run, _ = await execute(limited_cost, request())
     assert cost_run.terminal_reason == StopReason.PROVIDER_COST_BUDGET_EXHAUSTED
     assert cost_run.usage.queries == 0 and not cost_adapter.calls

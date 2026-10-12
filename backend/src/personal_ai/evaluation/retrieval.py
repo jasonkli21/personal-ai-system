@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -22,22 +23,32 @@ from personal_ai.evaluation.retrieval_contracts import (
     promotion_reasons,
 )
 from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
+from personal_ai.search.planning import source_allowed
 from personal_ai.search.policy import SnippetExtractor
 from personal_ai.search.providers.brave import SearchError
 from personal_ai.search.runtime import SEARCH_ADAPTERS, SearchAdapterRegistration
 from personal_ai.settings import Settings
 
 DIRECTORY = Path(__file__).parent / "fixtures" / "research"
+BASELINE_PATH = DIRECTORY / "retrieval-baseline-v2.json"
+FIXTURE_PATH = DIRECTORY / "retrieval-heldout-v2.json"
 VARIANTS = ("literal-extractive-v1", "compact-extractive-v1", "qualifier-v1", "expansion-v1")
 
 
 def load_configuration():
-    fixture_bytes = (DIRECTORY / "retrieval-heldout-v1.json").read_bytes()
-    baseline_bytes = (DIRECTORY / "retrieval-baseline-v1.json").read_bytes()
+    fixture_bytes = FIXTURE_PATH.read_bytes()
+    baseline_bytes = BASELINE_PATH.read_bytes()
     baseline = json.loads(baseline_bytes)
     if sha256(fixture_bytes).hexdigest() != baseline["fixture_sha256"]:
         raise ValueError("frozen_baseline_fixture_mismatch")
-    return json.loads(fixture_bytes), baseline, sha256(baseline_bytes).hexdigest()
+    cases = json.loads(fixture_bytes)
+    names = {case["name"] for case in cases}
+    if (
+        baseline.get("version") != "retrieval-semantic-baseline-v2"
+        or names != set(baseline.get("semantic_oracles", {}))
+    ):
+        raise ValueError("frozen_baseline_semantic_oracle_mismatch")
+    return cases, baseline, sha256(baseline_bytes).hexdigest()
 
 
 def runtime_identity():
@@ -54,7 +65,7 @@ async def measure(case, variant):
     from personal_ai.agents.research.contracts import ResearchRequest
 
     settings = Settings(
-        _env_file=None, ai_provider="gemini", ai_model="synthetic", research_enabled=True,
+        _env_file=None, ai_provider="fake", ai_model="synthetic", research_enabled=True,
         research_storage="memory", research_search_adapter="heldout",
         research_retrieval_experiments_enabled=True,
         research_packing_strategy=(variant if variant in VARIANTS[:2] else VARIANTS[0]),
@@ -101,8 +112,14 @@ async def measure(case, variant):
 
     service.llm.stream_bounded = observed_stream
     service.context.counter.count = observed_count
-    request = ResearchRequest(question=case["question"], freshness=case.get("freshness", "general"),
-                              idempotency_key=uuid4())
+    request = ResearchRequest(
+        question=case["question"],
+        freshness=case.get("freshness", "general"),
+        idempotency_key=uuid4(),
+        allowed_domains=tuple(case.get("allowed_domains", ())),
+        excluded_domains=tuple(case.get("excluded_domains", ())),
+        published_after=case.get("published_after"),
+    )
     started = perf_counter()
     created = await service.create(request)
     claimed = await service.prepare_run(created.id)
@@ -157,15 +174,138 @@ async def measure(case, variant):
     return metrics, session
 
 
+def semantic_outcome(session, metrics):
+    evidence = {item.id: item for item in session.evidence}
+    observations = {item.id: item for item in session.observations}
+    selected = set(session.selection.evidence_ids) if session.selection else set()
+    supports = session.selection.derived.support if session.selection and session.selection.derived else ()
+    exact_support = len(supports) == len(selected) and all(
+        support.evidence_id in evidence
+        and support.evidence_id in selected
+        and support.fingerprint == evidence[support.evidence_id].content_fingerprint
+        and support.end == len(evidence[support.evidence_id].passage)
+        and set(support.observation_ids).issubset(
+            set(evidence[support.evidence_id].source_observation_ids)
+        )
+        for support in supports
+    )
+    citations_supported = all(
+        citation.evidence_id in selected
+        and citation.source_observation_id in evidence[citation.evidence_id].source_observation_ids
+        and citation.source_observation_id in observations
+        and observations[citation.source_observation_id].status == "accepted"
+        and citation.url == observations[citation.source_observation_id].canonical_url
+        for citation in session.citations
+    )
+    allowed, literal_allowed, excluded = session.request.source_bounds()
+    hard_constraints = all(
+        source_allowed(item.canonical_url, allowed, excluded)
+        and source_allowed(item.canonical_url, literal_allowed, excluded)
+        and (
+            session.request.published_after is None
+            or item.published_at is not None
+            and session.request.published_after <= item.published_at
+        )
+        for item in session.observations if item.status == "accepted"
+    )
+    return {
+        "state": session.state,
+        "failure_code": session.failure_code,
+        "evidence_count": len(session.evidence),
+        "selected_count": len(selected),
+        "citation_count": len(session.citations),
+        "source_status_counts": dict(sorted(Counter(
+            item.status for item in session.observations
+        ).items())),
+        "calls": metrics.calls,
+        "query_count": len(session.queries),
+        "exact_support": bool(exact_support),
+        "citations_supported": bool(citations_supported),
+        "hard_constraints_passed": bool(hard_constraints),
+        "freshness_compliance": bool(metrics.freshness_compliance == 1 and hard_constraints),
+        "answer_absent_on_noncompletion": (
+            session.state == "completed" or session.answer is None and not session.citations
+        ),
+    }
+
+
+def assert_frozen_semantic_conformance(outcome, oracle, *, strategy_id):
+    """Keep the frozen literal oracle independent from paired same-revision deltas."""
+    for key in (
+        "state",
+        "failure_code",
+        "exact_support",
+        "citations_supported",
+        "hard_constraints_passed",
+        "freshness_compliance",
+        "answer_absent_on_noncompletion",
+    ):
+        if outcome[key] != oracle[key]:
+            raise ValueError("retrieval_frozen_semantic_regression:" + key)
+    for key in ("evidence_count", "selected_count", "citation_count"):
+        if outcome[key] < oracle["minimum_" + key]:
+            raise ValueError("retrieval_frozen_semantic_regression:" + key)
+    if outcome["calls"] > oracle["max_candidate_calls"]:
+        raise ValueError("retrieval_frozen_call_budget_regression")
+    if outcome["query_count"] > oracle["max_candidate_queries"]:
+        raise ValueError("retrieval_frozen_query_budget_regression")
+    if strategy_id == "literal-extractive-v1":
+        for key in ("evidence_count", "selected_count", "citation_count", "calls", "query_count"):
+            if outcome[key] != oracle["literal_" + key]:
+                raise ValueError("retrieval_frozen_baseline_regression:" + key)
+        if outcome["source_status_counts"] != oracle["literal_source_status_counts"]:
+            raise ValueError("retrieval_frozen_baseline_regression:source_status_counts")
+
+
+def assert_fixture_contract(case, outcome):
+    """Keep the independent semantic floor tied to the checked-in held-out case."""
+    expected = {
+        "state": case["expected"],
+        "evidence_count": case["evidence_count"],
+        "citation_count": case["citations"],
+    }
+    if "failure_code" in case:
+        expected["failure_code"] = case["failure_code"]
+    for key, value in expected.items():
+        if outcome[key] != value:
+            raise ValueError("retrieval_fixture_semantic_contract_regression:" + key)
+
+
 async def run(*, repository=None, artifacts=None, owner_id="local", scope=None):
     cases, frozen, baseline_digest = load_configuration()
     run_id, timestamp = uuid4(), datetime.now(UTC)
     scope = scope or ApplicationScope()
     rows, summaries = [], []
     for case in cases:
-        control, _ = await measure(case, VARIANTS[0])
+        oracle = frozen["semantic_oracles"][case["name"]]
+        control, control_session = await measure(case, VARIANTS[0])
+        control_outcome = semantic_outcome(control_session, control)
+        assert_fixture_contract(case, control_outcome)
+        control_oracle = {
+            **oracle,
+            "max_candidate_calls": oracle["literal_calls"],
+            "max_candidate_queries": oracle["literal_query_count"],
+        }
+        assert_frozen_semantic_conformance(
+            control_outcome, control_oracle,
+            strategy_id=VARIANTS[0],
+        )
         for variant in VARIANTS[1:]:
             candidate, session = await measure(case, variant)
+            candidate_outcome = semantic_outcome(session, candidate)
+            candidate_oracle = {
+                **oracle,
+                "max_candidate_calls": oracle[
+                    "expansion_calls" if variant == "expansion-v1" else "literal_calls"
+                ],
+                "max_candidate_queries": oracle[
+                    "expansion_query_count" if variant == "expansion-v1" else "literal_query_count"
+                ],
+            }
+            assert_frozen_semantic_conformance(
+                candidate_outcome, candidate_oracle,
+                strategy_id=variant,
+            )
             config = {"strategy": variant, "max_queries": 2 if variant == "expansion-v1" else 1,
                       "origin": "synthetic_offline", "scorer": "literal-support-v1",
                       "runtime_identity": runtime_identity()}

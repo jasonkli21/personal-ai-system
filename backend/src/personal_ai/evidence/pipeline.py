@@ -20,6 +20,7 @@ from personal_ai.evidence.contracts import (
     SourceObservation,
 )
 from personal_ai.search.authority import observation_dependencies
+from personal_ai.search.contracts import normalize_rights_authorization
 from personal_ai.search.planning import source_allowed
 from personal_ai.search.policy import canonical_url, content_fingerprint
 
@@ -46,8 +47,11 @@ def extract_evidence(session, results, attempt, extractor, now, settings, *, rig
     )
     by_content = {}
     for result_index, (query_id, result) in enumerate(results):
-        source_rights = (rights_reference.get(query_id)
-                         if isinstance(rights_reference, dict) else rights_reference)
+        rights_value = (rights_reference.get(query_id)
+                        if isinstance(rights_reference, dict) else rights_reference)
+        source_rights = normalize_rights_authorization(
+            rights_value, attempt[query_id].adapter
+        )
         status, passage, fingerprint = "accepted", "", None
         try:
             url = canonical_url(result.url)
@@ -102,7 +106,9 @@ def extract_evidence(session, results, attempt, extractor, now, settings, *, rig
             content_fingerprint=fingerprint,
             status=status,
             attempt_id=attempt[query_id].id,
-            rights_reference=source_rights,
+            rights_reference=source_rights.reference if source_rights else None,
+            rights_authority_id=source_rights.authority_id if source_rights else None,
+            rights_epoch=source_rights.epoch if source_rights else None,
             result_index=result_index,
             passage=passage if status == "accepted" else None,
             observation_version="snippet-observation-v2",
@@ -112,8 +118,18 @@ def extract_evidence(session, results, attempt, extractor, now, settings, *, rig
         observations.append(source)
         if status != "accepted":
             continue
-        # Identical text at a different publication version remains a distinct fact.
-        duplicate_key = (fingerprint, result.published_at, result.source_revision)
+        # Cross-source merging requires positive version identity. Unknown metadata
+        # can only collapse an exact same-source duplicate.
+        if result.source_revision is not None and result.published_at is not None:
+            duplicate_key = (
+                "syndicated-known-version", fingerprint,
+                result.published_at, result.source_revision,
+            )
+        else:
+            duplicate_key = (
+                "same-source", url, fingerprint,
+                result.published_at, result.source_revision,
+            )
         if duplicate_key in by_content:
             index = by_content[duplicate_key]
             old = evidence[index]

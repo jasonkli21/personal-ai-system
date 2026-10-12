@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from datetime import UTC, datetime
 from hashlib import sha256
 from threading import Lock
 from time import monotonic
@@ -11,7 +12,13 @@ import httpx
 from pydantic import ValidationError
 
 from personal_ai.agents.research.contracts import ResearchError
-from personal_ai.search.contracts import SearchResult
+from personal_ai.search.contracts import (
+    SearchCostProfile,
+    SearchDispatch,
+    SearchResult,
+    SearchRightsAuthorization,
+)
+from personal_ai.search.planning import SearchOperation, effective_allowed_domains
 from personal_ai.usage.async_call import AsyncProviderCall, rate_limit_metadata
 from personal_ai.usage.context import current_usage_context
 from personal_ai.usage.contracts import UsageAdmissionDenied
@@ -22,41 +29,89 @@ _NEXT_REQUEST = 0.0
 
 
 class SearchError(ResearchError):
-    def __init__(self, code: str, retryable: bool = False):
+    def __init__(
+        self, code: str, retryable: bool = False, *,
+        usage_invocation_id=None, usage_attempt_id=None,
+    ):
         super().__init__(code)
         self.retryable = retryable
+        self.usage_invocation_id = usage_invocation_id
+        self.usage_attempt_id = usage_attempt_id
 
 
 class BraveSearchAdapter:
     name = "brave"
     source_origin = "external"
+    cost_profile = SearchCostProfile("brave-search-v1", 0.005)
     endpoint = "https://api.search.brave.com/res/v1/web/search"
 
     def __init__(self, settings, transport=None, *, usage_accounting=None):
         self.settings, self.transport = settings, transport
         self.usage_accounting = usage_accounting
 
+    @staticmethod
+    def validate_settings(settings):
+        if (
+            settings.research_storage != "postgres"
+            or not settings.research_provider_storage_approved
+            or not settings.research_api_key.get_secret_value()
+            or not settings.research_brave_prepaid_verified
+            or not settings.research_brave_auto_reload_disabled
+            or not settings.research_brave_no_paid_balance_verified
+            or not settings.research_brave_source_rights_verified
+            or not settings.research_brave_account_scope_id.strip()
+            or not settings.research_brave_preflight_reference.strip()
+            or not settings.research_brave_rights_epoch.strip()
+        ):
+            raise SearchError("research_configuration_invalid")
+
     def authorize_snippets(self):
         if (
-            not self.settings.research_enabled
-            or not self.settings.research_provider_storage_approved
+            not self.settings.research_provider_storage_approved
             or not self.settings.research_brave_prepaid_verified
             or not self.settings.research_brave_auto_reload_disabled
             or not self.settings.research_brave_no_paid_balance_verified
             or not self.settings.research_brave_source_rights_verified
             or not self.settings.research_brave_account_scope_id.strip()
             or not self.settings.research_brave_preflight_reference.strip()
+            or not self.settings.research_brave_rights_epoch.strip()
             or not self.settings.research_api_key.get_secret_value()
         ):
             raise SearchError("research_configuration_invalid")
-        return sha256(json.dumps([
-            self.settings.research_brave_account_scope_id,
+        account_scope = self.settings.research_brave_account_scope_id.strip()
+        authority_id = "brave:" + sha256(account_scope.encode()).hexdigest()
+        reference = sha256(json.dumps([
+            account_scope,
             self.settings.research_brave_preflight_reference,
         ]).encode()).hexdigest()
+        return SearchRightsAuthorization(
+            provider_id=self.name,
+            authority_id=authority_id,
+            epoch=self.settings.research_brave_rights_epoch.strip(),
+            reference=reference,
+        )
 
-    async def search(self, query: str, limit: int):
+    async def search(self, operation: SearchOperation):
         self.authorize_snippets()
-        if not query.strip() or len(query) > 500 or not 1 <= limit <= 12:
+        if not isinstance(operation, SearchOperation):
+            raise SearchError("search_invalid_request")
+        if operation.published_after is not None:
+            # Brave's date filter is coarse and cannot honor an exact mandatory bound.
+            raise SearchError("search_constraint_unsupported")
+        allowed = effective_allowed_domains(operation)
+        if (operation.allowed_domains or operation.literal_allowed_domains) and not allowed:
+            raise SearchError("search_source_scope_empty")
+        if len(allowed) > 1:
+            raise SearchError("search_constraint_unsupported")
+        terms = [operation.query]
+        if allowed:
+            terms.append("site:" + allowed[0])
+        terms.extend("-site:" + domain for domain in operation.excluded_domains)
+        query = " ".join(terms)
+        limit = operation.max_results
+        remaining = (operation.deadline_at - datetime.now(UTC)).total_seconds()
+        timeout = min(self.settings.research_provider_timeout_seconds, remaining)
+        if not query.strip() or len(query) > 500 or not 1 <= limit <= 12 or timeout <= 0:
             raise SearchError("search_invalid_request")
         usage_call = None
         if self.usage_accounting is not None:
@@ -72,7 +127,7 @@ class BraveSearchAdapter:
                 self.usage_accounting,
                 endpoint,
                 operation="search",
-                quota_operation="search",
+                quota_operation=self.cost_profile.quota_operation,
                 max_attempts=self.settings.provider_usage_max_attempts_per_request,
                 task_id=scope.task_id if scope is not None else "web_research_search",
             )
@@ -87,7 +142,7 @@ class BraveSearchAdapter:
                 await usage_call.reserve()
             async with (
                 httpx.AsyncClient(
-                    timeout=self.settings.research_provider_timeout_seconds,
+                    timeout=timeout,
                     transport=self.transport,
                     follow_redirects=False,
                     trust_env=False,
@@ -141,7 +196,13 @@ class BraveSearchAdapter:
                     )
                 )
             outcome = "success"
-            return tuple(results)
+            return SearchDispatch(
+                tuple(results),
+                usage_call.invocation.invocation_id if usage_call is not None else None,
+                usage_call.attempt.attempt_id
+                if usage_call is not None and usage_call.attempt is not None
+                else None,
+            )
         except UsageAdmissionDenied as error:
             error_code = error.code
             outcome = "rate_limited" if error.code in {
@@ -149,10 +210,21 @@ class BraveSearchAdapter:
             } else "rejected"
             raise SearchError(
                 "search_quota" if outcome == "rate_limited" else "search_unavailable",
-                retryable=outcome == "rate_limited",
+                # A P19 admission denial has no trustworthy reset horizon here;
+                # repeated logical attempts would just recreate a denied call.
+                retryable=False,
+                usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),
+                usage_attempt_id=(usage_call.attempt.attempt_id if usage_call and usage_call.attempt else None),
             ) from None
         except SearchError as error:
             error_code = error.code
+            error.usage_invocation_id = (
+                usage_call.invocation.invocation_id if usage_call is not None else None
+            )
+            error.usage_attempt_id = (
+                usage_call.attempt.attempt_id
+                if usage_call is not None and usage_call.attempt is not None else None
+            )
             if outcome == "unknown":
                 outcome = (
                     "rate_limited" if response_status == 429

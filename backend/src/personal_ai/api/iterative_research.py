@@ -20,8 +20,9 @@ from personal_ai.api.routes import SSE_RESPONSES, _LifecycleStreamingResponse
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.decisions.repositories import InMemoryDecisionRepository
+from personal_ai.llm.research import compose_research_inference
 from personal_ai.persistence.factory import persistence_factory
-from personal_ai.search.runtime import compose_research_clients
+from personal_ai.search.runtime import compose_search_adapter
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
 
@@ -65,9 +66,11 @@ def iterative_research_service(
         sessions = factory.research_repository()
         runs = factory.iterative_research_repository()
         decisions = factory.decision_repository()
-    adapter, counter, llm = compose_research_clients(
-        settings, lambda: persistence_factory(settings).provider_usage_accounting(settings)
-    )
+    def usage_factory():
+        return persistence_factory(settings).provider_usage_accounting(settings)
+
+    adapter = compose_search_adapter(settings, usage_factory)
+    counter, llm = compose_research_inference(settings, usage_factory)
     return IterativeResearchService(
         settings,
         sessions,

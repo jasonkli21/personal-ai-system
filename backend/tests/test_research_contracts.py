@@ -128,8 +128,12 @@ def test_optional_planner_fallback():
 def test_settings_and_naive_timestamps():
     values = {"ai_provider": "gemini", "ai_model": "test", "_env_file": None}
     assert not Settings(**values).research_enabled
-    with pytest.raises(ValidationError):
-        Settings(**values, research_enabled=True, research_search_adapter="brave")
+    settings = Settings(**values, research_enabled=True, research_search_adapter="brave")
+    from personal_ai.agents.research.contracts import ResearchError
+    from personal_ai.search.runtime import compose_search_adapter
+
+    with pytest.raises(ResearchError, match="research_configuration_invalid"):
+        compose_search_adapter(settings, lambda: None)
     with pytest.raises(ValidationError):
         evolve(session(), created_at=NOW.replace(tzinfo=None))
     with pytest.raises(ValidationError):

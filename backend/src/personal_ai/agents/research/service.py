@@ -22,10 +22,13 @@ from personal_ai.evidence.pipeline import extract_evidence, select_evidence, val
 from personal_ai.llm.attribution import log_generation_attribution
 from personal_ai.llm.preparation import require_matching_endpoint
 from personal_ai.search.authority import ResearchSourceRightsRevalidator, observation_dependencies
-from personal_ai.search.contracts import SearchResult
-from personal_ai.search.planning import make_query_plan
+from personal_ai.search.contracts import (
+    SearchDispatch,
+    SearchResult,
+    normalize_rights_authorization,
+)
+from personal_ai.search.planning import make_query_plan, make_search_operation
 from personal_ai.search.policy import SnippetExtractor, configured_query_planner
-from personal_ai.search.runtime import search_usage_links
 from personal_ai.storage.async_io import io_call
 from personal_ai.usage.context import bind_usage_task
 
@@ -98,7 +101,6 @@ class ResearchService:
 
     async def detail(self, session_id):
         self._authorize_research_context()
-        self.adapter.authorize_snippets()
         session = await io_call(self.repository.get, self.owner_id, session_id)
         if not permission_dependencies_current(
             observation_dependencies(tuple(s for s in session.observations if s.status == "accepted")),
@@ -174,6 +176,14 @@ class ResearchService:
                         break
                     for number in range(1, self.settings.research_attempt_limit + 1):
                         started, error_code, retryable = self.clock(), None, False
+                        operation = make_search_operation(
+                            current.request,
+                            query,
+                            query_id=query.id,
+                            max_results=self.settings.research_max_sources - len(results),
+                            deadline_at=current.execution_deadline,
+                            plan=query_plan,
+                        )
                         begun = AdapterAttempt(
                             id=uuid4(),
                             session_id=current.id,
@@ -184,12 +194,18 @@ class ResearchService:
                             attempt_number=number,
                             status="started",
                             started_at=started,
-                            **search_usage_links(self.adapter, query.id, number),
+                            operation_identity=operation.identity,
+                            strategy_id=operation.strategy_id,
+                            strategy_version=operation.strategy_version,
+                            strategy_reason=operation.strategy_reason,
                         )
                         await save(attempts=(*current.attempts, begun))
+                        usage_invocation_id = usage_attempt_id = None
                         try:
-                            rights_reference = self.adapter.authorize_snippets()
-                            if not rights_reference or len(rights_reference) > 100:
+                            rights_reference = normalize_rights_authorization(
+                                self.adapter.authorize_snippets(), self.adapter.name
+                            )
+                            if rights_reference is None:
                                 raise ResearchError("research_configuration_invalid")
                             with bind_usage_task(
                                 "web_research_search",
@@ -197,10 +213,12 @@ class ResearchService:
                                 invocation_id=uuid5(query.id, "provider-usage-search"),
                                 send_number=number,
                             ):
-                                fetched = await self.adapter.search(
-                                    query.normalized_query,
-                                    self.settings.research_max_sources - len(results),
-                                )
+                                dispatch = await self.adapter.search(operation)
+                            if not isinstance(dispatch, SearchDispatch):
+                                raise ResearchError("search_invalid_response")
+                            fetched = dispatch.results
+                            usage_invocation_id = dispatch.usage_invocation_id
+                            usage_attempt_id = dispatch.usage_attempt_id
                             if not isinstance(fetched, (list, tuple)) or len(fetched) > (
                                 self.settings.research_max_sources - len(results)
                             ) or any(
@@ -216,9 +234,13 @@ class ResearchService:
                                 "search_invalid_response",
                                 "search_response_oversized",
                                 "research_configuration_invalid",
+                                "search_constraint_unsupported",
+                                "search_source_scope_empty",
                             }
                             error_code = error.code if error.code in allowed else "search_failed"
                             retryable = bool(getattr(error, "retryable", False))
+                            usage_invocation_id = getattr(error, "usage_invocation_id", None)
+                            usage_attempt_id = getattr(error, "usage_attempt_id", None)
                             fetched = ()
                         except Exception:  # noqa: BLE001 - record unexpected adapter failure safely
                             error_code, fetched = "search_failed", ()
@@ -235,7 +257,12 @@ class ResearchService:
                             started_at=started,
                             completed_at=self.clock(),
                             error_code=error_code,
-                            **search_usage_links(self.adapter, query.id, number),
+                            usage_invocation_id=usage_invocation_id,
+                            usage_attempt_id=usage_attempt_id,
+                            operation_identity=operation.identity,
+                            strategy_id=operation.strategy_id,
+                            strategy_version=operation.strategy_version,
+                            strategy_reason=operation.strategy_reason,
                         )
                         await save(attempts=(*current.attempts, attempt))
                         yield event(
@@ -329,9 +356,15 @@ class ResearchService:
                 else:
                     # Rights may have changed while searching/counting; the exact
                     # server preflight reference must still bind every passage.
-                    reference = self.adapter.authorize_snippets()
-                    if any(s.rights_reference != reference for s in current.observations
-                           if s.status == "accepted"):
+                    reference = normalize_rights_authorization(
+                        self.adapter.authorize_snippets(), self.adapter.name
+                    )
+                    if reference is None or any(
+                        s.rights_authority_id != reference.authority_id
+                        or s.rights_epoch != reference.epoch
+                        or s.rights_reference != reference.reference
+                        for s in current.observations if s.status == "accepted"
+                    ):
                         raise ResearchError("research_configuration_invalid")
                     output = ""
                     bounded = getattr(self.llm, "stream_bounded", None)

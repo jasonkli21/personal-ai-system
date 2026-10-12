@@ -42,6 +42,8 @@ class IterativeResearchRequest(ResearchRecord):
     question: str = Field(min_length=1, max_length=500)
     freshness: Literal["general", "current"] = "general"
     idempotency_key: UUID
+    excluded_domains: tuple[str, ...] = Field(default=(), max_length=12)
+    published_after: datetime | None = None
     decision_intent: DecisionIntent | None = None
 
     @model_validator(mode="after")
@@ -50,6 +52,16 @@ class IterativeResearchRequest(ResearchRecord):
         if not normalized or any(ord(character) < 32 for character in normalized):
             raise ValueError("invalid question")
         object.__setattr__(self, "question", normalized)
+        if self.published_after is not None and self.published_after.tzinfo is None:
+            raise ValueError("publication bound timezone required")
+        import re
+
+        if len(set(self.excluded_domains)) != len(self.excluded_domains) or any(
+            len(value) > 253
+            or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z]{2,}", value)
+            for value in self.excluded_domains
+        ):
+            raise ValueError("invalid source domains")
         return self
 
     def fingerprint(self) -> str:

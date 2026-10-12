@@ -1,7 +1,7 @@
 """Production-composed, bounded research regression and paired evaluation evidence."""
 
 import asyncio
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -13,13 +13,28 @@ from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context.authority import source_snapshots_current
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.evaluation.research import NOW, _application_context, build_fixture, load_fixtures
-from personal_ai.evaluation.retrieval import VARIANTS, load_configuration, measure, run
+from personal_ai.evaluation.retrieval import (
+    VARIANTS,
+    assert_frozen_semantic_conformance,
+    load_configuration,
+    measure,
+    run,
+)
+from personal_ai.llm.research import compose_research_inference
 from personal_ai.search.authority import observation_dependencies
-from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
+from personal_ai.search.contracts import (
+    FakeSearchAdapter,
+    SearchCostProfile,
+    SearchDispatch,
+    SearchResult,
+)
 from personal_ai.search.planning import make_query_plan, preserves_question
 from personal_ai.search.policy import planned_queries
 from personal_ai.search.providers.brave import SearchError
-from personal_ai.search.runtime import SEARCH_ADAPTERS, SearchAdapterRegistration
+from personal_ai.search.runtime import (
+    SEARCH_ADAPTERS,
+    SearchAdapterRegistration,
+)
 from personal_ai.settings import Settings
 from personal_ai.usage.contracts import UsageAdmissionDenied
 from tests.test_research_pipeline import complete
@@ -69,7 +84,7 @@ async def test_new_adapter_through_actual_api_composition_and_unknown_fails_clos
         lambda settings, usage: adapter, synthetic=True
     ))
     fixture_service, request = build_fixture(load_fixtures()[0])
-    settings = Settings(_env_file=None, ai_provider="gemini", ai_model="synthetic",
+    settings = Settings(_env_file=None, ai_provider="fake", ai_model="synthetic",
                         research_enabled=True, research_storage="memory",
                         research_search_adapter="alternate")
     service = research_service(settings, fixture_service.repository, "local", _application_context())
@@ -79,6 +94,9 @@ async def test_new_adapter_through_actual_api_composition_and_unknown_fails_clos
     assert result.state == "completed"
     assert result.attempts[0].adapter == result.observations[0].provider == "alternate"
     assert result.query_plan.operation == "search" and len(adapter.calls) == 1
+    from personal_ai.llm.fake import FakeResearchLLMClient
+
+    assert isinstance(service.llm, FakeResearchLLMClient)
     settings.research_search_adapter = "uninstalled"
     with pytest.raises(ResearchError, match="research_configuration_invalid"):
         research_service(settings, fixture_service.repository, "local", _application_context())
@@ -122,9 +140,10 @@ async def test_rights_denied_before_dispatch_and_derived_reuse_revoked():
         raise SearchError("research_configuration_invalid")
 
     service.adapter.authorize_snippets = denied
-    session = await service.create(request)
-    with pytest.raises(SearchError):
-        await service.prepare_run(session.id)
+    await service.create(request)
+    result, _ = await complete(service, request)
+    assert result.state == "failed"
+    assert result.attempts[-1].error_code == "research_configuration_invalid"
     assert service.adapter.calls == []
     assert not hasattr(service.adapter, "fetch")
 
@@ -145,6 +164,10 @@ async def test_source_allowlists_intersect_and_exclusions_win():
     assert result.observations[0].passage is None and result.observations[0].title is None
     assert result.query_plan.allowed_domains == request.allowed_domains
     assert len(result.citations) == 1 and result.citations[0].url.startswith("https://sub.example.org")
+    operation = service.adapter.calls[0]
+    assert operation.allowed_domains == ("sub.example.org",)
+    assert operation.literal_allowed_domains == ("example.org",)
+    assert operation.excluded_domains == ("example.net",)
 
 
 @pytest.mark.anyio
@@ -161,10 +184,10 @@ async def test_versions_conflicts_and_extractive_exact_support():
     ]}
     service, request = build_fixture(fixture)
     result, _ = await complete(service, request)
-    assert len(result.evidence) == 3 and len(result.citations) == 4
+    assert len(result.evidence) == 4 and len(result.citations) == 4
     derived = result.selection.derived
     assert derived.compression_calls == 0 and derived.conflict_status == "unresolved_all_eligible_required"
-    assert len(derived.support) == 3 and derived.omitted_ids == ()
+    assert len(derived.support) == 4 and derived.omitted_ids == ()
     assert derived.input_bytes == derived.output_bytes
     assert result.observations[0].query_id == result.queries[0].id
     assert result.observations[0].source_origin == "synthetic"
@@ -193,14 +216,14 @@ async def test_partial_plan_keeps_completed_observations_without_answer_or_repla
     original = service.adapter.search
     count = 0
 
-    async def search(query, limit):
+    async def search(operation):
         nonlocal count
         count += 1
         if count == 2:
             if failure == "quota":
                 raise SearchError("search_quota")
             await asyncio.sleep(1)
-        return await original(query, limit)
+        return await original(operation)
 
     service.adapter.search = search
     result, _ = await complete(service, request)
@@ -217,10 +240,11 @@ async def test_every_expanded_search_uses_p19_reservation_before_http_and_quota_
     http_calls = []
     reserved = []
     settled = []
+    invocations = []
 
     class Accounting:
         def begin_invocation(self, invocation):
-            pass
+            invocations.append(invocation)
 
         def reserve_attempt(self, invocation, attempt, *, max_attempts):
             if len(reserved) == 1:
@@ -244,6 +268,7 @@ async def test_every_expanded_search_uses_p19_reservation_before_http_and_quota_
     adapter.settings.research_min_request_interval_seconds = 0
     adapter.usage_accounting = Accounting()
     service, request = build_fixture(load_fixtures()[0], research_max_queries=2)
+    service.clock = lambda: datetime.now(UTC)
     service.adapter = adapter
     # Use canonical rights revalidator bound to the real HTTP adapter.
     from personal_ai.search.authority import ResearchSourceRightsRevalidator
@@ -259,17 +284,25 @@ async def test_every_expanded_search_uses_p19_reservation_before_http_and_quota_
     result, _ = await complete(service, request)
     assert result.state == "failed" and result.failure_code == "search_quota"
     assert len(http_calls) == len(reserved) == len(settled) == 1
+    assert len(invocations) == 2
     assert reserved[0][0].task_id == "web_research_search"
     assert reserved[0][0].endpoint.provider_id == "brave_search"
-    assert result.attempts[0].usage_invocation_id == reserved[0][0].invocation_id
-    assert result.attempts[0].usage_attempt_id == reserved[0][1].attempt_id
+    successful = result.attempts[-3]
+    assert successful.usage_invocation_id == reserved[0][0].invocation_id
+    assert successful.usage_attempt_id == reserved[0][1].attempt_id
+    assert successful.operation_identity is not None
+    assert successful.strategy_id == "bounded-qualifier"
+    assert result.attempts[-2].usage_attempt_id is None
+    assert result.attempts[-1].usage_invocation_id == invocations[-1].invocation_id
+    assert result.attempts[-1].usage_invocation_id != reserved[0][0].invocation_id
+    assert result.attempts[-1].usage_attempt_id is None
     assert len(result.observations) == 1
 
 
 @pytest.mark.anyio
 async def test_paired_evaluation_nonpromotion_and_rollback():
     cases, frozen, _ = load_configuration()
-    assert len(cases) == len(frozen["rows"]) == 18
+    assert len(cases) == len(frozen["semantic_oracles"]) == 20
     control, _ = await measure(cases[0], VARIANTS[0])
     compact, session = await measure(cases[0], VARIANTS[1])
     rollback, _ = await measure(cases[0], VARIANTS[0])
@@ -277,9 +310,37 @@ async def test_paired_evaluation_nonpromotion_and_rollback():
     assert session.selection.derived.compression_calls == 0
     assert control.calls == compact.calls == rollback.calls == 1
     result = await run()
-    assert len(result["rows"]) == 54 and result["promotion"] == "not_promoted"
+    assert len(result["rows"]) == 60 and result["promotion"] == "not_promoted"
     assert all("synthetic_only" in row["promotion_reasons"] for row in result["rows"])
     assert result["live_answer_quality"] == "unmeasured"
+
+
+def test_frozen_semantic_gate_rejects_a_shared_literal_regression():
+    cases, frozen, _ = load_configuration()
+    oracle = frozen["semantic_oracles"][cases[0]["name"]]
+    regressed = {
+        "state": "insufficient",
+        "failure_code": "invalid_citations",
+        "evidence_count": oracle["minimum_evidence_count"],
+        "selected_count": oracle["minimum_selected_count"],
+        "citation_count": oracle["minimum_citation_count"],
+        "calls": oracle["literal_calls"],
+        "query_count": oracle["literal_query_count"],
+        "exact_support": True,
+        "citations_supported": True,
+        "hard_constraints_passed": True,
+        "answer_absent_on_noncompletion": True,
+    }
+    with pytest.raises(ValueError, match="retrieval_frozen_semantic_regression:state"):
+        assert_frozen_semantic_conformance(
+            regressed,
+            {
+                **oracle,
+                "max_candidate_calls": oracle["literal_calls"],
+                "max_candidate_queries": oracle["literal_query_count"],
+            },
+            strategy_id=VARIANTS[0],
+        )
 
 
 @pytest.mark.anyio
@@ -313,7 +374,8 @@ async def test_export_artifact_retains_rights_dependency_and_revocation_blocks_c
     exported = {"collections": {"research_sessions": [
         {"document_id": str(result.id), "data": result.model_dump(mode="json")}
     ]}}
-    authority = ResearchSourceRightsRevalidator(service.settings)
+    original_rights = service.adapter.authorize_snippets()
+    authority = ResearchSourceRightsRevalidator(service.settings, adapter=service.adapter)
     artifacts = ArtifactService(
         InMemoryArtifactMetadataRepository(clock=lambda: NOW), InMemoryArtifactStore(),
         clock=lambda: NOW, permission_revalidator=authority,
@@ -322,7 +384,14 @@ async def test_export_artifact_retains_rights_dependency_and_revocation_blocks_c
                                   identity="test-export", max_records=100, max_bytes=100000)
     assert ref.permission_dependencies == research_export_dependencies(exported)
     assert artifacts.read(ref.artifact_id, owner_id="local", scope=ApplicationScope())
-    service.settings.research_enabled = False
+    from personal_ai.search.contracts import SearchRightsAuthorization
+
+    service.adapter.authorize_snippets = lambda: SearchRightsAuthorization(
+        provider_id=original_rights.provider_id,
+        authority_id=original_rights.authority_id,
+        epoch="revoked-epoch",
+        reference=original_rights.reference,
+    )
     with pytest.raises(ArtifactUnavailable):
         artifacts.read(ref.artifact_id, owner_id="local", scope=ApplicationScope())
     with pytest.raises(ArtifactUnavailable):
@@ -348,7 +417,7 @@ async def test_compact_and_bulky_experiment_tiers_and_optional_artifact_failure(
     repository = Repository()
     artifacts = ArtifactService(InMemoryArtifactMetadataRepository(), InMemoryArtifactStore())
     report = await run(repository=repository, artifacts=artifacts)
-    assert report["artifact_status"] == "ready" and len(repository.rows) == 54
+    assert report["artifact_status"] == "ready" and len(repository.rows) == 60
     assert all(r.artifact_id is not None for r in repository.rows)
     assert sum(r.candidate.retained_artifact_bytes for r in repository.rows) == report["retained_artifact_bytes"]
     body = artifacts.read(repository.rows[0].artifact_id, owner_id="local",
@@ -379,6 +448,7 @@ async def test_mandatory_publication_freshness_excludes_unknown_old_and_future_b
     assert [s.status for s in result.observations] == ["freshness_unverified", "stale", "stale", "accepted"]
     assert len(result.evidence) == 1 and result.citations[0].url.endswith("/fresh")
     assert result.query_plan.published_after == request.published_after
+    assert service.adapter.calls[0].published_after == request.published_after
 
 
 @pytest.mark.anyio
@@ -423,13 +493,94 @@ async def test_same_passage_different_native_revision_is_never_collapsed():
 
 
 @pytest.mark.anyio
+async def test_cross_source_dedupe_requires_known_version_equivalence():
+    source = "Synthetic star is blue."
+    unknown_service, request = build_fixture({**load_fixtures()[0], "sources": [
+        {"url": "https://example.org/star", "text": source},
+        {"url": "https://example.net/star", "text": source},
+    ]})
+    unknown, _ = await complete(unknown_service, request)
+    assert len(unknown.evidence) == 2 and len(unknown.citations) == 2
+
+    versioned_service, request = build_fixture({**load_fixtures()[0], "sources": [
+        {"url": "https://example.org/star", "text": source,
+         "published_at": "2026-10-01T12:00:00Z", "source_revision": "v1"},
+        {"url": "https://example.net/star", "text": source,
+         "published_at": "2026-10-01T12:00:00Z", "source_revision": "v1"},
+    ]})
+    versioned, _ = await complete(versioned_service, request)
+    assert len(versioned.evidence) == 1 and len(versioned.citations) == 2
+
+
+@pytest.mark.anyio
 async def test_oversized_adapter_result_fails_before_extraction_or_model_work():
     service, request = build_fixture(load_fixtures()[0], research_max_sources=1)
 
-    async def oversized(query, limit):
-        return service.adapter.results * 2
+    async def oversized(operation):
+        return SearchDispatch(service.adapter.results * 2)
 
     service.adapter.search = oversized
     result, _ = await complete(service, request)
     assert result.failure_code == "search_invalid_response" and not result.evidence
     assert not result.citations and result.answer is None
+
+
+@pytest.mark.anyio
+async def test_registered_search_and_inference_composition_are_independent(monkeypatch):
+    accounting = object()
+    created = []
+    invocation_id, attempt_id = uuid4(), uuid4()
+
+    class Accounted(FakeSearchAdapter):
+        name = "accounted"
+        source_origin = "external"
+
+        async def search(self, operation):
+            assert self.usage_accounting is accounting
+            result = await super().search(operation)
+            return SearchDispatch(result.results, invocation_id, attempt_id)
+
+    adapter = Accounted((SearchResult(url="https://example.org/star", text="Synthetic star is blue."),))
+
+    def factory(settings, usage):
+        created.append(usage)
+        adapter.usage_accounting = usage
+        return adapter
+
+    registrations = {
+        "accounted": SearchAdapterRegistration(
+            factory,
+            synthetic=False,
+            cost_profile=SearchCostProfile("controlled-accounted-v1", 0.001),
+        )
+    }
+    settings = Settings(
+        _env_file=None,
+        ai_provider="fake",
+        ai_model="synthetic",
+        research_enabled=True,
+        research_search_adapter="accounted",
+    )
+    monkeypatch.setitem(SEARCH_ADAPTERS, "accounted", registrations["accounted"])
+
+    class Persistence:
+        def provider_usage_accounting(self, settings):
+            del settings
+            return accounting
+
+    monkeypatch.setattr("personal_ai.api.research.persistence_factory", lambda settings: Persistence())
+    fixture_service, request = build_fixture(load_fixtures()[0])
+    service = research_service(settings, fixture_service.repository, "local", _application_context())
+    service.clock = lambda: NOW
+    result, _ = await complete(service, request)
+
+    assert result.state == "completed"
+    assert result.attempts[-1].usage_invocation_id == invocation_id
+    assert result.attempts[-1].usage_attempt_id == attempt_id
+    assert created == [accounting]
+    assert service.adapter is adapter
+    assert service.adapter.cost_profile == SearchCostProfile("controlled-accounted-v1", 0.001)
+    assert type(service.llm).__name__ == "FakeResearchLLMClient"
+    counter, synthesis = compose_research_inference(settings, lambda: object())
+    assert type(counter).__name__ == "EstimatedTokenCounter"
+    assert isinstance(synthesis, type(service.llm))

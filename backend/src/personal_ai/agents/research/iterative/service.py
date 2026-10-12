@@ -54,9 +54,18 @@ from personal_ai.evidence.pipeline import extract_evidence, select_evidence, val
 from personal_ai.llm.attribution import log_generation_attribution
 from personal_ai.llm.preparation import require_matching_endpoint
 from personal_ai.search.authority import ResearchSourceRightsRevalidator, observation_dependencies
-from personal_ai.search.contracts import SearchResult
+from personal_ai.search.contracts import (
+    SearchDispatch,
+    SearchResult,
+    normalize_rights_authorization,
+)
+from personal_ai.search.planning import (
+    effective_allowed_domains,
+    make_search_operation,
+    preserves_question,
+    source_allowed,
+)
 from personal_ai.search.policy import SnippetExtractor, canonical_url
-from personal_ai.search.runtime import search_usage_links
 from personal_ai.settings import Settings
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.errors import ResourceNotFoundError
@@ -209,9 +218,13 @@ class IterativeResearchService:
         run_id = iterative_run_id(
             self.owner_id, request.idempotency_key, self.application_context.scope
         )
+        budget = self._budget()
         phase5_request = ResearchRequest(
             question=request.question,
             freshness=request.freshness,
+            allowed_domains=budget.allowed_domains,
+            excluded_domains=request.excluded_domains,
+            published_after=request.published_after,
             # Keep the iterative session's Phase 5 key in its own namespace so
             # an ordinary single-pass request with the same client key cannot
             # be adopted as this run's backing session.
@@ -231,7 +244,6 @@ class IterativeResearchService:
             workspace_id=self.application_context.scope.workspace_id,
         )
         session = await self._io(self.sessions.create, session)
-        budget = self._budget()
         event = RunEvent(
             id=uuid4(),
             run_id=run_id,
@@ -323,7 +335,6 @@ class IterativeResearchService:
 
     async def session(self, run_id: UUID) -> ResearchSession:
         self._authorize_research_context()
-        self.adapter.authorize_snippets()
         run = await self.get(run_id)
         session = await self._io(self.runs.session, self.owner_id, run.session_id)
         self._require_observation_rights(session)
@@ -331,7 +342,6 @@ class IterativeResearchService:
 
     async def detail(self, run_id: UUID) -> tuple[ResearchRun, ResearchSession]:
         self._authorize_research_context()
-        self.adapter.authorize_snippets()
         run = await self.get(run_id)
         session = await self._io(self.runs.session, self.owner_id, run.session_id)
         self._require_observation_rights(session)
@@ -677,9 +687,7 @@ class IterativeResearchService:
                         run, session, selection, StopReason.SOURCE_BUDGET_EXHAUSTED, False
                     )
                     return
-                search_cost = (
-                    Decimal(0) if self.adapter.name == "fake" else run.budget.search_cost_usd
-                )
+                search_cost = Decimal(str(self.adapter.cost_profile.estimated_cost_usd))
                 if (
                     search_cost + self._reserved_or_used(run, "provider_cost_usd")
                     > run.budget.max_provider_cost_usd
@@ -1201,6 +1209,8 @@ class IterativeResearchService:
         request = IterativeResearchRequest(
             question=session.request.question,
             freshness=session.request.freshness,
+            excluded_domains=session.request.excluded_domains,
+            published_after=session.request.published_after,
             idempotency_key=run.idempotency_key,
             decision_intent=run.decision_intent,
         )
@@ -1256,15 +1266,8 @@ class IterativeResearchService:
             qualifier = "candidate source " + (qualifier or "coverage")
         if proposal.target_id is not None and target is None:
             return None, rationale or "question"
-        query_parts = (
-            session.request.question,
-            qualifier,
-            " OR ".join(f"site:{domain}" for domain in proposal.allowed_domains),
-        )
-        query = " ".join(" ".join(query_parts).split())
-        if len(query) > 500 or not set(session.request.question.casefold().split()) <= set(
-            query.casefold().split()
-        ):
+        query = " ".join(part for part in (session.request.question, qualifier) if part)
+        if len(query) > 500 or not preserves_question(session.request.question, query):
             return None, rationale or "question"
         return query, rationale
 
@@ -1380,7 +1383,13 @@ class IterativeResearchService:
                 run, session, StopReason.ELAPSED_BUDGET_EXHAUSTED, RunState.INSUFFICIENT
             )
             return stopped, session
-        search_cost = Decimal(0) if self.adapter.name == "fake" else run.budget.search_cost_usd
+        cost_profile = getattr(self.adapter, "cost_profile", None)
+        if cost_profile is None or not hasattr(cost_profile, "estimated_cost_usd"):
+            stopped = await self._stop(
+                run, session, StopReason.PROVIDER_COST_BUDGET_EXHAUSTED, RunState.INSUFFICIENT
+            )
+            return stopped, session
+        search_cost = Decimal(str(cost_profile.estimated_cost_usd))
         if (
             search_cost + self._reserved_or_used(run, "provider_cost_usd")
             > run.budget.max_provider_cost_usd
@@ -1435,6 +1444,21 @@ class IterativeResearchService:
                 )
             )
         ledger.extend(entries)
+        timeout_seconds = max(0.001, float(call_elapsed))
+        operation = make_search_operation(
+            session.request,
+            query,
+            query_id=query.id,
+            max_results=source_reserve,
+            deadline_at=min(
+                now + timedelta(seconds=timeout_seconds),
+                run.lease_expires_at or now + timedelta(seconds=timeout_seconds),
+            ),
+            allowed_domains=run.budget.allowed_domains,
+            strategy_id="iterative-followup",
+            strategy_version=1,
+            strategy_reason=query.rationale_code,
+        )
         started = AdapterAttempt(
             id=uuid5(run.id, f"{prefix}:started"),
             session_id=session.id,
@@ -1445,7 +1469,10 @@ class IterativeResearchService:
             attempt_number=attempt_number,
             status="started",
             started_at=now,
-            **search_usage_links(self.adapter, query.id, attempt_number),
+            operation_identity=operation.identity,
+            strategy_id=operation.strategy_id,
+            strategy_version=operation.strategy_version,
+            strategy_reason=operation.strategy_reason,
         )
         session_candidate = evolve_session(
             session,
@@ -1470,11 +1497,13 @@ class IterativeResearchService:
         self._assert_lease(run, run.lease_owner)
         call_start = self.duration_clock()
         error = None
+        usage_invocation_id = usage_attempt_id = None
         try:
-            rights_reference = self.adapter.authorize_snippets()
-            if not rights_reference or len(rights_reference) > 100:
+            rights_reference = normalize_rights_authorization(
+                self.adapter.authorize_snippets(), self.adapter.name
+            )
+            if rights_reference is None:
                 raise ResearchError("research_configuration_invalid")
-            timeout_seconds = max(0.001, float(call_elapsed))
             async with asyncio.timeout(timeout_seconds):
                 with bind_usage_task(
                     "iterative_research_search",
@@ -1483,7 +1512,12 @@ class IterativeResearchService:
                     invocation_id=uuid5(query.id, "provider-usage-search"),
                     send_number=attempt_number,
                 ):
-                    fetched = await self.adapter.search(query.normalized_query, source_reserve)
+                    dispatch = await self.adapter.search(operation)
+            if not isinstance(dispatch, SearchDispatch):
+                raise ResearchError("search_invalid_response")
+            fetched = dispatch.results
+            usage_invocation_id = dispatch.usage_invocation_id
+            usage_attempt_id = dispatch.usage_attempt_id
             if not isinstance(fetched, (tuple, list)) or len(fetched) > source_reserve:
                 raise ResearchError("search_invalid_response")
             if any(not isinstance(item, SearchResult) for item in fetched):
@@ -1493,6 +1527,8 @@ class IterativeResearchService:
         except Exception as caught:  # noqa: BLE001 - only safe codes are persisted
             error = caught
             fetched = ()
+            usage_invocation_id = getattr(caught, "usage_invocation_id", None)
+            usage_attempt_id = getattr(caught, "usage_attempt_id", None)
         duration = Decimal(
             str(min(float(call_elapsed), max(0.0, self.duration_clock() - call_start)))
         )
@@ -1535,13 +1571,23 @@ class IterativeResearchService:
             attempt_number=attempt_number,
             status="completed",
             parent_attempt_id=started.id,
-            usage_invocation_id=started.usage_invocation_id,
-            usage_attempt_id=started.usage_attempt_id,
+            usage_invocation_id=usage_invocation_id,
+            usage_attempt_id=usage_attempt_id,
+            operation_identity=started.operation_identity,
+            strategy_id=started.strategy_id,
+            strategy_version=started.strategy_version,
+            strategy_reason=started.strategy_reason,
             started_at=started.started_at,
             completed_at=self.clock(),
         )
+        allowed_domains, literal_allowed, excluded_domains = session.request.source_bounds(
+            run.budget.allowed_domains
+        )
         scoped = tuple(
-            item for item in fetched if _host_allowed(item.url, run.budget.allowed_domains)
+            item for item in fetched
+            if _host_allowed(item.url, allowed_domains)
+            and source_allowed(item.url, (), excluded_domains)
+            and source_allowed(item.url, literal_allowed, excluded_domains)
         )
         observations, evidence = extract_evidence(
             session_candidate,
@@ -1568,21 +1614,32 @@ class IterativeResearchService:
             updated_at=self.clock(),
             revision=session_candidate.revision + 1,
         )
-        all_hosts = {
-            host
-            for host in (
-                urlsplit(canonical_url(item.url)).hostname
-                for item in fetched
-                if _host_allowed(item.url, run.budget.allowed_domains)
-            )
-            if host
+        operation_domains = effective_allowed_domains(operation)
+
+        def admitted_domain(url):
+            if not _host_allowed(url, run.budget.allowed_domains):
+                return None
+            if not source_allowed(url, (), operation.excluded_domains):
+                return None
+            if operation.literal_allowed_domains and not source_allowed(
+                url, operation.literal_allowed_domains, operation.excluded_domains
+            ):
+                return None
+            matches = [
+                domain for domain in operation_domains
+                if _host_allowed(url, (domain,))
+            ]
+            return max(matches, key=len) if matches else None
+
+        used_domains = {
+            domain for domain in (admitted_domain(item.url) for item in fetched) if domain
         }
-        prior_hosts = {
-            urlsplit(source.canonical_url).hostname
-            for source in session.observations
-            if _host_allowed(source.canonical_url, run.budget.allowed_domains)
+        prior_domains = {
+            domain for domain in (
+                admitted_domain(source.canonical_url) for source in session.observations
+            ) if domain
         }
-        new_domains = Decimal(len(all_hosts - prior_hosts))
+        new_domains = Decimal(len(used_domains - prior_domains))
         source_total = Decimal(len(fetched))
         used = run.usage.model_copy(
             update={
@@ -1640,6 +1697,8 @@ class IterativeResearchService:
                 "search_invalid_response",
                 "search_response_oversized",
                 "research_configuration_invalid",
+                "search_constraint_unsupported",
+                "search_source_scope_empty",
             }
             else "search_failed"
         )
@@ -1653,8 +1712,12 @@ class IterativeResearchService:
             attempt_number=attempt_number,
             status="failed",
             parent_attempt_id=started.id,
-            usage_invocation_id=started.usage_invocation_id,
-            usage_attempt_id=started.usage_attempt_id,
+            usage_invocation_id=getattr(error, "usage_invocation_id", None),
+            usage_attempt_id=getattr(error, "usage_attempt_id", None),
+            operation_identity=started.operation_identity,
+            strategy_id=started.strategy_id,
+            strategy_version=started.strategy_version,
+            strategy_reason=started.strategy_reason,
             started_at=started.started_at,
             completed_at=self.clock(),
             error_code=error_code,
@@ -1679,13 +1742,13 @@ class IterativeResearchService:
         used = run.usage.model_copy(
             update={
                 "provider_cost_usd": run.usage.provider_cost_usd
-                + (Decimal(0) if self.adapter.name == "fake" else run.budget.search_cost_usd),
+                + Decimal(str(self.adapter.cost_profile.estimated_cost_usd)),
                 "elapsed_seconds": run.usage.elapsed_seconds,
             }
         )
         ledger = list(run.ledger)
         ledger = self._settle(ledger, f"{prefix}:sources", Decimal(0))
-        cost = Decimal(0) if self.adapter.name == "fake" else run.budget.search_cost_usd
+        cost = Decimal(str(self.adapter.cost_profile.estimated_cost_usd))
         ledger = self._settle(ledger, f"{prefix}:provider_cost_usd", cost)
         ledger = self._settle(ledger, f"{prefix}:allowed_domains", Decimal(0))
         if retryable:
@@ -1748,8 +1811,15 @@ class IterativeResearchService:
         return stopped, final_session
 
     async def _finish(self, run, session, selection_data, stop_reason, sufficient):
-        reference = self.adapter.authorize_snippets()
-        if any(s.rights_reference != reference for s in session.observations if s.status == "accepted"):
+        reference = normalize_rights_authorization(
+            self.adapter.authorize_snippets(), self.adapter.name
+        )
+        if reference is None or any(
+            s.rights_authority_id != reference.authority_id
+            or s.rights_epoch != reference.epoch
+            or s.rights_reference != reference.reference
+            for s in session.observations if s.status == "accepted"
+        ):
             raise ResearchError("research_configuration_invalid")
         self._assert_lease(run, run.lease_owner)
         if selection_data is None:

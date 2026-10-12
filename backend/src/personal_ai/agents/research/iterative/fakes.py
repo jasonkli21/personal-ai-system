@@ -4,7 +4,8 @@ import inspect
 from collections import deque
 from datetime import UTC, datetime, timedelta
 
-from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
+from personal_ai.search.contracts import FakeSearchAdapter, SearchDispatch, SearchResult
+from personal_ai.search.planning import SearchOperation
 
 
 class DeterministicClock:
@@ -43,7 +44,7 @@ class FakeIterativeSearchAdapter(FakeSearchAdapter):
     ):
         self.scripts = {" ".join(key.split()).casefold(): value for key, value in scripts.items()}
         self.default = tuple(default)
-        self.calls: list[tuple[str, int]] = []
+        self.calls: list[SearchOperation] = []
         self.responses = DeterministicQueue()
         self.on_search = on_search
 
@@ -54,11 +55,11 @@ class FakeIterativeSearchAdapter(FakeSearchAdapter):
         adapter.on_search = on_search
         return adapter
 
-    async def search(self, query: str, limit: int):
-        normalized = " ".join(query.split()).casefold()
-        self.calls.append((query, limit))
+    async def search(self, operation: SearchOperation):
+        normalized = " ".join(operation.query.split()).casefold()
+        self.calls.append(operation)
         if self.on_search is not None:
-            result = self.on_search(query, limit)
+            result = self.on_search(operation.query, operation.max_results)
             if inspect.isawaitable(result):
                 await result
         result = self.responses.pop(self.scripts.get(normalized, self.default))
@@ -66,4 +67,4 @@ class FakeIterativeSearchAdapter(FakeSearchAdapter):
             raise result
         if isinstance(result, DeterministicQueue):
             result = result.pop(())
-        return tuple(result[:limit])
+        return SearchDispatch(tuple(result[:operation.max_results]))

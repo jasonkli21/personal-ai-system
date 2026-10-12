@@ -723,6 +723,47 @@ def test_export_propagates_dependency_and_expiry(tier):
     assert service.reconcile()["deleted"] == 2
 
 
+def test_export_inherits_nested_permission_dependencies_and_revocation(tier):
+    service, _, _, _ = tier
+    dependency = ContextPermissionDependency(
+        permission_id="research_snippet_rights:brave:account-hash",
+        version="epoch-7:preflight-hash",
+        purpose="retain and disclose the exact source-rights authority and epoch",
+    )
+    current = {dependency}
+    service.permission_revalidator = type(
+        "PermissionResolver", (), {"is_current": lambda self, item: item in current}
+    )()
+    service.authorize = lambda ref: not ref.grant_dependencies or ref.grant_dependencies == ("grant-v2",)
+    source = write(
+        service,
+        permission_dependencies=(dependency,),
+        grant_dependencies=("grant-v2",),
+    )
+    snapshot = {
+        "collections": {
+            "artifact_metadata": [
+                {"document_id": str(source.artifact_id), "data": source.model_dump(mode="json")}
+            ]
+        }
+    }
+    export = service.freeze_export(
+        snapshot,
+        owner_id="owner",
+        scope=SCOPE,
+        identity="permission-export",
+        max_records=10,
+        max_bytes=100000,
+    )
+    assert export.permission_dependencies == (dependency,)
+    assert export.grant_dependencies == source.grant_dependencies
+    current.clear()
+    with pytest.raises(ArtifactUnavailable):
+        service.read(source.artifact_id, owner_id="owner", scope=SCOPE)
+    with pytest.raises(ArtifactUnavailable):
+        service.read(export.artifact_id, owner_id="owner", scope=SCOPE)
+
+
 def test_actual_trace_retention_uses_captured_manifest_and_failure_is_optional(tier):
     from personal_ai.artifacts.consumers import ArtifactContextTraceRepository
     from personal_ai.context.builder import ContextBuildManifest

@@ -16,8 +16,9 @@ from personal_ai.api.dependencies import get_application_context, get_current_ow
 from personal_ai.api.routes import SSE_RESPONSES, _LifecycleStreamingResponse
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.assembler import ContextAssembler
+from personal_ai.llm.research import compose_research_inference
 from personal_ai.persistence.factory import persistence_factory
-from personal_ai.search.runtime import compose_research_clients
+from personal_ai.search.runtime import compose_search_adapter
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
 
@@ -47,9 +48,10 @@ def research_service(
     owner_id: Annotated[str, Depends(get_current_owner_id)],
     application_context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
 ):
-    adapter, counter, llm = compose_research_clients(
-        settings, lambda: persistence_factory(settings).provider_usage_accounting(settings)
-    )
+    def usage_factory():
+        return persistence_factory(settings).provider_usage_accounting(settings)
+    adapter = compose_search_adapter(settings, usage_factory)
+    counter, llm = compose_research_inference(settings, usage_factory)
     return ResearchService(
         settings,
         repository,

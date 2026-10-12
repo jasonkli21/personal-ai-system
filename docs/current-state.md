@@ -73,22 +73,30 @@ and [review remediation evidence](personal-ai-chapter-2/phase-32-review-remediat
 
 ## Persistence
 
-Phase 33 adds a versioned bounded query plan, exact snippet observations and P19
-attempt links, publication/version-aware deduplication, separately identified
-extractive support packages, and default-off qualifier/expansion/compact-packing
-probes on the existing research path. New snippet rights references flow through
-the shared builder/permission revalidator, selected research context, direct
-detail views and retained account exports. Mandatory `published_after` bounds
-deny undated sources; observation-only freshness remains explicitly distinguished
-from publication freshness. Migration 026 owns compact owner/app/workspace-scoped
-experiment summaries; optional bulky numeric evaluation batches reuse P20.
-No raw experiment source bodies are retained. The 18-case synthetic paired run
-does not justify promotion: compact packing saves about 4% of packed tokens,
-qualifiers show no gain, and expansion increases adapter calls from 18 to 35.
-Live answer quality/quota and database/GCS acceptance remain unverified.
-The Phase 32 planner's unchanged 30-case corpus now has a v3 runtime freeze;
-v2 is preserved historically, and generated Python caches are excluded from
-material source identity. See the [Phase 33 report](personal-ai-chapter-2/phase-33-implementation-report.md).
+Phase 33 uses a versioned bounded query plan and immutable `SearchOperation` at
+both single-pass and iterative dispatch. Logical attempts receive canonical P19
+invocation/physical-attempt IDs only after adapter admission. Evidence keeps
+unknown source versions separate across sources. Cached account exports inherit
+the embedded artifacts' permission dependencies. Source-rights dependencies
+bind authority, account-derived ID, epoch and preflight reference. Search and
+research-synthesis composition are independent; request-time synthesis still
+uses configured fake/Gemini composition and has not joined Phase 21 execution-plan
+dispatch. The literal path remains default and qualifier/expansion/compact-packing
+experiments remain default-off.
+
+The mandatory v2 semantic baseline has 20 synthetic cases, including typed/literal
+domain intersection and exact publication bounds. The paired run emits 60
+candidate summaries: compact packing reduces estimated packed tokens from 18,089
+to 17,480 with equal 20 search calls, qualifiers show no token gain, and
+expansion increases calls from 20 to 39. No strategy coverage is promoted. Live
+answer quality/quota and database/GCS acceptance remain unverified. See the
+[Phase 33 report](personal-ai-chapter-2/phase-33-implementation-report.md) and
+[independent-review remediation evidence](personal-ai-chapter-2/phase-33-independent-review-remediation-evidence-2026-10-12.md).
+The Phase 32 planner's unchanged 30-case corpus now has a v4 runtime freeze
+bound to the Phase 33 review-remediation source tree; v2 and v3 are preserved
+historically, and generated Python caches are excluded from material source
+identity. The freeze still requires the baseline revision or its direct child
+with identical source identity. See the [Phase 33 report](personal-ai-chapter-2/phase-33-implementation-report.md).
 
 P10.6 switched normal API and worker wiring to Postgres/pgvector plus DynamoDB and removed Firestore SDK, repositories, migration tooling, and runtime fallback. Local/test configurations require explicit Postgres and DynamoDB Local endpoints; deployed configuration targets Neon and federated AWS DynamoDB. Phase 19 places canonical usage attempts, reservations, shared quota windows, health, and compact owner aggregates in Postgres; DynamoDB holds scoped operational attempt events. This is an implemented code/runtime cutover, not evidence of a live cloud cutover or data migration. The user-reported no-source disposition has not been checked against a cloud account.
 
