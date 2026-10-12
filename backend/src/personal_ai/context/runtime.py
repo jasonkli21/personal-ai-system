@@ -1,7 +1,7 @@
 """Deployment-owned context implementation and planning contributions."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from personal_ai.context.planner import ContextPlanningRule
@@ -15,6 +15,7 @@ class ContextRuntimeContribution:
     provider_factories: Mapping[str, ContextProviderFactory | ContextProvider]
     planning_rules: Sequence[ContextPlanningRule] = ()
     permission_revalidators: Sequence[object] = ()
+    export_adapters: Mapping[str, object] = field(default_factory=dict)
 
 
 class ContextPermissionRevalidatorRegistry:
@@ -44,6 +45,7 @@ class ContextRuntimeRegistry:
         provider_factories: Mapping[str, ContextProviderFactory | ContextProvider] | None = None,
         planning_rules: Sequence[ContextPlanningRule] = (),
         permission_revalidators: Sequence[object] = (),
+        export_adapters: Mapping[str, object] | None = None,
     ) -> None:
         providers = dict(provider_factories or {})
         for provider_id, provider in providers.items():
@@ -55,6 +57,7 @@ class ContextRuntimeRegistry:
         self.provider_factories = MappingProxyType(providers)
         self.planning_rules = tuple(planning_rules)
         self.permission_revalidators = tuple(permission_revalidators)
+        self.export_adapters = MappingProxyType(dict(export_adapters or {}))
 
 
 def compose_context_runtime(
@@ -65,11 +68,23 @@ def compose_context_runtime(
     rules: list[ContextPlanningRule] = []
     revalidators: list[object] = []
     namespaces: set[str] = set()
+    export_adapters: dict[str, object] = {}
     for contribution in contributions:
         overlap = providers.keys() & contribution.provider_factories.keys()
         if overlap:
             raise ValueError("context_runtime_provider_id_duplicate")
         providers.update(contribution.provider_factories)
+        if export_adapters.keys() & contribution.export_adapters.keys():
+            raise ValueError("context_runtime_export_adapter_id_duplicate")
+        for key, adapter in contribution.export_adapters.items():
+            if (
+                not isinstance(key, str)
+                or not key
+                or not callable(getattr(adapter, "authorize_export", None))
+                or not callable(getattr(adapter, "fetch", None))
+            ):
+                raise ValueError("context_runtime_export_adapter_contract_invalid")
+        export_adapters.update(contribution.export_adapters)
         rules.extend(contribution.planning_rules)
         for revalidator in contribution.permission_revalidators:
             declared = getattr(revalidator, "permission_namespaces", None)
@@ -81,7 +96,7 @@ def compose_context_runtime(
                 raise ValueError("context_runtime_revalidator_namespace_duplicate")
             namespaces.update(declared)
             revalidators.append(revalidator)
-    return ContextRuntimeRegistry(providers, rules, revalidators)
+    return ContextRuntimeRegistry(providers, rules, revalidators, export_adapters)
 
 
 EMPTY_CONTEXT_RUNTIME_REGISTRY = ContextRuntimeRegistry()

@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.auth.scope import ApplicationScope
+from personal_ai.contracts.context_references import ContextPermissionDependency
 
 ArtifactKind = Literal["context_trace", "routing_trace", "evaluation", "export", "debug_replay"]
 ArtifactStatus = Literal["pending", "ready", "missing", "deleting", "deleted"]
@@ -54,6 +55,7 @@ class ArtifactRef(BaseModel):
     compressed_bytes: int = Field(ge=1, le=MAX_COMPRESSED_BYTES)
     uncompressed_bytes: int = Field(ge=1, le=MAX_RAW_BYTES)
     sensitivity: Literal["public", "personal", "sensitive", "restricted"] = "personal"
+    permission_dependencies: tuple[ContextPermissionDependency, ...] = Field(default=(), max_length=16)
     grant_dependencies: tuple[str, ...] = Field(default=(), max_length=32)
     schema_version: str = Field(min_length=1, max_length=100)
     content_type: Literal["application/json", "application/x-ndjson"]

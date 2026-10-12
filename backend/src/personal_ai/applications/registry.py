@@ -376,8 +376,7 @@ def default_application_registry() -> ApplicationRegistry:
         ),
         _capability("health.record_action", "tool", reason="health_actions_unavailable"),
     )
-    return ApplicationRegistry(
-        (
+    definitions = (
             ApplicationDefinition(
                 application_id="personal_ai",
                 display_name="Personal AI",
@@ -696,10 +695,11 @@ def default_application_registry() -> ApplicationRegistry:
                     maximum_model_sensitivity="restricted",
                 ),
             ),
-        ),
-        capabilities,
-        comparison_modules=comparison_modules,
-    )
+        )
+    from personal_ai.federation.deployment import install_federation_metadata
+
+    definitions, capabilities = install_federation_metadata(definitions, capabilities)
+    return ApplicationRegistry(definitions, capabilities, comparison_modules=comparison_modules)
 
 
 def application_registry_for(request) -> ApplicationRegistry:

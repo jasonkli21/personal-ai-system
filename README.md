@@ -16,6 +16,7 @@ Core capabilities include:
 - persistent conversation history;
 - token-budgeted context building across conversation, memory, and deterministically planned eligible sources, with provenance and sensitivity manifests;
 - an owner-managed AI profile with explicit per-field application sharing;
+- a versioned federation grant API and shared broker foundation, with four domain exports declared but unavailable pending source contracts and identity acceptance;
 - attributable long-term memory with retrieval;
 - bounded memory lifecycle experiments;
 - source-grounded research with persisted evidence;

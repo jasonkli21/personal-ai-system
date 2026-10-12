@@ -393,6 +393,7 @@ async def authenticate_request(request: Request) -> Response | None:
                 raise TypeError("client context must be an object")
             request_scope = RequestScope(
                 owner_id=principal.owner_id,
+                acting_user_id=f"{principal.issuer}|{principal.subject}",
                 request_id=correlation_id,
                 application_id=application_id,
                 workspace_id=workspace_id,

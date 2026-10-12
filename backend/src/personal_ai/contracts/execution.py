@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from personal_ai.applications.contracts import ApplicationLaunchContext
 from personal_ai.contracts.context_categories import ContextSourceClass
 from personal_ai.contracts.context_references import ContextEntityReference
+from personal_ai.contracts.federation import FederationContextChoice
 from personal_ai.routing.contracts import EndpointRef
 
 
@@ -119,6 +120,7 @@ class ContinuationRequest(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     idempotency_key: UUID
     choice: ExecutionChoice = Field(default_factory=ExecutionChoice)
+    federation_context: tuple[FederationContextChoice, ...] = Field(default=(), max_length=4)
     # Optional narrowing. References never authorize or force inclusion.
     candidate_message_ids: tuple[UUID, ...] | None = Field(default=None, max_length=10000)
     # Host launch data is advisory and is re-bound to the authenticated request scope.
@@ -133,6 +135,10 @@ class ContinuationRequest(BaseModel):
         return self
 
     @property
+    def explicit_context_selections(self):
+        return tuple(choice.context_selection() for choice in self.federation_context)
+
+    @property
     def entity_refs(self) -> tuple[ContextEntityReference, ...]:
         return self.launch_context.entity_refs if self.launch_context is not None else ()
 
@@ -143,6 +149,8 @@ class ContinuationRequest(BaseModel):
 
         payload = self.model_dump(mode="json")
         # Preserve idempotency digests written before launch metadata was added.
+        if not self.federation_context:
+            payload.pop("federation_context", None)
         if self.launch_context is None:
             payload.pop("launch_context", None)
         canonical = json.dumps(

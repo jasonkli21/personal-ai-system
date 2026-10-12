@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
+from personal_ai.auth.scope import ApplicationScope
 from personal_ai.contracts.context_categories import ContextSourceClass
 
 
@@ -20,6 +22,20 @@ class ContextEntityReference(BaseModel):
     entity_id: str = Field(min_length=1, max_length=200)
     application_id: str = Field(min_length=2, max_length=42)
     workspace_id: str | None = Field(default=None, max_length=100)
+
+
+class FederationProvenance(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    source_provider_id: str = Field(min_length=1, max_length=81)
+    source: ApplicationScope
+    destination: ApplicationScope
+    category: str = Field(min_length=1, max_length=80)
+    entities: tuple[ContextEntityReference, ...] = Field(min_length=1, max_length=16)
+    grant_id: UUID
+    grant_issuance_id: UUID
+    grant_revision: int = Field(ge=1)
+    grant_epoch: int = Field(ge=1)
+    purpose: str = Field(min_length=1, max_length=160)
 
 
 class ContextSourceReference(BaseModel):
@@ -40,14 +56,38 @@ class ContextPermissionDependency(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    source_scope: ApplicationScope | None = None
+    entity_ref: ContextEntityReference | None = None
+    source_revision: str | None = Field(default=None, min_length=1, max_length=100)
     permission_id: str = Field(min_length=1, max_length=100)
     version: str = Field(min_length=1, max_length=100)
     purpose: str = Field(min_length=1, max_length=160)
     source_application_id: str | None = Field(default=None, min_length=2, max_length=42)
     destination_application_id: str | None = Field(default=None, min_length=2, max_length=42)
+    owner_id: str | None = Field(default=None, min_length=1, max_length=200)
+    acting_user_id: str | None = Field(default=None, min_length=1, max_length=512)
+    source_workspace_id: str | None = Field(default=None, max_length=100)
+    destination_workspace_id: str | None = Field(default=None, max_length=100)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_additive_bindings(self, handler):
+        payload = handler(self)
+        for field in ("source_scope", "entity_ref", "source_revision", "owner_id", "acting_user_id",
+                      "source_workspace_id", "destination_workspace_id"):
+            if payload.get(field) is None:
+                payload.pop(field, None)
+        return payload
 
     @model_validator(mode="after")
     def grant_scopes_are_paired(self) -> ContextPermissionDependency:
+        if (self.entity_ref is None) != (self.source_revision is None):
+            raise ValueError("context_permission_source_revision_incomplete")
+        if self.entity_ref is not None and (
+            self.source_scope is None
+            or self.entity_ref.application_id != self.source_scope.application_id
+            or self.entity_ref.workspace_id != self.source_scope.workspace_id
+        ):
+            raise ValueError("context_permission_source_revision_scope_invalid")
         if (self.source_application_id is None) != (self.destination_application_id is None):
             raise ValueError("context_permission_grant_scopes_incomplete")
         if (
@@ -93,6 +133,7 @@ class ContextSourceSnapshot(BaseModel):
     """Payload-free frozen identity for final authority rechecks, not a source store."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+    federation: FederationProvenance | None = None
     provider_id: str = Field(min_length=1, max_length=81)
     source_id: str = Field(min_length=1, max_length=200)
     source_version: str = Field(min_length=1, max_length=100)
@@ -108,6 +149,13 @@ class ContextSourceSnapshot(BaseModel):
         default=(), max_length=16
     )
     expires_at: datetime | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_snapshot_shape(self, handler):
+        payload = handler(self)
+        if self.federation is None:
+            payload.pop("federation", None)
+        return payload
 
     @model_validator(mode="after")
     def source_classes_are_unique(self) -> ContextSourceSnapshot:

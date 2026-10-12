@@ -151,6 +151,7 @@ class ContextPlan(BaseModel):
                 scope.application_id,
                 scope.workspace_id or "",
                 scope.request_id,
+                scope.acting_user_id or "",
             )
         )
         return sha256(identity.encode("utf-8")).hexdigest()

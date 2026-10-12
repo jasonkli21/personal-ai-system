@@ -154,6 +154,12 @@ class ContextBuildItem(BaseModel):
             "entity_refs": [entry.model_dump(mode="json") for entry in item.entity_refs],
             "data": payload,
         }
+        if item.federation is not None:
+            value["federation"] = {
+                "source_application_id": item.federation.source.application_id,
+                "category": item.federation.category,
+                "source_entities": [entry.model_dump(mode="json") for entry in item.federation.entities],
+            }
         if item.omitted_count is not None:
             value["omitted_count"] = item.omitted_count
         if item.selection_policy_version is not None:

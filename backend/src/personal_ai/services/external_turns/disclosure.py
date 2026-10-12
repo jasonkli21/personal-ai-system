@@ -41,6 +41,7 @@ class ExternalTurnDisclosure:
             request.content,
             candidate_message_ids=candidate_message_ids,
             candidate_entities=request.entity_refs,
+            explicit_context_selections=request.explicit_context_selections,
             history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
             excluded_source_classes=excluded,
             maximum_context_sensitivity=disclosure.maximum_sensitivity,
@@ -50,7 +51,7 @@ class ExternalTurnDisclosure:
             "selected_message_count": direct_count,
             "planned_sources": tuple(
                 {
-                    "category": item.source_class,
+                    "category": (f"{selection.federation.source.application_id} → {self.context.scope.application_id}: {selection.federation.category}" if selection.federation else item.source_class),
                     "operation": item.operation,
                     "fields": item.fields,
                     "max_results": selection.max_results,

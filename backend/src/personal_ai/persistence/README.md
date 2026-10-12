@@ -5,6 +5,7 @@ Backend-neutral repository protocols and storage errors remain in `personal_ai.s
 
 ## Entry points and boundaries
 
+- `postgres/federation.py` owns current federation grant heads, immutable revisions, safe selection audits through existing audit events, and fenced grant cleanup; migration 024 adds the relational grant tables. Runtime/history/artifacts retain typed dependencies, not grant authority.
 - `factory.py` composes the configured Postgres/Neon and DynamoDB repositories.
 - `postgres/` owns Postgres connections, migrations, and Postgres-backed repositories.
 - `dynamodb/` owns DynamoDB clients and the conversation, message, summary, trace, job, and usage adapters.

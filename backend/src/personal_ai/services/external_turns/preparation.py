@@ -180,16 +180,21 @@ class ExternalTurnPreparation:
             )
             included: dict[str, tuple[int, set[str], set[str]]] = {}
             excluded: dict[tuple[str, str], int] = {}
+            source_labels = {
+                (item.provider_id, item.item_id): f"{item.federation.source.application_id} → {item.federation.destination.application_id}: {item.federation.category}"
+                for item in assembled.source_items if item.federation is not None
+            }
             for item in assembled.manifest.items:
+                category = source_labels.get((item.provider_id, item.item_id), item.source_class)
                 if item.injected:
                     count, sensitivities, authorities = included.setdefault(
-                        item.source_class, (0, set(), set())
+                        category, (0, set(), set())
                     )
                     sensitivities.add(item.sensitivity)
                     authorities.add(item.authority)
-                    included[item.source_class] = (count + 1, sensitivities, authorities)
+                    included[category] = (count + 1, sensitivities, authorities)
                 elif item.omission_reason:
-                    key = (item.source_class, item.omission_reason)
+                    key = (category, item.omission_reason)
                     excluded[key] = excluded.get(key, 0) + 1
             grant_versions = tuple(
                 sorted(
@@ -252,6 +257,7 @@ class ExternalTurnPreparation:
                 () if "conversation" in excluded_source_classes else request.candidate_message_ids
             ),
             candidate_entities=request.entity_refs,
+            explicit_context_selections=request.explicit_context_selections,
             history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
             continuation_digest=request_hash,
             context_assembler=self.context_assembler,

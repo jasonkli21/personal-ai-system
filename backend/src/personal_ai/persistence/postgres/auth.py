@@ -317,6 +317,19 @@ class PostgresAccountLifecycleRepository:
                         p_revision_max = max(p_revision_max, int(revision or 0))
                         add(family, record_id, payload)
                         p_count += 1
+                for table in ("federation_grants", "federation_grant_revisions"):
+                    grant_rows = connection.execute(
+                        f"SELECT grant_id::text,revision,payload FROM {table} WHERE owner_id=%s "
+                        "ORDER BY grant_id,revision LIMIT %s",
+                        (owner_id, MAX_EXPORT_SCAN_RECORDS + 1),
+                    ).fetchall()
+                    if len(grant_rows) > MAX_EXPORT_SCAN_RECORDS:
+                        raise ExportTooLarge
+                    p_collection_counts[table] = len(grant_rows)
+                    p_revision_coverage[table] = max((int(row[1]) for row in grant_rows), default=0)
+                    for grant_id, revision, payload in grant_rows:
+                        add(table, f"{grant_id}:{revision}", payload)
+                        p_count += 1
                 artifact_rows = connection.execute(
                     "SELECT artifact_id,payload,revision FROM artifact_metadata "
                     "WHERE owner_id=%s AND application_id=%s "

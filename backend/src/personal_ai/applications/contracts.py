@@ -11,6 +11,7 @@ from personal_ai.contracts.context_categories import (
     ContextSourceClass,
 )
 from personal_ai.contracts.context_references import ContextEntityReference
+from personal_ai.contracts.federation import FederationExportDeclaration
 
 ApplicationId = str
 Sensitivity = Literal["public", "personal", "sensitive", "restricted"]
@@ -380,6 +381,7 @@ class ApplicationDefinition(BaseModel):
     cross_application: CrossApplicationDeclaration = Field(
         default_factory=CrossApplicationDeclaration
     )
+    federation_exports: tuple[FederationExportDeclaration, ...] = Field(default=(), max_length=16)
     budget_hints: ApplicationBudgetHints = Field(default_factory=ApplicationBudgetHints)
     comparison_domain_ids: tuple[str, ...] = Field(default=(), max_length=8)
 

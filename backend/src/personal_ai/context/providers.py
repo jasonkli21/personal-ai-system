@@ -29,7 +29,9 @@ from personal_ai.contracts.context_references import (
     ContextPermissionDependency,
     ContextSourceReference,
     ContextSourceSnapshot,
+    FederationProvenance,
 )
+from personal_ai.contracts.federation import FederationSelection
 from personal_ai.memory.contracts import RetrievalResult
 
 ContextOperation = Literal["profile", "current", "entity", "history", "search"]
@@ -83,6 +85,7 @@ class ContextItem(BaseModel, Generic[PayloadT]):
     permission_dependencies: tuple[ContextPermissionDependency, ...] = Field(
         default=(), max_length=16
     )
+    federation: FederationProvenance | None = None
     selected_operation: ContextOperation | None = Field(default=None, exclude=True)
     field_sensitivity: tuple[ContextFieldSensitivity, ...] = Field(default=(), max_length=32)
     payload: PayloadT
@@ -108,6 +111,7 @@ class ContextItem(BaseModel, Generic[PayloadT]):
                 for reference in self.source_refs
             ),
             permission_dependencies=self.permission_dependencies, expires_at=self.expires_at,
+            federation=self.federation,
         )
 
     @field_validator("payload", mode="before")
@@ -208,6 +212,7 @@ class ContextSelection(BaseModel):
     timeout_seconds: float = Field(default=2.0, gt=0, le=10)
     required: bool = False
     target_scope: ApplicationScope | None = None
+    federation: FederationSelection | None = None
 
     @field_validator("window_start", "window_end")
     @classmethod
@@ -496,6 +501,16 @@ class ContextProviderCoordinator:
             raise ContextPreparationError("context_provider_not_registered")
         return found
 
+    def authorize_boundaries(self, selections, scope):
+        """Preflight registered authority contracts without constructing/retrieving sources."""
+        for selection in selections:
+            factory = self._factory(selection.provider_id)
+            authorize = getattr(factory, "authorize_selection", None)
+            if selection.federation is not None and not callable(authorize):
+                raise ContextPreparationError("context_federation_unavailable")
+            if callable(authorize):
+                authorize(selection, scope)
+
     def prepare(
         self,
         context: ApplicationContextRequest,
@@ -518,6 +533,8 @@ class ContextProviderCoordinator:
         # validates the complete set so one allowed source cannot run before a
         # different source is denied.
         authorize_context_selections(context, selections)
+
+        self.authorize_boundaries(selections, context.scope)
 
         expected_scope = ApplicationScope(
             application_id=context.scope.application_id,

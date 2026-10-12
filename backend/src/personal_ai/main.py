@@ -13,6 +13,7 @@ from personal_ai.api.booking_extractions import router as booking_extractions_ro
 from personal_ai.api.decisions import router as decisions_router
 from personal_ai.api.domains import router as domains_router
 from personal_ai.api.external_turns import router as external_turns_router
+from personal_ai.api.federation import router as federation_router
 from personal_ai.api.iterative_research import router as iterative_research_router
 from personal_ai.api.itinerary_proposals import router as itinerary_proposals_router
 from personal_ai.api.profile import router as profile_router
@@ -46,6 +47,10 @@ async def lifespan(application: FastAPI):
     validate_startup_configuration()
     settings_provider = application.dependency_overrides.get(get_settings, get_settings)
     application.state.context_runtime_registry = configured_context_runtime(settings_provider())
+    from personal_ai.federation.deployment import reconcile_federation_runtime_metadata
+    application.state.application_registry = reconcile_federation_runtime_metadata(
+        application.state.application_registry, application.state.context_runtime_registry
+    )
     try:
         yield
     finally:
@@ -55,6 +60,7 @@ async def lifespan(application: FastAPI):
 app = FastAPI(title="Personal AI System", version="0.1.0", lifespan=lifespan)
 app.state.application_registry = default_application_registry()
 app.add_middleware(AuthenticationMiddleware)
+app.include_router(federation_router)
 app.include_router(external_turns_router)
 app.include_router(conversations_router)
 app.include_router(research_router)

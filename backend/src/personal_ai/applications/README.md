@@ -4,11 +4,11 @@ This package owns typed application manifests and deterministic composition of a
 
 ## Ownership and limits
 
-- `contracts.py` defines versioned manifests, workspace requirements, memory namespaces, provider/tool/comparison-domain IDs, sensitivity defaults, declaration-only cross-application references, advisory context-budget hints, and the typed `ApplicationContextPolicy` for provider/operation/field access and model disclosure.
+- `contracts.py` defines versioned manifests, workspace requirements, memory namespaces, provider/tool/comparison-domain IDs, sensitivity defaults, declaration-only cross-application references and typed federation export declarations, advisory context-budget hints, and the typed `ApplicationContextPolicy` for provider/operation/field access and model disclosure.
 - `registry.py` validates references and exposes immutable-by-interface registrations.
 - Capability `available` metadata says an implementation exists; feature gates can still disable it in a deployment.
 - A manifest describes which providers/tools/domains an application declares. It does not own that application's records or rules, implement a missing provider/tool, select an inference provider, or grant cross-application data access. Capability declarations alone are not authorization; the context coordinator checks the server-owned application policy separately.
-- `ApplicationContextPolicy` is the local Phase 15 policy source for known provider operations, selected fields, source access, model disclosure, and the model sensitivity ceiling. Unknown providers/fields and cross-application access fail closed. Its version remains a code label, and future grants are represented as dependencies rather than enabled behavior.
+- `ApplicationContextPolicy` is the local Phase 15 policy source for known provider operations, selected fields, source access, model disclosure, and the model sensitivity ceiling. Unknown providers/fields and direct cross-application access fail closed. Federation is a destination-scoped registered broker with separate current grant/source-policy authority and exact export eligibility. Domain contributions register executable export adapters independently; startup derives implementation availability for declared exports without granting access. Its version remains a code label, and Phase 30 grants use current relational authority through shared permission dependencies.
 - Sensitivity defaults and budget hints remain metadata; context policy enforcement and provider selection stay in their owning runtime layers.
 - External domain applications retain authority over their data, business rules, and rich UI.
 

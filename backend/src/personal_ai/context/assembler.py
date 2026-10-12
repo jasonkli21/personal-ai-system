@@ -38,7 +38,7 @@ from personal_ai.context.contracts import (
     fingerprint,
 )
 from personal_ai.context.history import conversation_context_messages, message_context_authority
-from personal_ai.context.planner import ContextPlan, ContextPlanner
+from personal_ai.context.planner import ContextPlan, ContextPlanDecision, ContextPlanner
 from personal_ai.context.providers import (
     ContextPreparationError,
     ContextProviderCoordinator,
@@ -107,6 +107,7 @@ class ContextAssembler:
         candidate_entities=(),
         excluded_source_classes=frozenset(),
         maximum_sensitivity=None,
+        explicit_context_selections=(),
         now: datetime | None = None,
     ) -> ContextPlan:
         """Plan bounded source operations before any request-specific retrieval."""
@@ -133,11 +134,34 @@ class ContextAssembler:
             excluded_source_classes=frozenset(excluded_source_classes),
             now=now,
         )
+        if explicit_context_selections:
+            if self.context_provider_coordinator is None:
+                raise ContextPreparationError("context_explicit_source_unavailable")
+            decisions = []
+            for selection in explicit_context_selections:
+                capability = self.context_provider_coordinator.planning_capability(
+                    application_context, selection.provider_id
+                )
+                if capability.status != "available" or capability.spec.source_class in excluded_source_classes:
+                    raise ContextPreparationError("context_explicit_source_unavailable")
+                decisions.append(ContextPlanDecision(
+                    category=selection.federation.category if selection.federation else selection.provider_id,
+                    provider_id=selection.provider_id, operation=selection.operation,
+                    source_class=capability.spec.source_class, fields=selection.fields,
+                    disposition="selected", reason="explicit_authorized_selection",
+                ))
+            plan = ContextPlan.model_validate({
+                **plan.model_dump(),
+                "selections": (*plan.selections, *explicit_context_selections),
+                "decisions": (*plan.decisions, *decisions),
+            })
         authorize_context_selections(
             application_context,
             plan.selections,
             maximum_sensitivity=maximum_sensitivity,
         )
+        if self.context_provider_coordinator is not None:
+            self.context_provider_coordinator.authorize_boundaries(plan.selections, application_context.scope)
         return plan
 
     def input_budget(self, output_reserve: int | None = None) -> int:
@@ -204,6 +228,12 @@ class ContextAssembler:
             # This happens before summary compatibility/refresh, token counting,
             # retrieval adapters, or provider factories can perform work.
             authorize_context_selections(application_context, effective_selections)
+            if self.context_provider_coordinator is not None:
+                self.context_provider_coordinator.authorize_boundaries(
+                    effective_selections, application_context.scope
+                )
+            elif any(selection.federation is not None for selection in effective_selections):
+                raise ContextPreparationError("context_federation_unavailable")
 
         history_exclusion_reasons = dict(history_exclusions or {})
         if application_context is not None:

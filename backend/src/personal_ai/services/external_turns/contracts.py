@@ -48,7 +48,7 @@ class ContextPackageSourceSummary(BaseModel):
     """User-visible category summary; source IDs and raw provider metadata stay private."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    category: str = Field(min_length=1, max_length=48)
+    category: str = Field(min_length=1, max_length=168)
     item_count: int = Field(ge=0, le=1000)
     sensitivity: tuple[str, ...] = Field(default=(), max_length=5)
     authority: tuple[str, ...] = Field(default=(), max_length=6)
@@ -56,7 +56,7 @@ class ContextPackageSourceSummary(BaseModel):
 
 class ContextPackageExclusionSummary(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    category: str = Field(min_length=1, max_length=48)
+    category: str = Field(min_length=1, max_length=168)
     reason: str = Field(min_length=1, max_length=64)
     item_count: int = Field(ge=1, le=1000)
 

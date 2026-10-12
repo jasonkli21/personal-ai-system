@@ -162,6 +162,7 @@ def preview_automatic_context(
         conversation_id,
         request.content,
         candidate_entities=request.entity_refs,
+        explicit_context_selections=request.explicit_context_selections,
         excluded_source_classes=frozenset(request.excluded_source_classes),
     )
     selections = {(item.provider_id, item.operation): item for item in plan.selections}

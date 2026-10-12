@@ -47,6 +47,7 @@ class RequestScope(ApplicationScope):
     """A validated request envelope with server-derived owner identity."""
 
     owner_id: str = Field(min_length=1, max_length=200)
+    acting_user_id: str | None = Field(default=None, min_length=1, max_length=512)
     request_id: str = Field(min_length=1, max_length=100)
     capabilities: tuple[str, ...] = Field(default=(), max_length=16)
     client_context: dict[str, str | int | float | bool | None] = Field(

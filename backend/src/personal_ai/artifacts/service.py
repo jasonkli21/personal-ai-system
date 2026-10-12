@@ -71,16 +71,24 @@ class ArtifactService:
     None on storage failure; required export callers always receive an exception.
     """
 
-    def __init__(self, metadata, store, *, authorize=None, clock=None, writes_enabled=True):
+    def __init__(self, metadata, store, *, authorize=None, clock=None, writes_enabled=True, permission_revalidator=None):
         self.metadata, self.store = metadata, store
         self.authorize = authorize or (lambda ref: not ref.grant_dependencies)
         self.clock = clock or (lambda: datetime.now(UTC))
         self.writes_enabled = writes_enabled
+        self.permission_revalidator = permission_revalidator
 
     def _authorized(self, ref):
         if ref.store_id != self.store.store_id:
             raise ArtifactUnavailable("artifact_store_identity_mismatch")
         if not self.metadata.active(ref.owner_id) or not self.authorize(ref):
+            raise ArtifactUnavailable("artifact_authorization_denied")
+        if ref.permission_dependencies and (
+            self.permission_revalidator is None or not all(
+                self.permission_revalidator.is_current(dependency)
+                for dependency in ref.permission_dependencies
+            )
+        ):
             raise ArtifactUnavailable("artifact_authorization_denied")
         if self.clock() >= ref.expires_at:
             raise ArtifactUnavailable("artifact_expired")
@@ -96,6 +104,7 @@ class ArtifactService:
         schema_version,
         sensitivity="personal",
         grant_dependencies=(),
+        permission_dependencies=(),
         retention_days=7,
         source_rights_until=None,
         source_rights_verified=False,
@@ -114,6 +123,7 @@ class ArtifactService:
                 schema_version=schema_version,
                 sensitivity=sensitivity,
                 grant_dependencies=grant_dependencies,
+                permission_dependencies=permission_dependencies,
                 retention_days=retention_days,
                 source_rights_until=source_rights_until,
                 source_rights_verified=source_rights_verified,
@@ -137,6 +147,7 @@ class ArtifactService:
         schema_version,
         sensitivity,
         grant_dependencies,
+        permission_dependencies,
         retention_days,
         source_rights_until,
         source_rights_verified,
@@ -188,6 +199,7 @@ class ArtifactService:
             schema_version=schema_version,
             sensitivity=sensitivity,
             grant_dependencies=grant_dependencies,
+            permission_dependencies=permission_dependencies,
             created_at=now,
             expires_at=expires,
             source_rights_until=source_rights_until,
@@ -205,6 +217,7 @@ class ArtifactService:
                 "schema_version",
                 "sensitivity",
                 "grant_dependencies",
+                "permission_dependencies",
                 "scope",
                 "source_rights_until",
                 "routing_decision_id",

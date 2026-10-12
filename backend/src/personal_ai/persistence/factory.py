@@ -34,6 +34,7 @@ class PersistenceFactory(Protocol):
     def message_repository(self) -> MessageRepository: ...
     def summary_repository(self) -> ConversationSummaryRepository: ...
     def context_trace_repository(self) -> ContextTraceRepository: ...
+    def federation_grant_repository(self): ...
     def global_profile_repository(self) -> GlobalProfileRepository: ...
     def memory_repository(self) -> MemoryRepository: ...
     def memory_lifecycle_repository(
@@ -143,9 +144,20 @@ class PostgresDynamoPersistenceFactory:
                     raise
             else:
                 store = InMemoryArtifactStore()
-            service = ArtifactService(metadata, store, writes_enabled=writes_enabled)
+            from personal_ai.context.deployment import configured_context_runtime
+            from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry
+            runtime = configured_context_runtime(settings)
+            service = ArtifactService(
+                metadata, store, writes_enabled=writes_enabled,
+                permission_revalidator=ContextPermissionRevalidatorRegistry(runtime.permission_revalidators),
+            )
             self._artifact_services[key] = service
             return service
+
+    def federation_grant_repository(self):
+        from personal_ai.persistence.postgres.federation import PostgresFederationGrantRepository
+
+        return PostgresFederationGrantRepository(self.database)
 
     def global_profile_repository(self):
         from personal_ai.persistence.postgres.context import PostgresGlobalProfileRepository
