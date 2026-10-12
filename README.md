@@ -303,6 +303,7 @@ make planning-eval
 make memory-eval
 make memory-lifecycle-eval
 make research-eval
+make retrieval-eval
 make iterative-research-eval
 make decision-eval
 make domain-eval
@@ -315,6 +316,15 @@ See the [implementation report](docs/personal-ai-chapter-2/phase-32-implementati
 for measured limitations and verification.
 
 These evaluations are designed to make changes to memory, retrieval, ranking, context assembly, and research behavior measurable rather than purely subjective.
+
+Phase 33 research retrieval keeps the literal snippet strategy as its default.
+The bounded qualifier, two-query expansion, and compact extractive packing probes
+require `RESEARCH_RETRIEVAL_EXPERIMENTS_ENABLED=true`; no coverage is promoted.
+`RESEARCH_QUERY_STRATEGY` selects `literal-snippet-v1`, `qualifier-v1`, or
+`expansion-v1`; `RESEARCH_PACKING_STRATEGY` selects `literal-extractive-v1` or
+`compact-extractive-v1`. Source rights, source-domain bounds, mandatory publication
+freshness, Phase 19 admission, and context budgets still apply. See the
+[Phase 33 report](docs/personal-ai-chapter-2/phase-33-implementation-report.md).
 
 ## Cloud deployment
 

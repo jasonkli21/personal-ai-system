@@ -11,6 +11,7 @@ import anyio
 
 from personal_ai.agents.research.contracts import ResearchError, ResearchSession, evolve
 from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.context.authority import permission_dependencies_current
 from personal_ai.context.authorization import (
     authorize_base_disclosure,
     authorize_context_selection,
@@ -20,8 +21,11 @@ from personal_ai.evidence.contracts import AdapterAttempt, SearchQuery
 from personal_ai.evidence.pipeline import extract_evidence, select_evidence, validate_synthesis
 from personal_ai.llm.attribution import log_generation_attribution
 from personal_ai.llm.preparation import require_matching_endpoint
+from personal_ai.search.authority import ResearchSourceRightsRevalidator, observation_dependencies
 from personal_ai.search.contracts import SearchResult
-from personal_ai.search.policy import DeterministicPlanner, SnippetExtractor, planned_queries
+from personal_ai.search.planning import make_query_plan
+from personal_ai.search.policy import SnippetExtractor, configured_query_planner
+from personal_ai.search.runtime import search_usage_links
 from personal_ai.storage.async_io import io_call
 from personal_ai.usage.context import bind_usage_task
 
@@ -52,9 +56,12 @@ class ResearchService:
     ):
         self.settings, self.repository, self.adapter = settings, repository, adapter
         self.context, self.llm, self.owner_id = context, llm, owner_id
+        self.context.permission_revalidator = ResearchSourceRightsRevalidator(
+            settings, adapter=adapter, delegate=context.permission_revalidator
+        )
         self.application_context = application_context
         self.clock = clock or (lambda: datetime.now(UTC))
-        self.planner = planner or DeterministicPlanner()
+        self.planner = planner or configured_query_planner(settings)
         self.extractor = extractor or SnippetExtractor()
         self.reranker = reranker
 
@@ -90,7 +97,15 @@ class ResearchService:
         return session
 
     async def detail(self, session_id):
-        return self.view(await io_call(self.repository.get, self.owner_id, session_id))
+        self._authorize_research_context()
+        self.adapter.authorize_snippets()
+        session = await io_call(self.repository.get, self.owner_id, session_id)
+        if not permission_dependencies_current(
+            observation_dependencies(tuple(s for s in session.observations if s.status == "accepted")),
+            self.context.permission_revalidator,
+        ):
+            raise ResearchError("research_source_rights_revoked", 403)
+        return self.view(session)
 
     async def prepare_run(self, session_id):
         session = await self.detail(session_id)
@@ -119,6 +134,7 @@ class ResearchService:
             return
         current = session
         terminal = False
+        results, successful, successful_rights = [], {}, {}
         seconds = max(0, (session.execution_deadline - self.clock()).total_seconds())
         deadline = monotonic() + seconds
 
@@ -134,11 +150,11 @@ class ResearchService:
             async with asyncio.timeout(seconds):
                 self._authorize_research_context()
                 yield event("started", session_id=str(current.id), state="running")
-                normalized = await io_call(
-                    planned_queries,
+                query_plan = await io_call(
+                    make_query_plan,
                     self.planner,
-                    current.request.question,
-                    self.settings.research_max_queries,
+                    current.request,
+                    self.settings,
                 )
                 queries = tuple(
                     SearchQuery(
@@ -149,11 +165,10 @@ class ResearchService:
                         sequence=i,
                         created_at=self.clock(),
                     )
-                    for i, q in enumerate(normalized)
+                    for i, q in enumerate(query_plan.queries)
                 )
-                await save(queries=queries)
+                await save(queries=queries, query_plan=query_plan)
                 yield event("planned", session_id=str(current.id), query_count=len(queries))
-                results, successful = [], {}
                 for query in queries:
                     if len(results) >= self.settings.research_max_sources:
                         break
@@ -169,9 +184,13 @@ class ResearchService:
                             attempt_number=number,
                             status="started",
                             started_at=started,
+                            **search_usage_links(self.adapter, query.id, number),
                         )
                         await save(attempts=(*current.attempts, begun))
                         try:
+                            rights_reference = self.adapter.authorize_snippets()
+                            if not rights_reference or len(rights_reference) > 100:
+                                raise ResearchError("research_configuration_invalid")
                             with bind_usage_task(
                                 "web_research_search",
                                 run_id=str(current.id),
@@ -182,7 +201,9 @@ class ResearchService:
                                     query.normalized_query,
                                     self.settings.research_max_sources - len(results),
                                 )
-                            if not isinstance(fetched, (list, tuple)) or any(
+                            if not isinstance(fetched, (list, tuple)) or len(fetched) > (
+                                self.settings.research_max_sources - len(results)
+                            ) or any(
                                 not isinstance(r, SearchResult) for r in fetched
                             ):
                                 raise ResearchError("search_invalid_response")
@@ -214,6 +235,7 @@ class ResearchService:
                             started_at=started,
                             completed_at=self.clock(),
                             error_code=error_code,
+                            **search_usage_links(self.adapter, query.id, number),
                         )
                         await save(attempts=(*current.attempts, attempt))
                         yield event(
@@ -227,6 +249,7 @@ class ResearchService:
                             limit = self.settings.research_max_sources - len(results)
                             results.extend((query.id, r) for r in fetched[:limit])
                             successful[query.id] = attempt
+                            successful_rights[query.id] = rights_reference
                             break
                         if not retryable or number == self.settings.research_attempt_limit:
                             await save(
@@ -255,6 +278,8 @@ class ResearchService:
                     self.extractor,
                     self.clock(),
                     self.settings,
+                    rights_reference=successful_rights,
+                    source_origin=self.adapter.source_origin,
                 )
                 await save(observations=observations, evidence=evidence)
                 yield event(
@@ -271,6 +296,9 @@ class ResearchService:
                     deadline,
                     self.reranker,
                     clock=self.clock,
+                    packing_strategy=(self.settings.research_packing_strategy
+                                      if self.settings.research_retrieval_experiments_enabled
+                                      else "literal-extractive-v1"),
                     application_context=self.application_context,
                     expected_counter_identity=(
                         self.llm.identity
@@ -291,12 +319,20 @@ class ResearchService:
                         if not queries
                         else "no_results"
                         if not results
+                        else "source_denied"
+                        if not evidence and any(s.status == "source_denied" for s in observations)
                         else "extraction_no_evidence"
                         if not evidence
                         else "insufficient_evidence"
                     )
                     await save(state="insufficient", failure_code=code)
                 else:
+                    # Rights may have changed while searching/counting; the exact
+                    # server preflight reference must still bind every passage.
+                    reference = self.adapter.authorize_snippets()
+                    if any(s.rights_reference != reference for s in current.observations
+                           if s.status == "accepted"):
+                        raise ResearchError("research_configuration_invalid")
                     output = ""
                     bounded = getattr(self.llm, "stream_bounded", None)
                     stream = (
@@ -364,6 +400,15 @@ class ResearchService:
                 code = error.code if error.code.startswith("search_") else "research_failed"
             with anyio.CancelScope(shield=True):
                 try:
+                    # Persist known completed observations on partial execution;
+                    # an uncertain/failed call contributes no fabricated result.
+                    if results and not current.observations:
+                        observations, evidence = extract_evidence(
+                            current, results, successful, self.extractor,
+                            self.clock(), self.settings, rights_reference=successful_rights,
+                            source_origin=self.adapter.source_origin,
+                        )
+                        await save(observations=observations, evidence=evidence)
                     await save(state="failed", failure_code=code)
                 except Exception:  # noqa: BLE001 - deadline-derived failure survives storage outage
                     code = "storage_unavailable"

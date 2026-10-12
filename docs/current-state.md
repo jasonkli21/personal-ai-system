@@ -73,6 +73,23 @@ and [review remediation evidence](personal-ai-chapter-2/phase-32-review-remediat
 
 ## Persistence
 
+Phase 33 adds a versioned bounded query plan, exact snippet observations and P19
+attempt links, publication/version-aware deduplication, separately identified
+extractive support packages, and default-off qualifier/expansion/compact-packing
+probes on the existing research path. New snippet rights references flow through
+the shared builder/permission revalidator, selected research context, direct
+detail views and retained account exports. Mandatory `published_after` bounds
+deny undated sources; observation-only freshness remains explicitly distinguished
+from publication freshness. Migration 026 owns compact owner/app/workspace-scoped
+experiment summaries; optional bulky numeric evaluation batches reuse P20.
+No raw experiment source bodies are retained. The 18-case synthetic paired run
+does not justify promotion: compact packing saves about 4% of packed tokens,
+qualifiers show no gain, and expansion increases adapter calls from 18 to 35.
+Live answer quality/quota and database/GCS acceptance remain unverified.
+The Phase 32 planner's unchanged 30-case corpus now has a v3 runtime freeze;
+v2 is preserved historically, and generated Python caches are excluded from
+material source identity. See the [Phase 33 report](personal-ai-chapter-2/phase-33-implementation-report.md).
+
 P10.6 switched normal API and worker wiring to Postgres/pgvector plus DynamoDB and removed Firestore SDK, repositories, migration tooling, and runtime fallback. Local/test configurations require explicit Postgres and DynamoDB Local endpoints; deployed configuration targets Neon and federated AWS DynamoDB. Phase 19 places canonical usage attempts, reservations, shared quota windows, health, and compact owner aggregates in Postgres; DynamoDB holds scoped operational attempt events. This is an implemented code/runtime cutover, not evidence of a live cloud cutover or data migration. The user-reported no-source disposition has not been checked against a cloud account.
 
 ## Security and release readiness

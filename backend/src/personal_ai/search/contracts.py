@@ -14,15 +14,24 @@ class SearchResult(ResearchRecord):
     title: str | None = Field(default=None, max_length=300)
     text: str = Field(max_length=10000)
     published_at: datetime | None = None
+    source_revision: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class SearchAdapter(Protocol):
     name: str
+    source_origin: str
+
+    def authorize_snippets(self) -> str:
+        """Current server-owned rights/preflight reference; deny before dispatch."""
+        ...
 
     async def search(self, query: str, limit: int) -> Sequence[SearchResult]: ...
 
 
 class QueryPlanner(Protocol):
+    strategy_id: str
+    strategy_version: int
+
     def plan(self, question: str, max_queries: int) -> Sequence[str]: ...
 
 
@@ -31,11 +40,17 @@ class ContentExtractor(Protocol):
 
 
 class EvidenceReranker(Protocol):
+    strategy_id: str
+
     def rank(self, question: str, evidence: Sequence[Evidence]) -> Sequence[Evidence]: ...
 
 
 class FakeSearchAdapter:
     name = "fake"
+    source_origin = "synthetic"
+
+    def authorize_snippets(self):
+        return "synthetic-public-v1"
 
     def __init__(self, results: Sequence[SearchResult] = (), error: Exception | None = None):
         self.results, self.error = tuple(results), error

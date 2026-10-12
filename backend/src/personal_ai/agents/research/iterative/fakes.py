@@ -4,7 +4,7 @@ import inspect
 from collections import deque
 from datetime import UTC, datetime, timedelta
 
-from personal_ai.search.contracts import SearchResult
+from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
 
 
 class DeterministicClock:
@@ -35,7 +35,7 @@ class DeterministicQueue:
         return len(self.values)
 
 
-class FakeIterativeSearchAdapter:
+class FakeIterativeSearchAdapter(FakeSearchAdapter):
     name = "fake"
 
     def __init__(

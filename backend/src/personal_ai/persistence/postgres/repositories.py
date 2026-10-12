@@ -21,6 +21,7 @@ FAMILY_TABLES = frozenset(
         "memory_lifecycle_states",
         "memory_lifecycle_events",
         "research_sessions",
+        "research_experiments",
         "research_request_keys",
         "iterative_research_runs",
         "iterative_research_request_keys",

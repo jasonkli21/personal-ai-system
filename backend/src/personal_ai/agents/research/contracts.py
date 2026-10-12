@@ -16,6 +16,7 @@ from personal_ai.evidence.contracts import (
     SearchQuery,
     SourceObservation,
 )
+from personal_ai.search.planning import ResearchQueryPlan, domains_from_question
 
 
 class ResearchError(Exception):
@@ -29,6 +30,28 @@ class ResearchRequest(ResearchRecord):
     question: str = Field(min_length=1, max_length=500)
     freshness: Literal["general", "current"] = "general"
     idempotency_key: UUID
+    allowed_domains: tuple[str, ...] = Field(default=(), max_length=12)
+    excluded_domains: tuple[str, ...] = Field(default=(), max_length=12)
+    published_after: datetime | None = None
+
+    @field_validator("published_after")
+    @classmethod
+    def aware_publication_bound(cls, value):
+        if value is not None and value.tzinfo is None:
+            raise ValueError("publication bound timezone required")
+        return value
+
+    @field_validator("allowed_domains", "excluded_domains")
+    @classmethod
+    def domains(cls, values):
+        import re
+
+        if len(set(values)) != len(values) or any(
+            len(value) > 253 or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z]{2,}", value)
+            for value in values
+        ):
+            raise ValueError("invalid source domains")
+        return values
 
     @field_validator("question")
     @classmethod
@@ -39,7 +62,18 @@ class ResearchRequest(ResearchRecord):
         return value
 
     def fingerprint(self) -> str:
-        return sha256(self.model_dump_json(exclude={"idempotency_key"}).encode()).hexdigest()
+        # Empty additive fields preserve historical v1 request fingerprints.
+        excluded = {"idempotency_key"}
+        excluded.update(
+            name for name in ("allowed_domains", "excluded_domains", "published_after")
+            if not getattr(self, name)
+        )
+        return sha256(self.model_dump_json(exclude=excluded).encode()).hexdigest()
+
+    def source_bounds(self):
+        literal_allowed, literal_excluded = domains_from_question(self.question)
+        # Both allowlists must apply, rather than widening either one by union.
+        return self.allowed_domains, literal_allowed, (*self.excluded_domains, *literal_excluded)
 
 
 class Citation(ScopedResearchRecord):
@@ -70,6 +104,7 @@ class ResearchSession(ScopedResearchRecord):
     run_token: UUID | None = Field(default=None, exclude=True)
     revision: int = Field(default=0, ge=0)
     queries: tuple[SearchQuery, ...] = Field(default=(), max_length=3)
+    query_plan: ResearchQueryPlan | None = None
     attempts: tuple[AdapterAttempt, ...] = Field(default=(), max_length=18)
     observations: tuple[SourceObservation, ...] = Field(default=(), max_length=12)
     evidence: tuple[Evidence, ...] = Field(default=(), max_length=12)
@@ -94,6 +129,15 @@ class ResearchSession(ScopedResearchRecord):
         if len(ids) != len(set(ids)):
             raise ValueError("duplicate record id")
         queries = {r.id for r in self.queries}
+        if self.query_plan and (
+            self.query_plan.original_question != self.request.question
+            or self.query_plan.freshness != self.request.freshness
+            or self.query_plan.allowed_domains != self.request.allowed_domains
+            or self.query_plan.excluded_domains != self.request.excluded_domains
+            or self.query_plan.published_after != self.request.published_after
+            or tuple(q.normalized_query for q in self.queries) != self.query_plan.queries
+        ):
+            raise ValueError("query plan binding")
         if tuple(item.sequence for item in self.queries) != tuple(range(len(self.queries))):
             raise ValueError("query sequence must be contiguous")
         if any(
@@ -120,6 +164,8 @@ class ResearchSession(ScopedResearchRecord):
                     or parent.query_id != attempt.query_id
                     or parent.attempt_number != attempt.attempt_number
                     or parent.started_at != attempt.started_at
+                    or parent.usage_invocation_id != attempt.usage_invocation_id
+                    or parent.usage_attempt_id != attempt.usage_attempt_id
                     or attempt.completed_at < attempt.started_at
                 ):
                     raise ValueError("invalid terminal attempt")
@@ -132,6 +178,8 @@ class ResearchSession(ScopedResearchRecord):
                 i not in sources
                 or sources[i].status != "accepted"
                 or sources[i].content_fingerprint != item.content_fingerprint
+                or (sources[i].observation_version == "snippet-observation-v2"
+                    and sources[i].passage != item.passage)
                 for i in item.source_observation_ids
             ):
                 raise ValueError("unknown evidence source")
@@ -140,6 +188,22 @@ class ResearchSession(ScopedResearchRecord):
             raise ValueError("duplicate selection")
         if selected - evidence.keys():
             raise ValueError("unknown selected evidence")
+        if self.selection and self.selection.derived:
+            derived = self.selection.derived
+            if derived.packing_strategy != self.selection.packing_strategy:
+                raise ValueError("derived strategy binding")
+            if tuple(s.evidence_id for s in derived.support) != self.selection.evidence_ids:
+                raise ValueError("derived support coverage")
+            for support in derived.support:
+                item = evidence[support.evidence_id]
+                if (
+                    support.observation_ids != item.source_observation_ids
+                    or support.end != len(item.passage)
+                    or support.fingerprint != item.content_fingerprint
+                ):
+                    raise ValueError("derived exact support")
+            if set(derived.omitted_ids) & selected or set(derived.omitted_ids) - evidence.keys():
+                raise ValueError("derived omission coverage")
         for citation in self.citations:
             if (
                 citation.evidence_id not in selected

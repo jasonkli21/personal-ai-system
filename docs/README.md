@@ -21,6 +21,8 @@ Phase 29 adds a separate, read-only Health contract/provider through the shared 
 
 ## Route by task
 
+Search/evidence retrieval optimization: read the [Phase 33 report](personal-ai-chapter-2/phase-33-implementation-report.md), [search experiment contract](../experiments/search/README.md), and [written plan](personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/plans/phase-33-implementation-plan.md). The literal path remains default; no strategy coverage is promoted.
+
 | Task | Read first | Authority note |
 | --- | --- | --- |
 | Chat, conversations, context, summaries | [Phase 2 guide](phase-2-implementation-guide.md), [API contract](api-contract.md), relevant [ADRs](#decisions) | Code/tests define behavior; guides explain the delivered contract. |

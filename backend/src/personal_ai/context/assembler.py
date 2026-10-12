@@ -999,6 +999,9 @@ class ContextAssembler:
                     ContextSourceReference(kind="evidence", reference_id=str(source_id)),
                 ),
                 expires_at=(source_metadata or {}).get(str(source_id), default_metadata).expires_at,
+                permission_dependencies=(source_metadata or {}).get(
+                    str(source_id), default_metadata
+                ).permission_dependencies,
                 required=str(source_id) in required,
                 order=index,
             )
@@ -1025,6 +1028,7 @@ class ContextAssembler:
                 self.counter, deadline, counter_context, expected_counter_identity
             ),
             clock=clock,
+            permission_revalidator=self.permission_revalidator,
         ).build(
             base.messages,
             entries,

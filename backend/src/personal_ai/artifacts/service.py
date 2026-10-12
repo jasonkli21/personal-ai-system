@@ -403,6 +403,9 @@ class ArtifactService:
             raise ArtifactUnavailable("export_record_limit")
         snapshot_bytes = len(encode(exported)[0])
         estimated_bytes = snapshot_bytes + 4096
+        from personal_ai.search.authority import research_export_dependencies
+
+        permission_dependencies = research_export_dependencies(exported)
         manifest, bodies, dependencies, expiries = [], [], set(), []
         for row in rows:
             ref = ArtifactRef.model_validate(row["data"])
@@ -445,6 +448,7 @@ class ArtifactService:
             required=True,
             sensitivity="restricted",
             grant_dependencies=tuple(sorted(dependencies)),
+            permission_dependencies=permission_dependencies,
             source_rights_until=min(expiries) if expiries else None,
             source_rights_verified=True,
         )

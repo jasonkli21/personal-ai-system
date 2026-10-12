@@ -42,6 +42,7 @@ from personal_ai.agents.research.iterative.contracts import (
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.scope import current_application_scope
 from personal_ai.context.assembler import ContextAssembler
+from personal_ai.context.authority import permission_dependencies_current
 from personal_ai.context.authorization import authorize_base_disclosure, authorize_context_selection
 from personal_ai.context.providers import ContextPreparationError, ContextSelection
 from personal_ai.decisions.contracts import ClaimProposal, DecisionCreateRequest, DecisionResult
@@ -52,8 +53,10 @@ from personal_ai.evidence.contracts import AdapterAttempt, EvidenceSelection, Se
 from personal_ai.evidence.pipeline import extract_evidence, select_evidence, validate_synthesis
 from personal_ai.llm.attribution import log_generation_attribution
 from personal_ai.llm.preparation import require_matching_endpoint
+from personal_ai.search.authority import ResearchSourceRightsRevalidator, observation_dependencies
 from personal_ai.search.contracts import SearchResult
 from personal_ai.search.policy import SnippetExtractor, canonical_url
+from personal_ai.search.runtime import search_usage_links
 from personal_ai.settings import Settings
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.errors import ResourceNotFoundError
@@ -163,6 +166,9 @@ class IterativeResearchService:
         self.runs = run_repository
         self.adapter = adapter
         self.context = context
+        self.context.permission_revalidator = ResearchSourceRightsRevalidator(
+            settings, adapter=adapter, delegate=context.permission_revalidator
+        )
         self.llm = llm
         self.owner_id = owner_id
         self.application_context = application_context
@@ -316,13 +322,27 @@ class IterativeResearchService:
         return await self._io(self.runs.get, self.owner_id, run_id)
 
     async def session(self, run_id: UUID) -> ResearchSession:
-        run = await self.get(run_id)
-        return await self._io(self.runs.session, self.owner_id, run.session_id)
-
-    async def detail(self, run_id: UUID) -> tuple[ResearchRun, ResearchSession]:
+        self._authorize_research_context()
+        self.adapter.authorize_snippets()
         run = await self.get(run_id)
         session = await self._io(self.runs.session, self.owner_id, run.session_id)
+        self._require_observation_rights(session)
+        return session
+
+    async def detail(self, run_id: UUID) -> tuple[ResearchRun, ResearchSession]:
+        self._authorize_research_context()
+        self.adapter.authorize_snippets()
+        run = await self.get(run_id)
+        session = await self._io(self.runs.session, self.owner_id, run.session_id)
+        self._require_observation_rights(session)
         return run, session
+
+    def _require_observation_rights(self, session):
+        if not permission_dependencies_current(
+            observation_dependencies(tuple(s for s in session.observations if s.status == "accepted")),
+            self.context.permission_revalidator,
+        ):
+            raise ResearchError("research_source_rights_revoked", 403)
 
     async def events(self, run_id: UUID, after: int = -1) -> tuple[RunEvent, ...]:
         run = await self.get(run_id)
@@ -1131,6 +1151,9 @@ class IterativeResearchService:
             deadline,
             self.reranker,
             clock=self.clock,
+            packing_strategy=(self.settings.research_packing_strategy
+                              if self.settings.research_retrieval_experiments_enabled
+                              else "literal-extractive-v1"),
             application_context=self.application_context,
             expected_counter_identity=(
                 self.llm.identity
@@ -1422,6 +1445,7 @@ class IterativeResearchService:
             attempt_number=attempt_number,
             status="started",
             started_at=now,
+            **search_usage_links(self.adapter, query.id, attempt_number),
         )
         session_candidate = evolve_session(
             session,
@@ -1447,6 +1471,9 @@ class IterativeResearchService:
         call_start = self.duration_clock()
         error = None
         try:
+            rights_reference = self.adapter.authorize_snippets()
+            if not rights_reference or len(rights_reference) > 100:
+                raise ResearchError("research_configuration_invalid")
             timeout_seconds = max(0.001, float(call_elapsed))
             async with asyncio.timeout(timeout_seconds):
                 with bind_usage_task(
@@ -1508,6 +1535,8 @@ class IterativeResearchService:
             attempt_number=attempt_number,
             status="completed",
             parent_attempt_id=started.id,
+            usage_invocation_id=started.usage_invocation_id,
+            usage_attempt_id=started.usage_attempt_id,
             started_at=started.started_at,
             completed_at=self.clock(),
         )
@@ -1521,6 +1550,8 @@ class IterativeResearchService:
             self.extractor,
             self.clock(),
             self.settings,
+            rights_reference=rights_reference,
+            source_origin=self.adapter.source_origin,
         )
         completed_query = query.model_copy(
             update={"state": "completed", "executed_at": self.clock()}
@@ -1622,6 +1653,8 @@ class IterativeResearchService:
             attempt_number=attempt_number,
             status="failed",
             parent_attempt_id=started.id,
+            usage_invocation_id=started.usage_invocation_id,
+            usage_attempt_id=started.usage_attempt_id,
             started_at=started.started_at,
             completed_at=self.clock(),
             error_code=error_code,
@@ -1715,6 +1748,9 @@ class IterativeResearchService:
         return stopped, final_session
 
     async def _finish(self, run, session, selection_data, stop_reason, sufficient):
+        reference = self.adapter.authorize_snippets()
+        if any(s.rights_reference != reference for s in session.observations if s.status == "accepted"):
+            raise ResearchError("research_configuration_invalid")
         self._assert_lease(run, run.lease_owner)
         if selection_data is None:
             remaining = self._remaining_elapsed(run)

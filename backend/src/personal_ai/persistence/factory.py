@@ -55,6 +55,7 @@ class PersistenceFactory(Protocol):
     def endpoint_profile_resolver(self, settings): ...
     def routing_decision_repository(self): ...
     def provider_matrix_evaluation_repository(self): ...
+    def research_experiment_repository(self): ...
     def artifact_service(self, settings): ...
     def artifact_maintenance_service(self, settings): ...
 
@@ -147,10 +148,13 @@ class PostgresDynamoPersistenceFactory:
                 store = InMemoryArtifactStore()
             from personal_ai.context.deployment import configured_context_runtime
             from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry
+            from personal_ai.search.authority import ResearchSourceRightsRevalidator
             runtime = configured_context_runtime(settings)
             service = ArtifactService(
                 metadata, store, writes_enabled=writes_enabled,
-                permission_revalidator=ContextPermissionRevalidatorRegistry(runtime.permission_revalidators),
+                permission_revalidator=ContextPermissionRevalidatorRegistry((
+                    ResearchSourceRightsRevalidator(settings), *runtime.permission_revalidators,
+                )),
             )
             self._artifact_services[key] = service
             return service
@@ -265,6 +269,13 @@ class PostgresDynamoPersistenceFactory:
         )
 
         return PostgresProviderMatrixRepository(self.database)
+
+    def research_experiment_repository(self):
+        from personal_ai.persistence.postgres.research_experiments import (
+            PostgresResearchExperimentRepository,
+        )
+
+        return PostgresResearchExperimentRepository(self.database)
 
     def provider_usage_accounting(self, settings):
         from personal_ai.persistence.dynamodb.usage import DynamoDBProviderUsageEventRepository

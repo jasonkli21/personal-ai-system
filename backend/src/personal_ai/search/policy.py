@@ -92,12 +92,45 @@ def content_fingerprint(passage: str) -> str:
 
 
 class DeterministicPlanner:
+    strategy_id = "literal-snippet"
+    strategy_version = 1
+
     def plan(self, question: str, max_queries: int):
         return (" ".join(question.split()),) if question.strip() and max_queries else ()
 
 
-def planned_queries(planner, question: str, max_queries: int) -> tuple[str, ...]:
+class BoundedQualifierPlanner:
+    """Small non-promoted query probe; no inference, source expansion or recursion."""
+
+    strategy_version = 1
+
+    def __init__(self, *, expansion=False):
+        self.expansion = expansion
+        self.strategy_id = "bounded-expansion" if expansion else "bounded-qualifier"
+
+    def plan(self, question, max_queries):
+        return ((question, question + " specification")[:max_queries] if self.expansion
+                else (question + " specification",))
+
+
+def configured_query_planner(settings):
+    if not settings.research_retrieval_experiments_enabled:
+        return DeterministicPlanner()
+    factories = {
+        "literal-snippet-v1": DeterministicPlanner,
+        "qualifier-v1": BoundedQualifierPlanner,
+        "expansion-v1": lambda: BoundedQualifierPlanner(expansion=True),
+    }
+    return factories.get(settings.research_query_strategy, DeterministicPlanner)()
+
+
+def planned_queries(planner, question: str, max_queries: int, *, with_reason=False):
     try:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,79}", getattr(planner, "strategy_id", "")) or not (
+            isinstance(getattr(planner, "strategy_version", None), int)
+            and 1 <= planner.strategy_version <= 2147483647
+        ):
+            raise ValueError("unversioned query strategy")
         values = planner.plan(question, max_queries)
         if not isinstance(values, (list, tuple)) or len(values) > max_queries:
             raise ValueError("invalid plan")
@@ -107,10 +140,14 @@ def planned_queries(planner, question: str, max_queries: int) -> tuple[str, ...]
                 raise ValueError("invalid query")
             value = " ".join(value.split())
             # Custom planners must preserve all explicit question terms; no tool syntax.
-            if not set(question.lower().split()) <= set(value.lower().split()):
+            from personal_ai.search.planning import preserves_question
+
+            if not preserves_question(question, value):
                 raise ValueError("query dropped constraints")
             if value not in result:
                 result.append(value)
-        return tuple(result)
+        queries = tuple(result)
+        return (queries, "accepted") if with_reason else queries
     except Exception:  # noqa: BLE001 - optional planners fail to the deterministic baseline
-        return tuple(DeterministicPlanner().plan(question, max_queries))
+        queries = tuple(DeterministicPlanner().plan(question, max_queries))
+        return (queries, "invalid_strategy_fallback") if with_reason else queries

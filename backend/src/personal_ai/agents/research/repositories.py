@@ -80,6 +80,8 @@ def validate_save(current, candidate):
         old_ids = {query.id for query in current.queries}
         if any(query.parent_query_id not in old_ids for query in appended if query.parent_query_id):
             raise ResearchError("research_conflict", 409)
+    if current.query_plan is not None and current.query_plan != candidate.query_plan:
+        raise ResearchError("research_conflict", 409)
     # Provenance is append-only; extraction may merge links before its first persistence.
     for field in ("attempts", "observations", "evidence"):
         old, new = getattr(current, field), getattr(candidate, field)

@@ -198,6 +198,7 @@ class ContextBuildSourceMetadata(BaseModel):
     authority: ContextAuthority
     sensitivity: ContextSensitivity
     expires_at: datetime | None = None
+    permission_dependencies: tuple[ContextPermissionDependency, ...] = Field(default=(), max_length=16)
 
     @field_validator("expires_at")
     @classmethod

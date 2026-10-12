@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from hashlib import sha256
 from threading import Lock
 from time import monotonic
 
@@ -28,13 +29,14 @@ class SearchError(ResearchError):
 
 class BraveSearchAdapter:
     name = "brave"
+    source_origin = "external"
     endpoint = "https://api.search.brave.com/res/v1/web/search"
 
     def __init__(self, settings, transport=None, *, usage_accounting=None):
         self.settings, self.transport = settings, transport
         self.usage_accounting = usage_accounting
 
-    async def search(self, query: str, limit: int):
+    def authorize_snippets(self):
         if (
             not self.settings.research_enabled
             or not self.settings.research_provider_storage_approved
@@ -47,6 +49,13 @@ class BraveSearchAdapter:
             or not self.settings.research_api_key.get_secret_value()
         ):
             raise SearchError("research_configuration_invalid")
+        return sha256(json.dumps([
+            self.settings.research_brave_account_scope_id,
+            self.settings.research_brave_preflight_reference,
+        ]).encode()).hexdigest()
+
+    async def search(self, query: str, limit: int):
+        self.authorize_snippets()
         if not query.strip() or len(query) > 500 or not 1 <= limit <= 12:
             raise SearchError("search_invalid_request")
         usage_call = None

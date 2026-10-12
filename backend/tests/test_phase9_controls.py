@@ -166,6 +166,15 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
         def research_repository(self):
             return Research()
 
+        def research_experiment_repository(self):
+            class Experiments:
+                def expire(self, *, owner_id, now, limit):
+                    assert owner_id == "owner" and now.tzinfo is not None
+                    calls.append(("research_experiments", limit))
+                    return 1
+
+            return Experiments()
+
     configured = settings(maintenance_enabled=True, maintenance_batch_size=3)
     monkeypatch.setattr("personal_ai.worker.get_settings", lambda: configured)
     monkeypatch.setattr("personal_ai.worker.persistence_factory", lambda _settings: Factory())
@@ -186,7 +195,8 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
     assert response.body == (
         b'{"artifact_reconciliation": {"checked": 2, "deleted": 1}, '
         b'"artifact_storage": {"gcs": {"live_body_bytes": 0}}, '
-        b'"republished_jobs": 1, "expired_sessions": 2, "expired_usage_budgets": 4, '
+        b'"republished_jobs": 1, "expired_sessions": 2, "expired_research_experiments": 1, '
+        b'"expired_usage_budgets": 4, '
         b'"provider_attempts_resolved": 3, "provider_events_synchronized": 2, '
         b'"expired_provider_usage_records": 5, "expired_routing_decisions": 6}'
     )
@@ -194,7 +204,7 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
         ("resolve_stale", 3), ("sync_events", 3), ("purge_provider_usage", 3),
         ("purge_routing_decisions", 3),
         ("artifact_reconcile", 3), ("purge", 3),
-        ("republish", configured.memory_job_candidate_limit), ("research", 3),
+        ("republish", configured.memory_job_candidate_limit), ("research_experiments", 3), ("research", 3),
     ]
 
 

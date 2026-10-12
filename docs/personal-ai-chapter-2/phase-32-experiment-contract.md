@@ -77,6 +77,14 @@ these fields remain explicitly unmeasured and block promotion.
 
 ## Resource and inference boundary
 
+Phase 33 refreshes the unchanged deterministic planner/corpus against its extended
+shared research/builder runtime in `planning-baseline-v3.json` and
+`planning-evaluator-v3`. The historical v2 lock is retained. Material identity
+continues to cover source, fixtures and dependency/runtime identities, while
+excluding generated `__pycache__`, `.pyc` and `.DS_Store` files. Compilation caches
+are not a source revision. This refresh grants no assisted strategy or promoted
+coverage and does not replace the original Phase 32 evidence.
+
 Permitted initial planner inference budget is **zero calls/tokens/quota** with
 no promoted task/application slices. There is no installed model planner, tool
 executor, recursive planner, endpoint-selection shortcut or paid fallback.

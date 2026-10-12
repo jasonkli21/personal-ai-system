@@ -6,6 +6,7 @@ This package coordinates bounded, owner-scoped research. Search/provider calls r
 
 - `contracts.py` and `repositories.py`: Phase 5 request/session state and repository contract.
 - `service.py`: one request-owned pass, including query planning, bounded attempts, evidence selection, synthesis, expiry, and fenced session persistence.
+- `personal_ai.search.planning`, `runtime`, and `authority`: Phase 33 query envelopes, installed adapter composition, and shared snippet-rights dependencies. Baseline and opt-in experiment configuration use the same service.
 - `iterative/`: typed Phase 8 run, budget, event, state, repository, and test-fixture modules under `contracts.py`, `repositories.py`, and `fakes.py`.
 - `iterative/service.py`: bounded iterative state machine over the Phase 5 session/evidence pipeline. It owns deterministic sufficiency/gap assessment, follow-up sequencing, run transitions, budget/resource reservations, cancellation/recovery fences, and safe progress events. It remains the main context-cost hotspot; read this map and the contracts first, then inspect only the relevant state transition.
 

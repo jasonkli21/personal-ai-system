@@ -430,6 +430,7 @@ class ResearchEvidenceContextProvider:
         del deadline
         output = []
         from personal_ai.evidence.contracts import Evidence, SourceObservation
+        from personal_ai.search.authority import observation_dependencies
 
         records = [] if selection.entity_refs else list(self.inputs.evidence_records)
         selected_session_ids = set()
@@ -544,7 +545,7 @@ class ResearchEvidenceContextProvider:
                                 scope.application_id if selected_standalone else None
                             ),
                         ),
-                    ),
+                    ) + observation_dependencies(ordered),
                     payload=ResearchEvidencePayload(
                         evidence_id=str(evidence.id),
                         passage=evidence.passage if "passage" in selection.fields else None,

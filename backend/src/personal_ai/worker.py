@@ -229,6 +229,13 @@ async def run_scheduled_maintenance(request: Request) -> Response:
             )
         )
         research = factory.research_repository()
+        expired_experiments = await anyio.to_thread.run_sync(
+            partial(
+                factory.research_experiment_repository().expire,
+                owner_id=owner_ids[0], now=datetime.now(UTC),
+                limit=min(settings.maintenance_batch_size, 100),
+            )
+        )
         expired = await anyio.to_thread.run_sync(
             partial(
                 research.expire_due_for_owner,
@@ -254,6 +261,7 @@ async def run_scheduled_maintenance(request: Request) -> Response:
             "artifact_storage": artifact_storage,
             "republished_jobs": published,
             "expired_sessions": expired,
+            "expired_research_experiments": expired_experiments,
             "expired_usage_budgets": expired_budgets,
             "provider_attempts_resolved": stale_attempts,
             "provider_events_synchronized": synchronized_events,

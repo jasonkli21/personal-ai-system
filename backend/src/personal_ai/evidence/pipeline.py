@@ -6,13 +6,21 @@ import re
 from collections import Counter
 from datetime import timedelta
 from urllib.parse import urlsplit
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from personal_ai.agents.research.contracts import Citation, ResearchError
 from personal_ai.context.authorization import make_inference_context
 from personal_ai.context.providers import ContextSelection
 from personal_ai.entities import Message, MessageRole, MessageStatus
-from personal_ai.evidence.contracts import Evidence, EvidenceSelection, SourceObservation
+from personal_ai.evidence.contracts import (
+    DerivedEvidence,
+    Evidence,
+    EvidenceSelection,
+    EvidenceSupport,
+    SourceObservation,
+)
+from personal_ai.search.authority import observation_dependencies
+from personal_ai.search.planning import source_allowed
 from personal_ai.search.policy import canonical_url, content_fingerprint
 
 SYNTHESIS_INSTRUCTION = (
@@ -28,7 +36,8 @@ NOTICE = (
 )
 
 
-def extract_evidence(session, results, attempt, extractor, now, settings):
+def extract_evidence(session, results, attempt, extractor, now, settings, *, rights_reference=None,
+                     source_origin="legacy_unknown"):
     observations, evidence = [], []
     ttl = (
         settings.research_evidence_ttl_current_seconds
@@ -36,17 +45,37 @@ def extract_evidence(session, results, attempt, extractor, now, settings):
         else settings.research_evidence_ttl_general_seconds
     )
     by_content = {}
-    for query_id, result in results:
+    for result_index, (query_id, result) in enumerate(results):
+        source_rights = (rights_reference.get(query_id)
+                         if isinstance(rights_reference, dict) else rights_reference)
         status, passage, fingerprint = "accepted", "", None
         try:
             url = canonical_url(result.url)
         except ValueError:
             # Never persist rejected URLs: keep attributable attempt/status instead.
             url, status = "https://example.invalid/rejected", "unsafe"
+        if status == "accepted":
+            allowed, literal_allowed, excluded = session.request.source_bounds()
+            if not (
+                source_rights
+                and source_allowed(url, allowed, excluded)
+                and source_allowed(url, literal_allowed, excluded)
+            ):
+                status = "source_denied"
+        if (
+            status == "accepted" and session.request.published_after is not None
+            and result.published_at is None
+        ):
+            status = "freshness_unverified"
+        if (
+            status == "accepted" and session.request.published_after is not None
+            and result.published_at < session.request.published_after
+        ):
+            status = "stale"
         if (
             status == "accepted"
             and result.published_at is not None
-            and result.published_at + timedelta(seconds=ttl) <= now
+            and (result.published_at + timedelta(seconds=ttl) <= now or result.published_at > now)
         ):
             status = "stale"
         if status == "accepted":
@@ -58,25 +87,35 @@ def extract_evidence(session, results, attempt, extractor, now, settings):
                     fingerprint = content_fingerprint(passage)
             except (ResearchError, ValueError):
                 status = "oversized"
+        disclosed = status not in {"source_denied", "unsafe"}
         source = SourceObservation(
-            id=uuid4(),
+            id=uuid5(attempt[query_id].id, f"result:{result_index}"),
             owner_id=session.owner_id,
             session_id=session.id,
             query_id=query_id,
-            canonical_url=url,
-            title=result.title,
+            canonical_url=url if disclosed else "https://example.invalid/rejected",
+            title=result.title if disclosed else None,
             provider=attempt[query_id].adapter,
             observed_at=now,
-            published_at=result.published_at,
+            published_at=result.published_at if disclosed else None,
+            source_revision=result.source_revision if disclosed else None,
             content_fingerprint=fingerprint,
             status=status,
             attempt_id=attempt[query_id].id,
+            rights_reference=source_rights,
+            result_index=result_index,
+            passage=passage if status == "accepted" else None,
+            observation_version="snippet-observation-v2",
+            source_origin=source_origin,
+            freshness_basis="publication" if result.published_at is not None else "observation_only",
         )
         observations.append(source)
         if status != "accepted":
             continue
-        if fingerprint in by_content:
-            index = by_content[fingerprint]
+        # Identical text at a different publication version remains a distinct fact.
+        duplicate_key = (fingerprint, result.published_at, result.source_revision)
+        if duplicate_key in by_content:
+            index = by_content[duplicate_key]
             old = evidence[index]
             evidence[index] = old.model_copy(
                 update={
@@ -84,7 +123,7 @@ def extract_evidence(session, results, attempt, extractor, now, settings):
                 }
             )
             continue
-        by_content[fingerprint] = len(evidence)
+        by_content[duplicate_key] = len(evidence)
         evidence.append(
             Evidence(
                 id=uuid4(),
@@ -120,7 +159,10 @@ def select_evidence(
     *,
     application_context=None,
     expected_counter_identity=None,
+    packing_strategy="literal-extractive-v1",
 ):
+    if packing_strategy not in {"literal-extractive-v1", "compact-extractive-v1"}:
+        packing_strategy = "literal-extractive-v1"
     excluded, scores, eligible = {}, {}, []
     words = set(re.findall(r"\w+", session.request.question.lower()))
     sources = {s.id: s for s in session.observations}
@@ -161,8 +203,12 @@ def select_evidence(
             str(e.id),
         )
     )
+    ranking_strategy, ranking_fallback = "literal-diversity-v1", False
     if reranker:
         try:
+            identity = getattr(reranker, "strategy_id", None)
+            if not identity or not re.fullmatch(r"[a-z][a-z0-9_-]{0,79}-v[1-9][0-9]*", identity):
+                raise ValueError("unversioned reranker")
             ranked = reranker.rank(session.request.question, tuple(eligible))
             if (
                 len(ranked) != len(eligible)
@@ -171,28 +217,37 @@ def select_evidence(
             ):
                 raise ValueError("reranker changed evidence")
             eligible = list(ranked)
+            ranking_strategy = identity
         except Exception:  # noqa: BLE001 - deterministic fallback retains all candidates
+            ranking_fallback = True
             logging.getLogger(__name__).info("Research reranker fallback")
     blocks = []
     for item in eligible:
+        source_rows = [
+            {
+                "url": sources[i].canonical_url,
+                "title": sources[i].title,
+                "observed_at": item.observed_at.isoformat(),
+                "expires_at": item.expires_at.isoformat(),
+            }
+            for i in item.source_observation_ids
+        ]
+        payload = {"evidence_id": str(item.id), "passage": item.passage, "sources": source_rows}
+        if packing_strategy == "compact-extractive-v1":
+            # A representation experiment, never passage rewriting. Timestamps
+            # bind the whole evidence record; canonical source links stay intact.
+            payload["observed_at"] = item.observed_at.isoformat()
+            payload["expires_at"] = item.expires_at.isoformat()
+            payload["sources"] = [
+                {"url": sources[i].canonical_url} for i in item.source_observation_ids
+            ]
         blocks.append(
             (
                 item.id,
                 json.dumps(
-                    {
-                        "evidence_id": str(item.id),
-                        "passage": item.passage,
-                        "sources": [
-                            {
-                                "url": sources[i].canonical_url,
-                                "title": sources[i].title,
-                                "observed_at": item.observed_at.isoformat(),
-                                "expires_at": item.expires_at.isoformat(),
-                            }
-                            for i in item.source_observation_ids
-                        ],
-                    },
+                    payload,
                     ensure_ascii=False,
+                    separators=(",", ":") if packing_strategy == "compact-extractive-v1" else None,
                 ),
             )
         )
@@ -223,6 +278,9 @@ def select_evidence(
             authority="external",
             sensitivity="public",
             expires_at=item.expires_at,
+            permission_dependencies=observation_dependencies(
+                tuple(sources[i] for i in item.source_observation_ids)
+            ),
         )
         for item in eligible
     }
@@ -268,6 +326,25 @@ def select_evidence(
         token_count=assembled.budget.selected_total,
         counter_kind=assembled.budget.counter_kind,
         created_at=now,
+        ranking_strategy=ranking_strategy,
+        ranking_fallback=ranking_fallback,
+        packing_strategy=packing_strategy,
+        derived=DerivedEvidence(
+            id=uuid5(session.id, "extractive-package-v1:" + packing_strategy + ":" + ":".join(map(str, ids))),
+            packing_strategy=packing_strategy,
+            support=tuple(
+                EvidenceSupport(
+                    evidence_id=item.id,
+                    observation_ids=item.source_observation_ids,
+                    end=len(item.passage),
+                    fingerprint=item.content_fingerprint,
+                )
+                for item in eligible if item.id in ids
+            ),
+            omitted_ids=tuple(item.id for item in eligible if item.id not in ids),
+            input_bytes=sum(len(item.passage.encode()) for item in eligible),
+            output_bytes=sum(len(item.passage.encode()) for item in eligible if item.id in ids),
+        ),
     )
     inference_context = None
     if application_context is not None:

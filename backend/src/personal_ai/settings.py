@@ -260,7 +260,14 @@ class Settings(BaseSettings):
     research_storage: str = Field(default="postgres", pattern=r"^(postgres|memory)$")
     research_enabled: bool = False
     research_inspection_enabled: bool = False
-    research_search_adapter: str = Field(default="fake", pattern=r"^(fake|brave)$")
+    research_search_adapter: str = Field(default="fake", pattern=r"^[a-z][a-z0-9_-]{0,99}$")
+    research_packing_strategy: str = Field(
+        default="literal-extractive-v1", pattern=r"^(literal-extractive-v1|compact-extractive-v1)$"
+    )
+    research_retrieval_experiments_enabled: bool = False
+    research_query_strategy: str = Field(
+        default="literal-snippet-v1", pattern=r"^(literal-snippet-v1|qualifier-v1|expansion-v1)$"
+    )
     research_planner: str = Field(default="deterministic", pattern=r"^deterministic$")
     research_reranker: str = Field(default="deterministic", pattern=r"^deterministic$")
     research_provider_storage_approved: bool = False

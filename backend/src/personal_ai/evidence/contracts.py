@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -60,7 +60,7 @@ class AdapterAttempt(ScopedResearchRecord):
     session_id: UUID
     query_id: UUID
     owner_id: str = Field(min_length=1, max_length=200)
-    adapter: Literal["fake", "brave"]
+    adapter: str = Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_-]*$")
     idempotency_key: str = Field(min_length=1, max_length=200)
     attempt_number: int = Field(ge=1, le=3)
     status: Literal["started", "completed", "failed"]
@@ -68,6 +68,21 @@ class AdapterAttempt(ScopedResearchRecord):
     started_at: datetime
     completed_at: datetime | None = None
     error_code: str | None = Field(default=None, max_length=80)
+    usage_invocation_id: UUID | None = None
+    usage_attempt_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def usage_identity(self):
+        if (self.usage_invocation_id is None) != (self.usage_attempt_id is None):
+            raise ValueError("incomplete usage link")
+        if self.usage_invocation_id is not None and (
+            self.usage_invocation_id != uuid5(self.query_id, "provider-usage-search")
+            or self.usage_attempt_id != uuid5(
+                self.usage_invocation_id, f"provider-attempt:{self.attempt_number}"
+            )
+        ):
+            raise ValueError("incorrect usage link")
+        return self
 
 
 class SourceObservation(ScopedResearchRecord):
@@ -77,12 +92,22 @@ class SourceObservation(ScopedResearchRecord):
     owner_id: str = Field(min_length=1, max_length=200)
     canonical_url: str = Field(min_length=1, max_length=2048)
     title: str | None = Field(default=None, max_length=300)
-    provider: Literal["fake", "brave"]
+    provider: str = Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_-]*$")
     observed_at: datetime
     published_at: datetime | None = None
+    source_revision: str | None = Field(default=None, min_length=1, max_length=100)
     content_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    status: Literal["accepted", "empty", "unsafe", "oversized", "stale"]
+    status: Literal[
+        "accepted", "empty", "unsafe", "oversized", "stale", "source_denied", "freshness_unverified"
+    ]
     attempt_id: UUID
+    rights_reference: str | None = Field(default=None, max_length=200)
+    sensitivity: Literal["public"] = "public"
+    result_index: int | None = Field(default=None, ge=0, le=11)
+    passage: str | None = Field(default=None, max_length=1200)
+    observation_version: Literal["legacy-v1", "snippet-observation-v2"] = "legacy-v1"
+    source_origin: Literal["legacy_unknown", "synthetic", "external"] = "legacy_unknown"
+    freshness_basis: Literal["observation_only", "publication"] = "observation_only"
 
     @model_validator(mode="after")
     def safe_source(self):
@@ -92,7 +117,39 @@ class SourceObservation(ScopedResearchRecord):
             canonical_url(self.canonical_url) != self.canonical_url or not self.content_fingerprint
         ):
             raise ValueError("invalid attribution")
+        if self.observation_version == "snippet-observation-v2" and self.status == "accepted":
+            if not self.rights_reference or not self.passage or self.result_index is None:
+                raise ValueError("missing observation provenance")
+            if sha256(" ".join(self.passage.split()).encode()).hexdigest() != self.content_fingerprint:
+                raise ValueError("observation fingerprint")
         return self
+
+
+# The existing source observation remains canonical; no second observation store.
+EvidenceObservation = SourceObservation
+
+
+class EvidenceSupport(ResearchRecord):
+    evidence_id: UUID
+    observation_ids: tuple[UUID, ...] = Field(min_length=1, max_length=12)
+    start: Literal[0] = 0
+    end: int = Field(ge=1, le=1200)
+    fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class DerivedEvidence(ResearchRecord):
+    """Extractive package identity, never an original observation or domain fact."""
+
+    id: UUID
+    version: Literal["extractive-package-v1"] = "extractive-package-v1"
+    transformation: Literal["whole-passage-extractive-v1"] = "whole-passage-extractive-v1"
+    packing_strategy: Literal["literal-extractive-v1", "compact-extractive-v1"] = "literal-extractive-v1"
+    support: tuple[EvidenceSupport, ...] = Field(max_length=12)
+    omitted_ids: tuple[UUID, ...] = Field(max_length=12)
+    conflict_status: Literal["unresolved_all_eligible_required"] = "unresolved_all_eligible_required"
+    input_bytes: int = Field(ge=0)
+    output_bytes: int = Field(ge=0)
+    compression_calls: Literal[0] = 0
 
 
 class Evidence(ScopedResearchRecord):
@@ -132,3 +189,7 @@ class EvidenceSelection(ScopedResearchRecord):
     token_count: int = Field(ge=0)
     counter_kind: Literal["provider", "estimated"]
     created_at: datetime
+    ranking_strategy: str = Field(default="literal-diversity-v1", max_length=100)
+    ranking_fallback: bool = False
+    packing_strategy: Literal["literal-extractive-v1", "compact-extractive-v1"] = "literal-extractive-v1"
+    derived: DerivedEvidence | None = None

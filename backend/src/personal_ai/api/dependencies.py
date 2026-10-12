@@ -47,6 +47,7 @@ from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, PubSub
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.routing.registry import EndpointRegistry
+from personal_ai.search.authority import ResearchSourceRightsRevalidator
 from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.services.external_turns import ExternalTurnService
 from personal_ai.services.external_turns.authority import PrincipalBoundExternalTurnAuthority
@@ -269,6 +270,7 @@ def get_context_assembler(
         permission_revalidator=ContextPermissionRevalidatorRegistry(
             (
                 BuiltInContextPermissionRevalidator(settings, profile_repository),
+                ResearchSourceRightsRevalidator(settings),
                 *runtime.permission_revalidators,
             )
         ),

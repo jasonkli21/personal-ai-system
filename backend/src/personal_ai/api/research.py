@@ -16,13 +16,8 @@ from personal_ai.api.dependencies import get_application_context, get_current_ow
 from personal_ai.api.routes import SSE_RESPONSES, _LifecycleStreamingResponse
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.assembler import ContextAssembler
-from personal_ai.context.tokens import EstimatedTokenCounter
-from personal_ai.llm.context import GeminiTokenCounter
-from personal_ai.llm.fake import FakeResearchLLMClient
-from personal_ai.llm.gemini import GeminiLLMClient
 from personal_ai.persistence.factory import persistence_factory
-from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
-from personal_ai.search.providers.brave import BraveSearchAdapter
+from personal_ai.search.runtime import compose_research_clients
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
 
@@ -52,23 +47,9 @@ def research_service(
     owner_id: Annotated[str, Depends(get_current_owner_id)],
     application_context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
 ):
-    if settings.research_search_adapter == "fake":
-        adapter = FakeSearchAdapter(
-            (
-                SearchResult(
-                    url="https://example.org/synthetic-research",
-                    title="Synthetic fixture",
-                    text="This is synthetic research evidence for an offline demo. "
-                    "It makes no claim about the real world.",
-                ),
-            )
-        )
-        counter, llm = EstimatedTokenCounter(), FakeResearchLLMClient()
-    else:
-        usage = persistence_factory(settings).provider_usage_accounting(settings)
-        adapter = BraveSearchAdapter(settings, usage_accounting=usage)
-        counter = GeminiTokenCounter(settings, usage_accounting=usage)
-        llm = GeminiLLMClient(settings, usage_accounting=usage)
+    adapter, counter, llm = compose_research_clients(
+        settings, lambda: persistence_factory(settings).provider_usage_accounting(settings)
+    )
     return ResearchService(
         settings,
         repository,
@@ -119,6 +100,8 @@ async def inspect_research(
         "state": session.state,
         "policy_version": session.policy_version,
         "query_count": len(session.queries),
+        "query_strategy": session.query_plan.strategy_id if session.query_plan else "legacy-v1",
+        "query_plan_identity": session.query_plan.identity if session.query_plan else None,
         "source_count": len(session.observations),
         "evidence_count": len(session.evidence),
         "selection": session.selection.model_dump(mode="json") if session.selection else None,

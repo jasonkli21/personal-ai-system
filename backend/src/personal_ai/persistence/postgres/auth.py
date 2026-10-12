@@ -269,6 +269,7 @@ class PostgresAccountLifecycleRepository:
 
         p_families = (
             "research_sessions",
+            "research_experiments",
             "research_request_keys",
             "itinerary_proposals",
             "booking_document_extractions",

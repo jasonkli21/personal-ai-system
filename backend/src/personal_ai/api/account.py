@@ -71,6 +71,16 @@ def export_account(
             max_records=settings.export_max_records,
             max_bytes=settings.export_max_bytes,
         )
+        from personal_ai.context.authority import permission_dependencies_current
+        from personal_ai.search.authority import (
+            ResearchSourceRightsRevalidator,
+            research_export_dependencies,
+        )
+
+        if not permission_dependencies_current(
+            research_export_dependencies(exported), ResearchSourceRightsRevalidator(settings)
+        ):
+            raise AccountDataUnavailable("research_export_rights_revoked")
         if settings.artifacts_enabled:
             try:
                 service = persistence_factory(settings).artifact_service(settings)

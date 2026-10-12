@@ -19,14 +19,9 @@ from personal_ai.api.research import local_repository
 from personal_ai.api.routes import SSE_RESPONSES, _LifecycleStreamingResponse
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.assembler import ContextAssembler
-from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.decisions.repositories import InMemoryDecisionRepository
-from personal_ai.llm.context import GeminiTokenCounter
-from personal_ai.llm.fake import FakeResearchLLMClient
-from personal_ai.llm.gemini import GeminiLLMClient
 from personal_ai.persistence.factory import persistence_factory
-from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
-from personal_ai.search.providers.brave import BraveSearchAdapter
+from personal_ai.search.runtime import compose_research_clients
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
 
@@ -70,23 +65,9 @@ def iterative_research_service(
         sessions = factory.research_repository()
         runs = factory.iterative_research_repository()
         decisions = factory.decision_repository()
-    if settings.research_search_adapter == "fake":
-        adapter = FakeSearchAdapter(
-            (
-                SearchResult(
-                    url="https://example.org/synthetic-research",
-                    title="Synthetic fixture",
-                    text="This is synthetic research evidence for an offline demo. "
-                    "It makes no claim about the real world.",
-                ),
-            )
-        )
-        counter, llm = EstimatedTokenCounter(), FakeResearchLLMClient()
-    else:
-        usage = persistence_factory(settings).provider_usage_accounting(settings)
-        adapter = BraveSearchAdapter(settings, usage_accounting=usage)
-        counter = GeminiTokenCounter(settings, usage_accounting=usage)
-        llm = GeminiLLMClient(settings, usage_accounting=usage)
+    adapter, counter, llm = compose_research_clients(
+        settings, lambda: persistence_factory(settings).provider_usage_accounting(settings)
+    )
     return IterativeResearchService(
         settings,
         sessions,
