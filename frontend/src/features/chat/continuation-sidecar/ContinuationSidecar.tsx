@@ -2,7 +2,7 @@
 
 import { MutationProposalPanel } from "./MutationProposalPanel";
 
-import { FormEvent, useEffect, useMemo, useRef } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, type ApplicationScopeRequest } from "../../../lib/api/common";
 import type { Message } from "../../../lib/api/conversations";
@@ -28,9 +28,11 @@ import { RecoveryPanel } from "./RecoveryPanel";
 import { bridgeExecute, bridgeJson, recoveryStorageKey, validatePairing } from "./bridge-client";
 import { useContinuationSidecar } from "./useContinuationSidecar";
 import styles from "./continuation-sidecar.module.css";
+import { createMutationCandidate, type MutationOperationRef } from "../../../lib/api/mutations";
 
 type Props = {
   mutationProposalId?: string;
+  mutationCandidateOperation?: MutationOperationRef;
   conversationId: string;
   scope?: ApplicationScopeRequest;
   launchContext?: ApplicationLaunchContext;
@@ -95,7 +97,7 @@ function launchFor(
 }
 const noopPrepared = async () => undefined;
 
-export function ContinuationSidecar({ mutationProposalId, conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
+export function ContinuationSidecar({ mutationProposalId, mutationCandidateOperation, conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
   const {
     options, setOptions,
     mode, setMode,
@@ -131,6 +133,10 @@ export function ContinuationSidecar({ mutationProposalId, conversationId, scope 
   const heading = useRef<HTMLHeadingElement>(null);
   const bridgeRequest = useRef<AbortController | null>(null);
   const preparedRef = useRef<PreparedExternalTurn | null>(null);
+  const candidateRequestPending = useRef(false);
+  const [candidateProposalId, setCandidateProposalId] = useState<string | null>(null);
+  const [candidateBusy, setCandidateBusy] = useState(false);
+  const [candidateError, setCandidateError] = useState<string | null>(null);
   const effectiveLaunch = useMemo(
     () => launchFor(conversationId, scope, launchContext),
     [conversationId, scope, launchContext],
@@ -622,6 +628,59 @@ export function ContinuationSidecar({ mutationProposalId, conversationId, scope 
     else void prepareTurn(event);
   }
 
+  async function prepareMutationCandidate() {
+    if (!mutationCandidateOperation || candidateRequestPending.current) return;
+    candidateRequestPending.current = true;
+    setCandidateBusy(true);
+    setCandidateError(null);
+    const key = [
+      "personal-ai-mutation-candidate-v1",
+      requestScope.applicationId ?? "personal_ai",
+      requestScope.workspaceId ?? "",
+      conversationId,
+      target.id,
+      mutationCandidateOperation.operation_id,
+      mutationCandidateOperation.version,
+    ].join(":");
+    let idempotencyKey = crypto.randomUUID();
+    try {
+      const previousProposalId = window.sessionStorage.getItem(`${key}:proposal`);
+      if (previousProposalId) {
+        setCandidateProposalId(previousProposalId);
+        candidateRequestPending.current = false;
+        setCandidateBusy(false);
+        return;
+      }
+      idempotencyKey = window.sessionStorage.getItem(`${key}:idempotency`) ?? idempotencyKey;
+      window.sessionStorage.setItem(`${key}:idempotency`, idempotencyKey);
+    } catch {
+      // The server still resolves and checks the canonical output handle.
+    }
+    try {
+      const result = await createMutationCandidate({
+        idempotency_key: idempotencyKey,
+        output: { conversation_id: conversationId, message_id: target.id },
+        operation: mutationCandidateOperation,
+      }, requestScope);
+      const id = result.proposal.proposal_id;
+      setCandidateProposalId(id);
+      try { window.sessionStorage.setItem(`${key}:proposal`, id); } catch { /* optional recovery hint */ }
+    } catch (failure) {
+      setCandidateError(errorMessage(failure));
+    } finally {
+      candidateRequestPending.current = false;
+      setCandidateBusy(false);
+    }
+  }
+
+  const activeMutationProposalId = mutationProposalId ?? candidateProposalId;
+  const canPrepareMutationCandidate = !!mutationCandidateOperation
+    && target.role === "assistant"
+    && target.status === "completed"
+    && target.application_id === (requestScope.applicationId ?? "personal_ai")
+    && target.workspace_id === (requestScope.workspaceId ?? null)
+    && !activeMutationProposalId;
+
   return <aside ref={sidecar} className={styles.sidecar} role="dialog" aria-modal="true" aria-labelledby="continuation-heading">
     <div className={styles.header}>
       <div>
@@ -763,6 +822,14 @@ export function ContinuationSidecar({ mutationProposalId, conversationId, scope 
         <button type="button" disabled={busy} onClick={() => void discardPrepared()}>Discard and prepare again</button>
       </div>
     </>}
-    {mutationProposalId && <MutationProposalPanel key={mutationProposalId} proposalId={mutationProposalId} scope={requestScope} />}
+    {canPrepareMutationCandidate && <section aria-label="Prepare typed domain proposal">
+      <h3>Typed domain change</h3>
+      <p>Use the registered domain operation to prepare a reviewable change from this completed response.</p>
+      {candidateError && <p role="alert">{candidateError}</p>}
+      <button type="button" disabled={candidateBusy} onClick={() => void prepareMutationCandidate()}>
+        {candidateBusy ? "Preparing proposal…" : "Prepare typed proposal"}
+      </button>
+    </section>}
+    {activeMutationProposalId && <MutationProposalPanel key={activeMutationProposalId} proposalId={activeMutationProposalId} scope={requestScope} />}
   </aside>;
 }

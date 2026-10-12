@@ -45,6 +45,7 @@ def configured_context_runtime(
             source_runtime.export_adapters,
             source_runtime.federation_cases,
             source_runtime.mutation_adapters,
+            source_runtime.mutation_reconciliation_adapters,
         ),
         federation,
     )

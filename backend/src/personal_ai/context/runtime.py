@@ -19,6 +19,11 @@ class ContextRuntimeContribution:
     export_adapters: Mapping[str, object] = field(default_factory=dict)
     federation_cases: Sequence[object] = ()
     mutation_adapters: Mapping[tuple[str, str, int], object] = field(default_factory=dict)
+    # Historical versions are observation/reconciliation-only and are keyed by
+    # their immutable contract fingerprint so same-version semantic changes coexist.
+    mutation_reconciliation_adapters: Mapping[tuple[str, str, int, str], object] = field(
+        default_factory=dict
+    )
 
 
 class ContextRuntimeContributionCatalog:
@@ -89,6 +94,7 @@ class ContextRuntimeRegistry:
         export_adapters: Mapping[str, object] | None = None,
         federation_cases: Sequence[object] = (),
         mutation_adapters: Mapping[tuple[str, str, int], object] | None = None,
+        mutation_reconciliation_adapters: Mapping[tuple[str, str, int, str], object] | None = None,
     ) -> None:
         providers = dict(provider_factories or {})
         for provider_id, provider in providers.items():
@@ -104,6 +110,18 @@ class ContextRuntimeRegistry:
         self.federation_cases = tuple(federation_cases)
         from personal_ai.mutations.registration import validate_adapters
         self.mutation_adapters = MappingProxyType(validate_adapters(mutation_adapters or {}))
+        from personal_ai.mutations.registration import validate_reconciliation_adapters
+        reconciliation = validate_reconciliation_adapters(
+            mutation_reconciliation_adapters or {}
+        )
+        for key, adapter in self.mutation_adapters.items():
+            declaration = adapter.declaration
+            reconciliation_key = (*key, declaration.contract_fingerprint)
+            existing = reconciliation.get(reconciliation_key)
+            if existing is not None and existing is not adapter:
+                raise ValueError("mutation_reconciliation_adapter_duplicate")
+            reconciliation[reconciliation_key] = adapter
+        self.mutation_reconciliation_adapters = MappingProxyType(reconciliation)
 
 
 def compose_context_runtime(
@@ -118,10 +136,14 @@ def compose_context_runtime(
     federation_cases: list[object] = []
     case_provider_ids: set[str] = set()
     mutation_adapters = {}
+    mutation_reconciliation_adapters = {}
     for contribution in contributions:
         if mutation_adapters.keys() & contribution.mutation_adapters.keys():
             raise ValueError("mutation_adapter_duplicate")
         mutation_adapters.update(contribution.mutation_adapters)
+        if mutation_reconciliation_adapters.keys() & contribution.mutation_reconciliation_adapters.keys():
+            raise ValueError("mutation_reconciliation_adapter_duplicate")
+        mutation_reconciliation_adapters.update(contribution.mutation_reconciliation_adapters)
         overlap = providers.keys() & contribution.provider_factories.keys()
         if overlap:
             raise ValueError("context_runtime_provider_id_duplicate")
@@ -156,7 +178,13 @@ def compose_context_runtime(
             namespaces.update(declared)
             revalidators.append(revalidator)
     return ContextRuntimeRegistry(
-        providers, rules, revalidators, export_adapters, federation_cases, mutation_adapters
+        providers,
+        rules,
+        revalidators,
+        export_adapters,
+        federation_cases,
+        mutation_adapters,
+        mutation_reconciliation_adapters,
     )
 
 

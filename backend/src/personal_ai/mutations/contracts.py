@@ -1,5 +1,7 @@
 """Versioned external-effect metadata. None of these records owns domain state."""
 
+from __future__ import annotations
+
 import json
 from hashlib import sha256
 from typing import Literal, Protocol
@@ -36,15 +38,62 @@ class MutationOperationDeclaration(OperationRef):
     payload_schema_id: str = Field(min_length=1, max_length=100)
     entity_types: tuple[str, ...] = Field(min_length=1, max_length=16)
     sensitivity: Literal["public", "personal", "sensitive", "restricted"]
+    # Must change when the operation's meaning or validation/effect contract changes,
+    # even if the payload schema and operation version happen to stay the same.
+    contract_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class ProducerProvenance(StrictModel):
-    provider_id: str = Field(min_length=1, max_length=100)
-    model_id: str = Field(min_length=1, max_length=100)
+    """Server-resolved projection of one completed canonical output attribution."""
+
+    provider_id: str | None = Field(default=None, max_length=100)
+    model_id: str | None = Field(default=None, max_length=100)
     endpoint_profile_id: str | None = Field(default=None, max_length=100)
-    output_reference: str = Field(min_length=1, max_length=200)
-    # Producer labels, especially manual imports, never imply verified identity.
-    trust: Literal["claimed"] = "claimed"
+    output_message_id: UUID
+    output_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    attribution_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    fact_source: Literal["server_observed", "client_reported", "user_declared"]
+    execution_origin: Literal["automatic_managed", "connected_local", "manual_import"]
+    connection_id: UUID | None = None
+    connection_revision: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def producer_matches_origin(self):
+        if self.execution_origin == "manual_import":
+            if self.fact_source != "user_declared" or self.provider_id or self.model_id:
+                raise ValueError("manual_output_cannot_claim_a_producer")
+        elif not self.provider_id or not self.model_id or self.fact_source == "user_declared":
+            raise ValueError("managed_output_requires_canonical_producer")
+        if (self.connection_id is None) != (self.connection_revision is None):
+            raise ValueError("canonical_output_connection_incomplete")
+        if (self.execution_origin == "connected_local") != (self.connection_id is not None):
+            raise ValueError("canonical_output_origin_mismatch")
+        return self
+
+
+class CanonicalOutputHandle(StrictModel):
+    """Opaque selectors only; the service resolves all authority from persistence."""
+
+    conversation_id: UUID
+    message_id: UUID
+
+
+class MutationCandidateRequest(StrictModel):
+    """Selectors only; a registered domain adapter derives the typed candidate."""
+
+    idempotency_key: UUID
+    output: CanonicalOutputHandle
+    operation: OperationRef
+
+
+class TypedMutationCandidate(StrictModel):
+    """Domain-produced candidate resolved from a canonical completed output."""
+
+    target: ContextEntityReference
+    payload_schema_id: str = Field(min_length=1, max_length=100)
+    payload: dict[str, JsonValue]
+    expected_domain_version: str = Field(min_length=1, max_length=100)
+    rationale: str = Field(min_length=1, max_length=2000)
 
 
 class ProposalIntent(StrictModel):
@@ -57,6 +106,7 @@ class ProposalIntent(StrictModel):
     rationale: str = Field(min_length=1, max_length=2000)
     producer: ProducerProvenance
     sources: tuple[ContextSourceSnapshot, ...] = Field(min_length=1, max_length=16)
+    operation_contract_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     expires_at: AwareDatetime
 
     @model_validator(mode="after")
@@ -160,6 +210,10 @@ class MutationError(ValueError):
         super().__init__(code)
 
 
+class MutationUnavailableError(MutationError):
+    """Authority/runtime could not be checked before a physical effect was reserved."""
+
+
 class MutationAdapter(Protocol):
     """Domain-owned authority, not a generic database writer.
 
@@ -176,6 +230,9 @@ class MutationAdapter(Protocol):
 
     def authorize(self, scope: RequestScope, target: ContextEntityReference, *, action: str) -> bool: ...
     def validate(self, scope: RequestScope, proposal: MutationProposal) -> DomainValidation: ...
+    def candidate_from_output(
+        self, scope: RequestScope, output: object
+    ) -> TypedMutationCandidate: ...
     def execute(self, scope: RequestScope, proposal: MutationProposal) -> DomainOutcome: ...
     def reconcile(self, scope: RequestScope, proposal: MutationProposal) -> DomainOutcome: ...
 
@@ -225,14 +282,18 @@ class PublicMutationProposal(StrictModel):
     updated_at: AwareDatetime
     sensitivity: Literal["public", "personal", "sensitive", "restricted"]
     state: MutationState
-    domain_operation_key: UUID
     validation: PublicValidation | None
     confirmation: PublicConfirmation | None
-    execution_attempt_id: UUID | None
-    reconciliation_id: UUID | None
-    lease_until: AwareDatetime | None
-    outcome: DomainOutcome | None
+    outcome: PublicDomainOutcome | None
     terminal_code: str | None
+
+
+class PublicDomainOutcome(StrictModel):
+    """Browser-safe authoritative outcome, without domain operation keys."""
+
+    state: Literal["applied", "rejected", "uncertain"]
+    code: str
+    post_state: AuthoritativePostState | None = None
 
 
 class ProposalView(StrictModel):

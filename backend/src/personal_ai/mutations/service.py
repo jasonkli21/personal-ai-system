@@ -1,16 +1,22 @@
 """One generic controller for confirmed, domain-authorized external effects."""
 
+import json
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from uuid import uuid4, uuid5
 
 from personal_ai.mutations.contracts import (
     Confirmation,
     DomainOutcome,
     DomainValidation,
+    MutationCandidateRequest,
     MutationError,
     MutationProposal,
+    MutationUnavailableError,
+    ProducerProvenance,
     ProposalIntent,
     ProposalView,
+    TypedMutationCandidate,
     proposal_identity,
 )
 from personal_ai.mutations.registration import operation_adapter
@@ -20,11 +26,12 @@ TERMINAL = {"applied", "rejected", "expired"}
 
 
 class MutationService:
-    def __init__(self, repository, registry, runtime, permissions, *, clock=None):
+    def __init__(self, repository, registry, runtime, permissions, *, output_resolver=None, clock=None):
         self.repository = repository
         self.registry = registry
         self.runtime = runtime
         self.permissions = permissions
+        self.output_resolver = output_resolver
         self.clock = clock or (lambda: datetime.now(UTC))
 
     @staticmethod
@@ -41,8 +48,19 @@ class MutationService:
         if ((definition.workspace_kind == "unsupported" and scope.workspace_id is not None)
             or (definition.workspace_kind == "required" and scope.workspace_id is None)):
             raise MutationError("mutation_workspace_denied")
-        adapter = operation_adapter(self.registry, self.runtime, scope, intent.operation,
-                                    require_policy=require_policy)
+        try:
+            adapter = operation_adapter(
+                self.registry,
+                self.runtime,
+                scope,
+                intent.operation,
+                contract_fingerprint=intent.operation_contract_fingerprint,
+                require_policy=require_policy,
+            )
+        except MutationError as error:
+            if "implementation_unavailable" in error.code:
+                raise MutationUnavailableError(error.code) from error
+            raise
         if (intent.payload_schema_id != adapter.declaration.payload_schema_id
             or intent.target.entity_type not in adapter.declaration.entity_types):
             raise MutationError("mutation_schema_unsupported")
@@ -55,8 +73,8 @@ class MutationService:
     def _authorize(self, adapter, scope, proposal, action):
         try:
             allowed = adapter.authorize(scope, proposal.intent.target, action=action)
-        except Exception:  # noqa: BLE001 - unavailable domain authority denies access
-            allowed = False
+        except Exception as error:
+            raise MutationUnavailableError("mutation_authority_unavailable") from error
         if allowed is not True:
             raise MutationError("mutation_authorization_denied")
 
@@ -77,12 +95,12 @@ class MutationService:
                 raise MutationError("mutation_source_denied")
             try:
                 current = self.permissions.is_current(dependency)
-            except Exception:  # noqa: BLE001 - unknown effect or unavailable authority
-                current = False
+            except Exception as error:
+                raise MutationUnavailableError("mutation_source_authority_unavailable") from error
             if current is not True:
                 raise MutationError("mutation_source_denied")
 
-    def _load(self, principal, scope, proposal_id, *, require_policy=True):
+    def _load_control_record(self, principal, scope, proposal_id, *, require_policy=True):
         self._identity(principal, scope)
         proposal = self.repository.get(scope, proposal_id)
         if proposal is None or proposal.acting_user_id != scope.acting_user_id:
@@ -90,14 +108,17 @@ class MutationService:
         adapter = self._adapter(scope, proposal.intent, require_policy=require_policy)
         return proposal, adapter
 
-    def read(self, principal, scope, proposal_id):
-        proposal, adapter = self._load(principal, scope, proposal_id, require_policy=False)
+    def load_control_record(self, principal, scope, proposal_id):
+        """Internal orchestration read. Callers must not disclose its source-derived fields."""
+        proposal, adapter = self._load_control_record(
+            principal, scope, proposal_id, require_policy=False
+        )
         self._authorize(adapter, scope, proposal, "read")
         if proposal.state in {"proposed", "validated", "confirmed"}:
             self._dependencies(scope, proposal)
         return proposal
 
-    def present(self, principal, scope, proposal):
+    def _present(self, principal, scope, proposal):
         """Capability + implementation + policy + current authority, never UI truth."""
         self._identity(principal, scope)
         if proposal.owner_id != scope.owner_id or proposal.acting_user_id != scope.acting_user_id:
@@ -111,8 +132,8 @@ class MutationService:
             self._dependencies(scope, proposal)
         available = False
         try:
-            self._adapter(scope, proposal.intent)
-            self._authorize(adapter, scope, proposal, "execute")
+            current_adapter = self._adapter(scope, proposal.intent)
+            self._authorize(current_adapter, scope, proposal, "execute")
             available = bool(
                 proposal.state in {"validated", "confirmed"} and proposal.validation
                 and proposal.validation.valid and proposal.validation.expires_at > self.clock()
@@ -123,9 +144,12 @@ class MutationService:
         # Client IDs/digests are references, not reusable authorization proofs.
         public = proposal.model_dump(mode="json", exclude={
             "owner_id": True, "acting_user_id": True,
-            "intent": {"sources": True},
+            "domain_operation_key": True, "execution_attempt_id": True,
+            "reconciliation_id": True, "lease_until": True,
+            "intent": {"sources": True, "operation_contract_fingerprint": True},
             "validation": {"permission_dependencies": True},
             "confirmation": {"acting_user_id": True},
+            "outcome": {"domain_operation_key": True},
         })
         public["schema_version"] = "mutation-proposal-view-v1"
         public["intent"]["source_refs"] = [
@@ -140,6 +164,11 @@ class MutationService:
                 public["validation"]["preview"] = None
         return ProposalView(proposal=public, binding=proposal.binding(), apply_available=available)
 
+    def read_view(self, principal, scope, proposal_id):
+        """Disclosure-safe read for routes and other public presentation boundaries."""
+        proposal = self.load_control_record(principal, scope, proposal_id)
+        return self._present(principal, scope, proposal)
+
     def _save(self, proposal, **changes):
         candidate = MutationProposal.model_validate(proposal.model_dump() | {
             "revision": proposal.revision + 1, "updated_at": self.clock(), **changes,
@@ -153,7 +182,87 @@ class MutationService:
             self._save(proposal, state="expired", terminal_code="confirmation_expired")
             raise MutationError("mutation_expired")
 
-    def create(self, principal, scope, intent: ProposalIntent):
+    def create_from_output(self, principal, scope, candidate: MutationCandidateRequest):
+        """Resolve canonical producer and source authority from a persisted completed output."""
+        self._identity(principal, scope)
+        if self.output_resolver is None:
+            raise MutationUnavailableError("mutation_output_resolver_unavailable")
+        candidate = MutationCandidateRequest.model_validate_json(candidate.model_dump_json())
+        message = self.output_resolver.resolve(scope, candidate.output)
+        attribution = message.attribution
+        assert attribution is not None
+        if len(attribution.source_snapshots) > 16:
+            raise MutationError("mutation_output_source_authority_unavailable")
+        definition = self.registry.get(scope.application_id)
+        declaration = next(
+            (
+                item for item in definition.mutation_operations
+                if item.operation_id == candidate.operation.operation_id
+                and item.version == candidate.operation.version
+            ),
+            None,
+        )
+        if declaration is None:
+            raise MutationError("mutation_operation_unsupported")
+        try:
+            adapter = operation_adapter(
+                self.registry,
+                self.runtime,
+                scope,
+                candidate.operation,
+                contract_fingerprint=declaration.contract_fingerprint,
+                require_policy=True,
+            )
+        except MutationError as error:
+            if "implementation_unavailable" in error.code:
+                raise MutationUnavailableError(error.code) from error
+            raise
+        try:
+            resolved = adapter.candidate_from_output(scope, message)
+            resolved = TypedMutationCandidate.model_validate_json(resolved.model_dump_json())
+        except MutationUnavailableError:
+            raise
+        except Exception as error:
+            raise MutationUnavailableError("mutation_candidate_conversion_unavailable") from error
+        endpoint_profile_id = (
+            message.execution.endpoint_profile_id if message.execution is not None else None
+        )
+        output_fingerprint = sha256(message.content.encode("utf-8")).hexdigest()
+        attribution_json = json.dumps(
+            attribution.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        producer = ProducerProvenance(
+            provider_id=attribution.provider_id,
+            model_id=attribution.model_id,
+            endpoint_profile_id=endpoint_profile_id,
+            output_message_id=message.id,
+            output_fingerprint=output_fingerprint,
+            attribution_fingerprint=sha256(attribution_json.encode("utf-8")).hexdigest(),
+            fact_source=attribution.fact_source,
+            execution_origin=attribution.execution_origin,
+            connection_id=attribution.connection_id,
+            connection_revision=attribution.connection_revision,
+        )
+        intent = ProposalIntent(
+            idempotency_key=candidate.idempotency_key,
+            target=resolved.target,
+            operation=candidate.operation,
+            payload_schema_id=resolved.payload_schema_id,
+            payload=resolved.payload,
+            expected_domain_version=resolved.expected_domain_version,
+            rationale=resolved.rationale,
+            producer=producer,
+            sources=attribution.source_snapshots,
+            operation_contract_fingerprint=adapter.declaration.contract_fingerprint,
+            expires_at=self.clock() + timedelta(minutes=10),
+        )
+        return self._create_resolved(principal, scope, intent)
+
+    def _create_resolved(self, principal, scope, intent: ProposalIntent):
+        """Create only after a trusted caller has resolved the persisted attribution."""
         self._identity(principal, scope)
         # Reparse to detach mutable dictionaries from callers.
         intent = ProposalIntent.model_validate_json(intent.model_dump_json())
@@ -164,7 +273,7 @@ class MutationService:
         if current:
             if current.intent != intent:
                 raise MutationError("mutation_idempotency_conflict")
-            return self.read(principal, scope, proposal_id)
+            return self.load_control_record(principal, scope, proposal_id)
         now = self.clock()
         if not now < intent.expires_at <= now + timedelta(hours=1):
             raise MutationError("mutation_expiry_invalid")
@@ -183,10 +292,10 @@ class MutationService:
             current = self.repository.get(scope, proposal_id)
             if current is None or current.intent != intent:
                 raise MutationError("mutation_idempotency_conflict") from None
-            return self.read(principal, scope, proposal_id)
+            return self.load_control_record(principal, scope, proposal_id)
 
     def validate(self, principal, scope, proposal_id):
-        proposal, adapter = self._load(principal, scope, proposal_id)
+        proposal, adapter = self._load_control_record(principal, scope, proposal_id)
         self._authorize(adapter, scope, proposal, "validate")
         self._dependencies(scope, proposal)
         if proposal.state != "proposed":
@@ -207,10 +316,10 @@ class MutationService:
                               state="validated" if validation.valid else "rejected",
                               terminal_code=None if validation.valid else validation.code)
         except PersistenceConflict:
-            return self.read(principal, scope, proposal_id)
+            return self.load_control_record(principal, scope, proposal_id)
 
     def confirm(self, principal, scope, proposal_id, *, binding, confirmation_id):
-        proposal, adapter = self._load(principal, scope, proposal_id)
+        proposal, adapter = self._load_control_record(principal, scope, proposal_id)
         self._authorize(adapter, scope, proposal, "confirm")
         self._dependencies(scope, proposal)
         if (not proposal.validation or not proposal.validation.valid
@@ -228,7 +337,7 @@ class MutationService:
         try:
             return self._save(proposal, state="confirmed", confirmation=confirmation)
         except PersistenceConflict:
-            current = self.read(principal, scope, proposal_id)
+            current = self.load_control_record(principal, scope, proposal_id)
             if (not current.confirmation
                 or current.confirmation.confirmation_id != confirmation_id
                 or current.confirmation.binding != binding):
@@ -236,7 +345,9 @@ class MutationService:
             return current
 
     def apply(self, principal, scope, proposal_id, *, confirmation_id, binding):
-        proposal, adapter = self._load(principal, scope, proposal_id, require_policy=False)
+        proposal, adapter = self._load_control_record(
+            principal, scope, proposal_id, require_policy=False
+        )
         if (not proposal.confirmation or proposal.confirmation.confirmation_id != confirmation_id
             or binding != proposal.binding() or proposal.confirmation.binding != binding):
             raise MutationError("mutation_confirmation_invalid")
@@ -250,9 +361,12 @@ class MutationService:
             raise MutationError("mutation_confirmation_invalid")
         self._expire(proposal)
         try:
-            self._adapter(scope, proposal.intent)
+            adapter = self._adapter(scope, proposal.intent)
             self._authorize(adapter, scope, proposal, "execute")
             self._dependencies(scope, proposal)
+        except MutationUnavailableError:
+            # No effect was reserved or sent; keep the exact confirmed binding retryable.
+            raise
         except MutationError as error:
             self._save(proposal, state="rejected", terminal_code=error.code)
             raise
@@ -285,10 +399,12 @@ class MutationService:
                           terminal_code=outcome.code if outcome.state == "rejected" else None)
 
     def reconcile(self, principal, scope, proposal_id):
-        proposal, adapter = self._load(principal, scope, proposal_id, require_policy=False)
+        proposal, adapter = self._load_control_record(
+            principal, scope, proposal_id, require_policy=False
+        )
         self._authorize(adapter, scope, proposal, "reconcile")
         if proposal.state in TERMINAL:
-            return self.read(principal, scope, proposal_id)
+            return self.load_control_record(principal, scope, proposal_id)
         if proposal.state not in {"executing", "reconciling", "uncertain"}:
             raise MutationError("mutation_reconciliation_invalid")
         if proposal.lease_until and proposal.lease_until > self.clock():

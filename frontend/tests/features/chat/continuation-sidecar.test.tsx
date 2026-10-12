@@ -283,6 +283,116 @@ describe("continuation sidecar", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("creates a proposal from the selected canonical output and gives the opaque ID to the shared panel", async () => {
+    const syntheticScope = { applicationId: "synthetic_app", workspaceId: "workspace-1" };
+    const syntheticTarget = {
+      ...target,
+      application_id: "synthetic_app",
+      workspace_id: "workspace-1",
+    };
+    const candidateView = {
+      binding: "d".repeat(64),
+      apply_available: false,
+      proposal: {
+        schema_version: "mutation-proposal-view-v1",
+        proposal_id: "synthetic-proposal-1",
+        revision: 1,
+        state: "proposed",
+        intent: {
+          target: {
+            application_id: "synthetic_app",
+            workspace_id: "workspace-1",
+            entity_type: "note",
+            entity_id: "note-1",
+          },
+          operation: { operation_id: "synthetic.note.rename", version: 1 },
+          payload: { title: "Updated title" },
+          expected_domain_version: "v1",
+          expires_at: "2099-01-01T00:00:00Z",
+        },
+        validation: null,
+        confirmation: null,
+        outcome: null,
+        terminal_code: null,
+      },
+    };
+    const viewFor = (state: "proposed" | "validated" | "confirmed" | "applied") => ({
+      ...candidateView,
+      apply_available: state === "validated" || state === "confirmed",
+      proposal: {
+        ...candidateView.proposal,
+        state,
+        revision: state === "proposed" ? 1 : state === "validated" ? 2 : state === "confirmed" ? 3 : 4,
+        validation: state === "proposed" ? null : {
+          valid: true,
+          preview: "Rename the synthetic note",
+          expires_at: "2099-01-01T00:00:00Z",
+          code: "valid",
+        },
+        confirmation: state === "confirmed" || state === "applied"
+          ? { confirmation_id: "synthetic-confirmation-1", binding: "d".repeat(64) }
+          : null,
+        outcome: state === "applied" ? {
+          state: "applied",
+          code: "committed",
+          post_state: {
+            target: candidateView.proposal.intent.target,
+            domain_version: "v2",
+            reference_id: "synthetic-receipt-1",
+          },
+        } : null,
+      },
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(executionOptions(["automatic", "manual_external"])))
+      .mockResolvedValueOnce(jsonResponse(viewFor("proposed"), 201))
+      .mockResolvedValueOnce(jsonResponse(viewFor("proposed")))
+      .mockResolvedValueOnce(jsonResponse(viewFor("validated")))
+      .mockResolvedValueOnce(jsonResponse(viewFor("confirmed")))
+      .mockResolvedValueOnce(jsonResponse(viewFor("applied")));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      scope={syntheticScope}
+      target={syntheticTarget}
+      mutationCandidateOperation={{ operation_id: "synthetic.note.rename", version: 1 }}
+      onClose={vi.fn()}
+      onAutomatic={vi.fn()}
+      onSaved={vi.fn()}
+    />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Prepare typed proposal" }));
+    expect(await screen.findByText("Status: proposed")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/mutations/candidates", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"message_id":"answer-1"'),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/mutations/synthetic-proposal-1", expect.any(Object));
+    fireEvent.click(screen.getByRole("button", { name: "Validate proposal" }));
+    expect(await screen.findByRole("button", { name: "Confirm change" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "I reviewed this exact change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm change" }));
+    expect(await screen.findByRole("button", { name: "Apply confirmed change" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply confirmed change" }));
+    expect(await screen.findByText(/Authoritative result: synthetic-receipt-1/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/mutations/synthetic-proposal-1/validate", expect.objectContaining({ method: "POST" }));
+    const confirmCall = fetchMock.mock.calls[4];
+    expect(confirmCall?.[0]).toBe("/api/mutations/synthetic-proposal-1/confirm");
+    expect(confirmCall?.[1]).toMatchObject({
+      method: "POST",
+      body: expect.stringContaining('"binding":"' + "d".repeat(64) + '"'),
+    });
+    const confirmationBody = JSON.parse(String(confirmCall?.[1]?.body)) as {
+      confirmation_id: string;
+    };
+    expect(confirmationBody.confirmation_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(fetchMock).toHaveBeenNthCalledWith(6, "/api/mutations/synthetic-proposal-1/apply", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ confirmation_id: "synthetic-confirmation-1", binding: "d".repeat(64) }),
+    }));
+  });
+
   it("keeps manual external mode hidden when application policy denies disclosure", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(executionOptions(
       ["automatic", "manual_external"],

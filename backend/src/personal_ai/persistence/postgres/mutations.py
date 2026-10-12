@@ -28,6 +28,19 @@ class PostgresMutationRepository:
             raise RuntimeError("mutation_persisted_identity_invalid")
         return proposal
 
+    def required_operation_contracts(self):
+        """List contracts referenced by retained proposals, including terminal receipts."""
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                "SELECT DISTINCT application_id, operation_id, operation_version, "
+                "payload #>> '{intent,operation_contract_fingerprint}' "
+                "FROM mutation_proposals"
+            ).fetchall()
+        return tuple(
+            (str(application_id), str(operation_id), int(version), fingerprint)
+            for application_id, operation_id, version, fingerprint in rows
+        )
+
     def save(self, proposal, *, expected_revision):
         proposal = MutationProposal.model_validate_json(proposal.model_dump_json())
         payload = proposal.model_dump_json()

@@ -28,6 +28,17 @@ export type MutationView = {
   };
 };
 export type MutationConfirmation = { confirmation_id: string; binding: string };
+export type MutationOperationRef = { operation_id: string; version: number };
+export type MutationCandidateRequest = {
+  idempotency_key: string;
+  output: { conversation_id: string; message_id: string };
+  operation: MutationOperationRef;
+};
+export function createMutationCandidate(candidate: MutationCandidateRequest, scope: ApplicationScopeRequest) {
+  return request<MutationView>("/mutations/candidates", {
+    method: "POST", body: JSON.stringify(candidate),
+  }, scope);
+}
 export function readMutation(id: string, scope: ApplicationScopeRequest) {
   return request<MutationView>(`/mutations/${encodeURIComponent(id)}`, undefined, scope);
 }

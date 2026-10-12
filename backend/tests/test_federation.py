@@ -1136,6 +1136,11 @@ def test_synthetic_export_uses_real_startup_contribution_catalog(federation, mon
     class Factory:
         def federation_grant_repository(self):
             return f["repository"]
+        def mutation_repository(self):
+            class EmptyMutationRepository:
+                def required_operation_contracts(self):
+                    return ()
+            return EmptyMutationRepository()
 
     monkeypatch.setattr(
         "personal_ai.persistence.factory.persistence_factory", lambda _settings: Factory()
