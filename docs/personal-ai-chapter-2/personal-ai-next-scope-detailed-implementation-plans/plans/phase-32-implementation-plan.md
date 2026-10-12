@@ -81,7 +81,14 @@ Required phases: 22 and 30, plus standing Phase 10 persistence and implemented P
 
 ### `PlanningRequest`
 
-The exact code shape may follow existing repository conventions, but the logical contract must include bounded, non-secret facts sufficient for selection:
+The first implemented `planning-request-v1` is a narrowing-only validation
+experiment. It is not an assisted-selection request, carries no task semantics,
+and cannot be used for model inference. Its server-issued choices bind only
+already selected, independently authorized sources.
+
+Before any future assisted selection call, define and separately version a
+privacy-reviewed contract with bounded, non-secret facts sufficient for that
+selection task:
 
 - authenticated owner-derived request identity by safe reference;
 - `application_id` and optional `workspace_id`;
@@ -99,6 +106,12 @@ The exact code shape may follow existing repository conventions, but the logical
 - request deadline and permitted planner resource budget.
 
 The assisted planner must not receive raw credentials, unrestricted source catalogs, arbitrary domain rows, or sensitive source bodies solely for planning.
+
+A future request contract must establish the eligible candidate envelope under
+current application/workspace policy, grant/consent, provider capability, and
+sensitivity checks before disclosure. It must encode task/profile features that
+can represent the declared omission class. Model proposals remain non-authoritative
+and cannot manufacture access.
 
 ### `ContextPlanProposal`
 
@@ -145,6 +158,8 @@ Record a privacy-safe, versioned trace sufficient for evaluation/debugging:
 - accepted/rejected/narrowed elements with reason codes;
 - final plan;
 - policy/grant/source dependency versions;
+- accepted/rejected/narrowed/retained proposal choices with reason codes;
+- measured canonical planning latency and bounded planner resource overhead;
 - planner tokens/usage/latency;
 - downstream retrieval/context metrics;
 - evaluation identity and outcome references.

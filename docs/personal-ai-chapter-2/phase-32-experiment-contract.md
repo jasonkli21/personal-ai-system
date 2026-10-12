@@ -1,4 +1,4 @@
-# Phase 32 experiment contract — v1
+# Phase 32 experiment contract — v2
 
 Declared 2026-10-12 before running the Phase 32 benchmark. This contract is not a promotion record.
 
@@ -6,9 +6,10 @@ Declared 2026-10-12 before running the Phase 32 benchmark. This contract is not 
 
 Control: `deterministic-context-planner-v1`, maximum source allocation 1,200 tokens,
 configured rules from the canonical deployment contribution catalog plus built-in
-rules. The benchmark records the configuration fingerprint, fixture digest, source
-revision, and deterministic algorithm digest. A changed algorithm/configuration
-requires a new baseline, never an overwritten historical result.
+rules. The benchmark records the configuration fingerprint, fixture digest, tested
+Git revision relationship, material source digest, full Python runtime, platform,
+and installed distribution inventory digest. A changed algorithm/configuration or
+runtime requires a new baseline, never an overwritten historical result.
 
 ## Coverage and decision rules
 
@@ -37,19 +38,42 @@ A source-selection/support proxy is not a measured model-answer quality score.
 
 1. `ContextPlan`: frozen deterministic strategy/version/configuration and scoped
    retrieval baseline; not an authorization grant.
-2. `PlanningRequest`: bounded typed metadata produced only after shared policy
-   and provider authority preflight; opaque choice IDs resolve to exact server-held
-   selections. No intent text, source bodies, credentials, raw entity/grant IDs or
-   unrestricted catalogs. The first experiment envelope permits only narrowing
-   already selected sources. It cannot recover omissions by manufacturing access.
+2. `PlanningRequest`: v1 is explicitly a **narrowing-only validation experiment**,
+   not an assisted-selection request and not eligible for model inference. Bounded
+   metadata is produced only after shared policy and provider authority preflight;
+   opaque choice IDs resolve to exact server-held selections. It contains no task
+   semantics and cannot recover omissions by manufacturing access. A future
+   assisted-selection contract must be separately versioned and authorized before
+   any model call. It must define privacy-reviewed typed task/profile features and
+   a candidate envelope already independently eligible under current policy,
+   grants, sensitivity, and provider authority. It must not include raw intent,
+   source bodies, credentials, raw entity/grant IDs, or an unrestricted catalog.
 3. `ContextPlanProposal`: bounded IDs, allowlisted fields and caps only. Exact
    entities, federation purpose/grant, windows and scope stay server-held. Extra
    keys, unknown IDs/fields, duplicate choices and excess caps fail validation.
 4. Server-approved final plan plus `PlanningTrace`: independently repeats current
    policy, scope, capability/spec availability and registered authority preflight.
+   Typed dependency versions distinguish validation state from exact source and
+   permission revisions observed after retrieval. Each known proposal choice records
+   accepted, narrowed, rejected, or retained disposition with a reason code.
+   Bound validation traces can be reduced to per-case proposal-attempt, rejection,
+   narrowing, fallback, and unauthorized-attempt measurements. When no such trace
+   was recorded, those measurements remain unknown.
    Required selections cannot be removed. Builder/provider checks still run at
    retrieval and disclosure. Compact diagnostics reuse existing context traces;
    experiment records are synthetic files, not a private production dataset.
+
+The v2 held-out corpus adds an authorized 16-provider catalog under a tight token
+budget and exact trip-source revision transitions with complete and partial
+observations. Grant epoch, export-consent, membership/source-policy, revocation, and
+expiry states are separate synthetic benchmark rows. They do not establish live
+store race acceptance or independent-family sufficiency for promotion.
+
+The evaluation runner accepts Phase 22 quality evidence only when the strategy,
+configuration, exact assembled-context digest, and tested revision match the row.
+Quality evidence includes the scorer's hard-boundary outcome. The current
+deterministic corpus has no observed downstream answer or validation-trace evidence;
+these fields remain explicitly unmeasured and block promotion.
 
 ## Resource and inference boundary
 

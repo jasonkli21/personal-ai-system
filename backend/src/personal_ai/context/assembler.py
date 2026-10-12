@@ -4,7 +4,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
-from time import monotonic
+from time import monotonic, perf_counter
 from uuid import UUID, uuid4
 
 from personal_ai.applications.contracts import ApplicationContextRequest
@@ -44,6 +44,7 @@ from personal_ai.context.planner import (
     ContextPlanner,
     PlanningSelectionSummary,
     PlanningTrace,
+    planning_dependency_versions,
     planning_digest,
 )
 from personal_ai.context.providers import (
@@ -118,6 +119,7 @@ class ContextAssembler:
         now: datetime | None = None,
     ) -> ContextPlan:
         """Plan bounded source operations before any request-specific retrieval."""
+        planning_started = perf_counter()
         capabilities = {}
         if self.context_provider_coordinator is not None:
             provider_ids = {
@@ -171,9 +173,24 @@ class ContextAssembler:
             self.context_provider_coordinator.authorize_boundaries(plan.selections, application_context.scope)
         digest = planning_digest(plan)
         summary = tuple(PlanningSelectionSummary.from_selection(s) for s in plan.selections)
+        dependencies = ()
+        if self.context_provider_coordinator is not None:
+            specs = tuple(
+                self.context_provider_coordinator.planning_capability(
+                    application_context, selection.provider_id
+                ).spec
+                for selection in plan.selections
+            )
+            if any(spec is None for spec in specs):
+                raise ContextPreparationError("context_provider_unavailable")
+            dependencies = planning_dependency_versions(application_context, plan, specs)
         return plan.model_copy(update={"planning_trace": PlanningTrace(
             configuration_digest=self.context_planner.configuration_digest,
             baseline_digest=digest, final_digest=digest, baseline=summary, final=summary,
+            dependencies=dependencies,
+            dependency_count=len(dependencies),
+            dependencies_truncated=len(dependencies) > 64,
+            planning_latency_ms=round((perf_counter() - planning_started) * 1000, 3),
         )})
 
     def planning_envelope(self, baseline, application_context, *, deadline, maximum_sensitivity=None):

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import perf_counter
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -21,8 +22,10 @@ from personal_ai.context.authorization import (
 )
 from personal_ai.context.planner import (
     ContextPlan,
+    PlanningChoiceResult,
     PlanningSelectionSummary,
     PlanningTrace,
+    planning_dependency_versions,
     planning_digest,
 )
 from personal_ai.context.providers import (
@@ -58,12 +61,13 @@ class PlanningChoice(BaseModel):
 
 
 class PlanningRequest(BaseModel):
-    """Minimized metadata; opaque choices bind exact scopes/entities/windows/grants."""
+    """Narrowing-only validator metadata, not a model-assisted selection contract."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal["planning-request-v1"] = "planning-request-v1"
     strategy_version: Literal["narrowing-experiment-v1"] = "narrowing-experiment-v1"
+    contract_role: Literal["narrowing_validation_only"] = "narrowing_validation_only"
     scope_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     application_id: str = Field(max_length=42)
     workspace_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -235,6 +239,7 @@ def validate_planning_proposal(
     If the baseline itself is revoked, denial propagates instead of returning
     historical permission. No external send/retry or source retrieval occurs.
     """
+    validation_started = perf_counter()
     request, baseline = envelope.request, envelope.baseline
     specs = _current_selections(baseline, context, coordinator, request.maximum_sensitivity)
     # Re-check the entire server-owned policy, not only a coarse version label.
@@ -242,6 +247,7 @@ def validate_planning_proposal(
         raise ContextPreparationError("planning_policy_changed")
     if tuple(planning_digest(spec) for spec in specs) != envelope.spec_digests:
         raise ContextPreparationError("planning_provider_configuration_changed")
+    dependencies = planning_dependency_versions(context, baseline, specs)
     reason = "proposal_rejected"
     parsed = None
     try:
@@ -335,13 +341,53 @@ def validate_planning_proposal(
             }
         )
         _current_selections(final, context, coordinator, request.maximum_sensitivity)
-        return _traced(baseline, final, request, parsed, "proposal_validated")
+        choice_results = []
+        proposed_by_id = {item.choice_id: item for item in parsed.choices}
+        for choice, selection in zip(request.choices, baseline.selections, strict=True):
+            proposed = proposed_by_id.get(choice.choice_id)
+            if proposed is None:
+                disposition, result_reason = "narrowed", "proposal_omitted_optional_choice"
+            elif (
+                proposed.fields != selection.fields
+                or proposed.max_tokens != choice.max_tokens
+                or proposed.max_bytes != choice.max_bytes
+                or proposed.max_results != choice.max_results
+            ):
+                disposition, result_reason = "narrowed", "proposal_reduced_choice"
+            else:
+                disposition, result_reason = "accepted", "proposal_choice_accepted"
+            choice_results.append(PlanningChoiceResult(
+                choice_id=choice.choice_id, disposition=disposition, reason=result_reason
+            ))
+        return _traced(
+            baseline, final, request, parsed, "proposal_validated", dependencies,
+            tuple(choice_results), (perf_counter() - validation_started) * 1000,
+        )
     except (ValidationError, ValueError, ContextPreparationError):
         _current_selections(baseline, context, coordinator, request.maximum_sensitivity)
-        return _traced(baseline, baseline, request, parsed, reason)
+        submitted_ids = {choice.choice_id for choice in parsed.choices} if parsed else set()
+        return _traced(
+            baseline,
+            baseline,
+            request,
+            parsed,
+            reason,
+            dependencies,
+            tuple(
+                PlanningChoiceResult(
+                    choice_id=choice.choice_id,
+                    disposition="rejected" if choice.choice_id in submitted_ids else "retained",
+                    reason=reason,
+                )
+                for choice in request.choices
+            ),
+            (perf_counter() - validation_started) * 1000,
+        )
 
 
-def _traced(baseline, final, request, proposal, reason):
+def _traced(
+    baseline, final, request, proposal, reason, dependencies, choice_results, planning_latency_ms
+):
     return final.model_copy(
         update={
             "planning_trace": PlanningTrace(
@@ -356,6 +402,10 @@ def _traced(baseline, final, request, proposal, reason):
                     PlanningSelectionSummary.from_selection(s) for s in baseline.selections
                 ),
                 final=tuple(PlanningSelectionSummary.from_selection(s) for s in final.selections),
+                dependencies=dependencies,
+                dependency_count=len(dependencies),
+                choice_results=choice_results,
+                planning_latency_ms=max(0.0, planning_latency_ms),
                 proposal_choice_count=len(proposal.choices) if proposal else None,
                 reasons=(reason,),
             )

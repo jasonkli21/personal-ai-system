@@ -138,6 +138,7 @@ def synthetic_federation():
         authorize_calls = 0
         hook = None
         export_allowed = True
+        membership_active = True
 
         def resolve_source_policy(self, intent, *, deadline):
             assert intent.source == source and intent.category == case.export.category
@@ -149,6 +150,7 @@ def synthetic_federation():
             self.authorize_calls += 1
             return (
                 self.export_allowed
+                and self.membership_active
                 and selected.federation.category == granted.category
                 and set(selected.fields) <= set(granted.fields)
                 and set(selected.federation.entities) <= set(granted.entities)
@@ -254,7 +256,10 @@ def federation_planning_rows():
     from personal_ai.settings import Settings
 
     rows = []
-    for state in ("active", "revoked", "expired", "source_revoked"):
+    for state in (
+        "active", "revoked", "expired", "source_revoked", "grant_epoch_changed",
+        "consent_revoked", "membership_revoked",
+    ):
         f = synthetic_federation()
         settings = Settings(
             _env_file=None,
@@ -283,6 +288,15 @@ def federation_planning_rows():
             f["authority"].revoke(f["principal"], f["grant"].grant_id, expected_revision=1)
         elif state == "source_revoked":
             f["source_policy"].current = False
+        elif state == "grant_epoch_changed":
+            key = ("owner", f["grant"].grant_id)
+            f["repository"].records[key] = f["grant"].model_copy(
+                update={"revision": f["grant"].revision + 1, "epoch": f["grant"].epoch + 1}
+            )
+        elif state == "consent_revoked":
+            f["adapter"].export_allowed = False
+        elif state == "membership_revoked":
+            f["adapter"].membership_active = False
         elif state == "expired":
             f["repository"].records["owner", f["grant"].grant_id] = f["grant"].model_copy(
                 update={"expires_at": datetime.now(UTC) - timedelta(seconds=1)}
@@ -315,6 +329,7 @@ def federation_planning_rows():
                 "selected_item_count": len(result.source_items),
                 "assembled_bytes": sum(len(m.content.encode()) for m in result.messages),
                 "estimated_input_tokens": result.budget.selected_total,
+                "effective_sensitivity": result.manifest.effective_sensitivity,
             }
         except ContextPreparationError as error:
             row = {
@@ -323,6 +338,7 @@ def federation_planning_rows():
                 "source_support_proxy": False,
                 "assembled_bytes": None,
                 "estimated_input_tokens": None,
+                "effective_sensitivity": "unknown",
             }
         finally:
             reset_request_scope(token)

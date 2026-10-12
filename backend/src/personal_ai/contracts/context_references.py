@@ -98,6 +98,31 @@ class ContextPermissionDependency(BaseModel):
         return self
 
 
+class ContextDependencyVersion(BaseModel):
+    """Bound, content-free identity for one authority/configuration dependency."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[
+        "policy", "provider_spec", "proposal_schema", "permission",
+        "federation_grant", "source_revision",
+    ]
+    reference_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    version: str | None = Field(default=None, max_length=100)
+    dependency_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    revision: int | None = Field(default=None, ge=1)
+    epoch: int | None = Field(default=None, ge=1)
+    observed_stage: Literal["validation", "retrieval"]
+
+    @model_validator(mode="after")
+    def grant_versions_are_complete(self):
+        if self.kind == "federation_grant" and (self.revision is None or self.epoch is None):
+            raise ValueError("context_dependency_grant_version_incomplete")
+        if self.kind != "federation_grant" and (self.revision is not None or self.epoch is not None):
+            raise ValueError("context_dependency_revision_outside_grant")
+        return self
+
+
 class ContextAuthorityReference(BaseModel):
     """Durable-safe reference projection; raw IDs and retrieval URIs stay transient."""
 

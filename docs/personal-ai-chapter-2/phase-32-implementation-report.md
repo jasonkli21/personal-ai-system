@@ -1,9 +1,13 @@
 # Phase 32 implementation report
 
 2026-10-12. Plan authority: committed revision `b3c50ea`, reread after the user's
-plan commit. Tested source: that revision plus the uncommitted Phase 32 changes.
-Outcome: **non-promotion; no model planner installed, zero planner inference budget**.
-This does not close standing Phase 15/30 acceptance gaps.
+plan commit. The remediation was tested against base revision
+`3e9452185848414410ccbbedbd228bf5f22a8bce` and source identity digest
+`1041ce057469d6e72a32af7e9b89022d24c6b60980cf9d9d7025361d76bd99a4`; the
+benchmark accepts that revision or its direct child only when the material source
+digest is unchanged. Outcome: **non-promotion; no model planner installed, zero
+planner inference budget**. This does not close standing Phase 15/30 acceptance
+gaps.
 
 1. **Architectural model.** Four separate artifacts: deterministic `ContextPlan`;
    minimized `PlanningRequest`; non-authoritative typed `ContextPlanProposal`;
@@ -54,47 +58,68 @@ This does not close standing Phase 15/30 acceptance gaps.
    unchanged deterministic path. Timing is excluded from deterministic identity.
 
 7. **Provenance/freshness/revocation.** Exact entity/window/federation bindings stay
-   server-held; descriptor fingerprints are not source truth. Current broker
-   dependencies are checked before experiment metadata/validation and again at
-   retrieval; builder/dispatch reuse checks remain canonical. Active, revoked,
-   expired and source-revoked grants run through the existing broker. Domain source
-   snapshots and exact revision/freshness dependencies still arise from providers
-   after retrieval; no speculative revision is fabricated by planning. Additive
-   optional trace fields accept old manifests and follow existing DynamoDB context
-   trace scope, size, retention/export/deletion behavior. Synthetic CLI evaluation
-   uses the existing optional Phase 20 retention path; no private experiment store
-   or migration was introduced. Searchable production experiments are not retained
+   server-held; descriptor fingerprints are not source truth. The versioned
+   planning trace records policy, validator/schema, provider-spec and federation
+   grant revision/epoch dependencies at validation, plus per-choice result/reason
+   and measured planning latency. After retrieval, the existing build trace adds
+   exact source revision and permission dependencies, with references hashed and
+   payloads omitted. Current broker dependencies are checked before experiment
+   metadata/validation and again at retrieval; builder/dispatch reuse checks remain
+   canonical. Active, revoked, expired, source-revoked, consent-revoked and
+   membership-revoked states are separate synthetic fixtures. Additive optional
+   trace fields accept old manifests and follow existing DynamoDB context trace
+   scope, size, retention/export/deletion behavior. Synthetic CLI evaluation uses
+   the existing optional Phase 20 retention path; no private experiment store or
+   migration was introduced. Searchable production experiments are not retained
    as a new Postgres dataset while no model experiment is enabled.
 
-8. **Baseline and promotion.** `make planning-eval` freezes algorithm,
-   configuration and fixture identities; `planning-baseline-v1.json` records the
-   exact digests. Thresholds were declared in the [experiment contract](phase-32-experiment-contract.md)
-   before comparisons; `evaluation/planning_promotion.py` enforces them per slice.
-   Twenty-three cases cover five application slices, including synthetic federation;
-   the report also identifies task-family/provider-operation coverage slices.
-   Eighteen scripted retain-control pairs preserve selections, injected support,
-   assembled bytes and estimated tokens. Observed control failures: two lexical
-   omissions, one irrelevant negated profile selection, one required-budget denial;
-   five sharing/revocation exclusions are expected. Domain payloads and byte-based
-   counts are synthetic. Source-support proxies are not generated answer quality.
-   Assembled control input totals were 13,089 bytes and 3,675 estimated tokens
-   across successful builds; denied builds are missing, not authoritative empty.
-   Model answer quality, real downstream quota and model-assisted counterfactuals
-   remain missing. No slice has 100 independent families or measured net inference
-   benefit. **Promoted coverage: none.** Measured planner model calls/tokens/quota:
-   zero. Deterministic selection defects remain visible; this phase does not tune
-   the control against its held-out corpus.
+8. **Baseline and promotion.** `planning-baseline-v2.json` binds evaluator and
+   corpus versions, configuration, fixture dependencies, full Python version/ABI,
+   platform, installed distribution inventory digest, and the material source-tree
+   digest. It enforces the tested Git base/direct-child relation.
+   Thresholds were declared in the [experiment contract](phase-32-experiment-contract.md)
+   before comparisons; `evaluation/planning_promotion.py` requires exact
+   application/task/source-pattern/sensitivity coverage keys. Each hard invariant,
+   physical-call count, quota measure, answer-quality score and rollback input is
+   nullable and missing values deny promotion. A Phase 22 scorer adapter accepts
+   an observed output and only the source IDs actually injected into that exact
+   assembled context, returning payload-free evidence including the scorer's hard
+   boundary result. The evaluator accepts only evidence matching the strategy,
+   configuration, assembled-context digest and tested revision. Bound validation
+   traces can also produce per-case proposal-attempt, rejection, narrowing,
+   fallback and unauthorized-attempt counts and rates. Missing trace observations
+   remain null. Neither path invents an observation or a candidate comparison.
 
-9. **Intentional deviations.** P32.1 says “for justified cases only”; no current
-   slice justifies a strict-free model experiment. Consequently, paired comparisons
-   are scripted validation/rollback controls, **not LLM-assisted evidence**. The
-   initial proposal schema cannot add an omitted source; a future justified
-   experiment must build an independently authorized expanded envelope through the
-   same seams. Model-specific endpoint removal, planner-quota exhaustion, malformed
-   model output and paid fallback are not claimed as executed inference tests: there
-   is no planner endpoint/call path. Zero-budget/mode schemas and absence of a tool
-   executor enforce this non-promotion boundary. An eventual model strategy still
-   requires canonical P21/P19 admission/physical accounting and standing gates.
+   The 30-row held-out v2 corpus includes a 16-provider independently authorized
+   catalog under a tight context budget, exact trip-source revision transitions
+   (including a partial revision-8 observation), and synthetic grant, source,
+   consent, membership and expiry states. The evaluation has 22 scripted
+   retain-control pairs; their inputs preserve selection/support where applicable.
+   Observed deterministic-control issues include two lexical omissions, one
+   irrelevant negated profile selection and one required-budget denial; expected
+   authority exclusions remain visible. Domain payloads and byte-based counts are
+   synthetic. Source-support proxies are not generated answer quality. No quality
+   observation or assisted candidate comparison is present, no exact coverage key
+   has 100 independent families, and there is no measured net inference benefit.
+   **Promoted coverage: none.** Measured planner model calls/tokens/quota: zero.
+   The evaluator retains the control defects rather than tuning the baseline to
+   the held-out corpus.
+
+9. **Review remediation and intentional deviations.** The [2026-10-12
+   remediation evidence](phase-32-review-remediation-evidence-2026-10-12.md) maps
+   each independent-review finding to code, tests and remaining limits. The
+   current `PlanningRequest` is labeled `narrowing_validation_only`; it is not a
+   model selection interface and no endpoint/call path exists. Any future
+   assisted-selection request must be separately versioned and privacy-reviewed,
+   carry typed task features for the omission class, and expose only a candidate
+   envelope independently authorized under current policy, grants, sensitivity
+   and provider authority. Paired comparisons remain scripted validation/rollback
+   controls, **not LLM-assisted evidence**. Model-specific endpoint removal,
+   planner-quota exhaustion, malformed model output and paid fallback are not
+   claimed as executed inference tests. Zero-budget/mode schemas and absence of a
+   tool executor enforce this non-promotion boundary. An eventual model strategy
+   still requires canonical P21/P19 admission/physical accounting and standing
+   gates.
    Existing offline fixtures were repaired for Phase 31's startup inventory and
    Phase 30's verified authentication-time/separate Health federation gate. The
    startup guard still runs; populated retirement/conformance tests retain their
@@ -124,22 +149,12 @@ This does not close standing Phase 15/30 acceptance gaps.
 
 ## Verification evidence
 
-- Backend environment-independent suite: **1,565 passed**, 84 persistence/cloud
-  cases deselected; both manual Gemini suites explicitly excluded. Command:
-  `python -m pytest -m 'not persistence_integration and not cloud_smoke' --ignore=tests/test_gemini_manual.py --ignore=tests/test_context_manual.py -q`.
-  Latest trace projection changes additionally passed 81 relevant regressions.
-- Targeted planner/provider/builder/trace/federation/mutation suite: 181 passed;
-  additional adversarial, promotion, privacy/catalog and trace-roundtrip coverage
-  is included in the final broad suite.
-- Backend Ruff: passed. Backend source distribution/wheel build: passed
-  (`UV_CACHE_DIR=/tmp/phase32-uv-cache` for writable build cache).
-- Frontend: 123 tests passed; lint, typecheck and Next.js build passed using the
-  bundled Node runtime.
-- All established Makefile offline evaluations passed: context, context-plan,
-  memory, memory-lifecycle, research, decision, domain, iterative-research,
-  itinerary-proposal, quota-scarcity and cascade. New `planning-eval`: passed;
-  it reports benchmark failures and denies promotion rather than hiding them.
-- Link/content review, pre-final architecture audit and `git diff --check`: passed.
+Final remediation checks and their exact outcomes are recorded in the
+[review-remediation evidence file](phase-32-review-remediation-evidence-2026-10-12.md).
+The planning evaluator is an offline synthetic measurement: successful execution
+proves its contract and fixture outcomes, not live provider, database, deployment,
+or production trace behavior. It reports deterministic-control failures and
+non-promotion rather than treating the run as a product-quality pass.
 
 ## Deferred environment-dependent verification — intentionally not executed
 

@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -24,6 +25,7 @@ from personal_ai.contracts.context_categories import (
     CONTEXT_SOURCE_CLASSES,
     ContextSourceClass,
 )
+from personal_ai.contracts.context_references import ContextDependencyVersion
 from personal_ai.llm.client import ChatMessage
 from personal_ai.llm.errors import LLMError
 
@@ -234,6 +236,56 @@ class ContextBuildItemReport(BaseModel):
     injected: bool
     token_count: int | None = Field(default=None, ge=0)
     omission_reason: str | None = None
+    dependency_versions: tuple[ContextDependencyVersion, ...] = Field(default=(), max_length=32)
+
+
+def _trace_dependency_versions(item: ContextBuildItem) -> tuple[ContextDependencyVersion, ...]:
+    """Project post-retrieval revisions and permission versions without raw IDs."""
+    def digest(kind: str, identity: str) -> str:
+        return sha256(f"{kind}\0{identity}".encode()).hexdigest()
+
+    result = []
+    if item.source_version is not None:
+        result.append(ContextDependencyVersion(
+            kind="source_revision",
+            reference_digest=digest(
+                "source_revision", f"{item.provider_id}\0{item.source_id}\0{item.item_id}"
+            ),
+            version=item.source_version,
+            observed_stage="retrieval",
+        ))
+    for dependency in item.permission_dependencies:
+        reference = digest("permission", dependency.permission_id)
+        if dependency.permission_id.startswith("federation_grant:"):
+            parts = dependency.version.rsplit(":", 2)
+            if len(parts) == 3 and parts[-2].isdigit() and parts[-1].isdigit():
+                result.append(ContextDependencyVersion(
+                    kind="federation_grant",
+                    reference_digest=reference,
+                    version=sha256(parts[0].encode()).hexdigest(),
+                    revision=int(parts[-2]),
+                    epoch=int(parts[-1]),
+                    observed_stage="retrieval",
+                ))
+                continue
+        result.append(ContextDependencyVersion(
+            kind="permission",
+            reference_digest=reference,
+            version=dependency.version,
+            observed_stage="retrieval",
+        ))
+        if dependency.source_revision is not None and dependency.entity_ref is not None:
+            result.append(ContextDependencyVersion(
+                kind="source_revision",
+                reference_digest=digest(
+                    "source_revision",
+                    f"{dependency.entity_ref.application_id}\0{dependency.entity_ref.workspace_id or ''}"
+                    f"\0{dependency.entity_ref.entity_type}\0{dependency.entity_ref.entity_id}",
+                ),
+                version=dependency.source_revision,
+                observed_stage="retrieval",
+            ))
+    return tuple(result[:32])
 
 
 class ContextSourceBudgetReport(BaseModel):
@@ -402,6 +454,7 @@ class ContextBuilder:
                         injected=False,
                         token_count=token_count,
                         omission_reason=reason,
+                        dependency_versions=_trace_dependency_versions(item),
                     )
                 )
                 exclusions.append((item.item_id, reason))
@@ -505,6 +558,7 @@ class ContextBuilder:
                         source_reference_count=len(item.source_refs),
                         injected=True,
                         token_count=None,
+                        dependency_versions=_trace_dependency_versions(item),
                     )
                 )
 

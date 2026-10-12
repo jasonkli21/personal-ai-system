@@ -11,7 +11,7 @@ from personal_ai.context.builder import (
     ContextBuildSourceFailureReport,
     ContextSourceBudgetReport,
 )
-from personal_ai.context.planner import ContextPlan
+from personal_ai.context.planner import ContextPlan, PlanningTrace
 from personal_ai.context.providers import ContextSelection
 from personal_ai.context.traces import (
     MAX_CONTEXT_TRACE_RETENTION,
@@ -19,6 +19,7 @@ from personal_ai.context.traces import (
     InMemoryContextTraceRepository,
     UnsupportedContextTraceSchemaError,
 )
+from personal_ai.contracts.context_references import ContextDependencyVersion
 from personal_ai.persistence.dynamodb import (
     DynamoDBContextTraceRepository,
     _namespace,
@@ -50,6 +51,16 @@ def _trace(*, user_id=None, assistant_id=None, recorded_at=None, app="personal_a
                 source_reference_count=1,
                 injected=True,
                 token_count=12,
+                dependency_versions=(
+                    ContextDependencyVersion(
+                        kind="source_revision", reference_digest="b" * 64,
+                        version="global-profile-v1:7", observed_stage="retrieval",
+                    ),
+                    ContextDependencyVersion(
+                        kind="permission", reference_digest="c" * 64,
+                        version="profile-policy-v7", observed_stage="retrieval",
+                    ),
+                ),
             ),
             ContextBuildItemReport(
                 source_class="external_research",
@@ -98,6 +109,16 @@ def _trace(*, user_id=None, assistant_id=None, recorded_at=None, app="personal_a
                 max_tokens=64,
             ),
         ),
+        planning_trace=PlanningTrace(
+            configuration_digest="d" * 64,
+            baseline_digest="e" * 64,
+            final_digest="e" * 64,
+            dependencies=(ContextDependencyVersion(
+                kind="policy", reference_digest="f" * 64, version="context-policy-v2",
+                dependency_digest="1" * 64, observed_stage="validation",
+            ),),
+            dependency_count=1,
+        ),
     )
     return ContextTraceManifest.from_build(
         manifest,
@@ -123,6 +144,9 @@ def test_actual_trace_is_versioned_bounded_and_excludes_source_values():
     assert [item.disposition for item in trace.source_decisions] == ["selected", "omitted"]
     assert trace.source_decisions[0].authority == "authoritative"
     assert trace.source_decisions[1].reason == "source_budget"
+    assert {item.kind for item in trace.planning_trace.dependencies} >= {"policy", "permission", "source_revision"}
+    assert trace.planning_trace.dependency_count == 3
+    assert trace.planning_trace.dependencies_truncated is False
     assert trace.provider_failures[0].reason == "unavailable"
     assert "private-source-value" not in encoded
     assert "private-item-value" not in encoded

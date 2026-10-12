@@ -213,6 +213,23 @@ class ContextTraceManifest(BaseModel):
             ContextTraceMessageExclusion(message_id=message_id, reason=reason)
             for message_id, reason in manifest.excluded_messages[:MAX_CONTEXT_TRACE_MESSAGES]
         )
+        planning_trace = context_plan.planning_trace if context_plan else None
+        if planning_trace is not None:
+            dependencies = list(planning_trace.dependencies)
+            seen_dependencies = {
+                item.model_dump_json() for item in dependencies
+            }
+            for build_item in manifest.items:
+                for dependency in build_item.dependency_versions:
+                    identity = dependency.model_dump_json()
+                    if identity not in seen_dependencies:
+                        dependencies.append(dependency)
+                        seen_dependencies.add(identity)
+            planning_trace = planning_trace.model_copy(update={
+                "dependencies": tuple(dependencies[:64]),
+                "dependency_count": len(dependencies),
+                "dependencies_truncated": len(dependencies) > 64,
+            })
         trace = cls(
             request_id=request_id,
             conversation_id=conversation_id,
@@ -225,7 +242,7 @@ class ContextTraceManifest(BaseModel):
             policy_version=CONTEXT_BUILD_POLICY_VERSION,
             context_policy_version=manifest.context_policy_version,
             planner_version=manifest.planner_version,
-            planning_trace=context_plan.planning_trace if context_plan else None,
+            planning_trace=planning_trace,
             counter_kind=manifest.counter_kind,
             counter_version=manifest.counter_version,
             global_input_tokens=manifest.global_input_tokens,
@@ -274,7 +291,21 @@ class ContextTraceManifest(BaseModel):
             excluded_messages_truncated=len(manifest.excluded_messages) > len(excluded),
         )
         while len(trace.model_dump_json().encode()) > MAX_CONTEXT_TRACE_BYTES:
-            if len(trace.source_decisions) > 16:
+            if trace.planning_trace and len(trace.planning_trace.dependencies) > 32:
+                trace = trace.model_copy(update={
+                    "planning_trace": trace.planning_trace.model_copy(update={
+                        "dependencies": trace.planning_trace.dependencies[:32],
+                        "dependencies_truncated": True,
+                    }),
+                })
+            elif trace.planning_trace and len(trace.planning_trace.dependencies) > 16:
+                trace = trace.model_copy(update={
+                    "planning_trace": trace.planning_trace.model_copy(update={
+                        "dependencies": trace.planning_trace.dependencies[:16],
+                        "dependencies_truncated": True,
+                    }),
+                })
+            elif len(trace.source_decisions) > 16:
                 trace = trace.model_copy(update={
                     "source_decisions": trace.source_decisions[:16],
                     "source_decisions_truncated": True,

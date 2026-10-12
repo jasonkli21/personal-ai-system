@@ -28,6 +28,7 @@ from personal_ai.context.adapters import (
     MemoryContextProviderFactory,
 )
 from personal_ai.context.assembler import ContextAssembler
+from personal_ai.context.authorization import authorize_context_selection
 from personal_ai.context.contracts import TokenCount
 from personal_ai.context.planner import ContextPlanner, ContextPlanningRule
 from personal_ai.context.profile import (
@@ -40,13 +41,16 @@ from personal_ai.context.providers import (
     ContextEntityReference,
     ContextItem,
     ContextOperationSpec,
+    ContextPreparationError,
     ContextProviderCoordinator,
     ContextProviderSpec,
+    ContextSelection,
     ContextSourceReference,
     StaticContextProviderFactory,
 )
 from personal_ai.entities import Message, MessageRole, MessageStatus
 from personal_ai.evaluation.output import emit
+from personal_ai.evaluation.planning_quality import assembled_context_digest
 from personal_ai.memory.contracts import Memory, RetrievalResult, ScoredMemory, normalize
 from personal_ai.settings import Settings
 
@@ -65,7 +69,15 @@ class _EnvelopeTokenCounter:
 
 
 class _FixtureProvider:
-    def __init__(self, provider_id: str, source_class: str, operation: ContextOperationSpec):
+    def __init__(
+        self,
+        provider_id: str,
+        source_class: str,
+        operation: ContextOperationSpec,
+        *,
+        current_source_revision: str = "fixture-record-v1",
+        partial_result: bool = False,
+    ):
         self.spec = ContextProviderSpec(
             provider_id=provider_id,
             source_class=source_class,
@@ -79,6 +91,8 @@ class _FixtureProvider:
             **{field: (str | None, None) for field in operation.allowed_fields},
         )
         self.calls: list[dict] = []
+        self.current_source_revision = current_source_revision
+        self.partial_result = partial_result
 
     def validate_selection(self, selection, inputs):
         del inputs
@@ -96,7 +110,7 @@ class _FixtureProvider:
                 source_class=self.spec.source_class,
                 provider_id=self.spec.provider_id,
                 source_id="synthetic-record-set",
-                source_version="fixture-record-v1",
+                source_version=self.current_source_revision,
                 item_id="fixture-item-1",
                 owner_id=scope.owner_id,
                 application_id=scope.application_id,
@@ -106,6 +120,7 @@ class _FixtureProvider:
                     "external" if self.spec.source_class == "external_research" else "authoritative"
                 ),
                 observed_at=NOW,
+                partial_result=self.partial_result,
                 sensitivity=(
                     "personal" if self.spec.source_class == "external_research" else "sensitive"
                 ),
@@ -277,7 +292,14 @@ def _policy_with_fixture_operations(
 
 
 def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planning_variant=None) -> dict:
-    provider_ids = fixture.get("provider_ids", [fixture.get("provider_id")])
+    catalog_count = fixture.get("authorized_competing_candidate_count", 0)
+    if catalog_count < 0 or catalog_count > ContextProviderCoordinator.MAX_SELECTIONS:
+        raise ValueError("planning_fixture_authorized_catalog_size_invalid")
+    provider_ids = (
+        [f"catalog.candidate-{index:02d}" for index in range(catalog_count)]
+        if catalog_count
+        else fixture.get("provider_ids", [fixture.get("provider_id")])
+    )
     scope = RequestScope(
         owner_id="synthetic-owner",
         request_id=f"evaluation-{fixture['name']}",
@@ -292,19 +314,23 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
     retrieval = None
     profile_repository = None
     registry_definition = default_application_registry().get(fixture["application_id"])
+    max_context_tokens = fixture.get("max_context_tokens", 2_048)
+    available_context_tokens = max_context_tokens - 100 - 20
     settings = Settings(
         ai_provider="gemini",
         ai_model="synthetic-eval",
-        max_context_tokens=fixture.get("max_context_tokens", 2_048),
+        max_context_tokens=max_context_tokens,
         max_response_tokens=100,
         context_safety_margin_tokens=20,
-        summary_trigger_tokens=1_000,
-        max_summary_tokens=512,
+        summary_trigger_tokens=min(1_000, available_context_tokens),
+        max_summary_tokens=min(512, available_context_tokens - 1),
         memory_enabled=True,
         memory_embedding_model="phase13-offline-fixture",
         memory_embedding_dimensions=2,
-        memory_max_context_tokens=512,
-        context_profile_max_tokens=512,
+        memory_max_context_tokens=min(
+            512, max(1, available_context_tokens)
+        ),
+        context_profile_max_tokens=min(512, available_context_tokens),
     )
 
     for provider_id in provider_ids:
@@ -381,7 +407,13 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
                 sensitivity="sensitive",
             )
         if not fixture.get("provider_unavailable"):
-            provider = _FixtureProvider(provider_id, source_class, operation_spec)
+            provider = _FixtureProvider(
+                provider_id,
+                source_class,
+                operation_spec,
+                current_source_revision=fixture.get("current_source_revision", "fixture-record-v1"),
+                partial_result=fixture.get("source_partial", False),
+            )
             providers.append(provider)
             factories[provider_id] = StaticContextProviderFactory(provider)
         capabilities.append(
@@ -411,10 +443,39 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         scope=scope,
         context_provider_capabilities=tuple(capabilities),
     )
-    planner = configured_planner or ContextPlanner(
-        rules or None, include_default_rules=fixture.get("use_default_rules", False)
-    )
+    if catalog_count and configured_planner is not None:
+        planner = ContextPlanner(
+            (*configured_planner.rules, *rules),
+            include_default_rules=False,
+            max_total_tokens=configured_planner.max_total_tokens,
+        )
+    else:
+        planner = configured_planner or ContextPlanner(
+            rules or None, include_default_rules=fixture.get("use_default_rules", False)
+        )
     coordinator = ContextProviderCoordinator(factories, feature_flags={"memory_enabled": True})
+    authorized_candidate_ids = []
+    if catalog_count:
+        for provider_id in provider_ids:
+            spec = factories[provider_id].spec
+            operation_spec = spec.operation(fixture.get("operation", "current"))
+            selection = ContextSelection(
+                provider_id=provider_id,
+                operation=fixture.get("operation", "current"),
+                fields=tuple(fixture.get("rule_fields", ())),
+                max_results=3,
+                max_bytes=4_096,
+                max_tokens=fixture.get("max_tokens", 256),
+            )
+            if operation_spec is None:
+                continue
+            try:
+                authorize_context_selection(context, selection)
+                coordinator.validate_operation_bounds(selection, spec, operation_spec)
+                coordinator.authorize_boundaries((selection,), context.scope)
+            except ContextPreparationError:
+                continue
+            authorized_candidate_ids.append(provider_id)
     assembler = ContextAssembler(
         settings,
         counter or _EnvelopeTokenCounter(),
@@ -501,6 +562,44 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         fixture.get("expected_selections", []),
         key=lambda item: (item["provider_id"], item["operation"]),
     )
+    if catalog_count:
+        selected_catalog_count = sum(
+            item["provider_id"].startswith("catalog.candidate-") for item in actual_selections
+        )
+        minimum, maximum = fixture.get("expected_competing_selection_count", [1, 1])
+        selections_match_expectation = minimum <= selected_catalog_count <= maximum
+        catalog_authorized = (
+            len(provider_ids) == catalog_count
+            and len(capabilities) == catalog_count
+            and len(authorized_candidate_ids) == catalog_count
+            and all(item.spec.provider_id in factories for item in providers)
+        )
+    else:
+        selected_catalog_count = 0
+        selections_match_expectation = (
+            "expected_selections" not in fixture or actual_selections == expected_selections
+        )
+        catalog_authorized = True
+    revision_transition = fixture.get("source_revision_transition")
+    returned_by_key = {(item.provider_id, item.item_id): item for item in returned}
+    source_revision_observations = []
+    for report in assembled.manifest.items:
+        source_item = returned_by_key.get((report.provider_id, report.item_id))
+        source_revision_observations.append({
+            "provider_id": report.provider_id,
+            "source_revision": report.source_version,
+            "observation_complete": source_item is not None and not source_item.partial_result,
+            "injected": report.injected,
+            "omission_reason": report.omission_reason,
+        })
+    source_revision_matches = (
+        revision_transition is None
+        or bool(source_revision_observations) and all(
+            observation["source_revision"] == revision_transition["expected_current_revision"]
+            and observation["observation_complete"] is revision_transition["observation_complete"]
+            for observation in source_revision_observations
+        )
+    )
     provider_calls = [call for provider in providers for call in provider.calls]
     normalized_calls = sorted(
         (_call_summary(item) for item in provider_calls),
@@ -524,7 +623,9 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         set(selected_fields) == expected_fields
         and not (set(selected_fields) & excluded_fields)
         and (expected_reason is None or expected_reason in reasons)
-        and actual_selections == expected_selections
+        and selections_match_expectation
+        and catalog_authorized
+        and source_revision_matches
         and selected_entity_references == expected_entity_references
         and calls_match_plan
         and retrieved_support == expected_retrieved
@@ -546,6 +647,18 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
             for item in plan.selections
         ],
         "planned_selections": actual_selections,
+        "authorized_competing_candidate_count": len(authorized_candidate_ids),
+        "selected_competing_candidate_count": selected_catalog_count,
+        "authorized_candidate_pattern": (
+            [
+                f"{provider_id}.{fixture.get('operation', 'current')}"
+                for provider_id in authorized_candidate_ids
+            ]
+            if catalog_count
+            else []
+        ),
+        "source_revision_transition": revision_transition,
+        "source_revision_observations": source_revision_observations,
         "expected_selections": expected_selections,
         "selected_fields": selected_fields,
         "selected_entity_references": [
@@ -574,7 +687,9 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         "selected_item_count": len(injected_items),
         "assembled_bytes": sum(len(message.content.encode("utf-8")) for message in assembled.messages),
         "planner_configuration_digest": planner.configuration_digest,
+        "assembled_context_digest": assembled_context_digest(assembled),
         "planning_trace": plan.planning_trace.model_dump(mode="json"),
+        "effective_sensitivity": assembled.manifest.effective_sensitivity,
         "planning_latency_ms": round(planning_latency_ms, 3),
         "estimated_input_tokens": assembled.budget.selected_total,
         "planned_source_token_budgets": [
@@ -583,6 +698,8 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         ],
         "latency_ms": round(latency_ms, 3),
         "input_budget_tokens": assembled.budget.input_budget,
+        "authorized_candidate_catalog_valid": catalog_authorized,
+        "source_revision_transition_valid": source_revision_matches,
     }
 
 

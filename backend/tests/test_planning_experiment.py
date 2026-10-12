@@ -123,37 +123,45 @@ def test_canonical_planner_validation_retrieval_builder_and_privacy():
         "/planning-experiment", json={"choices": [_choice()]}
     )
     result = response.json()
+    assert result["request"]["contract_role"] == "narrowing_validation_only"
     assert result["calls"] == result["sources"] == 1
     assert result["before_fetch"] == 0
     trace = result["trace"]
-    assert result["retained_planning_trace"] == trace
+    retained_trace = result["retained_planning_trace"]
     assert trace["strategy"] == "validated_narrowing"
     assert trace["baseline_digest"] != trace["final_digest"]
     assert trace["proposal_digest"] and trace["proposal_choice_count"] == 1
     assert trace["baseline"][0]["max_bytes"] > trace["final"][0]["max_bytes"]
+    assert trace["choice_results"] == [
+        {"choice_id": "choice-0", "disposition": "narrowed", "reason": "proposal_reduced_choice"}
+    ]
+    assert any(item["kind"] == "policy" for item in trace["dependencies"])
+    assert any(item["kind"] == "provider_spec" for item in trace["dependencies"])
+    assert any(item["kind"] == "source_revision" for item in retained_trace["dependencies"])
+    assert retained_trace["dependency_count"] > trace["dependency_count"]
     assert trace["planner_calls"] == trace["planner_quota"] == 0
-    serialized = json.dumps(result["request"]) + json.dumps(trace)
+    serialized = json.dumps(result["request"]) + json.dumps(trace) + json.dumps(retained_trace)
     for private in ("selected-record-1", "owner-1", "workspace-1", "Use the selected record"):
         assert private not in serialized
 
 
 @pytest.mark.parametrize(
-    "choice,reason",
+    "choice,reason,disposition",
     [
-        (_choice(choice_id="choice-15"), "planning_unknown_or_duplicate_choice"),
-        (_choice(fields=["private"]), "planning_field_outside_envelope"),
-        (_choice(fields=["label", "label"]), "planning_field_outside_envelope"),
-        (_choice(max_tokens=257), "planning_budget_outside_envelope"),
-        (_choice(max_results=2), "planning_budget_outside_envelope"),
-        (_choice(max_bytes=65536), "planning_budget_outside_envelope"),
-        (_choice(entity_refs=[{"entity_id": "other"}]), "proposal_rejected"),
-        (_choice(window_seconds=86400), "proposal_rejected"),
-        (_choice(provider_id="finance.accounts"), "proposal_rejected"),
-        (_choice(source_class="domain_history"), "proposal_rejected"),
-        (_choice(selector={"type": "all"}), "proposal_rejected"),
+        (_choice(choice_id="choice-15"), "planning_unknown_or_duplicate_choice", "retained"),
+        (_choice(fields=["private"]), "planning_field_outside_envelope", "rejected"),
+        (_choice(fields=["label", "label"]), "planning_field_outside_envelope", "rejected"),
+        (_choice(max_tokens=257), "planning_budget_outside_envelope", "rejected"),
+        (_choice(max_results=2), "planning_budget_outside_envelope", "rejected"),
+        (_choice(max_bytes=65536), "planning_budget_outside_envelope", "rejected"),
+        (_choice(entity_refs=[{"entity_id": "other"}]), "proposal_rejected", "retained"),
+        (_choice(window_seconds=86400), "proposal_rejected", "retained"),
+        (_choice(provider_id="finance.accounts"), "proposal_rejected", "retained"),
+        (_choice(source_class="domain_history"), "proposal_rejected", "retained"),
+        (_choice(selector={"type": "all"}), "proposal_rejected", "retained"),
     ],
 )
-def test_adversarial_proposals_return_current_control(choice, reason):
+def test_adversarial_proposals_return_current_control(choice, reason, disposition):
     result = (
         TestClient(_experiment_app())
         .post("/planning-experiment", json={"choices": [choice]})
@@ -162,6 +170,9 @@ def test_adversarial_proposals_return_current_control(choice, reason):
     trace = result["trace"]
     assert trace["reasons"] == [reason]
     assert trace["baseline_digest"] == trace["final_digest"]
+    assert trace["choice_results"] == [
+        {"choice_id": "choice-0", "disposition": disposition, "reason": reason}
+    ]
     assert result["calls"] == 1  # Only ordinary baseline retrieval, no planner fetch.
 
 
@@ -287,6 +298,15 @@ def test_revocation_after_validated_plan_still_denies_retrieval(broker_case):
         f["coordinator"],
     )
     assert final.selections
+    grant_dependencies = [
+        dependency
+        for dependency in final.planning_trace.dependencies
+        if dependency.kind == "federation_grant"
+    ]
+    assert len(grant_dependencies) == 1
+    assert grant_dependencies[0].revision == f["grant"].revision
+    assert grant_dependencies[0].epoch == f["grant"].epoch
+    assert str(f["grant"].grant_id) not in final.planning_trace.model_dump_json()
     f["source_policy"].current = False
     with pytest.raises(ContextPreparationError):
         prepare({**f, "selection": final.selections[0]})
@@ -315,11 +335,96 @@ def test_frozen_baseline_and_no_promotion_without_measurements():
     result = planning.evaluate()
     assert result["decision"] == "non_promotion"
     assert result["model_answer_quality"] is None
+    assert result["proposal_validation_metrics"] == {
+        "observed_case_count": 0,
+        "total_case_count": len(result["rows"]),
+        "proposal_attempts": None,
+        "accepted_proposals": None,
+        "rejected_proposals": None,
+        "fallback_proposals": None,
+        "rejected_choices": None,
+        "narrowed_choices": None,
+        "retained_fallback_choices": None,
+        "unauthorized_attempts": None,
+        "proposal_rejection_rate": None,
+        "fallback_proposal_rate": None,
+        "narrowed_choice_rate": None,
+        "retained_fallback_rate": None,
+        "unauthorized_attempt_rate": None,
+    }
     assert result["assisted_comparison"] is None
     assert result["promoted_coverage"] == []
     assert result["planner_calls"] == result["planner_quota"] == 0
     classes = {row["failure_class"] for row in result["rows"]}
     assert {"lexical_omission", "irrelevant_selection", "required_source_denial"} <= classes
+    rows = {row["id"]: row for row in result["rows"]}
+    catalog = rows["authorized-tight-budget-catalog"]
+    assert catalog["authorized_competing_candidate_count"] == 16
+    assert catalog["selected_competing_candidate_count"] == 1
+    assert catalog["authorized_candidate_catalog_valid"] is True
+    for case_id, expected, complete in (
+        ("trip-dates-revision-7", "trip-revision-7", True),
+        ("trip-dates-revision-8", "trip-revision-8", True),
+        ("trip-dates-partial-revision-8", "trip-revision-8", False),
+    ):
+        row = rows[case_id]
+        assert row["source_revision_transition_valid"] is True
+        assert row["source_revision_observations"][0]["source_revision"] == expected
+        assert row["source_revision_observations"][0]["observation_complete"] is complete
+    federation_states = {row["id"] for row in result["rows"] if row["id"].startswith("cross-app-")}
+    assert {"cross-app-grant_epoch_changed", "cross-app-consent_revoked", "cross-app-membership_revoked"} <= federation_states
+    assert all(not row["promoted"] for row in result["coverage_slices"])
+    assert all(row["independent_family_count"] < 100 for row in result["coverage_slices"])
+
+
+def test_evaluator_records_bound_validation_trace_metrics():
+    from personal_ai.context.planner import PlanningChoiceResult, PlanningTrace
+
+    baseline = planning.evaluate()
+    row = next(row for row in baseline["rows"] if row["id"] == "literal-units")
+    trace = PlanningTrace.model_validate(row["trace"]).model_copy(update={
+        "reasons": ("planning_unknown_or_duplicate_choice",),
+        "choice_results": (
+            PlanningChoiceResult(
+                choice_id="choice-0", disposition="retained",
+                reason="planning_unknown_or_duplicate_choice",
+            ),
+        ),
+    })
+    observed = planning.evaluate(validation_traces={"literal-units": trace})
+    row = next(row for row in observed["rows"] if row["id"] == "literal-units")
+    assert row["validation_observation"]["proposal_attempts"] == 1
+    assert row["validation_observation"]["rejected_proposals"] == 1
+    assert row["validation_observation"]["retained_fallback_choices"] == 1
+    assert row["validation_observation"]["unauthorized_attempts"] == 1
+    assert row["validation_observation"]["proposal_rejection_rate"] == 1
+    assert row["validation_observation"]["unauthorized_attempt_rate"] == 1
+    assert observed["proposal_validation_metrics"]["proposal_attempts"] is None
+    assert observed["proposal_validation_metrics"]["observed_case_count"] == 1
+
+
+def test_baseline_source_identity_changes_when_a_material_runner_dependency_changes(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(planning, "REPOSITORY_ROOT", tmp_path)
+    monkeypatch.setattr(planning, "SOURCE_IDENTITY_PATHS", ("runtime.py",))
+    material = tmp_path / "runtime.py"
+    material.write_text("assembler-v1")
+    first = planning._source_identity_digest()
+    material.write_text("assembler-v2")
+    second = planning._source_identity_digest()
+    assert first != second
+
+
+def test_baseline_refuses_an_unrelated_git_revision(tmp_path, monkeypatch):
+    identity = planning.freeze_identity()
+    lock = {**identity, "source_revision": "1" * 40}
+    path = tmp_path / "baseline.json"
+    path.write_text(json.dumps(lock))
+    monkeypatch.setattr(planning, "FREEZE_PATH", path)
+    monkeypatch.setattr(planning, "_git_revision_pair", lambda: ("2" * 40, "3" * 40))
+    with pytest.raises(ValueError, match="source_revision_mismatch"):
+        planning.evaluate()
 
 
 def test_required_selections_cannot_be_removed_or_reduced(broker_case):
@@ -354,17 +459,50 @@ def test_required_selections_cannot_be_removed_or_reduced(broker_case):
 
 
 def test_promotion_thresholds_reject_missing_overhead_and_hard_regressions():
-    from personal_ai.evaluation.planning_promotion import PlanningMeasurements, promotion_reasons
+    from personal_ai.evaluation.planning_promotion import (
+        PlanningCoverageKey,
+        PlanningMeasurements,
+        promotion_reasons,
+    )
 
+    coverage = PlanningCoverageKey(
+        application_id="travel",
+        task_family="trip_dates",
+        source_pattern=("travel.trip_context.current",),
+        sensitivity_class="sensitive",
+    )
     control = PlanningMeasurements(
         families=100,
         omission_rate=0.3,
         irrelevant_rate=0.02,
         supported_answer_rate=0.7,
+        coverage_key=coverage,
+        measurement_origin="phase22_observed",
+        measurement_version="planning-measurements-v1",
+        evidence_identity="a" * 64,
         total_tokens=1000,
         total_quota=1000,
         p95_latency_ms=1000,
         planner_p95_latency_ms=0,
+        max_extra_calls=0,
+        authority_violations=0,
+        sensitivity_violations=0,
+        unsupported_expansions=0,
+        non_strict_free_dispatches=0,
+        hard_boundary_violations=0,
+        proposal_attempts=10,
+        accepted_proposals=10,
+        rejected_proposals=0,
+        fallback_proposals=0,
+        rejected_choices=0,
+        narrowed_choices=4,
+        retained_fallback_choices=0,
+        unauthorized_proposal_attempts=0,
+        proposal_rejection_rate=0,
+        fallback_proposal_rate=0,
+        narrowed_choice_rate=0.2,
+        retained_fallback_rate=0,
+        unauthorized_attempt_rate=0,
         rollback_verified=True,
     )
     candidate = control.model_copy(
@@ -385,9 +523,73 @@ def test_promotion_thresholds_reject_missing_overhead_and_hard_regressions():
         ({"total_quota": 1101}, "excess_total_quota"),
         ({"supported_answer_rate": None}, "unmeasured_model_answer_quality"),
         ({"rollback_verified": False}, "rollback_unverified"),
+        ({"rollback_verified": None}, "unmeasured_rollback"),
+        ({"max_extra_calls": None}, "unmeasured_physical_calls"),
         ({"families": 99}, "insufficient_heldout_families"),
     ):
         assert reason in promotion_reasons(control, candidate.model_copy(update=update))
+    for field, reason in (
+        ("authority_violations", "unmeasured_authority_violations"),
+        ("sensitivity_violations", "unmeasured_sensitivity_violations"),
+        ("unsupported_expansions", "unmeasured_unsupported_expansions"),
+        ("non_strict_free_dispatches", "unmeasured_non_strict_free_dispatches"),
+        ("hard_boundary_violations", "unmeasured_hard_boundary_violations"),
+    ):
+        assert reason in promotion_reasons(control, candidate.model_copy(update={field: None}))
+    for field in (
+        "proposal_attempts", "accepted_proposals", "rejected_proposals",
+        "fallback_proposals", "rejected_choices", "narrowed_choices",
+        "retained_fallback_choices", "unauthorized_proposal_attempts",
+        "proposal_rejection_rate", "fallback_proposal_rate", "narrowed_choice_rate",
+        "retained_fallback_rate", "unauthorized_attempt_rate",
+    ):
+        assert "unmeasured_proposal_validation" in promotion_reasons(
+            control, candidate.model_copy(update={field: None})
+        )
+    assert "unauthorized_proposal_attempts" in promotion_reasons(
+        control, candidate.model_copy(update={"unauthorized_proposal_attempts": 1})
+    )
+    assert "unmeasured_coverage_key" in promotion_reasons(
+        control.model_copy(update={"coverage_key": None}), candidate
+    )
+    assert "unmeasured_evidence_identity" in promotion_reasons(
+        control.model_copy(update={"evidence_identity": None}), candidate
+    )
+    assert "coverage_key_mismatch" in promotion_reasons(
+        control,
+        candidate.model_copy(update={
+            "coverage_key": coverage.model_copy(update={"sensitivity_class": "restricted"})
+        }),
+    )
+
+
+def test_promotion_scope_is_exact_task_source_and_sensitivity_key():
+    from personal_ai.evaluation.planning_promotion import PlanningCoverageKey
+
+    control = PlanningCoverageKey(
+        application_id="travel", task_family="trip_dates",
+        source_pattern=("travel.trip_context.current",), sensitivity_class="sensitive",
+    )
+    changed = control.model_copy(update={"sensitivity_class": "restricted"})
+    assert control != changed
+    assert control.task_family == "trip_dates"
+
+
+def test_omitted_hard_metrics_remain_unmeasured_and_deny_promotion():
+    from personal_ai.evaluation.planning_promotion import PlanningMeasurements, promotion_reasons
+
+    incomplete = PlanningMeasurements(families=200, omission_rate=0, irrelevant_rate=0)
+    reasons = promotion_reasons(incomplete, incomplete)
+    assert {
+        "unmeasured_authority_violations",
+        "unmeasured_sensitivity_violations",
+        "unmeasured_unsupported_expansions",
+        "unmeasured_non_strict_free_dispatches",
+        "unmeasured_hard_boundary_violations",
+        "unmeasured_physical_calls",
+        "unmeasured_rollback",
+        "unmeasured_proposal_validation",
+    } <= set(reasons)
 
 
 def test_zero_inference_budget_cannot_be_changed_by_configuration_or_model():

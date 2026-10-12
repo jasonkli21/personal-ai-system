@@ -29,6 +29,7 @@ from personal_ai.context.providers import (
     ContextSelection,
 )
 from personal_ai.contracts.context_categories import ContextSourceClass
+from personal_ai.contracts.context_references import ContextDependencyVersion
 
 
 class ContextPlanningCapability(BaseModel):
@@ -160,12 +161,22 @@ class PlanningSelectionSummary(BaseModel):
         )
 
 
+class PlanningChoiceResult(BaseModel):
+    """Safe validation result for one server-issued choice identifier."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    choice_id: str = Field(pattern=r"^choice-[0-9]{1,2}$")
+    disposition: Literal["accepted", "narrowed", "rejected", "retained"]
+    reason: str = Field(min_length=1, max_length=96)
+
+
 class PlanningTrace(BaseModel):
     """Compact experiment identity; never includes intent, entity IDs or source bodies."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal["planning-trace-v1"] = "planning-trace-v1"
+    schema_version: Literal["planning-trace-v1", "planning-trace-v2"] = "planning-trace-v2"
     promotion_version: Literal["context-planning-promotion-v1"] = "context-planning-promotion-v1"
     strategy: Literal["deterministic", "validated_narrowing"] = "deterministic"
     configuration_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -174,8 +185,12 @@ class PlanningTrace(BaseModel):
     final_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     baseline: tuple[PlanningSelectionSummary, ...] = Field(default=(), max_length=16)
     final: tuple[PlanningSelectionSummary, ...] = Field(default=(), max_length=16)
+    dependencies: tuple[ContextDependencyVersion, ...] = Field(default=(), max_length=64)
+    dependency_count: int = Field(default=0, ge=0)
+    dependencies_truncated: bool = False
     planning_latency_ms: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     proposal_choice_count: int | None = Field(default=None, ge=0, le=16)
+    choice_results: tuple[PlanningChoiceResult, ...] = Field(default=(), max_length=16)
     reasons: tuple[str, ...] = Field(default=("no_promoted_coverage",), max_length=16)
     planner_calls: int = Field(default=0, ge=0, le=16)
     planner_input_tokens: int = Field(default=0, ge=0)
@@ -188,6 +203,56 @@ def planning_digest(value) -> str:
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json", exclude={"planning_trace"})
     return sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def planning_dependency_versions(context, plan, specs) -> tuple[ContextDependencyVersion, ...]:
+    """Project only current pre-retrieval policy, provider, schema, and grant versions."""
+    def reference(kind: str, identity: str) -> str:
+        return sha256(f"{kind}\0{identity}".encode()).hexdigest()
+
+    policy = context.definition.context_policy
+    dependencies = [
+        ContextDependencyVersion(
+            kind="policy",
+            reference_digest=reference("policy", context.scope.application_id),
+            version=policy.version,
+            dependency_digest=planning_digest(policy),
+            observed_stage="validation",
+        ),
+        ContextDependencyVersion(
+            kind="proposal_schema",
+            reference_digest=reference("proposal_schema", "context-plan-proposal-v1"),
+            version="narrowing-validator-v1",
+            dependency_digest=planning_digest({
+                "schema": "context-plan-proposal-v1",
+                "validator": "narrowing-validator-v1",
+            }),
+            observed_stage="validation",
+        ),
+    ]
+    for selection, spec in zip(plan.selections, specs, strict=True):
+        dependencies.append(
+            ContextDependencyVersion(
+                kind="provider_spec",
+                reference_digest=reference("provider", selection.provider_id),
+                version=spec.source_version,
+                dependency_digest=planning_digest(spec),
+                observed_stage="validation",
+            )
+        )
+        grant = selection.federation
+        if grant is not None:
+            dependencies.append(
+                ContextDependencyVersion(
+                    kind="federation_grant",
+                    reference_digest=reference("federation_grant", str(grant.grant_id)),
+                    version=sha256(str(grant.issuance_id).encode()).hexdigest(),
+                    revision=grant.revision,
+                    epoch=grant.epoch,
+                    observed_stage="validation",
+                )
+            )
+    return tuple(dependencies[:64])
 
 
 class ContextPlan(BaseModel):

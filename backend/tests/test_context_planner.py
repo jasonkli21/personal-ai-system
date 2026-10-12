@@ -479,7 +479,15 @@ def test_default_standalone_recall_rule_is_deterministic_and_narrow():
     first = assembler.plan_context("What did I tell you to remember about my travel?", context, now=NOW)
     second = assembler.plan_context("What did I tell you to remember about my travel?", context, now=NOW)
 
-    assert first == second
+    assert first.planning_trace.planning_latency_ms is not None
+    assert second.planning_trace.planning_latency_ms is not None
+    first_deterministic = first.model_copy(update={
+        "planning_trace": first.planning_trace.model_copy(update={"planning_latency_ms": None})
+    })
+    second_deterministic = second.model_copy(update={
+        "planning_trace": second.planning_trace.model_copy(update={"planning_latency_ms": None})
+    })
+    assert first_deterministic == second_deterministic
     assert len(first.selections) == 1
     assert first.selections[0].provider_id == "ai_memory"
     assert first.selections[0].fields == ("content", "memory_type", "effective_at")
