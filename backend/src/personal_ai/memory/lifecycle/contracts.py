@@ -64,6 +64,8 @@ class MemoryLifecycleState(ApplicationScopedRecord):
     importance: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
     importance_policy_version: str | None = None
     last_event_id: UUID | None = None
+    unresolved_conflict: bool = False
+    validity_epoch: int = Field(default=0, ge=0)
 
     @field_validator("effective_status_at", "last_retrieved_at")
     @classmethod

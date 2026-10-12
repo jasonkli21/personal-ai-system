@@ -872,6 +872,7 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
             owner_id, "travel", ("preferred_units",), deadline=monotonic() - 1
         )
 
+
 def test_derived_memory_keeps_original_sources_and_excludes_inactive_dependencies(
     postgres_database,
 ):
@@ -1640,3 +1641,73 @@ def test_job_effect_guard_pins_lease_and_source_until_receipt_recovery(
             effect=lambda connection: late_effects.append(True) or {},
         )
     assert late_effects == []
+
+
+def test_phase34_pgvector_lossless_baseline_eligibility_and_resource_measurement(postgres_database):
+    """Opt-in native-store baseline. No ANN claim is inferred from offline fakes."""
+    from time import perf_counter
+
+    owner_id = f"phase34-baseline-{uuid4()}"
+    repository = PostgresMemoryRepository(postgres_database, _SourceGuard(owner_id))
+    values = (3.141592653589793, 1.0000000000000002) + (1e-12,) * 2046
+    records = [_memory(values, owner_id, f"repeated-{i}") for i in range(8)]
+    allowed = records[-1].id
+    scope = ApplicationScope(application_id="personal_ai", workspace_id=None)
+    with application_scope_context(scope):
+        for record in records:
+            saved, _ = repository.create(record)
+            assert saved.embedding == values
+        started = perf_counter()
+        matches = repository.search(
+            owner_id=owner_id,
+            embedding=values,
+            model=records[0].embedding_model,
+            dimensions=2048,
+            limit=1,
+            eligible=lambda record: record.id == allowed,
+        )
+        elapsed_ms = (perf_counter() - started) * 1000
+        with postgres_database.connection() as connection:
+            storage_bytes = connection.execute(
+                "SELECT sum(pg_column_size(embedding)+pg_column_size(payload)) FROM memories "
+                "WHERE owner_id=%s",
+                (owner_id,),
+            ).fetchone()[0]
+            query_plan = connection.execute(
+                "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT record_id FROM memories "
+                "WHERE owner_id=%s ORDER BY embedding::vector <=> %s::vector",
+                (owner_id, "[" + ",".join(format(x, ".17g") for x in values) + "]"),
+            ).fetchone()[0]
+    assert [item.memory.id for item in matches] == [allowed]
+    assert matches[0].similarity == pytest.approx(1)
+    assert elapsed_ms >= 0 and storage_bytes > 0
+    print(
+        {
+            "evidence_kind": "local_postgres",
+            "dimensions": 2048,
+            "records": len(records),
+            "retrieval_ms": elapsed_ms,
+            "row_storage_bytes": storage_bytes,
+            "query_plan": query_plan,
+            "ann_evaluated": False,
+        }
+    )
+
+
+def test_phase34_duplicate_new_attempt_preserves_first_original(postgres_database):
+    from dataclasses import replace
+
+    class Guard(_SourceGuard):
+        def acquire(self, record, *, timeout):
+            token = super().acquire(record, timeout=timeout)
+            return replace(token, attempt_id=token.fingerprint)
+
+    owner_id = f"phase34-replay-{uuid4()}"
+    repository = PostgresMemoryRepository(postgres_database, Guard(owner_id))
+    record = _memory((.5, .5, .5), owner_id)
+    saved, created = repository.create(record)
+    retry = record.model_copy(update={"created_at": record.created_at + timedelta(seconds=5),
+                                      "embedding": (.4, .4, .4)})
+    repeated, new = repository.create(retry)
+    assert created and not new and repeated == saved
+    assert saved.embedding == (.5, .5, .5)

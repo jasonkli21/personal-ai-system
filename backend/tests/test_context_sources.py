@@ -20,7 +20,6 @@ from personal_ai.applications.contracts import (
 from personal_ai.applications.registry import ApplicationRegistry, default_application_registry
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.adapters import (
-    BuiltInContextPermissionRevalidator,
     ClientContextProviderFactory,
     ConversationContextProvider,
     ConversationContextProviderFactory,
@@ -2201,6 +2200,23 @@ def test_memory_wrapper_preserves_source_refs_without_disclosing_embeddings():
     assert "embedding" not in item.payload.model_dump()
 
 
+class _PackingPermissions:
+    """These tests isolate fitting; source authority is covered by phase34 runtime tests."""
+
+    def is_current(self, dependency):
+        return dependency.permission_id == "packing_fixture" and dependency.version == "v1"
+
+
+def _packing_retrieval(*, selected):
+    dependency = ContextPermissionDependency(
+        permission_id="packing_fixture", version="v1", purpose="synthetic builder fitting"
+    )
+    return RetrievalResult(
+        selected=selected,
+        permission_dependencies=tuple((item.memory.id, (dependency,)) for item in selected),
+    )
+
+
 def test_planned_memory_preserves_authority_and_derived_suppression_with_fallback():
     registry = default_application_registry()
     application = registry.registration("personal_ai")
@@ -2238,14 +2254,16 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
         application_id=scope.application_id,
     )
     settings = Settings(
-        ai_provider="fake", ai_model="fake-model", memory_enabled=True,
+        ai_provider="fake",
+        ai_model="fake-model",
+        memory_enabled=True,
         memory_retrieval_limit=4,
     )
     coordinator = ContextProviderCoordinator(
         {"ai_memory": MemoryContextProviderFactory(settings)},
         feature_flags={"memory_enabled": True},
     )
-    retrieval = RetrievalResult(
+    retrieval = _packing_retrieval(
         selected=tuple(
             ScoredMemory(memory, 0.9 - index * 0.01)
             for index, memory in enumerate((*backups, derived, unrelated))
@@ -2254,16 +2272,20 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
 
     def build(memory_budget):
         assembler = ContextAssembler(
-        settings.model_copy(update={"memory_max_context_tokens": memory_budget}),
-        FakeTokenCounter(),
-        context_provider_coordinator=coordinator,
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings),
-        context_planner=ContextPlanner(max_total_tokens=memory_budget),
+            settings.model_copy(update={"memory_max_context_tokens": memory_budget}),
+            FakeTokenCounter(),
+            context_provider_coordinator=coordinator,
+            permission_revalidator=_PackingPermissions(),
+            context_planner=ContextPlanner(max_total_tokens=memory_budget),
         )
         plan = assembler.plan_context(pending.content, context, now=NOW)
         return assembler.assemble(
-            (), pending, refresh=False, retrieval=retrieval,
-            application_context=context, context_plan=plan,
+            (),
+            pending,
+            refresh=False,
+            retrieval=retrieval,
+            application_context=context,
+            context_plan=plan,
         )
 
     fitting = build(512)
@@ -2276,8 +2298,7 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
     assert all(item.authority == "user_asserted" for item in original_items.values())
     assert fitting.selected_memory_ids == (derived.id, unrelated.id)
     assert all(
-        (item.id, "represented_by_derived_memory") in fitting.excluded_memories
-        for item in backups
+        (item.id, "represented_by_derived_memory") in fitting.excluded_memories for item in backups
     )
     rendered = " ".join(message.content for message in fitting.messages)
     assert '"authority":"derived"' in rendered
@@ -2290,9 +2311,8 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
     long_sources = tuple(
         source.model_copy(update={"excerpt": long_excerpt}) for source in derived.sources
     )
-    oversized_content = (
-        "Historical personal context from repeated user statements:\n"
-        + "\n".join(source.excerpt for source in long_sources)
+    oversized_content = "Historical personal context from repeated user statements:\n" + "\n".join(
+        source.excerpt for source in long_sources
     )
     oversized_derived = derived.model_copy(
         update={
@@ -2318,7 +2338,7 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
         )
         for source in long_sources
     )
-    fallback_retrieval = RetrievalResult(
+    fallback_retrieval = _packing_retrieval(
         selected=tuple(
             ScoredMemory(memory, 0.9 - index * 0.01)
             for index, memory in enumerate((*fallback_backups, oversized_derived, unrelated))
@@ -2328,13 +2348,17 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
         settings.model_copy(update={"memory_max_context_tokens": 200}),
         FakeTokenCounter(),
         context_provider_coordinator=coordinator,
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings),
+        permission_revalidator=_PackingPermissions(),
         context_planner=ContextPlanner(max_total_tokens=512),
     )
     fallback_plan = fallback_assembler.plan_context(pending.content, context, now=NOW)
     fallback = fallback_assembler.assemble(
-        (), pending, refresh=False, retrieval=fallback_retrieval,
-        application_context=context, context_plan=fallback_plan,
+        (),
+        pending,
+        refresh=False,
+        retrieval=fallback_retrieval,
+        application_context=context,
+        context_plan=fallback_plan,
     )
     assert oversized_derived.id not in fallback.selected_memory_ids
     assert any(item.id in fallback.selected_memory_ids for item in fallback_backups)
@@ -2346,7 +2370,9 @@ def test_planned_memory_preserves_authority_and_derived_suppression_with_fallbac
 
 
 def test_memory_limit_applies_after_derived_fit_and_backup_fallback():
-    scope = RequestScope(owner_id="local", request_id="request-memory-fit", application_id="personal_ai")
+    scope = RequestScope(
+        owner_id="local", request_id="request-memory-fit", application_id="personal_ai"
+    )
     first_backup = _memory_record(scope, content="A small original memory backup.").model_copy(
         update={"id": UUID(int=21)}
     )
@@ -2375,9 +2401,9 @@ def test_memory_limit_applies_after_derived_fit_and_backup_fallback():
         memory_enabled=True,
         memory_retrieval_limit=1,
     )
-    fitting = ContextAssembler(fitting_settings, FakeTokenCounter()).assemble(
-        (), pending, refresh=False, retrieval=RetrievalResult(selected=scores)
-    )
+    fitting = ContextAssembler(
+        fitting_settings, FakeTokenCounter(), permission_revalidator=_PackingPermissions()
+    ).assemble((), pending, refresh=False, retrieval=_packing_retrieval(selected=scores))
     assert fitting.selected_memory_ids == (derived.id,)
     assert (first_backup.id, "represented_by_derived_memory") in fitting.excluded_memories
     assert (second_backup.id, "represented_by_derived_memory") in fitting.excluded_memories
@@ -2389,12 +2415,10 @@ def test_memory_limit_applies_after_derived_fit_and_backup_fallback():
         ScoredMemory(memory=memory, similarity=0.9 - index * 0.1)
         for index, memory in enumerate((oversized, first_backup, second_backup))
     )
-    fallback_settings = fitting_settings.model_copy(
-        update={"memory_max_context_tokens": 80}
-    )
-    fallback = ContextAssembler(fallback_settings, FakeTokenCounter()).assemble(
-        (), pending, refresh=False, retrieval=RetrievalResult(selected=fallback_scores)
-    )
+    fallback_settings = fitting_settings.model_copy(update={"memory_max_context_tokens": 80})
+    fallback = ContextAssembler(
+        fallback_settings, FakeTokenCounter(), permission_revalidator=_PackingPermissions()
+    ).assemble((), pending, refresh=False, retrieval=_packing_retrieval(selected=fallback_scores))
     assert fallback.selected_memory_ids == (first_backup.id,)
     assert (oversized.id, "budget") in fallback.excluded_memories
     assert (second_backup.id, "retrieval_limit") in fallback.excluded_memories
@@ -2414,7 +2438,9 @@ def test_optional_memory_count_forwards_its_short_deadline_through_assembler():
                 self.memory_timeouts.append(timeout_seconds)
             return FakeTokenCounter().count(messages)
 
-    scope = RequestScope(owner_id="local", request_id="request-memory-timeout", application_id="personal_ai")
+    scope = RequestScope(
+        owner_id="local", request_id="request-memory-timeout", application_id="personal_ai"
+    )
     memory = _memory_record(scope, content="MEMORY_MARKER: optional user preference")
     settings = Settings(
         ai_provider="fake",
@@ -2433,14 +2459,12 @@ def test_optional_memory_count_forwards_its_short_deadline_through_assembler():
         created_at=NOW,
         application_id=scope.application_id,
     )
-    ContextAssembler(settings, counter).assemble(
+    ContextAssembler(settings, counter, permission_revalidator=_PackingPermissions()).assemble(
         (),
         pending,
         refresh=False,
         deadline=monotonic() + 60,
-        retrieval=RetrievalResult(
-            selected=(ScoredMemory(memory=memory, similarity=0.9),)
-        ),
+        retrieval=_packing_retrieval(selected=(ScoredMemory(memory=memory, similarity=0.9),)),
     )
     assert counter.memory_timeouts
     assert all(0 < timeout <= 0.2 for timeout in counter.memory_timeouts)

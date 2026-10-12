@@ -90,6 +90,78 @@ class ContextTraceProviderFailure(BaseModel):
     reason: str = Field(min_length=1, max_length=64)
 
 
+class ContextTraceMemoryCandidate(BaseModel):
+    """Content-free candidate identity; actual injection/counts stay in build decisions."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    item_id_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    original_id_hashes: tuple[str, ...] = Field(max_length=4)
+    origins: tuple[str, ...] = Field(max_length=4)
+    similarity: float | None = Field(default=None, allow_inf_nan=False)
+    disposition: str = Field(max_length=64)
+    lifecycle: str = Field(max_length=64)
+    freshness: str = Field(max_length=32)
+    unresolved_conflict: bool
+    dependency_digests: tuple[str, ...] = Field(max_length=5)
+    estimated_tokens: int = Field(ge=0)
+
+
+class ContextTraceMemoryRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["memory-read-trace-v1"] = "memory-read-trace-v1"
+    strategy: str = Field(max_length=32)
+    strategy_version: str = Field(max_length=64)
+    ranker_version: str = Field(max_length=100)
+    packing_version: str = Field(max_length=64)
+    embedding_space_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
+    query_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    elapsed_ms: float = Field(ge=0, allow_inf_nan=False)
+    complete: bool
+    candidate_count: int = Field(ge=0)
+    hard_exclusion_count: int = Field(default=0, ge=0)
+    candidates_truncated: bool
+    candidates: tuple[ContextTraceMemoryCandidate, ...] = Field(max_length=32)
+
+    @classmethod
+    def from_retrieval(cls, retrieval):
+        trace = retrieval.trace if retrieval is not None else None
+        if trace is None:
+            return None
+        rows = tuple(
+            ContextTraceMemoryCandidate(
+                item_id_hash=_trace_identifier_hash("item", str(row.memory_id)),
+                original_id_hashes=tuple(
+                    _trace_identifier_hash("item", str(i)) for i in row.original_ids
+                ),
+                origins=row.origins,
+                similarity=row.similarity,
+                disposition=row.disposition,
+                lifecycle=row.lifecycle,
+                freshness=row.freshness,
+                unresolved_conflict=row.unresolved_conflict,
+                dependency_digests=tuple(
+                    sha256(dep.model_dump_json().encode()).hexdigest() for dep in row.dependencies
+                ),
+                estimated_tokens=row.estimated_tokens,
+            )
+            for row in trace.candidates[:32]
+        )
+        return cls(
+            strategy=trace.query.strategy,
+            strategy_version=trace.query.strategy_version,
+            ranker_version=trace.ranker_version,
+            packing_version=trace.packing_version,
+            embedding_space_identity=trace.query.embedding_space.identity,
+            query_digest=sha256(trace.query.model_dump_json().encode()).hexdigest(),
+            elapsed_ms=trace.elapsed_ms,
+            complete=trace.complete,
+            candidate_count=len(trace.candidates),
+            hard_exclusion_count=trace.hard_exclusion_count,
+            candidates_truncated=len(trace.candidates) > 32,
+            candidates=rows,
+        )
+
+
 class ContextTraceManifest(BaseModel):
     """Versioned metadata captured when a chat model input is prepared."""
 
@@ -110,6 +182,7 @@ class ContextTraceManifest(BaseModel):
     context_policy_version: str | None = Field(default=None, max_length=100)
     planner_version: str | None = Field(default=None, max_length=100)
     planning_trace: PlanningTrace | None = None
+    memory_read_trace: ContextTraceMemoryRead | None = None
     counter_kind: str = Field(min_length=1, max_length=32)
     counter_version: str = Field(min_length=1, max_length=200)
     global_input_tokens: int = Field(ge=1)
@@ -161,6 +234,7 @@ class ContextTraceManifest(BaseModel):
         scope: ApplicationScope,
         recorded_at: datetime | None = None,
         context_plan: ContextPlan | None = None,
+        memory_retrieval=None,
     ) -> ContextTraceManifest:
         """Project the live build report into a bounded, content-free trace."""
         requests = tuple(
@@ -175,7 +249,9 @@ class ContextTraceManifest(BaseModel):
                 max_tokens=selection.max_tokens,
                 required=selection.required,
             )
-            for selection in (context_plan.selections if context_plan else ())[:MAX_CONTEXT_TRACE_REQUESTS]
+            for selection in (context_plan.selections if context_plan else ())[
+                :MAX_CONTEXT_TRACE_REQUESTS
+            ]
         )
         planning = tuple(
             ContextTraceDecision(
@@ -216,20 +292,20 @@ class ContextTraceManifest(BaseModel):
         planning_trace = context_plan.planning_trace if context_plan else None
         if planning_trace is not None:
             dependencies = list(planning_trace.dependencies)
-            seen_dependencies = {
-                item.model_dump_json() for item in dependencies
-            }
+            seen_dependencies = {item.model_dump_json() for item in dependencies}
             for build_item in manifest.items:
                 for dependency in build_item.dependency_versions:
                     identity = dependency.model_dump_json()
                     if identity not in seen_dependencies:
                         dependencies.append(dependency)
                         seen_dependencies.add(identity)
-            planning_trace = planning_trace.model_copy(update={
-                "dependencies": tuple(dependencies[:64]),
-                "dependency_count": len(dependencies),
-                "dependencies_truncated": len(dependencies) > 64,
-            })
+            planning_trace = planning_trace.model_copy(
+                update={
+                    "dependencies": tuple(dependencies[:64]),
+                    "dependency_count": len(dependencies),
+                    "dependencies_truncated": len(dependencies) > 64,
+                }
+            )
         trace = cls(
             request_id=request_id,
             conversation_id=conversation_id,
@@ -243,6 +319,7 @@ class ContextTraceManifest(BaseModel):
             context_policy_version=manifest.context_policy_version,
             planner_version=manifest.planner_version,
             planning_trace=planning_trace,
+            memory_read_trace=ContextTraceMemoryRead.from_retrieval(memory_retrieval),
             counter_kind=manifest.counter_kind,
             counter_version=manifest.counter_version,
             global_input_tokens=manifest.global_input_tokens,
@@ -285,134 +362,193 @@ class ContextTraceManifest(BaseModel):
             provider_failures_truncated=len(manifest.source_failures) > 16,
             selected_message_ids=manifest.selected_message_ids[:MAX_CONTEXT_TRACE_MESSAGES],
             selected_message_count=len(manifest.selected_message_ids),
-            selected_messages_truncated=len(manifest.selected_message_ids) > MAX_CONTEXT_TRACE_MESSAGES,
+            selected_messages_truncated=len(manifest.selected_message_ids)
+            > MAX_CONTEXT_TRACE_MESSAGES,
             excluded_messages=excluded,
             excluded_message_count=len(manifest.excluded_messages),
             excluded_messages_truncated=len(manifest.excluded_messages) > len(excluded),
         )
         while len(trace.model_dump_json().encode()) > MAX_CONTEXT_TRACE_BYTES:
             if trace.planning_trace and len(trace.planning_trace.dependencies) > 32:
-                trace = trace.model_copy(update={
-                    "planning_trace": trace.planning_trace.model_copy(update={
-                        "dependencies": trace.planning_trace.dependencies[:32],
-                        "dependencies_truncated": True,
-                    }),
-                })
+                trace = trace.model_copy(
+                    update={
+                        "planning_trace": trace.planning_trace.model_copy(
+                            update={
+                                "dependencies": trace.planning_trace.dependencies[:32],
+                                "dependencies_truncated": True,
+                            }
+                        ),
+                    }
+                )
             elif trace.planning_trace and len(trace.planning_trace.dependencies) > 16:
-                trace = trace.model_copy(update={
-                    "planning_trace": trace.planning_trace.model_copy(update={
-                        "dependencies": trace.planning_trace.dependencies[:16],
-                        "dependencies_truncated": True,
-                    }),
-                })
+                trace = trace.model_copy(
+                    update={
+                        "planning_trace": trace.planning_trace.model_copy(
+                            update={
+                                "dependencies": trace.planning_trace.dependencies[:16],
+                                "dependencies_truncated": True,
+                            }
+                        ),
+                    }
+                )
+            elif trace.memory_read_trace and trace.memory_read_trace.candidates:
+                trace = trace.model_copy(
+                    update={
+                        "memory_read_trace": trace.memory_read_trace.model_copy(
+                            update={"candidates": (), "candidates_truncated": True}
+                        )
+                    }
+                )
             elif len(trace.source_decisions) > 16:
-                trace = trace.model_copy(update={
-                    "source_decisions": trace.source_decisions[:16],
-                    "source_decisions_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "source_decisions": trace.source_decisions[:16],
+                        "source_decisions_truncated": True,
+                    }
+                )
             elif len(trace.planning_decisions) > 8:
-                trace = trace.model_copy(update={
-                    "planning_decisions": trace.planning_decisions[:8],
-                    "planning_decisions_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "planning_decisions": trace.planning_decisions[:8],
+                        "planning_decisions_truncated": True,
+                    }
+                )
             elif len(trace.selected_message_ids) > 16:
-                trace = trace.model_copy(update={
-                    "selected_message_ids": trace.selected_message_ids[:16],
-                    "selected_messages_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "selected_message_ids": trace.selected_message_ids[:16],
+                        "selected_messages_truncated": True,
+                    }
+                )
             elif len(trace.excluded_messages) > 16:
-                trace = trace.model_copy(update={
-                    "excluded_messages": trace.excluded_messages[:16],
-                    "excluded_messages_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "excluded_messages": trace.excluded_messages[:16],
+                        "excluded_messages_truncated": True,
+                    }
+                )
             elif len(trace.requested_sources) > 8:
-                trace = trace.model_copy(update={
-                    "requested_sources": trace.requested_sources[:8],
-                    "requested_sources_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "requested_sources": trace.requested_sources[:8],
+                        "requested_sources_truncated": True,
+                    }
+                )
             elif any(len(source.fields) > 4 for source in trace.requested_sources):
-                trace = trace.model_copy(update={
-                    "requested_sources": tuple(
-                        source.model_copy(update={
-                            "fields": source.fields[:4],
-                            "fields_truncated": True,
-                        })
-                        for source in trace.requested_sources
-                    ),
-                })
-            elif any(len(decision.fields) > 4 for decision in (
-                *trace.planning_decisions, *trace.source_decisions
-            )):
-                trace = trace.model_copy(update={
-                    "planning_decisions": tuple(
-                        decision.model_copy(update={
-                            "fields": decision.fields[:4],
-                            "fields_truncated": True,
-                        })
-                        for decision in trace.planning_decisions
-                    ),
-                    "source_decisions": tuple(
-                        decision.model_copy(update={
-                            "fields": decision.fields[:4],
-                            "fields_truncated": True,
-                        })
-                        for decision in trace.source_decisions
-                    ),
-                })
+                trace = trace.model_copy(
+                    update={
+                        "requested_sources": tuple(
+                            source.model_copy(
+                                update={
+                                    "fields": source.fields[:4],
+                                    "fields_truncated": True,
+                                }
+                            )
+                            for source in trace.requested_sources
+                        ),
+                    }
+                )
+            elif any(
+                len(decision.fields) > 4
+                for decision in (*trace.planning_decisions, *trace.source_decisions)
+            ):
+                trace = trace.model_copy(
+                    update={
+                        "planning_decisions": tuple(
+                            decision.model_copy(
+                                update={
+                                    "fields": decision.fields[:4],
+                                    "fields_truncated": True,
+                                }
+                            )
+                            for decision in trace.planning_decisions
+                        ),
+                        "source_decisions": tuple(
+                            decision.model_copy(
+                                update={
+                                    "fields": decision.fields[:4],
+                                    "fields_truncated": True,
+                                }
+                            )
+                            for decision in trace.source_decisions
+                        ),
+                    }
+                )
             elif len(trace.source_decisions) > 8:
-                trace = trace.model_copy(update={
-                    "source_decisions": trace.source_decisions[:8],
-                    "source_decisions_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "source_decisions": trace.source_decisions[:8],
+                        "source_decisions_truncated": True,
+                    }
+                )
             elif len(trace.planning_decisions) > 4:
-                trace = trace.model_copy(update={
-                    "planning_decisions": trace.planning_decisions[:4],
-                    "planning_decisions_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "planning_decisions": trace.planning_decisions[:4],
+                        "planning_decisions_truncated": True,
+                    }
+                )
             elif len(trace.selected_message_ids) > 8:
-                trace = trace.model_copy(update={
-                    "selected_message_ids": trace.selected_message_ids[:8],
-                    "selected_messages_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "selected_message_ids": trace.selected_message_ids[:8],
+                        "selected_messages_truncated": True,
+                    }
+                )
             elif len(trace.excluded_messages) > 8:
-                trace = trace.model_copy(update={
-                    "excluded_messages": trace.excluded_messages[:8],
-                    "excluded_messages_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "excluded_messages": trace.excluded_messages[:8],
+                        "excluded_messages_truncated": True,
+                    }
+                )
             elif len(trace.requested_sources) > 4:
-                trace = trace.model_copy(update={
-                    "requested_sources": trace.requested_sources[:4],
-                    "requested_sources_truncated": True,
-                })
+                trace = trace.model_copy(
+                    update={
+                        "requested_sources": trace.requested_sources[:4],
+                        "requested_sources_truncated": True,
+                    }
+                )
             elif any(len(source.fields) > 1 for source in trace.requested_sources):
-                trace = trace.model_copy(update={
-                    "requested_sources": tuple(
-                        source.model_copy(update={
-                            "fields": source.fields[:1],
-                            "fields_truncated": True,
-                        })
-                        for source in trace.requested_sources
-                    ),
-                })
-            elif any(len(decision.fields) > 1 for decision in (
-                *trace.planning_decisions, *trace.source_decisions
-            )):
-                trace = trace.model_copy(update={
-                    "planning_decisions": tuple(
-                        decision.model_copy(update={
-                            "fields": decision.fields[:1],
-                            "fields_truncated": True,
-                        })
-                        for decision in trace.planning_decisions
-                    ),
-                    "source_decisions": tuple(
-                        decision.model_copy(update={
-                            "fields": decision.fields[:1],
-                            "fields_truncated": True,
-                        })
-                        for decision in trace.source_decisions
-                    ),
-                })
+                trace = trace.model_copy(
+                    update={
+                        "requested_sources": tuple(
+                            source.model_copy(
+                                update={
+                                    "fields": source.fields[:1],
+                                    "fields_truncated": True,
+                                }
+                            )
+                            for source in trace.requested_sources
+                        ),
+                    }
+                )
+            elif any(
+                len(decision.fields) > 1
+                for decision in (*trace.planning_decisions, *trace.source_decisions)
+            ):
+                trace = trace.model_copy(
+                    update={
+                        "planning_decisions": tuple(
+                            decision.model_copy(
+                                update={
+                                    "fields": decision.fields[:1],
+                                    "fields_truncated": True,
+                                }
+                            )
+                            for decision in trace.planning_decisions
+                        ),
+                        "source_decisions": tuple(
+                            decision.model_copy(
+                                update={
+                                    "fields": decision.fields[:1],
+                                    "fields_truncated": True,
+                                }
+                            )
+                            for decision in trace.source_decisions
+                        ),
+                    }
+                )
             else:
                 raise ValueError("context_trace_metadata_exceeds_size_limit")
         return trace

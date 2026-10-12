@@ -1,0 +1,801 @@
+{
+  "baseline_version": "memory-original-baseline-v1",
+  "evidence_kind": "synthetic_offline",
+  "tested_revision": "0e766e623ff1b74a206747d2e4c8b898d20f99b3",
+  "tested_at": "2026-10-12",
+  "source_tree": "683e669cdfef94ea1667dc6ee3668fc8eb398fc4",
+  "checks": [
+    {
+      "suite": "memory",
+      "cases": 14,
+      "passed": 14,
+      "rows": [
+        {
+          "fixture": "later-preference",
+          "result": "passed",
+          "selected": [
+            "90bab212-0c0a-5cb1-8f67-15cefe93b7a1"
+          ],
+          "tokens": 54,
+          "total_tokens": 62
+        },
+        {
+          "fixture": "episodic-match",
+          "result": "passed",
+          "selected": [
+            "cc8465be-380f-5f1a-b24d-a4c9b013d392"
+          ],
+          "tokens": 57,
+          "total_tokens": 64
+        },
+        {
+          "fixture": "semantic-summary",
+          "result": "passed",
+          "selected": [
+            "8d637b6c-7556-51d9-af61-eae9dcd22796"
+          ],
+          "tokens": 56,
+          "total_tokens": 65
+        },
+        {
+          "fixture": "explicit-correction",
+          "result": "passed",
+          "selected": [
+            "cb0ca149-ba09-5e15-82c9-906d56eda24f",
+            "65746eea-db8a-58fb-aa6d-24894d9ababb"
+          ],
+          "tokens": 63,
+          "total_tokens": 71
+        },
+        {
+          "fixture": "temporal-change",
+          "result": "passed",
+          "selected": [
+            "45559e15-cc10-5525-ac2b-4d71163bb24d",
+            "f3de6d3c-fded-54a2-88d9-482d6a01032f"
+          ],
+          "tokens": 60,
+          "total_tokens": 67
+        },
+        {
+          "fixture": "irrelevant-neighbor",
+          "result": "passed",
+          "selected": [
+            "e288db3a-2311-517f-a60c-3e8810a94ed9"
+          ],
+          "tokens": 54,
+          "total_tokens": 62
+        },
+        {
+          "fixture": "duplicate-input",
+          "result": "passed",
+          "selected": [
+            "33e1146d-a349-59c1-8d1e-d94544693961"
+          ],
+          "tokens": 54,
+          "total_tokens": 62
+        },
+        {
+          "fixture": "edited-branch",
+          "result": "passed",
+          "selected": [],
+          "tokens": 0,
+          "total_tokens": 17
+        },
+        {
+          "fixture": "foreign-owner",
+          "result": "passed",
+          "selected": [],
+          "tokens": 0,
+          "total_tokens": 18
+        },
+        {
+          "fixture": "memory-budget",
+          "result": "passed",
+          "selected": [
+            "fe55712d-3b75-5c8e-a46e-d8aa2e2c2f15"
+          ],
+          "tokens": 0,
+          "total_tokens": 18
+        },
+        {
+          "fixture": "rejected-sensitive",
+          "result": "passed",
+          "selected": [],
+          "tokens": 0,
+          "total_tokens": 18
+        },
+        {
+          "fixture": "embedding-failure",
+          "result": "passed",
+          "selected": [],
+          "tokens": 0,
+          "total_tokens": 18
+        },
+        {
+          "fixture": "retrieval-failure",
+          "result": "passed",
+          "selected": [],
+          "tokens": 0,
+          "total_tokens": 18
+        },
+        {
+          "fixture": "no-qualifying-memory",
+          "result": "passed",
+          "selected": [],
+          "tokens": 0,
+          "total_tokens": 18
+        }
+      ]
+    },
+    {
+      "suite": "memory_lifecycle",
+      "cases": 60,
+      "passed": 60,
+      "rows": [
+        {
+          "fixture": "similarity-vs-importance",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "episode",
+            "correction"
+          ],
+          "total_tokens": 71,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "similarity-vs-importance",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "correction",
+            "episode"
+          ],
+          "total_tokens": 71,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "similarity-vs-importance",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "correction",
+            "episode"
+          ],
+          "total_tokens": 71,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "recency-frequency-confidence",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "recent-repeat",
+            "old"
+          ],
+          "total_tokens": 70,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "recency-frequency-confidence",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "recent-repeat",
+            "old"
+          ],
+          "total_tokens": 70,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "recency-frequency-confidence",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "recent-repeat",
+            "old"
+          ],
+          "total_tokens": 70,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "score-tie-stable-id",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "score-tie-stable-id",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "score-tie-stable-id",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "repeated-explicit-preference",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "repeated-explicit-preference",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "repeated-explicit-preference",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "derived"
+          ],
+          "total_tokens": 78,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "repeated-compatible-episodes",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 68,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "repeated-compatible-episodes",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 68,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "repeated-compatible-episodes",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "derived"
+          ],
+          "total_tokens": 74,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "mixed-topic-cluster",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 70,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "mixed-topic-cluster",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 70,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "mixed-topic-cluster",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 70,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "clear-explicit-correction",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "newer"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "clear-explicit-correction",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "newer"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "clear-explicit-correction",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "newer"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "ambiguous-negation",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "newer",
+            "older"
+          ],
+          "total_tokens": 76,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "ambiguous-negation",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "newer",
+            "older"
+          ],
+          "total_tokens": 76,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "ambiguous-negation",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "newer",
+            "older"
+          ],
+          "total_tokens": 76,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "explicit-temporal-replacement",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "newer"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "explicit-temporal-replacement",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "newer"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "explicit-temporal-replacement",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "newer"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "stale-low-value-memory",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "stale-low-value-memory",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "stale-low-value-memory",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "protected-explicit-correction",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "protected"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "protected-explicit-correction",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "protected"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "protected-explicit-correction",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "protected"
+          ],
+          "total_tokens": 63,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "branch-rewrite-before-job",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "b"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "branch-rewrite-before-job",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "b"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "branch-rewrite-before-job",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "b"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "duplicate-job-delivery",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "duplicate-job-delivery",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 72,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "duplicate-job-delivery",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "derived"
+          ],
+          "total_tokens": 78,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "cross-owner-near-match",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "owner"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "cross-owner-near-match",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "owner"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "cross-owner-near-match",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "owner"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "forgotten-record-never-resurrected",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "forgotten-record-never-resurrected",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "forgotten-record-never-resurrected",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "derived-over-budget-source-fallback",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "derived-over-budget-source-fallback",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "derived-over-budget-source-fallback",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "a"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 1,
+          "maintenance_attempts": 1
+        },
+        {
+          "fixture": "scoring-failure-safe-fixed",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "scoring-failure-safe-fixed",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "scoring-failure-safe-fixed",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "a"
+          ],
+          "total_tokens": 62,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "lifecycle-failure-empty",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "lifecycle-failure-empty",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "lifecycle-failure-empty",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "query-provider-failure",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "query-provider-failure",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "query-provider-failure",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [],
+          "total_tokens": 16,
+          "maintenance_jobs": 0,
+          "maintenance_attempts": 0
+        },
+        {
+          "fixture": "active-dependent-forgetting-protection",
+          "variant": "fixed",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 68,
+          "maintenance_jobs": 2,
+          "maintenance_attempts": 2
+        },
+        {
+          "fixture": "active-dependent-forgetting-protection",
+          "variant": "scored",
+          "result": "passed",
+          "selected_labels": [
+            "a",
+            "b"
+          ],
+          "total_tokens": 68,
+          "maintenance_jobs": 2,
+          "maintenance_attempts": 2
+        },
+        {
+          "fixture": "active-dependent-forgetting-protection",
+          "variant": "consolidated",
+          "result": "passed",
+          "selected_labels": [
+            "derived"
+          ],
+          "total_tokens": 74,
+          "maintenance_jobs": 2,
+          "maintenance_attempts": 2
+        }
+      ]
+    }
+  ],
+  "postgres_pgvector_measurements": null,
+  "provider_measurements": null,
+  "promoted_coverage": []
+}

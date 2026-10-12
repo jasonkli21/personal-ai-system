@@ -293,6 +293,7 @@ class MemoryContextProvider:
     def fetch(self, selection: ContextSelection, scope: RequestScope, *, deadline: float):
         del deadline
         from personal_ai.memory.contracts import DerivedMemory, Memory, RetrievalResult
+        from personal_ai.memory.dependencies import injection_dependencies
         from personal_ai.memory.policy import content_reason
 
         if not isinstance(self.inputs.retrieval, RetrievalResult):
@@ -365,13 +366,7 @@ class MemoryContextProvider:
                             for message_id in source.source_message_ids
                         )
                     ),
-                    permission_dependencies=(
-                        ContextPermissionDependency(
-                            permission_id="ai_memory_read",
-                            version="memory-v1",
-                            purpose="retrieve active owner memory",
-                        ),
-                    ),
+                    permission_dependencies=injection_dependencies(self.inputs.retrieval, memory),
                     payload=MemoryContextPayload(
                         record_kind=(
                             "derived_memory" if hasattr(memory, "source_memory_ids") else "memory"
@@ -379,7 +374,21 @@ class MemoryContextProvider:
                         memory_type=memory.memory_type
                         if "memory_type" in selection.fields
                         else None,
-                        content=memory.content if "content" in selection.fields else None,
+                        content=(
+                            (
+                                "Unresolved conflict; retain ambiguity: "
+                                if any(
+                                    row.memory_id == memory.id and row.unresolved_conflict
+                                    for row in self.inputs.retrieval.trace.candidates
+                                )
+                                else ""
+                            )
+                            + memory.content
+                            if self.inputs.retrieval.trace
+                            else memory.content
+                        )
+                        if "content" in selection.fields
+                        else None,
                         effective_at=memory.effective_at
                         if "effective_at" in selection.fields
                         else None,
@@ -666,7 +675,8 @@ class BuiltInContextPermissionRevalidator:
 
     def is_current(self, dependency) -> bool:
         if dependency.permission_id == "ai_memory_read" and dependency.version == "memory-v1":
-            return bool(self.settings.memory_enabled)
+            # Historical flag-only memory snapshots cannot establish current source rights.
+            return False
         parts = dependency.permission_id.split(":")
         if (
             dependency.version != "global-profile-v1"

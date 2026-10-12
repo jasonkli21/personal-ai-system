@@ -14,7 +14,13 @@ from personal_ai.auth.scope import (
     scope_matches,
     scoped_record,
 )
-from personal_ai.memory.contracts import DerivedMemory, Memory, ScoredMemory, vector
+from personal_ai.memory.contracts import (
+    DerivedMemory,
+    Memory,
+    ScoredMemory,
+    embedding_space_for,
+    vector,
+)
 from personal_ai.memory.effects import EffectGuardToken, MemorySourceGuard  # noqa: F401
 from personal_ai.persistence.effect_receipts import PostgresEffectReceiptRepository
 from personal_ai.persistence.postgres import (
@@ -159,7 +165,16 @@ class PostgresMemoryRepository:
             )
             if existing is not None:
                 current = _memory_from_row(existing)
-                if current != memory:
+                # The extraction identity binds exact source event/type/normalized text.
+                # Retry timestamps, confidence and newly computed vectors never replace
+                # the first admitted original. Space changes remain explicit migrations.
+                if (
+                    current.source_fingerprint != memory.source_fingerprint
+                    or current.memory_type != memory.memory_type
+                    or current.normalized_content != memory.normalized_content
+                    or current.status != memory.status
+                    or embedding_space_for(current) != embedding_space_for(memory)
+                ):
                     raise PersistenceConflict("memory identity payload changed")
                 return {
                     "memory_id": str(memory.id),
@@ -371,6 +386,7 @@ class PostgresMemoryRepository:
         limit: int,
         timeout: float = 5,
         memory_type: str | None = None,
+        eligible=None,
     ) -> list[ScoredMemory]:
         return self._search(
             table="memories",
@@ -387,6 +403,7 @@ class PostgresMemoryRepository:
             timeout=timeout,
             memory_type=memory_type,
             derived=False,
+            eligible=eligible,
         )
 
     def search_derived(
@@ -403,6 +420,7 @@ class PostgresMemoryRepository:
         embedding_space_version: str = "v1",
         limit: int,
         timeout: float = 5,
+        eligible=None,
     ) -> list[ScoredMemory]:
         return self._search(
             table="derived_memories",
@@ -419,6 +437,7 @@ class PostgresMemoryRepository:
             timeout=timeout,
             memory_type=None,
             derived=True,
+            eligible=eligible,
         )
 
     def _search(
@@ -438,6 +457,7 @@ class PostgresMemoryRepository:
         timeout: float,
         memory_type: str | None,
         derived: bool,
+        eligible=None,
     ) -> list[ScoredMemory]:
         if limit < 1:
             return []
@@ -498,8 +518,7 @@ class PostgresMemoryRepository:
             if count > self.search_scan_limit:
                 raise StorageUnavailableError("memory search parity bound exceeded")
             rows = connection.execute(
-                f"SELECT payload,embedding,(embedding::vector <=> %s::vector) AS distance "
-                f"FROM {table} WHERE scope_id=%s AND owner_id=%s AND application_id=%s "
+                f"SELECT payload,embedding FROM {table} WHERE scope_id=%s AND owner_id=%s AND application_id=%s "
                 "AND workspace_id IS NOT DISTINCT FROM %s AND status='active' "
                 "AND embedding_provider=%s AND embedding_model=%s AND embedding_dimensions=%s "
                 "AND embedding_normalization=%s AND document_task=%s AND query_task=%s "
@@ -507,27 +526,63 @@ class PostgresMemoryRepository:
                 + extra_filter
                 + lifecycle_filter
                 + derived_filter
-                + " ORDER BY distance, record_id LIMIT %s",
-                [query_text, *params, self.search_scan_limit + 1],
+                + " ORDER BY record_id LIMIT %s",
+                [*params, self.search_scan_limit + 1],
             ).fetchall()
         if monotonic() > deadline:
             raise StorageUnavailableError("memory search timeout")
         if len(rows) > self.search_scan_limit:
             raise StorageUnavailableError("memory search parity bound exceeded")
-        scores = []
         model_type = DerivedMemory if derived else Memory
-        for payload, values, distance in rows:
-            values = tuple(float(value) for value in values)
+        eligible_records = {}
+        for payload, values in rows:
+            if monotonic() > deadline:
+                raise StorageUnavailableError("memory search timeout")
+            record = model_type.model_validate({**payload, "embedding": tuple(values)})
+            if record.owner_id != owner_id or not scope_matches(record, scope):
+                raise StorageUnavailableError("memory scope mismatch")
+            if eligible is None or eligible(record):
+                eligible_records[str(record.id)] = record
+        if not eligible_records:
+            return []
+        # Cross-store branch/permission checks precede all vector scoring. Original
+        # rows are immutable; a delete/change between stages fails closed.
+        with self.database.connection() as connection:
+            scored_rows = connection.execute(
+                f"SELECT record_id,embedding,(embedding::vector <=> %s::vector) AS distance "
+                f"FROM {table} WHERE scope_id=%s AND owner_id=%s AND application_id=%s "
+                "AND workspace_id IS NOT DISTINCT FROM %s AND record_id=ANY(%s)",
+                (
+                    query_text,
+                    scope_id,
+                    owner_id,
+                    scope.application_id,
+                    scope.workspace_id,
+                    list(eligible_records),
+                ),
+            ).fetchall()
+        if len(scored_rows) != len(eligible_records) or monotonic() > deadline:
+            raise StorageUnavailableError("memory eligible source set changed or timed out")
+        scores = []
+        for identifier, values, distance in scored_rows:
+            record = eligible_records[identifier]
+            if tuple(values) != record.embedding:
+                raise StorageUnavailableError("memory embedding changed")
             cast_similarity = 1.0 - float(distance)
             exact_similarity = sum(
                 a * b for a, b in zip(query_vector, vector(values, dimensions), strict=True)
             )
             if abs(exact_similarity - cast_similarity) > PGVECTOR_COSINE_ERROR_BOUND:
                 raise StorageUnavailableError("memory vector parity bound exceeded")
-            record = model_type.model_validate({**payload, "embedding": values})
-            if record.owner_id != owner_id or not scope_matches(record, scope):
-                raise StorageUnavailableError("memory scope mismatch")
-            scores.append(ScoredMemory(record, exact_similarity))
+            scores.append(
+                ScoredMemory(
+                    record,
+                    exact_similarity,
+                    origins=("consolidated_active_view", "exact_vector")
+                    if derived
+                    else ("exact_vector",),
+                )
+            )
         return sorted(scores, key=lambda score: (-score.similarity, str(score.memory.id)))[:limit]
 
     def _read_memory_row(self, connection, scope, owner_id, record_id, *, lock=False):

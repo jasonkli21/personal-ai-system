@@ -14,8 +14,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from personal_ai.auth.scope import (
     STANDALONE_APPLICATION_ID,
     ApplicationScopedRecord,
+    RequestScope,
     current_application_scope,
 )
+from personal_ai.contracts.context_references import ContextPermissionDependency
 from personal_ai.entities import Message
 from personal_ai.llm.client import EmbeddingResult, EmbeddingSpace, GenerationMetadata
 
@@ -119,6 +121,7 @@ class DerivedMemorySource(BaseModel):
     source_turn_id: UUID
     source_message_ids: tuple[UUID, ...] = Field(min_length=1, max_length=2)
     excerpt: str = Field(min_length=1, max_length=1000)
+    dependency_version: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class DerivedMemory(ApplicationScopedRecord):
@@ -148,6 +151,10 @@ class DerivedMemory(ApplicationScopedRecord):
     source_set_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
     derivation_policy_version: str = Field(min_length=1, max_length=100)
     rationale_code: Literal["repeated_explicit_preference", "compatible_episode_history"]
+    sensitivity: Literal["personal"] = "personal"
+    authority: Literal["derived"] = "derived"
+    unresolved_conflict: Literal[False] = False
+    refresh_state: Literal["active"] = "active"
     schema_version: Literal[2] = 2
 
     @field_validator("embedding", mode="before")
@@ -176,16 +183,40 @@ class DerivedMemory(ApplicationScopedRecord):
             raise ValueError("source_coverage_invalid")
         if self.source_memory_ids != tuple(sorted(self.source_memory_ids, key=str)):
             raise ValueError("source_order_invalid")
-        namespace = [] if self.application_id == STANDALONE_APPLICATION_ID and self.workspace_id is None else [
-            self.application_id, self.workspace_id or ""
-        ]
-        key = sha256("\0".join([self.owner_id, *namespace, self.derivation_policy_version] + [
-            f"{item.memory_id}:{item.source_fingerprint}" for item in self.sources
-        ]).encode()).hexdigest()
-        if self.source_set_identity != key or self.id != uuid5(NAMESPACE_URL, "personal-ai-derived-memory:" + key):
+        namespace = (
+            []
+            if self.application_id == STANDALONE_APPLICATION_ID and self.workspace_id is None
+            else [self.application_id, self.workspace_id or ""]
+        )
+        key = sha256(
+            "\0".join(
+                [self.owner_id, *namespace, self.derivation_policy_version]
+                + [
+                    (
+                        f"{item.memory_id}:{item.source_fingerprint}:{item.dependency_version}"
+                        if self.derivation_policy_version == "extractive-v2"
+                        else f"{item.memory_id}:{item.source_fingerprint}"
+                    )
+                    for item in self.sources
+                ]
+            ).encode()
+        ).hexdigest()
+        if self.source_set_identity != key or self.id != uuid5(
+            NAMESPACE_URL, "personal-ai-derived-memory:" + key
+        ):
             raise ValueError("derived_identity_invalid")
-        expected_content = "Historical personal context from repeated user statements:\n" + "\n".join(item.excerpt for item in self.sources)
-        if self.content != expected_content or self.derivation_policy_version != "extractive-v1":
+        prefix = "Historical personal context from repeated user statements:\n"
+        expected_content = prefix + "\n".join(item.excerpt for item in self.sources)
+        if self.derivation_policy_version == "extractive-v2":
+            if len({normalize(item.excerpt) for item in self.sources}) != 1 or any(
+                item.dependency_version is None for item in self.sources
+            ):
+                raise ValueError("source_coverage_invalid")
+            expected_content = self.sources[0].excerpt
+        if self.content != expected_content or self.derivation_policy_version not in (
+            "extractive-v1",
+            "extractive-v2",
+        ):
             raise ValueError("unsupported_derivation")
         vector(self.embedding, self.embedding_dimensions)
         return self
@@ -237,6 +268,67 @@ def identity(
 class ScoredMemory:
     memory: Memory | DerivedMemory
     similarity: float
+    origins: tuple[str, ...] = ("exact_vector",)
+
+
+class MemoryQuery(BaseModel):
+    """Server-built narrowing contract; never proof of access supplied by a caller."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    scope: RequestScope
+    task_id: str = Field(default="chat", min_length=1, max_length=100)
+    requirements: tuple[str, ...] = Field(default=(), max_length=16)
+    entity_refs: tuple[str, ...] = Field(default=(), max_length=16)
+    source_classes: tuple[MemoryType, ...] = (
+        "preference",
+        "episodic_observation",
+        "semantic_summary",
+        "explicit_correction",
+    )
+    lifecycle_classes: tuple[Literal["active"], ...] = ("active",)
+    sensitivity_ceiling: Literal["public", "personal"] = "personal"
+    temporal_mode: Literal["current", "history"] = "current"
+    observed_after: datetime | None = None
+    max_items: int = Field(ge=1, le=100)
+    max_tokens: int = Field(ge=1)
+    candidate_limit: int = Field(ge=1, le=100)
+    embedding_space: EmbeddingSpace
+    strategy: Literal["fixed", "scored", "consolidated", "compact"]
+    strategy_version: Literal["memory-read-v1"] = "memory-read-v1"
+    dependency_versions: tuple[str, ...] = Field(default=(), max_length=16)
+    as_of: datetime
+    query_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    time_budget_seconds: float = Field(gt=0, le=30, allow_inf_nan=False)
+    deadline: float = Field(gt=0, allow_inf_nan=False)
+
+
+class MemoryCandidateTrace(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    memory_id: UUID
+    original_ids: tuple[UUID, ...]
+    origins: tuple[str, ...]
+    similarity: float | None = None
+    disposition: str
+    lifecycle: str
+    provenance_state: Literal["eligible", "ineligible"] = "eligible"
+    refresh_state: Literal["active", "refresh_required"] = "active"
+    source_identity: str | None = None
+    freshness: Literal["stable", "volatile", "episodic"]
+    authority: Literal["user_asserted", "derived"]
+    dependencies: tuple[ContextPermissionDependency, ...] = ()
+    unresolved_conflict: bool = False
+    estimated_tokens: int = 0
+
+
+class MemoryRetrievalTrace(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    query: MemoryQuery
+    ranker_version: str
+    packing_version: str
+    candidates: tuple[MemoryCandidateTrace, ...]
+    complete: bool
+    hard_exclusion_count: int = Field(default=0, ge=0)
+    elapsed_ms: float
 
 
 @dataclass(frozen=True)
@@ -252,6 +344,8 @@ class RetrievalResult:
     policy_identity: str | None = None
     lifecycle_event_ids: tuple[UUID, ...] = ()
     inspection_metadata: tuple[tuple[UUID, dict], ...] = ()
+    trace: MemoryRetrievalTrace | None = None
+    permission_dependencies: tuple[tuple[UUID, tuple[ContextPermissionDependency, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -297,4 +391,5 @@ class MemoryRepository(Protocol):
         embedding_space_version: str = "v1",
         limit: int,
         timeout: float = 5,
+        eligible=None,
     ) -> Sequence[ScoredMemory]: ...

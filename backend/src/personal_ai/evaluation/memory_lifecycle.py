@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
-from personal_ai.context import ContextAssembler
 from personal_ai.context.contracts import fingerprint
 from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.entities import Conversation, Message
+from personal_ai.evaluation.memory_context import MemoryFixtureAssembler
 from personal_ai.evaluation.output import emit
 from personal_ai.memory.contracts import Memory, MemoryCandidate, identity, normalize
 from personal_ai.memory.fake import FakeEmbedder
@@ -266,9 +266,13 @@ def evaluate_fixture(fixture, variant):
             lifecycle_repository=lifecycle,
             clock=lambda: NOW,
         ).retrieve("local", env["pending"].content, [])
-    assembled = ContextAssembler(env["settings"], FakeTokenCounter()).assemble(
-        [], env["pending"], retrieval=retrieval
-    )
+    assembled = MemoryFixtureAssembler(
+        env["settings"],
+        FakeTokenCounter(),
+        memories=env["memories"],
+        messages=env["messages"],
+        lifecycle=lifecycle,
+    ).assemble([], env["pending"], retrieval=retrieval)
     selected = [labels[item.memory.id] for item in retrieval.selected]
     injected = [labels[item] for item in assembled.selected_memory_ids]
     expected = fixture.get("expected", {}).get(variant)
@@ -303,7 +307,11 @@ def evaluate_fixture(fixture, variant):
         and ("derived" not in injected or len(set(injected)) == 1)
         and assembled.budget.selected_total <= assembled.budget.input_budget
         and assembled.selected_message_ids[-1] == env["pending"].id
-        and all(env["memories"].get(owner_id=record.owner_id, memory_id=record.id).model_dump() == env["originals"][label] for label, record in records.items())
+        and all(
+            env["memories"].get(owner_id=record.owner_id, memory_id=record.id).model_dump()
+            == env["originals"][label]
+            for label, record in records.items()
+        )
         and len({event.id for event in events}) == len(events)
     )
     if "derived" in fixture:
@@ -314,7 +322,7 @@ def evaluate_fixture(fixture, variant):
         passed = passed and "derived" not in injected and bool(injected)
     return {
         "fixture": fixture["name"],
-        "fixture_version": 1,
+        "fixture_version": fixture.get("fixture_version", 1),
         "variant": variant,
         "policy_version": "score-v1",
         "policy_identity": retrieval.policy_identity,

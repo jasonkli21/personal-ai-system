@@ -29,7 +29,7 @@ from personal_ai.context.adapters import (
 )
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.authorization import authorize_context_selection
-from personal_ai.context.contracts import TokenCount
+from personal_ai.context.contracts import TokenCount, fingerprint
 from personal_ai.context.planner import ContextPlanner, ContextPlanningRule
 from personal_ai.context.profile import (
     GlobalProfileContextProviderFactory,
@@ -48,6 +48,7 @@ from personal_ai.context.providers import (
     ContextSourceReference,
     StaticContextProviderFactory,
 )
+from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry
 from personal_ai.entities import Message, MessageRole, MessageStatus
 from personal_ai.evaluation.output import emit
 from personal_ai.evaluation.planning_quality import assembled_context_digest
@@ -181,6 +182,75 @@ def _builtin_memory(scope) -> Memory:
     )
 
 
+def _builtin_memory_runtime(scope, settings):
+    from personal_ai.auth.scope import application_scope_context
+    from personal_ai.entities import Conversation
+    from personal_ai.memory.contracts import identity
+    from personal_ai.memory.dependencies import MemoryPermissionRevalidator, record_dependencies
+    from personal_ai.memory.repositories import InMemoryMemoryRepository
+    from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMessageRepository
+
+    record = _builtin_memory(scope)
+    conversations = InMemoryConversationRepository()
+    messages = InMemoryMessageRepository(conversations)
+    memories = InMemoryMemoryRepository(messages)
+    with application_scope_context(scope):
+        conversations.create(
+            Conversation(
+                id=record.source_conversation_id,
+                owner_id=scope.owner_id,
+                title="Synthetic memory source",
+                created_at=NOW,
+                updated_at=NOW,
+                application_id=scope.application_id,
+                workspace_id=scope.workspace_id,
+            )
+        )
+        user = Message(
+            id=record.source_message_ids[0],
+            owner_id=scope.owner_id,
+            conversation_id=record.source_conversation_id,
+            role="user",
+            status="completed",
+            content=record.content,
+            created_at=NOW,
+            application_id=scope.application_id,
+            workspace_id=scope.workspace_id,
+        )
+        assistant = Message(
+            id=record.source_turn_id,
+            owner_id=scope.owner_id,
+            conversation_id=record.source_conversation_id,
+            role="assistant",
+            status="completed",
+            content="Understood.",
+            parent_message_id=user.id,
+            created_at=NOW,
+            application_id=scope.application_id,
+            workspace_id=scope.workspace_id,
+        )
+        messages.create(user)
+        messages.create(assistant)
+        record = record.model_copy(update={"source_fingerprint": fingerprint([user])})
+        record = record.model_copy(
+            update={
+                "id": identity(
+                    scope.owner_id,
+                    record.source_fingerprint,
+                    record,
+                    application_id=scope.application_id,
+                    workspace_id=scope.workspace_id,
+                )
+            }
+        )
+        record, _ = memories.create(record)
+        retrieval = RetrievalResult(
+            selected=(ScoredMemory(record, 0.95),),
+            permission_dependencies=((record.id, record_dependencies(record, memories, None)),),
+        )
+    return retrieval, MemoryPermissionRevalidator(settings, memories, messages)
+
+
 def _builtin_profile_repository(scope, shared_fields) -> InMemoryGlobalProfileRepository:
     values = {
         "preferred_units": "metric",
@@ -291,7 +361,9 @@ def _policy_with_fixture_operations(
     return base.model_copy(update={"provider_policies": tuple(providers.values())})
 
 
-def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planning_variant=None) -> dict:
+def _run_fixture(
+    fixture: dict, *, counter=None, configured_planner=None, planning_variant=None
+) -> dict:
     catalog_count = fixture.get("authorized_competing_candidate_count", 0)
     if catalog_count < 0 or catalog_count > ContextProviderCoordinator.MAX_SELECTIONS:
         raise ValueError("planning_fixture_authorized_catalog_size_invalid")
@@ -313,6 +385,7 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
     synthetic_policy_operations: dict[str, ContextOperationPolicy] = {}
     retrieval = None
     profile_repository = None
+    memory_validator = None
     registry_definition = default_application_registry().get(fixture["application_id"])
     max_context_tokens = fixture.get("max_context_tokens", 2_048)
     available_context_tokens = max_context_tokens - 100 - 20
@@ -327,9 +400,7 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         memory_enabled=True,
         memory_embedding_model="phase13-offline-fixture",
         memory_embedding_dimensions=2,
-        memory_max_context_tokens=min(
-            512, max(1, available_context_tokens)
-        ),
+        memory_max_context_tokens=min(512, max(1, available_context_tokens)),
         context_profile_max_tokens=min(512, available_context_tokens),
     )
 
@@ -339,9 +410,7 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
                 recording_factory = _RecordingFactory(MemoryContextProviderFactory(settings))
                 factories[provider_id] = recording_factory
                 providers.append(recording_factory)
-                retrieval = RetrievalResult(
-                    selected=(ScoredMemory(_builtin_memory(scope), 0.95),)
-                )
+                retrieval, memory_validator = _builtin_memory_runtime(scope, settings)
                 capabilities.append(
                     CapabilityRegistration(
                         capability_id=provider_id,
@@ -401,8 +470,7 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
             synthetic_policy_operations[provider_id] = ContextOperationPolicy(
                 operation=operation,
                 fields=tuple(
-                    ContextFieldPolicy(field=field, sensitivity="sensitive")
-                    for field in fields
+                    ContextFieldPolicy(field=field, sensitivity="sensitive") for field in fields
                 ),
                 sensitivity="sensitive",
             )
@@ -481,7 +549,12 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         counter or _EnvelopeTokenCounter(),
         context_provider_coordinator=coordinator,
         context_planner=planner,
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings, profile_repository),
+        permission_revalidator=ContextPermissionRevalidatorRegistry(
+            (
+                BuiltInContextPermissionRevalidator(settings, profile_repository),
+                *((memory_validator,) if memory_validator is not None else ()),
+            )
+        ),
     )
     user = Message(
         id=uuid5(NAMESPACE_URL, f"{fixture['name']}:pending"),
@@ -517,8 +590,12 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
     scope_token = bind_request_scope(scope)
     try:
         assembled = assembler.assemble(
-            (), user, retrieval=retrieval, application_context=context,
-            context_plan=plan, refresh=False,
+            (),
+            user,
+            retrieval=retrieval,
+            application_context=context,
+            context_plan=plan,
+            refresh=False,
         )
     finally:
         reset_request_scope(scope_token)
@@ -540,8 +617,12 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
     response_bytes = sum(len(item.model_dump_json().encode("utf-8")) for item in returned)
     reasons = [decision.reason for decision in plan.decisions if decision.disposition == "omitted"]
     expected_reason = fixture.get("expected_omission_reason")
-    planned_support = set().union(*(set(item.fields) for item in plan.selections)) if plan.selections else set()
-    retrieved_support = set().union(*(_item_fields(item) for item in returned)) if returned else set()
+    planned_support = (
+        set().union(*(set(item.fields) for item in plan.selections)) if plan.selections else set()
+    )
+    retrieved_support = (
+        set().union(*(_item_fields(item) for item in returned)) if returned else set()
+    )
     injected_keys = {
         (report.provider_id, report.item_id)
         for report in assembled.manifest.items
@@ -550,7 +631,9 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
     injected_items = [
         item for item in returned if (item.provider_id, item.item_id) in injected_keys
     ]
-    injected_support = set().union(*(_item_fields(item) for item in injected_items)) if injected_items else set()
+    injected_support = (
+        set().union(*(_item_fields(item) for item in injected_items)) if injected_items else set()
+    )
     answer_needs = set(fixture["answer_support_needs"])
     expected_retrieved = set(fixture.get("expected_retrieved_fields", expected_fields))
     expected_injected = set(fixture.get("expected_injected_fields", expected_fields))
@@ -585,16 +668,19 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
     source_revision_observations = []
     for report in assembled.manifest.items:
         source_item = returned_by_key.get((report.provider_id, report.item_id))
-        source_revision_observations.append({
-            "provider_id": report.provider_id,
-            "source_revision": report.source_version,
-            "observation_complete": source_item is not None and not source_item.partial_result,
-            "injected": report.injected,
-            "omission_reason": report.omission_reason,
-        })
+        source_revision_observations.append(
+            {
+                "provider_id": report.provider_id,
+                "source_revision": report.source_version,
+                "observation_complete": source_item is not None and not source_item.partial_result,
+                "injected": report.injected,
+                "omission_reason": report.omission_reason,
+            }
+        )
     source_revision_matches = (
         revision_transition is None
-        or bool(source_revision_observations) and all(
+        or bool(source_revision_observations)
+        and all(
             observation["source_revision"] == revision_transition["expected_current_revision"]
             and observation["observation_complete"] is revision_transition["observation_complete"]
             for observation in source_revision_observations
@@ -606,8 +692,7 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         key=lambda item: (item["provider_id"], item["operation"]),
     )
     calls_match_plan = (
-        len(normalized_calls) == len(actual_selections)
-        and normalized_calls == actual_selections
+        len(normalized_calls) == len(actual_selections) and normalized_calls == actual_selections
     )
     metadata_valid = all(item.source_refs for item in returned) and all(
         item.permission_dependencies
@@ -685,7 +770,9 @@ def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planni
         "permission_dependency_counts": [len(item.permission_dependencies) for item in returned],
         "selected_source_count": len(plan.selections),
         "selected_item_count": len(injected_items),
-        "assembled_bytes": sum(len(message.content.encode("utf-8")) for message in assembled.messages),
+        "assembled_bytes": sum(
+            len(message.content.encode("utf-8")) for message in assembled.messages
+        ),
         "planner_configuration_digest": planner.configuration_digest,
         "assembled_context_digest": assembled_context_digest(assembled),
         "planning_trace": plan.planning_trace.model_dump(mode="json"),

@@ -8,6 +8,7 @@ from uuid import NAMESPACE_URL, uuid5
 from personal_ai.context import ContextAssembler
 from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.entities import Conversation, Message
+from personal_ai.evaluation.memory_context import MemoryFixtureAssembler
 from personal_ai.evaluation.output import emit
 from personal_ai.memory.contracts import MemoryCandidate
 from personal_ai.memory.fake import FakeEmbedder, FakeMemoryExtractor
@@ -161,9 +162,9 @@ def evaluate():
         retrieval = MemoryRetriever(settings, repo, messages, embedder).retrieve(
             pending.owner_id, pending.content, [pending]
         )
-        result = ContextAssembler(settings, FakeTokenCounter()).assemble(
-            [], pending, retrieval=retrieval
-        )
+        result = MemoryFixtureAssembler(
+            settings, FakeTokenCounter(), memories=repo, messages=messages
+        ).assemble([], pending, retrieval=retrieval)
         expected = [ids[i] for i in f["expected_order"]]
         selected = [s.memory.id for s in retrieval.selected]
         forbidden = {ids[i] for i in f["forbidden"]}

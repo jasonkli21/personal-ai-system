@@ -17,6 +17,7 @@ from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.entities import MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.evaluation.memory import build_fixture, evaluate, fixture_settings, load_fixtures
+from personal_ai.evaluation.memory_context import MemoryFixtureAssembler
 from personal_ai.llm import LLMUnavailableError
 from personal_ai.memory.contracts import MemoryCandidate, RetrievalResult, ScoredMemory, vector
 from personal_ai.memory.fake import FakeMemoryExtractor
@@ -385,7 +386,9 @@ def test_injection_preserves_phase_2_request_and_whole_record_budget():
     retrieval = MemoryRetriever(settings, repo, messages, embedder).retrieve(
         "local", pending.content, []
     )
-    assembler = ContextAssembler(settings, FakeTokenCounter())
+    assembler = MemoryFixtureAssembler(
+        settings, FakeTokenCounter(), memories=repo, messages=messages
+    )
     base = assembler.assemble([], pending)
     result = assembler.assemble([], pending, retrieval=retrieval)
     assert result.messages[1:] == base.messages
@@ -437,8 +440,13 @@ def test_long_history_summary_memory_and_recent_turns_share_one_budget():
         summary_trigger_tokens=100,
         memory_max_context_tokens=150,
     )
-    assembler = ContextAssembler(
-        settings, FakeTokenCounter(), InMemorySummaryRepository(), FactSummarizer()
+    assembler = MemoryFixtureAssembler(
+        settings,
+        FakeTokenCounter(),
+        InMemorySummaryRepository(),
+        FactSummarizer(),
+        memories=repo,
+        messages=messages,
     )
     base = assembler.assemble(active, pending)
     result = assembler.assemble(active, pending, refresh=False, retrieval=retrieval)
@@ -465,7 +473,9 @@ def test_optional_memory_count_failure_keeps_precounted_base_request():
                 raise LLMUnavailableError("safe")
             return super().count(request)
 
-    assembler = ContextAssembler(settings, MemoryFailingCounter())
+    assembler = MemoryFixtureAssembler(
+        settings, MemoryFailingCounter(), memories=repo, messages=messages
+    )
     base = assembler.assemble([], pending)
     result = assembler.assemble([], pending, retrieval=retrieval)
     assert result.messages == base.messages

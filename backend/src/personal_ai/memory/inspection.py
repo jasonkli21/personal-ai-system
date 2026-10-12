@@ -3,7 +3,13 @@
 from datetime import UTC, datetime
 
 from personal_ai.memory.contracts import DerivedMemory, RetrievalResult, ScoredMemory
-from personal_ai.memory.lifecycle import IMPORTANCE_BY_TYPE, MemoryScore, ScorePolicy
+from personal_ai.memory.dependencies import dependency_version, original_reason, record_dependencies
+from personal_ai.memory.lifecycle import (
+    IMPORTANCE_BY_TYPE,
+    MemoryLifecycleState,
+    MemoryScore,
+    ScorePolicy,
+)
 from personal_ai.memory.policy import candidate_reason, content_reason
 from personal_ai.memory.services import source_messages
 from personal_ai.storage.errors import ResourceNotFoundError
@@ -55,9 +61,8 @@ def inspect_records(
     settings, repository, messages, owner_id, memory_ids, lifecycle_repository=None
 ):
     if (
-        (not settings.memory_inspection_enabled and not settings.memory_lifecycle_inspection_enabled)
-        or repository is None
-    ):
+        not settings.memory_inspection_enabled and not settings.memory_lifecycle_inspection_enabled
+    ) or repository is None:
         raise ResourceNotFoundError("resource not found")
     candidates, selected, excluded, scores, metadata, event_ids = [], [], [], [], [], []
     now = datetime.now(UTC)
@@ -111,7 +116,17 @@ def inspect_records(
                     else None
                 )
                 if (
-                    original.source_fingerprint != source.source_fingerprint
+                    source.dependency_version is None
+                    and source_state is not None
+                    and source_state.validity_epoch > 0
+                    or source.dependency_version is not None
+                    and source.dependency_version
+                    != dependency_version(
+                        original,
+                        source_state
+                        or MemoryLifecycleState(owner_id=original.owner_id, memory_id=original.id),
+                    )
+                    or original.source_fingerprint != source.source_fingerprint
                     or original.source_message_ids != source.source_message_ids
                     or original.source_conversation_id != source.source_conversation_id
                     or original.source_turn_id != source.source_turn_id
@@ -125,8 +140,9 @@ def inspect_records(
             if not sources_valid:
                 reason = "provenance_invalid"
         elif reason is None:
+            reason = original_reason(memory, settings, messages, lifecycle_repository, now=now)
             source = source_messages(memory, messages)
-            reason = (
+            reason = reason or (
                 "branch_mismatch"
                 if source is None
                 else candidate_reason(
@@ -150,8 +166,6 @@ def inspect_records(
         else:
             selected.append(scored)
         if state is None:
-            from personal_ai.memory.lifecycle import MemoryLifecycleState
-
             state = MemoryLifecycleState(owner_id=owner_id, memory_id=memory_id)
         score = _score_metadata(memory, state, policy, now)
         scores.append(score)
@@ -161,36 +175,59 @@ def inspect_records(
             else ()
         )
         event_ids.extend(event.id for event in events)
-        metadata.append((memory.id, {
-            "source_records": _source_metadata(memory),
-            "lifecycle": {
-                "status": state.retrieval_status,
-                "state_version": state.state_version,
-                "effective_status_at": (
-                    state.effective_status_at.isoformat() if state.effective_status_at else None
-                ),
-                "superseded_by_memory_id": (
-                    str(state.superseded_by_memory_id) if state.superseded_by_memory_id else None
-                ),
-                "consolidated_into_memory_ids": [str(item) for item in state.consolidated_into_memory_ids],
-                "retrieval_count": state.retrieval_count,
-                "last_retrieved_at": (
-                    state.last_retrieved_at.isoformat() if state.last_retrieved_at else None
-                ),
-                "importance": state.importance,
-                "last_event_id": str(state.last_event_id) if state.last_event_id else None,
-            },
-            "events": [{
-                "id": str(event.id),
-                "type": event.event_type,
-                "reason_code": event.reason_code,
-                "policy_version": event.policy_version,
-                "occurred_at": event.occurred_at.isoformat(),
-                "related_memory_ids": [str(item) for item in event.related_memory_ids],
-            } for event in events],
-        }))
+        metadata.append(
+            (
+                memory.id,
+                {
+                    "source_records": _source_metadata(memory),
+                    "lifecycle": {
+                        "status": state.retrieval_status,
+                        "state_version": state.state_version,
+                        "effective_status_at": (
+                            state.effective_status_at.isoformat()
+                            if state.effective_status_at
+                            else None
+                        ),
+                        "superseded_by_memory_id": (
+                            str(state.superseded_by_memory_id)
+                            if state.superseded_by_memory_id
+                            else None
+                        ),
+                        "consolidated_into_memory_ids": [
+                            str(item) for item in state.consolidated_into_memory_ids
+                        ],
+                        "retrieval_count": state.retrieval_count,
+                        "last_retrieved_at": (
+                            state.last_retrieved_at.isoformat() if state.last_retrieved_at else None
+                        ),
+                        "importance": state.importance,
+                        "last_event_id": str(state.last_event_id) if state.last_event_id else None,
+                        "unresolved_conflict": state.unresolved_conflict,
+                        "validity_epoch": state.validity_epoch,
+                    },
+                    "active_view_status": "invalid" if reason else "active",
+                    "refresh_state": "refresh_required"
+                    if reason and isinstance(memory, DerivedMemory)
+                    else "active",
+                    "derivation_policy_version": getattr(memory, "derivation_policy_version", None),
+                    "events": [
+                        {
+                            "id": str(event.id),
+                            "type": event.event_type,
+                            "reason_code": event.reason_code,
+                            "policy_version": event.policy_version,
+                            "occurred_at": event.occurred_at.isoformat(),
+                            "related_memory_ids": [str(item) for item in event.related_memory_ids],
+                        }
+                        for event in events
+                    ],
+                },
+            )
+        )
     return RetrievalResult(
-        tuple(candidates), tuple(selected), tuple(excluded),
+        tuple(candidates),
+        tuple(selected),
+        tuple(excluded),
         requested_variant=settings.memory_experiment_variant,
         applied_variant=settings.memory_experiment_variant,
         policy_version=policy.version,
@@ -198,4 +235,8 @@ def inspect_records(
         scores=tuple(scores),
         lifecycle_event_ids=tuple(event_ids),
         inspection_metadata=tuple(metadata),
+        permission_dependencies=tuple(
+            (item.memory.id, record_dependencies(item.memory, repository, lifecycle_repository))
+            for item in selected
+        ),
     )

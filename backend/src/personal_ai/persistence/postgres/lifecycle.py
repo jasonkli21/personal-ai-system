@@ -37,6 +37,7 @@ from personal_ai.persistence.postgres.memory import PostgresMemoryRepository
 from personal_ai.storage.errors import (
     ConversationConflictError,
     ResourceNotFoundError,
+    StorageUnavailableError,
 )
 
 
@@ -99,6 +100,16 @@ class PostgresMemoryLifecycleRepository:
             ),
         ).fetchone()
         if row is None:
+            # Initial state is valid only when the immutable event log is empty.
+            # A missing rebuildable projection must not resurrect forgotten memory.
+            prior = connection.execute(
+                "SELECT 1 FROM memory_lifecycle_events WHERE scope_id=%s AND aggregate_id=%s "
+                "AND owner_id=%s AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s LIMIT 1",
+                (PostgresPayloadRepository.scope_id(owner_id, scope), str(memory_id), owner_id,
+                 scope.application_id, scope.workspace_id),
+            ).fetchone()
+            if prior is not None:
+                raise StorageUnavailableError("memory lifecycle projection unavailable")
             return _base_state(owner_id, memory_id), None
         state = MemoryLifecycleState.model_validate(row[0])
         if (
@@ -161,9 +172,13 @@ class PostgresMemoryLifecycleRepository:
 
     def _source_is_valid(self, owner_id, record):
         if isinstance(record, Memory):
-            from personal_ai.memory.services import source_messages
+            from personal_ai.memory.services import source_messages, source_turn_reuse_reason
 
-            return record.status == "active" and source_messages(record, self.messages, timeout=5)
+            return (
+                record.status == "active"
+                and source_messages(record, self.messages, timeout=5)
+                and source_turn_reuse_reason(record, self.messages, None) is None
+            )
         try:
             sources = [
                 self.memories.get(owner_id=owner_id, memory_id=source.memory_id)
@@ -461,10 +476,13 @@ class PostgresMemoryLifecycleRepository:
             ).fetchall()
         return tuple(UUID(row[0]) for row in rows)
 
-    def discover_related(self, *, owner_id, memory_id, limit=4):
+    def discover_related(self, *, owner_id, memory_id, limit=4, eligible=None):
         if not 1 <= limit <= 4:
             raise ValueError("candidate_limit_invalid")
         anchor = self._get_record(owner_id=owner_id, memory_id=memory_id)
+        if (not isinstance(anchor, Memory) or not self._source_is_valid(owner_id, anchor)
+            or eligible is not None and not eligible(anchor)):
+            return ()
         space = embedding_space_for(anchor)
         matches = self.memories.search(
             owner_id=owner_id,
@@ -478,11 +496,14 @@ class PostgresMemoryLifecycleRepository:
             embedding_space_version=space.version,
             limit=limit + 1,
             memory_type=anchor.memory_type,
+            eligible=lambda record: self._source_is_valid(owner_id, record) and (eligible is None or eligible(record)),
         )
         found = []
         for item in matches:
             if (
                 item.memory.id == memory_id
+                or item.similarity < 0.8
+                or abs((item.memory.observed_at - anchor.observed_at).total_seconds()) > 365 * 86400
                 or item.memory.memory_type != anchor.memory_type
                 or embedding_space_for(item.memory) != space
             ):

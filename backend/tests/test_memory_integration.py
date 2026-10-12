@@ -29,13 +29,16 @@ from personal_ai.context.adapters import (
 )
 from personal_ai.context.providers import ContextProviderCoordinator
 from personal_ai.context.repositories import InMemorySummaryRepository
+from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry
 from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.context.traces import InMemoryContextTraceRepository
 from personal_ai.entities import MessageStatus
 from personal_ai.evaluation.memory import build_fixture, load_fixtures
 from personal_ai.llm import FakeLLMClient, LLMUnavailableError
 from personal_ai.main import app
+from personal_ai.memory.dependencies import MemoryPermissionRevalidator
 from personal_ai.memory.fake import FakeMemoryExtractor
+from personal_ai.memory.lifecycle.repositories import InMemoryMemoryLifecycleRepository
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import get_settings
@@ -58,14 +61,29 @@ def environment():
     traces = InMemoryContextTraceRepository()
     registry = default_application_registry()
     registration = registry.registration("personal_ai")
+    # The fixture contains explicitly reviewed personal-only source material.
+    # Production's broad history classification remains sensitive and cannot be
+    # silently downgraded by extraction when snapshots happen to be absent.
+    definition = registry.get("personal_ai")
+    personal_history = tuple(
+        provider.model_copy(update={"operations": tuple(
+            operation.model_copy(update={"sensitivity": "personal", "fields": tuple(
+                field.model_copy(update={"sensitivity": "personal"}) for field in operation.fields
+            )}) for operation in provider.operations
+        )}) if provider.provider_id == "conversation_history" else provider
+        for provider in definition.context_policy.provider_policies
+    )
+    definition = definition.model_copy(update={"context_policy": definition.context_policy.model_copy(
+        update={"version": "memory-integration-personal-v1", "provider_policies": personal_history})})
     application_context = ApplicationContextRequest(
-        definition=registry.get("personal_ai"),
+        definition=definition,
         scope=RequestScope(
             owner_id="local", request_id="memory-integration", application_id="personal_ai"
         ),
         context_provider_capabilities=registration.context_providers,
         tool_capabilities=registration.tools,
     )
+    lifecycle = InMemoryMemoryLifecycleRepository(repo, messages)
     context = ContextAssembler(
         settings,
         FakeTokenCounter(),
@@ -74,9 +92,14 @@ def environment():
             {"ai_memory": MemoryContextProviderFactory(settings)},
             feature_flags={"memory_enabled": settings.memory_enabled},
         ),
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings),
+        permission_revalidator=ContextPermissionRevalidatorRegistry(
+            (
+                BuiltInContextPermissionRevalidator(settings),
+                MemoryPermissionRevalidator(settings, repo, messages, lifecycle),
+            )
+        ),
     )
-    retriever = MemoryRetriever(settings, repo, messages, embedder)
+    retriever = MemoryRetriever(settings, repo, messages, embedder, lifecycle)
     service = ChatTurnService(
         conversations,
         messages,
@@ -98,6 +121,7 @@ def environment():
         get_context_assembler: lambda: context,
         get_memory_repository: lambda: repo,
         get_memory_adapter: lambda: embedder,
+        get_lifecycle_repository: lambda: lifecycle,
         get_chat_turn_service: lambda: service,
     }
     previous = app.dependency_overrides.copy()
@@ -116,7 +140,7 @@ def events(response):
 
 
 def test_retrieval_injection_and_sse_order(environment):
-    client, _, messages, _, pending, _, llm, _ = environment
+    client, _, messages, repo, pending, service, llm, _ = environment
     response = client.post(
         f"/v1/conversations/{pending.conversation_id}/messages", json={"content": pending.content}
     )
@@ -130,6 +154,12 @@ def test_retrieval_injection_and_sse_order(environment):
     assert "I prefer quiet mountain cabins." in llm.requests[0][0].content
     active = messages.list_active(owner_id="local", conversation_id=pending.conversation_id)
     assert active[-1].status == MessageStatus.COMPLETED
+
+    trace = next(iter(service._context_traces.records.values()))[-1]
+    assert trace.memory_read_trace is not None
+    assert trace.memory_read_trace.strategy == "fixed"
+    assert trace.memory_read_trace.candidates[0].dependency_digests
+    assert next(iter(repo.records.values())).content not in trace.model_dump_json()
 
 
 def test_shared_memory_capability_tracks_feature_gate_and_injection(environment):
@@ -462,3 +492,28 @@ def test_terminal_frame_cancellation_still_runs_bounded_extraction(environment):
     assert finished.is_set()
     assert len(outcomes) == 1 and outcomes[0].created
     assert len(repo.records) == 2
+
+
+def test_default_sensitive_history_policy_cannot_admit_personal_memory(environment, monkeypatch):
+    client, _, _, repo, pending, service, _, _ = environment
+
+    service._application_context = service._application_context.model_copy(update={
+        "definition": default_application_registry().get("personal_ai")})
+    finished = Event()
+    results = []
+    original = service._memory_extraction.run
+    def record(completed, *, application_context=None):
+        try:
+            result = original(completed, application_context=application_context)
+            results.append(result)
+            return result
+        finally:
+            finished.set()
+    monkeypatch.setattr(service._memory_extraction, "run", record)
+    before = dict(repo.records)
+    response = client.post(f"/v1/conversations/{pending.conversation_id}/messages",
+                           json={"content": "I prefer quiet mountain cabins."})
+    assert events(response)[-1] == "response.completed"
+    assert finished.wait(1)
+    assert results[0].reasons == ("context_sensitive",)
+    assert repo.records == before

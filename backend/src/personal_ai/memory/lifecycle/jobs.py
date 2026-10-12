@@ -123,12 +123,21 @@ class MemoryLifecycleCoordinator:
                 self._record_injected(completed, memory_id)
             created = tuple(getattr(extraction_result, "created", ()))
             queued = set()
+            from personal_ai.memory.dependencies import original_reason
+
+            def eligible(record):
+                return original_reason(
+                    record, self.settings, self.lifecycle.messages, self.lifecycle,
+                    application_context=application_context, now=completed.created_at
+                ) is None
+
             for memory_id in created:
                 try:
                     related = self.lifecycle.discover_related(
                         owner_id=completed.owner_id,
                         memory_id=memory_id,
                         limit=self.settings.memory_consolidation_max_sources,
+                        eligible=eligible,
                     )
                     candidates = tuple(sorted(set(related), key=str))
                     if self.settings.memory_consolidation_enabled and len(candidates) >= 2:
@@ -471,6 +480,7 @@ class MemoryLifecycleWorker:
             lifecycle=self.lifecycle,
             embedder=self.embedder,
             inference_context=inference_context,
+            application_context=application_context,
             now=self.clock(),
             timeout=self._remaining(deadline),
         )
@@ -505,34 +515,44 @@ class MemoryLifecycleWorker:
                 if not self.settings.memory_contradiction_automation_enabled:
                     continue
                 event_type = "superseded" if decision == "supersede" else "review_required"
-                key = f"{job.id}:{event_type}:{older.id}:{newer.id}"
-                if self.lifecycle.find_event(
-                    owner_id=job.owner_id, memory_id=older.id, idempotency_key=key
-                ):
-                    return "replayed"
-                state = self.lifecycle.get_state(owner_id=job.owner_id, memory_id=older.id)
-                event = make_event(
-                    owner_id=job.owner_id,
-                    memory_id=older.id,
-                    event_type=event_type,
-                    reason_code="clear_newer_correction"
-                    if decision == "supersede"
-                    else "ambiguous_contradiction",
-                    policy_version=CONTRADICTION_POLICY_VERSION,
-                    idempotency_key=key,
-                    expected_state_version=state.state_version,
-                    occurred_at=self.clock(),
-                    related_memory_ids=(newer.id,),
-                    job_id=job.id,
+                # Review both sides. A crash after the first event resumes the second
+                # under the same job/pair identity, without replaying a new mutation.
+                pairs = (
+                    ((older, newer), (newer, older)) if decision == "review" else ((older, newer),)
                 )
-                outcome = self.lifecycle.apply_event(event, job=job, lease_token=token)
-                if outcome.reason == "state_version_conflict":
-                    raise RuntimeError("state_version_conflict")
-                if outcome.reason == "stale_lease":
-                    return "stale_lease"
-                if outcome.status == "applied":
+                outcomes = []
+                for target, related in pairs:
+                    self._remaining(deadline)
+                    key = f"{job.id}:{event_type}:{target.id}:{related.id}"
+                    if self.lifecycle.find_event(
+                        owner_id=job.owner_id, memory_id=target.id, idempotency_key=key
+                    ):
+                        outcomes.append("replayed")
+                        continue
+                    state = self.lifecycle.get_state(owner_id=job.owner_id, memory_id=target.id)
+                    event = make_event(
+                        owner_id=job.owner_id,
+                        memory_id=target.id,
+                        event_type=event_type,
+                        reason_code="clear_newer_correction"
+                        if decision == "supersede"
+                        else "ambiguous_contradiction",
+                        policy_version=CONTRADICTION_POLICY_VERSION,
+                        idempotency_key=key,
+                        expected_state_version=state.state_version,
+                        occurred_at=self.clock(),
+                        related_memory_ids=(related.id,),
+                        job_id=job.id,
+                    )
+                    outcome = self.lifecycle.apply_event(event, job=job, lease_token=token)
+                    if outcome.reason == "state_version_conflict":
+                        raise RuntimeError("state_version_conflict")
+                    if outcome.reason == "stale_lease":
+                        return "stale_lease"
+                    outcomes.append(outcome.status)
+                if "applied" in outcomes:
                     return "applied"
-                if outcome.status == "replayed":
+                if "replayed" in outcomes:
                     return "replayed"
         if self.settings.memory_forgetting_enabled:
             for memory in records:

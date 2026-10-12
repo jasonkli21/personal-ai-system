@@ -611,7 +611,9 @@ class ChatTurnService:
                     excluded_source_classes=excluded_source_classes,
                     maximum_sensitivity=maximum_context_sensitivity,
                 )
-                reuse_policy = self._application_context.definition.context_policy.sidecar.manual_import_reuse
+                reuse_policy = (
+                    self._application_context.definition.context_policy.sidecar.manual_import_reuse
+                )
                 history_for_context = list(
                     conversation_context_messages(
                         history_for_context,
@@ -700,6 +702,7 @@ class ChatTurnService:
                         )
                     ),
                     context_plan=context_plan,
+                    memory_retrieval=retrieval,
                 )
                 try:
                     self._context_traces.put(
@@ -732,15 +735,15 @@ class ChatTurnService:
                 if message is not None and message.role is MessageRole.ASSISTANT:
                     context_snapshots.extend(source_snapshots_for_message(message))
             unique_snapshots = tuple(
-                {
-                    snapshot.model_dump_json(): snapshot
-                    for snapshot in context_snapshots
-                }.values()
+                {snapshot.model_dump_json(): snapshot for snapshot in context_snapshots}.values()
             )
-            if len(unique_snapshots) > 512 or sum(
-                len(snapshot.model_dump_json().encode("utf-8"))
-                for snapshot in unique_snapshots
-            ) > 56_000:
+            if (
+                len(unique_snapshots) > 512
+                or sum(
+                    len(snapshot.model_dump_json().encode("utf-8")) for snapshot in unique_snapshots
+                )
+                > 56_000
+            ):
                 raise ContextPreparationError("context_authority_exceeds_bound")
             inference_context = (
                 make_inference_context(

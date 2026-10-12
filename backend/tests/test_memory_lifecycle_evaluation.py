@@ -174,12 +174,12 @@ def test_publisher_recovery_and_intent_replay_after_job_state_changes():
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_variant_memory_summary_and_recent_turns_keep_one_total_budget(variant):
-    from personal_ai.context import ContextAssembler
     from personal_ai.context.repositories import InMemorySummaryRepository
     from personal_ai.context.tokens import FakeTokenCounter
     from personal_ai.evaluation.context import FactSummarizer
     from personal_ai.evaluation.context import build_fixture as build_context
     from personal_ai.evaluation.context import load_fixtures as context_fixtures
+    from personal_ai.evaluation.memory_context import MemoryFixtureAssembler
 
     env = build_fixture(named("repeated-explicit-preference"), variant)
     apply_fixture(env)
@@ -203,8 +203,14 @@ def test_variant_memory_summary_and_recent_turns_keep_one_total_budget(variant):
             "memory_max_context_tokens": 150,
         }
     )
-    assembler = ContextAssembler(
-        settings, FakeTokenCounter(), InMemorySummaryRepository(), FactSummarizer()
+    assembler = MemoryFixtureAssembler(
+        settings,
+        FakeTokenCounter(),
+        InMemorySummaryRepository(),
+        FactSummarizer(),
+        memories=env["memories"],
+        messages=env["messages"],
+        lifecycle=env["lifecycle"],
     )
     base = assembler.assemble(active, pending)
     result = assembler.assemble(active, pending, refresh=False, retrieval=retrieval)

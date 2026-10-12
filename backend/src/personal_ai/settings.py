@@ -236,7 +236,7 @@ class Settings(BaseSettings):
     memory_timeout_seconds: float = Field(default=5, gt=0, le=30)
     memory_sensitive_terms: tuple[str, ...] = ()
     memory_experiment_variant: str = Field(
-        default="fixed", pattern=r"^(fixed|scored|consolidated)$"
+        default="fixed", pattern=r"^(fixed|scored|consolidated|compact)$"
     )
     memory_scoring_policy_version: str = Field(default="score-v1", min_length=1, max_length=100)
     memory_score_similarity_weight: float = Field(default=0.50, ge=0, le=1)

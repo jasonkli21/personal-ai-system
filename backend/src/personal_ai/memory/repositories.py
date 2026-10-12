@@ -8,7 +8,14 @@ from personal_ai.auth.scope import (
     scoped_record,
 )
 from personal_ai.context.contracts import fingerprint
-from personal_ai.memory.contracts import DerivedMemory, Memory, ScoredMemory, identity, vector
+from personal_ai.memory.contracts import (
+    DerivedMemory,
+    Memory,
+    ScoredMemory,
+    embedding_space_for,
+    identity,
+    vector,
+)
 from personal_ai.storage.errors import (
     ConversationConflictError,
     ResourceNotFoundError,
@@ -25,9 +32,8 @@ def validate(memory):
         workspace_id=record.workspace_id,
     ):
         raise ValueError("identity_invalid")
-    return record.model_copy(
-        update={"embedding": vector(record.embedding, record.embedding_dimensions)}
-    )
+    # Normalize only temporary search operands; canonical arrays are lossless.
+    return record
 
 
 class InMemoryMemoryRepository:
@@ -45,7 +51,12 @@ class InMemoryMemoryRepository:
     def _create(self, memory):
         with self._lock:
             if memory.id in self.records:
-                return self.get(owner_id=memory.owner_id, memory_id=memory.id), False
+                current = self.get(owner_id=memory.owner_id, memory_id=memory.id)
+                if current.status != memory.status or embedding_space_for(
+                    current
+                ) != embedding_space_for(memory):
+                    raise ValueError("memory identity payload changed")
+                return current, False
             if self.messages is not None:
                 active = self.messages.list_active(
                     owner_id=memory.owner_id,
@@ -86,6 +97,7 @@ class InMemoryMemoryRepository:
         limit,
         timeout=5,
         memory_type=None,
+        eligible=None,
     ):
         query = vector(embedding, dimensions)
         with self._lock:
@@ -106,6 +118,7 @@ class InMemoryMemoryRepository:
                 and m.embedding_query_task == query_task
                 and m.embedding_space_version == embedding_space_version
                 and (memory_type is None or m.memory_type == memory_type)
+                and (eligible is None or eligible(m))
             ]
         return sorted(scores, key=lambda s: (-s.similarity, str(s.memory.id)))[:limit]
 
@@ -129,6 +142,7 @@ class InMemoryMemoryRepository:
         embedding_space_version="v1",
         limit,
         timeout=5,
+        eligible=None,
     ):
         query = vector(embedding, dimensions)
         with self._lock:
@@ -139,6 +153,7 @@ class InMemoryMemoryRepository:
                         a * b
                         for a, b in zip(query, vector(record.embedding, dimensions), strict=True)
                     ),
+                    origins=("consolidated_active_view", "exact_vector"),
                 )
                 for record in self.derived_records.values()
                 if record.owner_id == owner_id
@@ -150,5 +165,6 @@ class InMemoryMemoryRepository:
                 and record.embedding_document_task == document_task
                 and record.embedding_query_task == query_task
                 and record.embedding_space_version == embedding_space_version
+                and (eligible is None or eligible(record))
             ]
         return sorted(scores, key=lambda s: (-s.similarity, str(s.memory.id)))[:limit]

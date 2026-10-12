@@ -407,7 +407,9 @@ class ContextAssembler:
         if retrieval is not None:
             diagnostics.extend(retrieval.diagnostics)
             if not self.settings.memory_enabled:
-                excluded_memories.extend((item.memory.id, "disabled") for item in retrieval.selected)
+                excluded_memories.extend(
+                    (item.memory.id, "disabled") for item in retrieval.selected
+                )
             elif context_plan is None and not planned_memory:
                 memory_entries, memory_exclusions = self._memory_entries(retrieval, pending)
                 entries.extend(memory_entries)
@@ -486,6 +488,17 @@ class ContextAssembler:
             )
 
         policy = ContextBuildPolicy.for_settings(self.settings, result.budget.input_budget)
+        if retrieval is not None and retrieval.applied_variant == "compact":
+            # Authoritative task context competes with optional personalization.
+            limits = dict(policy.source_max_tokens)
+            if any(
+                (item.source_class == "domain_current" and item.authority == "authoritative")
+                or item.source_class == "external_research" for item in entries
+            ):
+                limits["ai_memory"] = max(1, limits["ai_memory"] // 2)
+            if retrieval.trace is not None:
+                limits["ai_memory"] = min(limits["ai_memory"], retrieval.trace.query.max_tokens)
+            policy = policy.model_copy(update={"source_max_tokens": limits})
         if context_plan is not None and context_plan.source_token_budgets:
             limits = dict(policy.source_max_tokens)
             for source_class, planned_tokens in context_plan.source_token_budgets:
@@ -507,18 +520,20 @@ class ContextAssembler:
                 for selection in context_selections
                 if selection.max_tokens is not None
             },
-            base_token_count=TokenCount(
-                result.budget.selected_total, result.budget.counter_kind
-            ),
+            base_token_count=TokenCount(result.budget.selected_total, result.budget.counter_kind),
         )
         if application_context is not None:
-            built = built.model_copy(update={
-                "manifest": built.manifest.model_copy(update={
-                    "context_policy_version": (
-                        application_context.definition.context_policy.version
-                    ),
-                })
-            })
+            built = built.model_copy(
+                update={
+                    "manifest": built.manifest.model_copy(
+                        update={
+                            "context_policy_version": (
+                                application_context.definition.context_policy.version
+                            ),
+                        }
+                    )
+                }
+            )
         memory_reports = tuple(
             item
             for item in built.manifest.items
@@ -600,6 +615,7 @@ class ContextAssembler:
 
     def _memory_entries(self, retrieval, pending):
         from personal_ai.context.builder import ContextBuildItem
+        from personal_ai.memory.dependencies import injection_dependencies
         from personal_ai.memory.policy import content_reason
 
         entries, excluded = [], []
@@ -614,10 +630,22 @@ class ContextAssembler:
                 continue
             derived = hasattr(memory, "source_memory_ids")
             label = "derived historical summary" if derived else memory.memory_type
+            conflict = (
+                next(
+                    (
+                        row.unresolved_conflict
+                        for row in retrieval.trace.candidates
+                        if row.memory_id == memory.id
+                    ),
+                    False,
+                )
+                if retrieval.trace
+                else False
+            )
+            if conflict:
+                label += "; unresolved conflict; do not treat as settled"
             content = f"[{label}; effective {memory.effective_at.isoformat()}] {memory.content}"
-            references = [
-                ContextSourceReference(kind="record", reference_id=str(memory.id))
-            ]
+            references = [ContextSourceReference(kind="record", reference_id=str(memory.id))]
             for source_id in getattr(memory, "source_memory_ids", ()):
                 references.append(
                     ContextSourceReference(kind="record", reference_id=str(source_id))
@@ -631,6 +659,7 @@ class ContextAssembler:
                     content=content,
                     authority="derived" if derived else "user_asserted",
                     sensitivity="personal",
+                    permission_dependencies=injection_dependencies(retrieval, memory),
                     source_refs=tuple(references),
                     represented_item_ids=tuple(
                         str(source_id) for source_id in getattr(memory, "source_memory_ids", ())

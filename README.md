@@ -18,7 +18,7 @@ Core capabilities include:
 - an owner-managed AI profile with explicit per-field application sharing;
 - a versioned federation grant API and shared broker with gated Travel, Finance, and Health exports; destination-product acceptance remains open;
 - attributable long-term memory with retrieval;
-- bounded memory lifecycle experiments;
+- bounded memory retrieval/compaction and lifecycle experiments, with original provenance and source revalidation;
 - source-grounded research with persisted evidence;
 - iterative research with explicit budgets and recovery;
 - canonical research entities and evidence-backed claims;

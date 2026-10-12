@@ -348,7 +348,8 @@
       ],
       "action": "consolidate",
       "derived": true,
-      "memory_budget": 58
+      "memory_budget": 57,
+      "fixture_version": 2
     },
     {
       "name": "scoring-failure-safe-fixed",

@@ -5,6 +5,8 @@ Backend-neutral repository protocols and storage errors remain in `personal_ai.s
 
 ## Entry points and boundaries
 
+- Migration 027 reconstructs memory lifecycle validity epochs from immutable events. Canonical originals and derived source edges remain in the existing memory tables; there is no new memory store or vector index.
+
 - `postgres/research_experiments.py` and migration 026 own bounded immutable paired research evaluation summaries. Dispatch/admission stays in P19, snippet/evidence source facts stay in research sessions, and optional bulky numeric batches stay in P20. Account export and scheduled expiry include the new family.
 
 - `postgres/federation.py` owns current federation grant heads, immutable revisions, safe selection audits through existing audit events, and fenced grant cleanup; migration 024 adds the relational grant tables. Runtime/history/artifacts retain typed dependencies, not grant authority.

@@ -31,9 +31,9 @@ from personal_ai.memory.policy import candidate_reason, content_reason
 from personal_ai.memory.services import source_messages
 from personal_ai.storage.errors import ResourceNotFoundError
 
-DERIVATION_POLICY_VERSION = "extractive-v1"
+DERIVATION_POLICY_VERSION = "extractive-v2"
 FORGETTING_POLICY_VERSION = "forget-v1"
-CONTRADICTION_POLICY_VERSION = "contradiction-v1"
+CONTRADICTION_POLICY_VERSION = "contradiction-v2"
 SUBJECT_SUFFIX = re.compile(r"\bfor\s+([^.!?]{1,100})[.!?]*$", re.IGNORECASE)
 EXPLICIT_PREFIXES = (
     "correction:",
@@ -76,6 +76,7 @@ class DeterministicMemoryConsolidator:
         lifecycle: MemoryLifecycleRepository,
         embedder,
         inference_context: InferenceContext | None = None,
+        application_context=None,
         now: datetime,
         timeout: float,
     ) -> ConsolidationPlan:
@@ -90,6 +91,8 @@ class DeterministicMemoryConsolidator:
             if left <= 0:
                 raise TimeoutError("consolidation_timeout")
             return left
+
+        from personal_ai.memory.dependencies import dependency_version, original_reason
 
         records: list[Memory] = []
         for memory_id in source_ids:
@@ -106,6 +109,18 @@ class DeterministicMemoryConsolidator:
                 or source_messages(memory, messages, timeout=remaining()) is None
             ):
                 return ConsolidationPlan("rejected", "source_inactive")
+            if original_reason(
+                memory,
+                settings,
+                messages,
+                lifecycle,
+                timeout=remaining(),
+                now=now,
+                application_context=application_context,
+            ):
+                return ConsolidationPlan("rejected", "source_not_reusable")
+            if state.unresolved_conflict:
+                return ConsolidationPlan("no_plan", "unresolved_conflict")
             if content_reason(memory.content, settings):
                 return ConsolidationPlan("rejected", "sensitive_or_external")
             turn = messages.list_active(
@@ -158,9 +173,8 @@ class DeterministicMemoryConsolidator:
                 return ConsolidationPlan("rejected", "episode_not_explicit")
         else:
             return ConsolidationPlan("no_plan", "unsupported_source_type")
-        content = "Historical personal context from repeated user statements:\n" + "\n".join(
-            record.content for record in records
-        )
+        # The shared builder supplies historical/derived authority labels.
+        content = records[0].content
         if len(content) > 1000 or content_reason(content, settings):
             return ConsolidationPlan("rejected", "derived_content_rejected")
         source_set = tuple(
@@ -171,6 +185,9 @@ class DeterministicMemoryConsolidator:
                 source_turn_id=record.source_turn_id,
                 source_message_ids=record.source_message_ids,
                 excerpt=record.content,
+                dependency_version=dependency_version(
+                    record, lifecycle.get_state(owner_id=owner_id, memory_id=record.id)
+                ),
             )
             for record in records
         )
@@ -189,13 +206,27 @@ class DeterministicMemoryConsolidator:
         identity = hashlib.sha256(
             "\0".join(
                 [owner_id, *namespace, DERIVATION_POLICY_VERSION]
-                + [f"{item.memory_id}:{item.source_fingerprint}" for item in source_set]
+                + [
+                    f"{item.memory_id}:{item.source_fingerprint}:{item.dependency_version}"
+                    for item in source_set
+                ]
             ).encode()
         ).hexdigest()
         derived_id = uuid5(NAMESPACE_URL, "personal-ai-derived-memory:" + identity)
         canonical_ids = tuple(sorted((record.id for record in records), key=str))
         if job.candidate_memory_ids != canonical_ids:
             return ConsolidationPlan("rejected", "job_source_mismatch")
+        try:
+            existing = memories.get_derived(owner_id=owner_id, memory_id=derived_id, timeout=remaining())
+        except ResourceNotFoundError:
+            existing = None
+        if existing is not None:
+            existing = DerivedMemory.model_validate(existing.model_dump())
+            if (existing.sources != source_set or existing.content != content or
+                embedding_space_for(existing) != embedding_space_for(records[0])):
+                return ConsolidationPlan("rejected", "existing_derivation_mismatch")
+            # Keep the exact first result for receipt/retry identity; no repeat embedding.
+            return ConsolidationPlan("ready", "existing_exact_derivation", existing)
         if getattr(embedder, "requires_inference_context", False):
             vectors = embedder.embed(
                 [content], timeout=remaining(), inference_context=inference_context
@@ -209,6 +240,7 @@ class DeterministicMemoryConsolidator:
         if embedding_result.task != "document" or embedding_result.space != embedding_space:
             return ConsolidationPlan("rejected", "incompatible_embedding")
         dimensions = embedding_space.dimensions
+        vector(embedding_result.values, dimensions)
         max_importance = max(_importance(record, lifecycle) for record in records)
         confidence = min(record.confidence for record in records)
         effective = max(record.effective_at for record in records)
@@ -225,7 +257,7 @@ class DeterministicMemoryConsolidator:
             importance=min(IMPORTANCE_BY_TYPE[target_type], max_importance),
             effective_at=effective,
             created_at=now.astimezone(UTC),
-            embedding=vector(embedding_result.values, dimensions),
+            embedding=embedding_result.values,
             embedding_provider=embedding_space.provider_id,
             embedding_model=embedding_space.model_id,
             embedding_dimensions=dimensions,
@@ -282,9 +314,13 @@ def parse_assertion(memory: Memory) -> ParsedAssertion | None:
 
 def contradiction_decision(older: Memory, newer: Memory) -> Literal["supersede", "review", "none"]:
     """Return a conservative exact-subject decision; no language model is involved."""
-    if older.owner_id != newer.owner_id:
+    if not isinstance(older, Memory) or not isinstance(newer, Memory):
         return "none"
-    if newer.effective_at <= older.effective_at or newer.confidence < 0.9:
+    if (older.owner_id, older.application_id, older.workspace_id) != (
+        newer.owner_id, newer.application_id, newer.workspace_id
+    ):
+        return "none"
+    if newer.effective_at < older.effective_at or newer.confidence < 0.9:
         return "none"
     compatible = {
         ("preference", "preference"),
@@ -308,7 +344,7 @@ def contradiction_decision(older: Memory, newer: Memory) -> Literal["supersede",
     if old_assertion.value_key == new_assertion.value_key:
         return "none"
     explicit = new_assertion.explicit_replacement or newer.memory_type == "explicit_correction"
-    return "supersede" if explicit else "review"
+    return "supersede" if explicit and newer.effective_at > older.effective_at else "review"
 
 
 @dataclass(frozen=True)

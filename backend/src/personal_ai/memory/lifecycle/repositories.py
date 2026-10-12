@@ -23,8 +23,8 @@ from personal_ai.memory.lifecycle.contracts import (
 )
 from personal_ai.memory.lifecycle.scoring import IMPORTANCE_BY_TYPE
 from personal_ai.memory.lifecycle.transition import transition
-from personal_ai.memory.services import source_messages
-from personal_ai.storage.errors import ResourceNotFoundError
+from personal_ai.memory.services import source_messages, source_turn_reuse_reason
+from personal_ai.storage.errors import ResourceNotFoundError, StorageUnavailableError
 
 _SCOPE_UNSET = object()
 
@@ -49,6 +49,14 @@ def _same_job_intent(first, second):
 
 def _compatible_derivation(derived, sources):
 
+    from personal_ai.memory.dependencies import dependency_version
+
+    if any(
+        provenance.dependency_version is not None
+        and provenance.dependency_version != dependency_version(record, state)
+        for provenance, (record, state) in zip(derived.sources, sources, strict=True)
+    ):
+        return False
     records = [record for record, _ in sources]
     source_type = records[0].memory_type
     target_type = {"preference": "preference", "episodic_observation": "semantic_summary"}.get(
@@ -60,6 +68,7 @@ def _compatible_derivation(derived, sources):
     )
     return (
         all(record.memory_type == source_type for record in records)
+        and all(not state.unresolved_conflict for _, state in sources)
         and len({embedding_space_for(record) for record in records}) == 1
         and embedding_space_for(derived) == embedding_space_for(records[0])
         and len({record.normalized_content for record in records}) == 1
@@ -143,6 +152,7 @@ class InMemoryMemoryLifecycleRepository:
             not scope_matches(memory)
             or memory.status != "active"
             or source_messages(memory, self.messages) is None
+            or source_turn_reuse_reason(memory, self.messages, None) is not None
         ):
             return False
         conversation = getattr(self.messages, "_conversations", None)
@@ -177,6 +187,8 @@ class InMemoryMemoryLifecycleRepository:
         with self._lock_sources(), self._lock:
             self._get_memory(owner_id, memory_id)
             state = self.states.get((owner_id, memory_id))
+            if state is None and any(scope_matches(e) for e in self.events.get((owner_id, memory_id), ())):
+                raise StorageUnavailableError("memory lifecycle projection unavailable")
             return (
                 state
                 if state is not None and scope_matches(state)
@@ -276,6 +288,8 @@ class InMemoryMemoryLifecycleRepository:
                     )
             current = self.states.get((event.owner_id, event.memory_id))
             if current is None or not scope_matches(current):
+                if any(scope_matches(e) for e in self.events.get((event.owner_id, event.memory_id), ())):
+                    raise StorageUnavailableError("memory lifecycle projection unavailable")
                 current = _base_state(event.owner_id, event.memory_id)
             if event.event_type == "forgotten":
                 from personal_ai.memory.lifecycle.policy import forgetting_decision
@@ -471,12 +485,12 @@ class InMemoryMemoryLifecycleRepository:
             self.jobs[job_id] = updated
             return updated
 
-    def discover_related(self, *, owner_id: str, memory_id: UUID, limit: int = 4):
+    def discover_related(self, *, owner_id: str, memory_id: UUID, limit: int = 4, eligible=None):
         if not 1 <= limit <= 4:
             raise ValueError("candidate_limit_invalid")
         with self._lock:
             anchor = self.memories.get(owner_id=owner_id, memory_id=memory_id)
-            if anchor.status != "active":
+            if anchor.status != "active" or not self._valid_source(anchor) or (eligible is not None and not eligible(anchor)):
                 return ()
             candidates = [
                 record
@@ -490,6 +504,8 @@ class InMemoryMemoryLifecycleRepository:
                 and record.embedding_dimensions == anchor.embedding_dimensions
                 and embedding_space_for(record) == embedding_space_for(anchor)
                 and self._valid_source(record)
+                and (eligible is None or eligible(record))
+                and abs((record.observed_at - anchor.observed_at).total_seconds()) <= 365 * 86400
             ]
             from personal_ai.memory.contracts import vector
 
@@ -506,6 +522,17 @@ class InMemoryMemoryLifecycleRepository:
                     str(item.id),
                 ),
             )
+            ranked = [
+                item
+                for item in ranked
+                if sum(
+                    a * b
+                    for a, b in zip(
+                        target, vector(item.embedding, item.embedding_dimensions), strict=True
+                    )
+                )
+                >= 0.8
+            ]
             return (memory_id, *(item.id for item in ranked[: limit - 1]))
 
     def commit_consolidation(
@@ -550,8 +577,15 @@ class InMemoryMemoryLifecycleRepository:
                 ):
                     return "source_inactive"
                 source_records.append(record)
+            from personal_ai.memory.dependencies import dependency_version
+
             if any(
-                source.content != provenance.excerpt
+                provenance.dependency_version is not None
+                and provenance.dependency_version
+                != dependency_version(
+                    source, self.get_state(owner_id=job.owner_id, memory_id=source.id)
+                )
+                or source.content != provenance.excerpt
                 or source.source_conversation_id != provenance.source_conversation_id
                 or source.source_turn_id != provenance.source_turn_id
                 or source.source_message_ids != provenance.source_message_ids

@@ -89,8 +89,9 @@ def message_context_authority(
 def memory_extraction_context_reason(message: Message) -> str | None:
     """Keep sourced, sensitive, or time-bound assistant context out of durable memory."""
     snapshots = source_snapshots_for_message(message)
+    _dependencies, _expires_at, sensitivity, _source_classes = message_context_authority(message)
     if not snapshots:
-        return None
+        return None if sensitivity in ("public", "personal") else "context_sensitive"
     if any(
         not snapshot.source_classes
         or any(source_class != "conversation" for source_class in snapshot.source_classes)
@@ -101,7 +102,6 @@ def memory_extraction_context_reason(message: Message) -> str | None:
         return "context_permission_required"
     if any(snapshot.expires_at is not None for snapshot in snapshots):
         return "context_time_bound"
-    _dependencies, _expires_at, sensitivity, _source_classes = message_context_authority(message)
     if sensitivity not in ("public", "personal"):
         return "context_sensitive"
     return None

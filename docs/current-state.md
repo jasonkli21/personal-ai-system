@@ -71,6 +71,31 @@ See the [experiment contract](personal-ai-chapter-2/phase-32-experiment-contract
 [implementation report](personal-ai-chapter-2/phase-32-implementation-report.md),
 and [review remediation evidence](personal-ai-chapter-2/phase-32-review-remediation-evidence-2026-10-12.md).
 
+## Phase 34 memory optimization
+
+Phase 34 extends the existing memory read and lifecycle paths locally. Scoped,
+source/lifecycle/permission and complete embedding-space eligibility now precede
+exact pgvector scoring and top-K. Original arrays remain lossless. The opt-in
+`compact` variant removes exact redundant context and uses the shared builder's
+bounded task budget. `extractive-v2` derived views retain every original source
+and lifecycle epoch while packing one repeated assertion. Contradiction review
+marks both sides, and equal-time corrections cannot silently supersede.
+
+Canonical memory/view dependencies are rechecked at injection and through later
+assistant history, summaries and dependency-aware artifacts. Historical flag-only
+memory proofs fail closed. Migration 027 reconstructs old lifecycle epochs;
+application against native stores is deferred. Fixed original retrieval remains
+the default and rollback; memory/lifecycle gates remain off by default.
+
+The original 14 memory and 60 lifecycle baseline observations are frozen at
+`0e766e6`. The current 60-row paired synthetic run totals 1,050 fixed, 1,004 compact
+and 1,022 consolidated packed tokens, with 25 logical embedding calls per strategy.
+Neither variant reaches the declared 5% aggregate saving threshold. Downstream
+quality, native query/storage/free-tier and live identity/provider evidence are
+missing, so no coverage or ANN index is promoted. The context planner has a v5
+runtime freeze for the changed canonical memory fixture/source path; its corpus
+and promotion restrictions remain unchanged. See the [Phase 34 report](personal-ai-chapter-2/phase-34-implementation-report.md).
+
 ## Persistence
 
 Phase 33 uses a versioned bounded query plan and immutable `SearchOperation` at

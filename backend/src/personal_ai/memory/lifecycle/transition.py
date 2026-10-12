@@ -16,6 +16,8 @@ def transition(state: MemoryLifecycleState, event: MemoryLifecycleEvent) -> Memo
         "effective_status_at": event.occurred_at,
         "last_event_id": event.id,
     }
+    if event.event_type in ("superseded", "forgotten", "reactivated", "review_required"):
+        changes["validity_epoch"] = state.validity_epoch + 1
     if event.event_type == "consolidated":
         changes["consolidated_into_memory_ids"] = tuple(
             sorted(set(state.consolidated_into_memory_ids) | set(event.related_memory_ids), key=str)
@@ -43,6 +45,7 @@ def transition(state: MemoryLifecycleState, event: MemoryLifecycleEvent) -> Memo
         changes["retrieval_status"] = "active"
         changes["effective_status_at"] = event.occurred_at
     elif event.event_type == "review_required":
+        changes["unresolved_conflict"] = True
         changes["effective_status_at"] = state.effective_status_at
     else:
         raise ValueError("event_type_invalid")

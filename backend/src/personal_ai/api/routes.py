@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from personal_ai.api.chat_stream import sse_frames
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
+    get_context_assembler,
     get_context_runtime_registry,
     get_context_trace_repository,
     get_conversation_service,
@@ -33,6 +34,7 @@ from personal_ai.api.schemas import (
 )
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
+from personal_ai.context import ContextAssembler
 from personal_ai.context.contracts import ConversationSummaryRepository
 from personal_ai.context.inspection import ContextInspector
 from personal_ai.context.runtime import ContextRuntimeRegistry
@@ -255,6 +257,7 @@ def inspect_context(
     scope: Annotated[RequestScope, Depends(get_request_scope)],
     memories: Annotated[object, Depends(get_memory_repository)],
     lifecycle: Annotated[object, Depends(get_lifecycle_repository)],
+    context_assembler: Annotated[ContextAssembler, Depends(get_context_assembler)],
     memory_ids: Annotated[list[UUID] | None, Query(max_length=20)] = None,
 ) -> dict:
     """Read-only planning estimate: never call counting/generation provider APIs."""
@@ -290,7 +293,9 @@ def inspect_context(
         retrieval = service.inspect_memories(
             settings, memories, memory_ids, lifecycle_repository=lifecycle
         )
-    return ContextInspector(settings, summaries).inspect(
+    return ContextInspector(
+        settings, summaries, permission_revalidator=context_assembler.permission_revalidator
+    ).inspect(
         active,
         retrieval,
         trace=trace,

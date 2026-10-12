@@ -37,8 +37,8 @@ from personal_ai.evaluation.planning_quality import (
 from personal_ai.settings import Settings
 
 CORPUS_PATH = Path(__file__).parent / "fixtures/context/planning-heldout-v2.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v4.json"
-PLANNING_EVALUATOR_VERSION = "planning-evaluator-v4"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v5.json"
+PLANNING_EVALUATOR_VERSION = "planning-evaluator-v5"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 SOURCE_IDENTITY_PATHS = (
@@ -73,12 +73,21 @@ SOURCE_IDENTITY_PATHS = (
     "backend/src/personal_ai/evaluation/fixtures/context/context-plan-fixtures.json",
     "backend/src/personal_ai/evaluation/fixtures/context/planning-heldout-v2.json",
 )
-SOURCE_IDENTITY_PATHS = tuple(sorted(set(SOURCE_IDENTITY_PATHS) | {
-    str(path.relative_to(REPOSITORY_ROOT))
-    for path in (REPOSITORY_ROOT / "backend/src/personal_ai").rglob("*")
-    if path.is_file() and not path.name.startswith("planning-baseline-")
-    and "__pycache__" not in path.parts and path.suffix != ".pyc" and path.name != ".DS_Store"
-} | {"backend/pyproject.toml", "backend/uv.lock"}))
+SOURCE_IDENTITY_PATHS = tuple(
+    sorted(
+        set(SOURCE_IDENTITY_PATHS)
+        | {
+            str(path.relative_to(REPOSITORY_ROOT))
+            for path in (REPOSITORY_ROOT / "backend/src/personal_ai").rglob("*")
+            if path.is_file()
+            and not path.name.startswith("planning-baseline-")
+            and "__pycache__" not in path.parts
+            and path.suffix != ".pyc"
+            and path.name != ".DS_Store"
+        }
+        | {"backend/pyproject.toml", "backend/uv.lock"}
+    )
+)
 
 
 def baseline_planner():
@@ -111,7 +120,7 @@ def baseline_planner():
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v4",
+        "baseline_lock_version": "planning-baseline-lock-v5",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

@@ -43,6 +43,7 @@ from personal_ai.context.traces import ContextTraceRepository
 from personal_ai.llm import GeminiLLMClient, GenerationClient
 from personal_ai.llm.context import GeminiConversationSummarizer, GeminiTokenCounter
 from personal_ai.llm.memory import GeminiMemoryAdapter
+from personal_ai.memory.dependencies import MemoryPermissionRevalidator
 from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
@@ -239,7 +240,17 @@ def get_context_assembler(
     profile_repository: Annotated[object, Depends(get_global_profile_repository)],
     usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
     research_repository: Annotated[object, Depends(get_context_research_repository)],
+    messages: Annotated[MessageRepository, Depends(get_message_repository)],
+    registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
 ) -> ContextAssembler:
+    memories = (
+        persistence_factory(settings).memory_repository() if settings.memory_enabled else None
+    )
+    lifecycle = (
+        persistence_factory(settings).memory_lifecycle_repository(memories, messages)
+        if memories is not None
+        else None
+    )
     built_in_providers = {
         "ai_memory": MemoryContextProviderFactory(settings),
         "client_context": ClientContextProviderFactory(),
@@ -270,6 +281,9 @@ def get_context_assembler(
         permission_revalidator=ContextPermissionRevalidatorRegistry(
             (
                 BuiltInContextPermissionRevalidator(settings, profile_repository),
+                MemoryPermissionRevalidator(
+                    settings, memories, messages, lifecycle, application_registry=registry
+                ),
                 ResearchSourceRightsRevalidator(settings),
                 *runtime.permission_revalidators,
             )
@@ -310,7 +324,10 @@ def get_lifecycle_repository(
     memory_repository: Annotated[object, Depends(get_memory_repository)],
     messages: Annotated[MessageRepository, Depends(get_message_repository)],
 ):
-    if not settings.memory_lifecycle_inspection_enabled or memory_repository is None:
+    if (
+        not (settings.memory_inspection_enabled or settings.memory_lifecycle_inspection_enabled)
+        or memory_repository is None
+    ):
         return None
     return persistence_factory(settings).memory_lifecycle_repository(memory_repository, messages)
 

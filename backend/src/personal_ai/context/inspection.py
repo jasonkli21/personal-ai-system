@@ -13,9 +13,16 @@ from personal_ai.settings import Settings
 
 
 class ContextInspector:
-    def __init__(self, settings: Settings, summaries: ConversationSummaryRepository) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        summaries: ConversationSummaryRepository,
+        *,
+        permission_revalidator=None,
+    ) -> None:
         self.settings = settings
         self.summaries = summaries
+        self.permission_revalidator = permission_revalidator
 
     def inspect(
         self,
@@ -32,12 +39,10 @@ class ContextInspector:
             "view_kind": "estimated_current_view",
             "historical_reconstruction": False,
             "inspection_request_id": inspection_request_id,
-            "trace_state": trace_state or (
-                "available" if trace is not None else "manifest_missing"
-            ),
-            "trace_missing_reason": trace_missing_reason or (
-                None if trace is not None else "no_retained_manifest_for_latest_user_turn"
-            ),
+            "trace_state": trace_state
+            or ("available" if trace is not None else "manifest_missing"),
+            "trace_missing_reason": trace_missing_reason
+            or (None if trace is not None else "no_retained_manifest_for_latest_user_turn"),
             "actual_build_trace": trace.model_dump(mode="json") if trace is not None else None,
             "selected": [],
             "excluded": [],
@@ -56,7 +61,12 @@ class ContextInspector:
         index = users[-1]
         pending = active[index]
         counter = EstimatedTokenCounter()
-        assembler = ContextAssembler(self.settings, counter, self.summaries)
+        assembler = ContextAssembler(
+            self.settings,
+            counter,
+            self.summaries,
+            permission_revalidator=self.permission_revalidator,
+        )
 
         def metadata(message: Message) -> dict:
             return {
@@ -104,40 +114,54 @@ class ContextInspector:
             report["memory"] = {
                 "mode": "supplied-record fit estimate; no semantic query or prior-use claim",
                 "tokens": result.memory_tokens,
+                "retrieval_trace": retrieval.trace.model_dump(mode="json")
+                if retrieval.trace
+                else None,
                 "diagnostics": retrieval.diagnostics,
                 "requested_variant": retrieval.requested_variant,
                 "applied_variant": retrieval.applied_variant,
                 "policy_version": retrieval.policy_version,
                 "policy_identity": retrieval.policy_identity,
                 "lifecycle_event_ids": [str(item) for item in retrieval.lifecycle_event_ids],
-                "records": [{
-                    "id": str(s.memory.id), "type": s.memory.memory_type,
-                    "source_conversation_id": (
-                        str(s.memory.source_conversation_id)
-                        if hasattr(s.memory, "source_conversation_id") else None
-                    ),
-                    "source_message_ids": [
-                        str(i) for i in getattr(s.memory, "source_message_ids", ())
-                    ],
-                    "effective_at": s.memory.effective_at.isoformat(),
-                    "created_at": s.memory.created_at.isoformat(),
-                    "selected": s.memory.id in selected_memories,
-                    "selection_kind": "fit_estimate",
-                    "reason": exclusions.get(s.memory.id),
-                    "similarity": None,
-                    "score": scores[s.memory.id].score if s.memory.id in scores else None,
-                    "score_reason": (
-                        scores[s.memory.id].reason if s.memory.id in scores else None
-                    ),
-                    "score_components": ({
-                        "importance": scores[s.memory.id].importance,
-                        "recency": scores[s.memory.id].recency,
-                        "frequency": scores[s.memory.id].frequency,
-                        "confidence": scores[s.memory.id].confidence,
-                    } if s.memory.id in scores else None),
-                    **lifecycle_metadata.get(s.memory.id, {}),
-                    "estimated_tokens": counter.count((ChatMessage("system", s.memory.content),)).tokens,
-                } for s in retrieval.candidates],
+                "records": [
+                    {
+                        "id": str(s.memory.id),
+                        "type": s.memory.memory_type,
+                        "source_conversation_id": (
+                            str(s.memory.source_conversation_id)
+                            if hasattr(s.memory, "source_conversation_id")
+                            else None
+                        ),
+                        "source_message_ids": [
+                            str(i) for i in getattr(s.memory, "source_message_ids", ())
+                        ],
+                        "effective_at": s.memory.effective_at.isoformat(),
+                        "created_at": s.memory.created_at.isoformat(),
+                        "selected": s.memory.id in selected_memories,
+                        "selection_kind": "fit_estimate",
+                        "reason": exclusions.get(s.memory.id),
+                        "similarity": None,
+                        "score": scores[s.memory.id].score if s.memory.id in scores else None,
+                        "score_reason": (
+                            scores[s.memory.id].reason if s.memory.id in scores else None
+                        ),
+                        "score_components": (
+                            {
+                                "importance": scores[s.memory.id].importance,
+                                "recency": scores[s.memory.id].recency,
+                                "frequency": scores[s.memory.id].frequency,
+                                "confidence": scores[s.memory.id].confidence,
+                            }
+                            if s.memory.id in scores
+                            else None
+                        ),
+                        **lifecycle_metadata.get(s.memory.id, {}),
+                        "estimated_tokens": counter.count(
+                            (ChatMessage("system", s.memory.content),)
+                        ).tokens,
+                    }
+                    for s in retrieval.candidates
+                ],
             }
         selected = set(result.selected_message_ids)
         excluded = dict(result.excluded)
@@ -150,7 +174,9 @@ class ContextInspector:
                         "view_kind": "estimated_current_view",
                         "actual_build": False,
                     }
-                ).model_dump(mode="json") if result.manifest else None,
+                ).model_dump(mode="json")
+                if result.manifest
+                else None,
                 "selected": [metadata(m) for m in active if m.id in selected],
                 "excluded": [
                     {**metadata(m), "reason": excluded.get(m.id, "after_latest_user")}
@@ -164,7 +190,8 @@ class ContextInspector:
                         str(i) for i in (summary.coverage_message_ids or summary.source_message_ids)
                     ],
                     "skipped_message_ids": [
-                        str(i) for i in summary.coverage_message_ids
+                        str(i)
+                        for i in summary.coverage_message_ids
                         if i not in summary.source_message_ids
                     ],
                     "coverage_fingerprint": summary.coverage_fingerprint,
