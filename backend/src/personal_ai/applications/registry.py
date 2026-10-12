@@ -356,8 +356,24 @@ def default_application_registry() -> ApplicationRegistry:
             feature_gate="finance_context_enabled",
         ),
         _capability("finance.account_action", "tool", reason="finance_actions_unavailable"),
-        _capability("health.profile_context", "context_provider"),
-        _capability("health.history_context", "context_provider"),
+        *(
+            _capability(
+                provider_id,
+                "context_provider",
+                available=True,
+                feature_gate="health_context_enabled",
+            )
+            for provider_id in (
+                "health.profile_background_context",
+                "health.profile_constraints_context",
+                "health.profile_preferences_context",
+                "health.measurements_context",
+                "health.nutrition_context",
+                "health.exercise_context",
+                "health.sleep_context",
+                "health.symptoms_context",
+            )
+        ),
         _capability("health.record_action", "tool", reason="health_actions_unavailable"),
     )
     return ApplicationRegistry(
@@ -558,7 +574,16 @@ def default_application_registry() -> ApplicationRegistry:
                 application_id="health",
                 display_name="Health",
                 workspace_kind="optional",
-                context_provider_ids=("health.profile_context", "health.history_context"),
+                context_provider_ids=(
+                    "health.profile_background_context",
+                    "health.profile_constraints_context",
+                    "health.profile_preferences_context",
+                    "health.measurements_context",
+                    "health.nutrition_context",
+                    "health.exercise_context",
+                    "health.sleep_context",
+                    "health.symptoms_context",
+                ),
                 tool_ids=("health.record_action",),
                 memory_namespace="health",
                 sensitivity_defaults={
@@ -568,34 +593,107 @@ def default_application_registry() -> ApplicationRegistry:
                     "client_context": "sensitive",
                 },
                 context_policy=_domain_context_policy(
-                    "health-context-policy-v1",
-                    (
+                    "health-context-policy-v2",
+                    tuple(
                         ContextProviderPolicy(
-                            provider_id="health.profile_context",
+                            provider_id=provider_id,
                             operations=(
                                 _operation_policy(
-                                    "profile", ("medication_name", "dose", "diagnosis"),
-                                    restricted_fields=("diagnosis",),
-                                ),
-                                _operation_policy(
-                                    "current", ("medication_name", "dose", "diagnosis"),
-                                    restricted_fields=("diagnosis",),
+                                    operation,
+                                    fields,
+                                    sensitivity="restricted",
                                 ),
                             ),
-                        ),
-                        ContextProviderPolicy(
-                            provider_id="health.history_context",
-                            operations=(_operation_policy(
+                        )
+                        for provider_id, operation, fields in (
+                            (
+                                "health.profile_background_context",
+                                "profile",
+                                (
+                                    "record",
+                                    "notes",
+                                    "source_kind",
+                                    "confirmation_status",
+                                    "validity",
+                                ),
+                            ),
+                            (
+                                "health.profile_constraints_context",
+                                "profile",
+                                (
+                                    "record",
+                                    "notes",
+                                    "source_kind",
+                                    "confirmation_status",
+                                    "validity",
+                                ),
+                            ),
+                            (
+                                "health.profile_preferences_context",
+                                "profile",
+                                (
+                                    "record",
+                                    "notes",
+                                    "source_kind",
+                                    "confirmation_status",
+                                    "validity",
+                                ),
+                            ),
+                            (
+                                "health.measurements_context",
                                 "history",
-                                ("medication_name", "dose", "observed_at", "diagnosis"),
-                                restricted_fields=("diagnosis",),
-                            ),),
-                        ),
+                                (
+                                    "record",
+                                    "domain",
+                                    "notes",
+                                    "time",
+                                    "interval_end",
+                                    "units",
+                                    "source_kind",
+                                    "confirmation_status",
+                                    "quality",
+                                    "uncertainty",
+                                ),
+                            ),
+                            *(
+                                (
+                                    provider_id,
+                                    "history",
+                                    (
+                                        "record",
+                                        "domain",
+                                        "notes",
+                                        "time",
+                                        "interval_end",
+                                        "units",
+                                        "source_kind",
+                                        "confirmation_status",
+                                        "quality",
+                                        "uncertainty",
+                                    ),
+                                )
+                                for provider_id in (
+                                    "health.nutrition_context",
+                                    "health.exercise_context",
+                                    "health.sleep_context",
+                                    "health.symptoms_context",
+                                )
+                            ),
+                        )
                     ),
                     sidecar=ApplicationSidecarPolicy(
+                        connected_provider_disclosure=ExternalDisclosurePolicy(
+                            allowed=False,
+                            maximum_sensitivity="restricted",
+                        ),
+                        manual_external_disclosure=ExternalDisclosurePolicy(
+                            allowed=False,
+                            maximum_sensitivity="restricted",
+                        ),
                         manual_import_reuse={"allowed": False},
                         copy_allowed=True,
                     ),
+                    maximum_model_sensitivity="restricted",
                 ),
             ),
         ),

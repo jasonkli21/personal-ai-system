@@ -110,6 +110,34 @@ def test_required_authentication_cannot_silently_use_development_identity() -> N
         Settings(_env_file=None, ai_provider="fake", ai_model="test", auth_required=True)
 
 
+def test_health_context_requires_separate_hosted_service_identity_and_defaults_off() -> None:
+    defaults = Settings(_env_file=None, ai_provider="fake", ai_model="test")
+    assert defaults.health_context_enabled is False
+
+    with pytest.raises(ValidationError, match="health_context_identity_configuration_required"):
+        Settings(
+            _env_file=None,
+            ai_provider="fake",
+            ai_model="test",
+            health_context_enabled=True,
+        )
+
+    configured = Settings(
+        _env_file=None,
+        ai_provider="fake",
+        ai_model="test",
+        auth_mode="google_oidc",
+        auth_required=True,
+        auth_audience="client-id.apps.googleusercontent.com",
+        auth_allowed_emails=("owner@gmail.com",),
+        health_context_enabled=True,
+        health_context_base_url="https://health.example.test",
+        health_context_service_audience="https://health.example.test",
+        health_context_service_account="personal-ai@example.iam.gserviceaccount.com",
+    )
+    assert configured.health_context_enabled is True
+
+
 def test_external_dispatch_signer_rejects_partial_or_malformed_configuration() -> None:
     with pytest.raises(ValidationError, match="external_dispatch_signer_configuration_incomplete"):
         Settings(

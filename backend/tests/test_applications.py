@@ -85,6 +85,17 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
                 "finance.research_evidence",
             }
             if application_id == "finance"
+            else {
+                "health.profile_background_context",
+                "health.profile_constraints_context",
+                "health.profile_preferences_context",
+                "health.measurements_context",
+                "health.nutrition_context",
+                "health.exercise_context",
+                "health.sleep_context",
+                "health.symptoms_context",
+            }
+            if application_id == "health"
             else set()
         )
         assert all(
@@ -139,6 +150,22 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
         assert provider.feature_gate == "finance_context_enabled"
         assert provider.is_enabled({}) is False
         assert provider.is_enabled({"finance_context_enabled": True}) is True
+
+    for capability in (
+        "health.profile_background_context",
+        "health.profile_constraints_context",
+        "health.profile_preferences_context",
+        "health.measurements_context",
+        "health.nutrition_context",
+        "health.exercise_context",
+        "health.sleep_context",
+        "health.symptoms_context",
+    ):
+        provider = registry.capability("health", capability, kind="context_provider")
+        assert provider.available is True
+        assert provider.feature_gate == "health_context_enabled"
+        assert provider.is_enabled({}) is False
+        assert provider.is_enabled({"health_context_enabled": True}) is True
 
 
 def test_unknown_application_fails_with_a_stable_registry_error() -> None:

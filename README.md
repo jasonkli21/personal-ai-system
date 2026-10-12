@@ -272,6 +272,8 @@ Phase 26 adds an optional, read-only Travel context integration through the shar
 
 Phase 28 adds a separate, read-only Finance context contract through the shared planner, context assembler, and permission-revalidation seams. Both Finance and Personal AI gates default off. Automatic chat routing and the Finance sidecar remain unavailable pending Phase 15/21 prerequisites, an accepted Finance embed contract, and deployed identity/provider privacy checks; see the [Phase 28 evidence](docs/personal-ai-chapter-2/phase-28-implementation-evidence.md).
 
+Phase 29 adds a separate, read-only Health `health-context-read-v1` contract and typed providers through those same shared seams. Both gates default off; Personal AI's current Google OIDC user identity does not satisfy Health's Firebase delegated-user requirement, daily cross-domain consent cannot yet be enabled by an owner, and the Health category sidecar remains unavailable. See the [Phase 29 evidence](docs/personal-ai-chapter-2/phase-29-implementation-evidence.md).
+
 Connected execution requires an operator-provisioned Ed25519 signer that matches the public key pinned in the local bridge's protected compatibility configuration. Set `EXTERNAL_DISPATCH_GRANT_ISSUER`, `EXTERNAL_DISPATCH_GRANT_KEY_ID`, and `EXTERNAL_DISPATCH_GRANT_PRIVATE_KEY` only through a protected local environment file or Secret Manager. The key is never sent to the browser. Manual copy/import does not need this signer or the ChatGPT bridge.
 
 Research, memory, decision, travel, shopping, proposal, and extraction capabilities each have independent gates. Enable only the specific path you are testing and preserve its provider/storage policy controls.

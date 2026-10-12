@@ -160,6 +160,13 @@ class Settings(BaseSettings):
     finance_context_service_audience: str = Field(default="", max_length=500)
     finance_context_service_account: str = Field(default="", max_length=254)
     finance_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
+    # Health context is separately gated; the source app also requires an exact
+    # service identity and a recent Firebase user token before it will read data.
+    health_context_enabled: bool = False
+    health_context_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    health_context_service_audience: str = Field(default="", max_length=500)
+    health_context_service_account: str = Field(default="", max_length=254)
+    health_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
     worker_push_auth_required: bool = False
     worker_push_audience: str = Field(default="", max_length=500)
     worker_push_service_account: str = Field(default="", max_length=254)
@@ -372,6 +379,16 @@ class Settings(BaseSettings):
                 or not self.finance_context_service_account.strip()
             ):
                 raise ValueError("finance_context_identity_configuration_required")
+        if self.health_context_enabled:
+            health_url = str(self.health_context_base_url)
+            if (
+                self.auth_mode != "google_oidc"
+                or not self.auth_required
+                or not health_url.startswith("https://")
+                or not self.health_context_service_audience.startswith("https://")
+                or not self.health_context_service_account.strip()
+            ):
+                raise ValueError("health_context_identity_configuration_required")
         signer_key = self.external_dispatch_grant_private_key.get_secret_value().strip()
         signer_configured = bool(
             signer_key

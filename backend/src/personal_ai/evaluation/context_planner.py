@@ -13,9 +13,13 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import ConfigDict, create_model
 
 from personal_ai.applications.contracts import (
+    ApplicationContextPolicy,
     ApplicationContextRequest,
     ApplicationDefinition,
     CapabilityRegistration,
+    ContextFieldPolicy,
+    ContextOperationPolicy,
+    ContextProviderPolicy,
 )
 from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import RequestScope, bind_request_scope, reset_request_scope
@@ -252,6 +256,26 @@ def _item_fields(item) -> set[str]:
     return set(payload) - {"record_kind"}
 
 
+def _policy_with_fixture_operations(
+    base: ApplicationContextPolicy,
+    operations: dict[str, ContextOperationPolicy],
+) -> ApplicationContextPolicy:
+    """Extend only the isolated evaluation manifest for undeclared fake providers."""
+    providers = {provider.provider_id: provider for provider in base.provider_policies}
+    for provider_id, operation in operations.items():
+        current = providers.get(provider_id)
+        if current is None:
+            providers[provider_id] = ContextProviderPolicy(
+                provider_id=provider_id,
+                operations=(operation,),
+            )
+        else:
+            providers[provider_id] = current.model_copy(
+                update={"operations": (*current.operations, operation)}
+            )
+    return base.model_copy(update={"provider_policies": tuple(providers.values())})
+
+
 def _run_fixture(fixture: dict, *, counter=None) -> dict:
     provider_ids = fixture.get("provider_ids", [fixture.get("provider_id")])
     scope = RequestScope(
@@ -264,8 +288,10 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
     factories = {}
     capabilities = []
     rules = []
+    synthetic_policy_operations: dict[str, ContextOperationPolicy] = {}
     retrieval = None
     profile_repository = None
+    registry_definition = default_application_registry().get(fixture["application_id"])
     settings = Settings(
         ai_provider="gemini",
         ai_model="synthetic-eval",
@@ -345,6 +371,15 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
             maximum_bytes=8_192,
             maximum_timeout_seconds=2,
         )
+        if registry_definition.context_policy.operation(provider_id, operation) is None:
+            synthetic_policy_operations[provider_id] = ContextOperationPolicy(
+                operation=operation,
+                fields=tuple(
+                    ContextFieldPolicy(field=field, sensitivity="sensitive")
+                    for field in fields
+                ),
+                sensitivity="sensitive",
+            )
         if not fixture.get("provider_unavailable"):
             provider = _FixtureProvider(provider_id, source_class, operation_spec)
             providers.append(provider)
@@ -366,9 +401,10 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         display_name=fixture["application_id"].title(),
         memory_namespace=fixture["application_id"],
         context_provider_ids=tuple(provider_ids),
-        context_policy=default_application_registry().get(
-            fixture["application_id"]
-        ).context_policy,
+        context_policy=_policy_with_fixture_operations(
+            registry_definition.context_policy,
+            synthetic_policy_operations,
+        ),
     )
     context = ApplicationContextRequest(
         definition=definition,

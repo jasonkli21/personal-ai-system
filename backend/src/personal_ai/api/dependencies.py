@@ -253,6 +253,7 @@ def get_context_assembler(
             "travel_context_enabled": settings.travel_context_enabled,
             "shopping_context_enabled": settings.shopping_context_enabled,
             "finance_context_enabled": settings.finance_context_enabled,
+            "health_context_enabled": settings.health_context_enabled,
         },
     )
     return ContextAssembler(

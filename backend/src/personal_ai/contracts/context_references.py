@@ -27,7 +27,9 @@ class ContextSourceReference(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    kind: Literal["record", "conversation_message", "evidence", "url", "tool_invocation"]
+    kind: Literal[
+        "record", "source", "conversation_message", "evidence", "url", "tool_invocation"
+    ]
     reference_id: str = Field(min_length=1, max_length=512)
     uri: str | None = Field(default=None, max_length=2048)
     fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -60,7 +62,9 @@ class ContextAuthorityReference(BaseModel):
     """Durable-safe reference projection; raw IDs and retrieval URIs stay transient."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["record", "conversation_message", "evidence", "url", "tool_invocation"]
+    kind: Literal[
+        "record", "source", "conversation_message", "evidence", "url", "tool_invocation"
+    ]
     reference_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 

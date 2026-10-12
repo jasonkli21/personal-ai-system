@@ -419,6 +419,7 @@ class CapabilityRegistration(BaseModel):
         "travel_context_enabled",
         "shopping_context_enabled",
         "finance_context_enabled",
+        "health_context_enabled",
     ] | None = None
     unavailable_reason: str | None = Field(default=None, min_length=1, max_length=160)
     read_only_context: bool = False
