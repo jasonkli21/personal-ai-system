@@ -2,8 +2,9 @@
 
 import asyncio
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -37,19 +38,24 @@ from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.context.travel import (
     TRAVEL_CONTEXT_FIELDS,
     TRAVEL_CONTEXT_PROVIDER_ID,
+    TRAVEL_TRIP_EXPORT_FIELDS,
+    TRAVEL_TRIP_EXPORT_PROVIDER_ID,
     TravelContextPermissionRevalidator,
     TravelContextProvider,
     TravelContextProviderFactory,
     TravelContextReadResponse,
     TravelContextRecord,
     TravelSelectionBinding,
+    TravelTripFederationExportAdapter,
     configured_travel_context_contribution,
     travel_context_planning_rules,
 )
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.contracts.execution import ContinuationRequest
+from personal_ai.contracts.federation import FederationSelection
 from personal_ai.entities import Conversation, Message, MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
+from personal_ai.federation.contracts import FederationGrantIntent
 from personal_ai.llm.fake import FakeLLMClient
 from personal_ai.services.chat.events import TurnCompleted, TurnFailed, TurnMessageCreated
 from personal_ai.services.chat.service import ChatTurnService
@@ -211,6 +217,148 @@ def test_host_bootstrap_installs_travel_runtime_only_when_its_gate_is_enabled():
     )
     assert enabled_plan.selections[0].provider_id == TRAVEL_CONTEXT_PROVIDER_ID
     assert "destination" not in TRAVEL_CONTEXT_FIELDS
+
+
+def test_travel_trip_export_adapter_enforces_exact_source_policy_and_preserves_dependencies():
+    entity = ContextEntityReference(
+        entity_type="trip", entity_id="trip-opaque-id", application_id="travel"
+    )
+    record = TravelContextRecord(
+        entity_type="trip",
+        entity_id=entity.entity_id,
+        source_id="opaque-travel-source",
+        source_version="8",
+        authority="authoritative",
+        observed_at=datetime(2026, 10, 11, tzinfo=UTC),
+        sensitivity="sensitive",
+        payload={
+            "destination": "Kyoto, Japan",
+            "start_date": "2026-11-01",
+            "end_date": "2026-11-06",
+        },
+        source_refs=(
+            ContextSourceReference(
+                kind="record", reference_id="opaque-trip-ref", fingerprint="e" * 64
+            ),
+        ),
+        permission_dependencies=(
+            ContextPermissionDependency(
+                permission_id=f"travel_context_read:{entity.entity_id}",
+                version="8",
+                purpose="shopping_trip_context",
+                source_application_id="travel",
+                destination_application_id="shopping",
+            ),
+        ),
+        field_sensitivity=tuple(
+            ContextFieldSensitivity(field=field, sensitivity="sensitive")
+            for field in TRAVEL_TRIP_EXPORT_FIELDS
+        ),
+    )
+    client = FakeTravelClient(TravelContextReadResponse(items=(record,)))
+    adapter = TravelTripFederationExportAdapter(client)
+    source = ApplicationScope(application_id="travel")
+    destination = ApplicationScope(application_id="shopping")
+    owner_id = "verified-owner"
+    acting_user_id = "https://accounts.google.com|verified-subject"
+    intent = FederationGrantIntent(
+        grant_id=uuid4(),
+        owner_id=owner_id,
+        acting_user_id=acting_user_id,
+        source=source,
+        destination=destination,
+        category="trip",
+        purpose="shopping_trip_context",
+        entities=(entity,),
+        fields=TRAVEL_TRIP_EXPORT_FIELDS,
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    policy = adapter.resolve_source_policy(intent, deadline=10**12)
+    grant = SimpleNamespace(
+        source=source,
+        destination=destination,
+        category="trip",
+        purpose="shopping_trip_context",
+        fields=TRAVEL_TRIP_EXPORT_FIELDS,
+        owner_id=owner_id,
+        acting_user_id=acting_user_id,
+        expires_at=intent.expires_at,
+        source_policy=policy,
+    )
+    selection = ContextSelection(
+        provider_id=TRAVEL_TRIP_EXPORT_PROVIDER_ID,
+        operation="entity",
+        fields=TRAVEL_TRIP_EXPORT_FIELDS,
+        federation=FederationSelection(
+            grant_id=intent.grant_id,
+            issuance_id=uuid4(),
+            revision=1,
+            epoch=1,
+            source=source,
+            category="trip",
+            purpose="shopping_trip_context",
+            entities=(entity,),
+        ),
+    )
+    scope = RequestScope(
+        owner_id=owner_id,
+        acting_user_id=acting_user_id,
+        request_id="travel-federation-test",
+        application_id="shopping",
+    )
+
+    assert adapter.authorize_export(grant, selection, scope, deadline=10**12)
+    result = adapter.fetch(grant, selection, scope, deadline=10**12)
+    assert result.complete is True and result.continuation is None
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert set(item.payload.model_dump()) == set(TRAVEL_TRIP_EXPORT_FIELDS)
+    assert item.payload.destination == "Kyoto, Japan"
+    assert item.permission_dependencies[0] == policy
+    assert item.entity_refs == (entity,)
+    assert client.requests[0][0].fields == ("trip_revision",)
+    assert client.requests[-1][0].fields == TRAVEL_TRIP_EXPORT_FIELDS
+
+    client.response = TravelContextReadResponse(
+        complete=False,
+        continuation="next-page-required",
+    )
+    with pytest.raises(ContextPreparationError, match="travel_trip_export_incomplete"):
+        adapter.fetch(grant, selection, scope, deadline=10**12)
+
+    client.response = TravelContextReadResponse(
+        complete=True,
+        authoritative_empty_entities=(entity.entity_id,),
+    )
+    empty = adapter.fetch(grant, selection, scope, deadline=10**12)
+    assert empty.items == () and empty.authoritative_empty_entities == (entity,)
+
+
+def test_travel_federation_capability_is_discovered_only_with_executable_adapter():
+    from personal_ai.federation.deployment import reconcile_federation_runtime_metadata
+
+    settings = Settings(
+        _env_file=None,
+        ai_provider="fake",
+        ai_model="fixture",
+        auth_mode="development",
+        app_environment="test",
+        travel_federation_enabled=True,
+    )
+    contribution = configured_travel_context_contribution(settings)
+    assert set(contribution.export_adapters) == {TRAVEL_TRIP_EXPORT_PROVIDER_ID}
+    assert contribution.provider_factories == {}
+
+    from personal_ai.context.deployment import configured_context_runtime
+
+    runtime = configured_context_runtime(settings)
+    registry = reconcile_federation_runtime_metadata(default_application_registry(), runtime)
+    shopping = registry.registration("shopping")
+    capability = next(
+        item for item in shopping.context_providers
+        if item.capability_id == TRAVEL_TRIP_EXPORT_PROVIDER_ID
+    )
+    assert capability.available is True
 
 
 def test_travel_provider_accepts_bounded_reservation_linked_to_selected_day():

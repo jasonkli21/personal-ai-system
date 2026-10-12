@@ -1,6 +1,6 @@
 """Finance context stays bounded, selected, sensitive, and on shared context seams."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from time import monotonic
 from uuid import uuid4
 
@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.applications.registry import default_application_registry
-from personal_ai.auth.scope import RequestScope
+from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.authorization import (
     apply_item_policy,
@@ -19,9 +19,11 @@ from personal_ai.context.authorization import (
 from personal_ai.context.builder import ContextBuildItem
 from personal_ai.context.finance import (
     FINANCE_ACCOUNT_PROVIDER_ID,
+    FINANCE_BUDGET_EXPORT_PROVIDER_ID,
     FINANCE_EVIDENCE_PROVIDER_ID,
     FINANCE_PORTFOLIO_PROVIDER_ID,
     FINANCE_RESEARCH_PROVIDER_ID,
+    FinanceBudgetFederationAdapter,
     FinanceContextHTTPClient,
     FinanceContextPermissionRevalidator,
     FinanceContextProvider,
@@ -54,7 +56,9 @@ from personal_ai.context.runtime import (
     compose_context_runtime,
 )
 from personal_ai.context.tokens import FakeTokenCounter
+from personal_ai.contracts.federation import FederationSelection
 from personal_ai.entities import Message, MessageRole, MessageStatus
+from personal_ai.federation.contracts import FederationGrant, FederationGrantIntent
 from personal_ai.routing import (
     EndpointCandidateRequirements,
     EndpointRegistry,
@@ -146,6 +150,59 @@ def _scope() -> RequestScope:
         request_id="finance-context-test",
         application_id="finance",
         workspace_id=None,
+    )
+
+
+def _budget_record(entity_id: str) -> FinanceContextRecord:
+    version = "b" * 64
+    values = {
+        key: FinanceContextSemanticValue(
+            semantic_class="observed",
+            value=value,
+            state="known",
+            unit="currency_amount" if key == "amount" else None,
+            currency="USD" if key == "amount" else None,
+            as_of="2026-11",
+            source_identity="finance.monthly_discretionary_budget",
+            source_version=version,
+            evidence_refs=(entity_id,),
+            quality="owner_entered",
+            authority="user_asserted",
+            sensitivity="restricted",
+        )
+        for key, value in {
+            "amount": "850.50",
+            "currency": "USD",
+            "period": "2026-11",
+        }.items()
+    }
+    return FinanceContextRecord(
+        entity_type="discretionary_budget",
+        entity_id=entity_id,
+        source_id=f"finance:monthly_discretionary_budget:{entity_id}",
+        source_version=version,
+        source_class="domain_current",
+        authority="user_asserted",
+        observed_at=datetime.now(UTC),
+        effective_at=datetime(2026, 11, 1, tzinfo=UTC),
+        sensitivity="restricted",
+        payload={"discretionary_budget": values},
+        source_refs=(
+            ContextSourceReference(
+                kind="record", reference_id=entity_id, fingerprint="c" * 64
+            ),
+        ),
+        permission_dependencies=(
+            ContextPermissionDependency(
+                permission_id=f"finance_context_read:discretionary_budget:{entity_id}",
+                version=version,
+                purpose="shopping_discretionary_budget",
+            ),
+        ),
+        field_sensitivity=tuple(
+            ContextFieldSensitivity(field=field, sensitivity="restricted")
+            for field in ("amount", "currency", "period")
+        ),
     )
 
 
@@ -487,3 +544,94 @@ def test_request_rejects_extraneous_finance_wire_identity_fields() -> None:
                 "max_bytes": 1024,
             }
         )
+
+
+def test_monthly_budget_federation_adapter_preserves_exact_fields_and_dependency() -> None:
+    now = datetime.now(UTC)
+    budget_id = str(uuid4())
+    source = ApplicationScope(application_id="finance")
+    destination = ApplicationScope(application_id="shopping")
+    source_entity = ContextEntityReference(
+        entity_type="discretionary_budget",
+        entity_id=budget_id,
+        application_id="finance",
+        workspace_id=None,
+    )
+    record = _budget_record(budget_id)
+    client = FakeFinanceClient(FinanceContextReadResponse(items=(record,)))
+    adapter = FinanceBudgetFederationAdapter(client)
+    intent = FederationGrantIntent(
+        grant_id=uuid4(),
+        owner_id="verified-owner",
+        acting_user_id="issuer|verified-user",
+        source=source,
+        destination=destination,
+        category="discretionary_budget",
+        purpose="shopping_discretionary_budget",
+        entities=(source_entity,),
+        fields=("amount", "currency", "period"),
+        expires_at=now + timedelta(minutes=10),
+    )
+    source_policy = adapter.resolve_source_policy(intent, deadline=monotonic() + 1)
+
+    grant = FederationGrant(
+        grant_id=intent.grant_id,
+        issuance_id=uuid4(),
+        revision=1,
+        epoch=1,
+        source=source,
+        destination=destination,
+        category=intent.category,
+        purpose=intent.purpose,
+        entities=intent.entities,
+        owner_id=intent.owner_id,
+        acting_user_id=intent.acting_user_id,
+        fields=intent.fields,
+        expires_at=intent.expires_at,
+        created_at=now,
+        updated_at=now,
+        source_policy=source_policy,
+        sensitivity="restricted",
+        maximum_sensitivity="restricted",
+    )
+    scope = RequestScope(
+        application_id="shopping",
+        owner_id="verified-owner",
+        acting_user_id="issuer|verified-user",
+        request_id="finance-budget-export-test",
+    )
+    selection = ContextSelection(
+        provider_id=FINANCE_BUDGET_EXPORT_PROVIDER_ID,
+        operation="entity",
+        fields=intent.fields,
+        federation=FederationSelection(
+            grant_id=grant.grant_id,
+            issuance_id=grant.issuance_id,
+            revision=grant.revision,
+            epoch=grant.epoch,
+            source=source,
+            category=grant.category,
+            purpose=grant.purpose,
+            entities=grant.entities,
+        ),
+        max_tokens=512,
+    )
+
+    assert adapter.authorize_export(
+        grant, selection, scope, deadline=monotonic() + 1
+    )
+    result = adapter.fetch(grant, selection, scope, deadline=monotonic() + 1)
+
+    assert result.complete is True
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert set(item.payload.model_dump()) == {"amount", "currency", "period"}
+    assert item.payload.amount.value == "850.50"
+    assert item.payload.currency.value == "USD"
+    assert item.payload.period.value == "2026-11"
+    assert item.permission_dependencies == (source_policy,)
+    assert all(
+        request.destination_application_id == "shopping"
+        and request.purpose == "shopping_discretionary_budget"
+        for request in client.requests
+    )

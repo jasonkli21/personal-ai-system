@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from time import monotonic
 from typing import Literal
@@ -39,6 +39,7 @@ from personal_ai.context.providers import (
     ContextSourceReference,
 )
 from personal_ai.context.runtime import ContextRuntimeContribution
+from personal_ai.federation.broker import FederationExportResult
 
 FINANCE_CONTEXT_PATH = "/v1/integrations/personal-ai/context"
 FINANCE_CONTEXT_SCHEMA = "finance-context-read-v1"
@@ -46,6 +47,7 @@ FINANCE_ACCOUNT_PROVIDER_ID = "finance.account_context"
 FINANCE_PORTFOLIO_PROVIDER_ID = "finance.portfolio_context"
 FINANCE_RESEARCH_PROVIDER_ID = "finance.research_context"
 FINANCE_EVIDENCE_PROVIDER_ID = "finance.research_evidence"
+FINANCE_BUDGET_EXPORT_PROVIDER_ID = "federation.finance_budget_to_shopping"
 
 FINANCE_ACCOUNT_FIELDS = ("account_summary", "balance_summary")
 FINANCE_PORTFOLIO_FIELDS = (
@@ -70,6 +72,7 @@ class FinanceContextEntityReference(BaseModel):
         "research_thesis",
         "research_fact",
         "portfolio",
+        "discretionary_budget",
     ]
     entity_id: str = Field(min_length=1, max_length=64)
 
@@ -93,6 +96,10 @@ class FinanceContextReadRequest(BaseModel):
     application_id: Literal["finance"] = "finance"
     workspace_id: None = None
     operation: Literal["current", "verify"]
+    purpose: Literal["personal_ai_context", "shopping_discretionary_budget"] = (
+        "personal_ai_context"
+    )
+    destination_application_id: Literal["shopping"] | None = None
     entity_refs: tuple[FinanceContextEntityReference, ...] = Field(min_length=1, max_length=16)
     fields: tuple[str, ...] = Field(min_length=1, max_length=16)
     include_broader_context: bool = False
@@ -107,6 +114,9 @@ class FinanceContextReadRequest(BaseModel):
             *FINANCE_RESEARCH_FIELDS,
             *FINANCE_EVIDENCE_FIELDS,
             "permission_version",
+            "amount",
+            "currency",
+            "period",
         }
         if len(set(self.entity_refs)) != len(self.entity_refs):
             raise ValueError("finance_context_entity_references_not_unique")
@@ -115,6 +125,32 @@ class FinanceContextReadRequest(BaseModel):
         portfolio_refs = [
             reference for reference in self.entity_refs if reference.entity_type == "portfolio"
         ]
+        budget_refs = [
+            reference
+            for reference in self.entity_refs
+            if reference.entity_type == "discretionary_budget"
+        ]
+        budget_fields = {"amount", "currency", "period"}
+        if budget_refs or set(self.fields) & budget_fields:
+            expected_fields = (
+                ("permission_version",)
+                if self.operation == "verify"
+                else ("amount", "currency", "period")
+            )
+            if (
+                len(budget_refs) != 1
+                or len(self.entity_refs) != 1
+                or self.fields != expected_fields
+                or self.purpose != "shopping_discretionary_budget"
+                or self.destination_application_id != "shopping"
+                or self.include_broader_context
+            ):
+                raise ValueError("finance_context_budget_export_scope_invalid")
+        elif (
+            self.purpose != "personal_ai_context"
+            or self.destination_application_id is not None
+        ):
+            raise ValueError("finance_context_destination_scope_invalid")
         if self.include_broader_context != bool(portfolio_refs):
             raise ValueError("finance_context_broader_scope_requires_explicit_selection")
         if self.operation == "verify" and self.fields != ("permission_version",):
@@ -138,6 +174,8 @@ class FinanceContextReadRequest(BaseModel):
                     raise ValueError("finance_context_broad_scope_invalid")
             else:
                 expected_types: set[str] = set()
+                if set(self.fields) & budget_fields:
+                    expected_types.add("discretionary_budget")
                 if set(self.fields) & {"account_summary", "balance_summary"}:
                     expected_types.add("account")
                 if "security_summary" in self.fields:
@@ -175,7 +213,14 @@ class FinanceContextSemanticValue(BaseModel):
 class FinanceContextRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    entity_type: Literal["account", "security", "position", "research_thesis", "research_fact"]
+    entity_type: Literal[
+        "account",
+        "security",
+        "position",
+        "research_thesis",
+        "research_fact",
+        "discretionary_budget",
+    ]
     entity_id: str = Field(min_length=1, max_length=64)
     source_id: str = Field(min_length=1, max_length=200)
     source_version: str = Field(min_length=1, max_length=120)
@@ -520,6 +565,187 @@ class FinanceContextProviderFactory:
         return FinanceContextProvider(self.client, self.provider_id)
 
 
+class FinanceBudgetFederationAdapter:
+    """Finance-owned monthly budget export through the narrow source contract."""
+
+    purpose = "shopping_discretionary_budget"
+
+    def __init__(self, client: FinanceContextHTTPClient) -> None:
+        self.client = client
+
+    @staticmethod
+    def _single_budget(entities) -> ContextEntityReference:
+        if (
+            len(entities) != 1
+            or entities[0].application_id != "finance"
+            or entities[0].workspace_id is not None
+            or entities[0].entity_type != "discretionary_budget"
+        ):
+            raise ContextPreparationError("finance_budget_export_scope_invalid")
+        return entities[0]
+
+    @staticmethod
+    def _request(entity, *, operation: str, fields: tuple[str, ...]) -> FinanceContextReadRequest:
+        return FinanceContextReadRequest(
+            operation=operation,
+            purpose=FinanceBudgetFederationAdapter.purpose,
+            destination_application_id="shopping",
+            entity_refs=(
+                FinanceContextEntityReference(
+                    entity_type="discretionary_budget", entity_id=entity.entity_id
+                ),
+            ),
+            fields=fields,
+            max_results=1,
+            max_bytes=4096,
+        )
+
+    @staticmethod
+    def _dependency(
+        record,
+        scope,
+        entity,
+        *,
+        owner_id: str,
+        acting_user_id: str,
+    ) -> ContextPermissionDependency:
+        if (
+            record.entity_type != "discretionary_budget"
+            or len(record.permission_dependencies) != 1
+        ):
+            raise ContextPreparationError("finance_budget_export_policy_invalid")
+        source_dependency = record.permission_dependencies[0]
+        return ContextPermissionDependency(
+            permission_id=source_dependency.permission_id,
+            version=source_dependency.version,
+            purpose=FinanceBudgetFederationAdapter.purpose,
+            source_scope=scope,
+            entity_ref=entity,
+            source_revision=record.source_version,
+            owner_id=owner_id,
+            acting_user_id=acting_user_id,
+        )
+
+    def resolve_source_policy(self, intent, *, deadline: float) -> ContextPermissionDependency:
+        if (
+            intent.source.application_id != "finance"
+            or intent.destination.application_id != "shopping"
+            or intent.category != "discretionary_budget"
+            or intent.purpose != self.purpose
+            or tuple(intent.fields) != ("amount", "currency", "period")
+        ):
+            raise ContextPreparationError("finance_budget_export_scope_invalid")
+        entity = self._single_budget(intent.entities)
+        response = self.client.read(
+            self._request(entity, operation="verify", fields=("permission_version",)),
+            deadline=deadline,
+        )
+        if len(response.items) != 1:
+            raise ContextPreparationError("finance_budget_export_policy_unavailable")
+        return self._dependency(
+            response.items[0],
+            intent.source,
+            entity,
+            owner_id=intent.owner_id,
+            acting_user_id=intent.acting_user_id,
+        )
+
+    def authorize_export(self, grant, selection, scope, *, deadline: float) -> bool:
+        if (
+            grant.source.application_id != "finance"
+            or grant.destination.application_id != "shopping"
+            or grant.category != "discretionary_budget"
+            or grant.purpose != self.purpose
+            or tuple(grant.fields) != ("amount", "currency", "period")
+            or selection.fields != grant.fields
+        ):
+            return False
+        entity = self._single_budget(selection.federation.entities)
+        response = self.client.read(
+            self._request(entity, operation="verify", fields=("permission_version",)),
+            deadline=deadline,
+        )
+        return (
+            len(response.items) == 1
+            and self._dependency(
+                response.items[0],
+                grant.source,
+                entity,
+                owner_id=grant.owner_id,
+                acting_user_id=grant.acting_user_id,
+            )
+            == grant.source_policy
+            and scope.owner_id == grant.owner_id
+            and scope.acting_user_id == grant.acting_user_id
+        )
+
+    def fetch(self, grant, selection, scope, *, deadline: float) -> FederationExportResult:
+        entity = self._single_budget(selection.federation.entities)
+        response = self.client.read(
+            self._request(entity, operation="current", fields=selection.fields),
+            deadline=deadline,
+        )
+        if len(response.items) != 1:
+            raise ContextPreparationError("finance_budget_export_incomplete")
+        record = response.items[0]
+        try:
+            values = record.payload["discretionary_budget"]
+            payload = FinanceBudgetExportPayload.model_validate(values)
+            source_dependency = self._dependency(
+                record,
+                grant.source,
+                entity,
+                owner_id=grant.owner_id,
+                acting_user_id=grant.acting_user_id,
+            )
+            source_refs = tuple(
+                ContextSourceReference(
+                    kind=reference.kind,
+                    reference_id=reference.reference_id,
+                    fingerprint=reference.fingerprint,
+                )
+                for reference in record.source_refs
+            )
+            field_sensitivity = tuple(
+                ContextFieldSensitivity(
+                    field=field.field, sensitivity=field.sensitivity
+                )
+                for field in record.field_sensitivity
+            )
+        except (KeyError, ValueError, TypeError) as error:
+            raise ContextPreparationError("finance_budget_export_contract_invalid") from error
+        item = ContextItem(
+            source_class="domain_current",
+            provider_id=FINANCE_BUDGET_EXPORT_PROVIDER_ID,
+            source_id=record.source_id,
+            source_version=record.source_version,
+            item_id=f"finance-budget:{sha256(record.entity_id.encode()).hexdigest()[:32]}",
+            owner_id=scope.owner_id,
+            application_id="finance",
+            workspace_id=None,
+            entity_refs=(entity,),
+            authority="user_asserted",
+            observed_at=record.observed_at,
+            effective_at=record.effective_at,
+            expires_at=min(grant.expires_at, datetime.now(UTC) + timedelta(minutes=5)),
+            sensitivity="restricted",
+            source_refs=source_refs,
+            permission_dependencies=(source_dependency,),
+            selected_operation="entity",
+            field_sensitivity=field_sensitivity,
+            payload=payload,
+        )
+        return FederationExportResult(items=(item,), complete=True)
+
+
+class FinanceBudgetExportPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    amount: FinanceContextSemanticValue
+    currency: FinanceContextSemanticValue
+    period: FinanceContextSemanticValue
+
+
 class FinanceContextPermissionRevalidator:
     """Ask Finance to recheck selected records before context reuse."""
 
@@ -546,6 +772,14 @@ class FinanceContextPermissionRevalidator:
             response = self.client.read(
                 FinanceContextReadRequest(
                     operation="verify",
+                    purpose=(
+                        "shopping_discretionary_budget"
+                        if entity_type == "discretionary_budget"
+                        else "personal_ai_context"
+                    ),
+                    destination_application_id=(
+                        "shopping" if entity_type == "discretionary_budget" else None
+                    ),
                     entity_refs=(
                         FinanceContextEntityReference(
                             entity_type=reference.entity_type,
@@ -716,6 +950,9 @@ def configured_finance_context_contribution(settings) -> ContextRuntimeContribut
             FINANCE_EVIDENCE_PROVIDER_ID: FinanceContextProviderFactory(
                 client, FINANCE_EVIDENCE_PROVIDER_ID
             ),
+        },
+        export_adapters={
+            FINANCE_BUDGET_EXPORT_PROVIDER_ID: FinanceBudgetFederationAdapter(client),
         },
         planning_rules=finance_context_planning_rules(),
         permission_revalidators=(FinanceContextPermissionRevalidator(client),),

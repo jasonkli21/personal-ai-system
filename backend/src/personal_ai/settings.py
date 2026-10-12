@@ -142,6 +142,7 @@ class Settings(BaseSettings):
     # both the Travel service audience/account and verified user identity are
     # required; local/test mode may use the explicit local owner fixture.
     travel_context_enabled: bool = False
+    travel_federation_enabled: bool = False
     travel_context_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
     travel_context_service_audience: str = Field(default="", max_length=500)
     travel_context_service_account: str = Field(default="", max_length=254)
@@ -347,7 +348,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_context_budget(self) -> "Settings":
-        if self.travel_context_enabled:
+        if self.travel_context_enabled or self.travel_federation_enabled:
             travel_url = str(self.travel_context_base_url)
             if self.auth_mode == "google_oidc":
                 if (

@@ -8,7 +8,7 @@ shared planner and application policy have bounded the read request.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from time import monotonic
 from typing import Literal
@@ -36,10 +36,13 @@ from personal_ai.context.providers import (
     ContextSourceReference,
 )
 from personal_ai.context.runtime import ContextRuntimeContribution
+from personal_ai.federation.broker import FederationExportResult
 
 TRAVEL_CONTEXT_PATH = "/v1/integrations/personal-ai/context"
 TRAVEL_CONTEXT_SCHEMA = "travel-context-read-v2"
 TRAVEL_CONTEXT_PROVIDER_ID = "travel.trip_context"
+TRAVEL_TRIP_EXPORT_PROVIDER_ID = "federation.travel_trip_to_shopping"
+TRAVEL_TRIP_EXPORT_FIELDS = ("destination", "start_date", "end_date")
 TRAVEL_CONTEXT_FIELDS = (
     "trip_title",
     "start_date",
@@ -69,6 +72,8 @@ class TravelContextReadRequest(BaseModel):
     application_id: str = "travel"
     workspace_id: None = None
     operation: str
+    purpose: Literal["personal_ai_context", "shopping_trip_context"] = "personal_ai_context"
+    destination_application_id: Literal["shopping"] | None = None
     entity_refs: tuple[ContextEntityReference, ...] = Field(default=(), max_length=16)
     fields: tuple[str, ...] = Field(min_length=1, max_length=32)
     max_results: int = Field(ge=1, le=50)
@@ -122,6 +127,9 @@ class TravelContextReadResponse(BaseModel):
     application_id: str = "travel"
     workspace_id: None = None
     items: tuple[TravelContextRecord, ...] = Field(default=(), max_length=50)
+    complete: bool = True
+    authoritative_empty_entities: tuple[str, ...] = Field(default=(), max_length=16)
+    continuation: str | None = Field(default=None, max_length=512)
 
 
 class TravelContextPayload(BaseModel):
@@ -149,6 +157,189 @@ class TravelContextPayload(BaseModel):
     observed_at: str | None = None
     expires_at: str | None = None
     citations: str | None = None
+
+
+class TravelTripExportPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    destination: str | None
+    start_date: str
+    end_date: str
+
+
+class TravelTripFederationExportAdapter:
+    """Narrow Travel-owned trip export, authorized by current Travel consent."""
+
+    purpose = "shopping_trip_context"
+
+    def __init__(self, client: TravelContextHTTPClient) -> None:
+        self.client = client
+
+    @staticmethod
+    def _single_trip(entities) -> ContextEntityReference:
+        if (
+            len(entities) != 1
+            or entities[0].application_id != "travel"
+            or entities[0].workspace_id is not None
+            or entities[0].entity_type != "trip"
+        ):
+            raise ContextPreparationError("travel_trip_export_scope_invalid")
+        return entities[0]
+
+    @staticmethod
+    def _request(entity, *, operation: str) -> TravelContextReadRequest:
+        return TravelContextReadRequest(
+            operation=operation,
+            purpose=TravelTripFederationExportAdapter.purpose,
+            destination_application_id="shopping",
+            entity_refs=(entity,),
+            fields=(
+                ("trip_revision",)
+                if operation == "verify"
+                else TRAVEL_TRIP_EXPORT_FIELDS
+            ),
+            max_results=1,
+            max_bytes=4096,
+        )
+
+    @staticmethod
+    def _dependency(record, scope, entity, *, owner_id: str, acting_user_id: str):
+        if (
+            record.entity_type != "trip"
+            or record.entity_id != entity.entity_id
+            or len(record.permission_dependencies) != 1
+        ):
+            raise ContextPreparationError("travel_trip_export_policy_invalid")
+        source_dependency = record.permission_dependencies[0]
+        if (
+            source_dependency.permission_id != f"travel_context_read:{entity.entity_id}"
+            or source_dependency.purpose != TravelTripFederationExportAdapter.purpose
+            or source_dependency.source_application_id != "travel"
+            or source_dependency.destination_application_id != "shopping"
+        ):
+            raise ContextPreparationError("travel_trip_export_policy_invalid")
+        return ContextPermissionDependency(
+            permission_id=source_dependency.permission_id,
+            version=source_dependency.version,
+            purpose=TravelTripFederationExportAdapter.purpose,
+            source_scope=scope,
+            entity_ref=entity,
+            source_revision=record.source_version,
+            owner_id=owner_id,
+            acting_user_id=acting_user_id,
+        )
+
+    def _check_intent(self, intent) -> ContextEntityReference:
+        if (
+            intent.source.application_id != "travel"
+            or intent.destination.application_id != "shopping"
+            or intent.category != "trip"
+            or intent.purpose != self.purpose
+            or tuple(intent.fields) != TRAVEL_TRIP_EXPORT_FIELDS
+        ):
+            raise ContextPreparationError("travel_trip_export_scope_invalid")
+        return self._single_trip(intent.entities)
+
+    def resolve_source_policy(self, intent, *, deadline: float):
+        entity = self._check_intent(intent)
+        response = self.client.read(self._request(entity, operation="verify"), deadline=deadline)
+        if len(response.items) != 1:
+            raise ContextPreparationError("travel_trip_export_policy_unavailable")
+        return self._dependency(
+            response.items[0],
+            intent.source,
+            entity,
+            owner_id=intent.owner_id,
+            acting_user_id=intent.acting_user_id,
+        )
+
+    def authorize_export(self, grant, selection, scope, *, deadline: float) -> bool:
+        if (
+            grant.source.application_id != "travel"
+            or grant.destination.application_id != "shopping"
+            or grant.category != "trip"
+            or grant.purpose != self.purpose
+            or tuple(grant.fields) != TRAVEL_TRIP_EXPORT_FIELDS
+            or selection.fields != grant.fields
+            or scope.owner_id != grant.owner_id
+            or scope.acting_user_id != grant.acting_user_id
+        ):
+            return False
+        entity = self._single_trip(selection.federation.entities)
+        response = self.client.read(self._request(entity, operation="verify"), deadline=deadline)
+        return (
+            len(response.items) == 1
+            and self._dependency(
+                response.items[0],
+                grant.source,
+                entity,
+                owner_id=grant.owner_id,
+                acting_user_id=grant.acting_user_id,
+            )
+            == grant.source_policy
+        )
+
+    def fetch(self, grant, selection, scope, *, deadline: float) -> FederationExportResult:
+        entity = self._single_trip(selection.federation.entities)
+        response = self.client.read(self._request(entity, operation="federation"), deadline=deadline)
+        if not response.complete or response.continuation is not None:
+            raise ContextPreparationError("travel_trip_export_incomplete")
+        if not response.items:
+            if response.authoritative_empty_entities == (entity.entity_id,):
+                return FederationExportResult(
+                    items=(), complete=True, authoritative_empty_entities=(entity,)
+                )
+            raise ContextPreparationError("travel_trip_export_incomplete")
+        if len(response.items) != 1 or response.authoritative_empty_entities:
+            raise ContextPreparationError("travel_trip_export_incomplete")
+        record = response.items[0]
+        try:
+            payload = TravelTripExportPayload.model_validate(record.payload)
+            source_dependency = self._dependency(
+                record,
+                grant.source,
+                entity,
+                owner_id=grant.owner_id,
+                acting_user_id=grant.acting_user_id,
+            )
+        except (ValueError, TypeError) as error:
+            raise ContextPreparationError("travel_trip_export_contract_invalid") from error
+        if set(payload.model_dump()) != set(selection.fields):
+            raise ContextPreparationError("travel_trip_export_contract_invalid")
+        source_refs = tuple(
+            ContextSourceReference(
+                kind=reference.kind,
+                reference_id=reference.reference_id,
+                fingerprint=reference.fingerprint,
+            )
+            for reference in record.source_refs
+        )
+        field_sensitivity = tuple(
+            ContextFieldSensitivity(field=field.field, sensitivity=field.sensitivity)
+            for field in record.field_sensitivity
+        )
+        item = ContextItem(
+            source_class="domain_current",
+            provider_id=TRAVEL_TRIP_EXPORT_PROVIDER_ID,
+            source_id=record.source_id,
+            source_version=record.source_version,
+            item_id=f"travel-trip:{sha256(record.entity_id.encode()).hexdigest()[:32]}",
+            owner_id=scope.owner_id,
+            application_id="travel",
+            workspace_id=None,
+            entity_refs=(entity,),
+            authority=record.authority,
+            observed_at=record.observed_at,
+            effective_at=record.effective_at,
+            expires_at=min(grant.expires_at, datetime.now(UTC) + timedelta(minutes=5)),
+            sensitivity="sensitive",
+            source_refs=source_refs,
+            permission_dependencies=(source_dependency,),
+            selected_operation="entity",
+            field_sensitivity=field_sensitivity,
+            payload=payload,
+        )
+        return FederationExportResult(items=(item,), complete=True)
 
 
 class TravelContextHTTPClient:
@@ -247,6 +438,8 @@ class TravelContextHTTPClient:
             raise ContextProviderError("travel_context_contract_unsupported")
         if result.application_id != "travel" or result.workspace_id is not None:
             raise ContextProviderError("travel_context_scope_invalid")
+        if not result.complete or result.continuation is not None:
+            raise ContextProviderError("travel_context_export_incomplete")
         return result
 
 
@@ -392,9 +585,14 @@ class TravelContextPermissionRevalidator:
             return False
         entity_id = dependency.permission_id.removeprefix(self.permission_prefix)
         try:
+            is_federation = dependency.purpose == "shopping_trip_context"
             response = self.client.read(
                 TravelContextReadRequest(
                     operation="verify",
+                    purpose=(
+                        "shopping_trip_context" if is_federation else "personal_ai_context"
+                    ),
+                    destination_application_id="shopping" if is_federation else None,
                     entity_refs=(
                         ContextEntityReference(
                             entity_type="trip",
@@ -522,9 +720,10 @@ def travel_context_planning_rules() -> tuple[ContextPlanningRule, ...]:
 def configured_travel_context_contribution(settings) -> ContextRuntimeContribution:
     """Build Travel's contribution while leaving composition to shared runtime code."""
     providers = {}
+    export_adapters = {}
     revalidators = ()
     planning_rules = travel_context_planning_rules()
-    if settings.travel_context_enabled:
+    if settings.travel_context_enabled or settings.travel_federation_enabled:
         from personal_ai.auth.service_tokens import fetch_google_service_token
 
         client = TravelContextHTTPClient(
@@ -537,9 +736,14 @@ def configured_travel_context_contribution(settings) -> ContextRuntimeContributi
                 fetch_google_service_token if settings.auth_mode == "google_oidc" else None
             ),
         )
-        providers[TRAVEL_CONTEXT_PROVIDER_ID] = TravelContextProviderFactory(client)
+        if settings.travel_context_enabled:
+            providers[TRAVEL_CONTEXT_PROVIDER_ID] = TravelContextProviderFactory(client)
+        if settings.travel_federation_enabled:
+            export_adapters[TRAVEL_TRIP_EXPORT_PROVIDER_ID] = (
+                TravelTripFederationExportAdapter(client)
+            )
         revalidators = (TravelContextPermissionRevalidator(client),)
-    else:
+    if not settings.travel_context_enabled:
         planning_rules = tuple(
             rule for rule in planning_rules if rule.provider_id == TRAVEL_CONTEXT_PROVIDER_ID
         )
@@ -547,4 +751,5 @@ def configured_travel_context_contribution(settings) -> ContextRuntimeContributi
         provider_factories=providers,
         planning_rules=planning_rules,
         permission_revalidators=revalidators,
+        export_adapters=export_adapters,
     )
