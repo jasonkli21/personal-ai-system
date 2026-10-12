@@ -136,6 +136,16 @@ class ArtifactService:
                 raise ArtifactUnavailable("required_artifact_not_ready") from error
             return None
 
+    def write_source_derived(self, value, *, source_snapshots, **kwargs):
+        """Write derived material only after binding its exact source dependencies."""
+        from personal_ai.artifacts.provenance import permission_dependencies_from_snapshots
+
+        dependencies = permission_dependencies_from_snapshots(source_snapshots)
+        supplied = kwargs.pop("permission_dependencies", None)
+        if supplied is not None and tuple(supplied) != dependencies:
+            raise ArtifactUnavailable("artifact_source_dependencies_mismatch")
+        return self.write(value, permission_dependencies=dependencies, **kwargs)
+
     def _write(
         self,
         value,

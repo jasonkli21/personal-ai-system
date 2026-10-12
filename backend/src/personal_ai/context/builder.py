@@ -10,6 +10,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from personal_ai.context.authority import permission_dependencies_current
 from personal_ai.context.contracts import ContextError, TokenCount, TokenCounter
 from personal_ai.context.providers import (
     ContextAuthority,
@@ -615,6 +616,16 @@ class ContextBuilder:
         )
         if final_count.tokens > policy.global_input_tokens:
             raise ContextError("context_budget_invalid")
+
+        # Counting and final message construction may cross a revocation boundary.
+        # Check the exact admitted dependencies before returning them to a caller.
+        if any(
+            not permission_dependencies_current(
+                item.permission_dependencies, self.permission_revalidator
+            )
+            for item, _, _ in included
+        ):
+            raise ContextError("context_source_authority_changed")
 
         memory_marginal_tokens = 0
         if class_items.get("ai_memory"):

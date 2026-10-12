@@ -221,7 +221,7 @@ describe("Home", () => {
           model_id: "gpt-fixture",
           package_fingerprint: "a".repeat(64),
           context_package: {
-            schema_version: "context-package-v1",
+            schema_version: "context-package-v2",
             messages: [{ role: "user", content: "Continue from this answer." }],
             included_sources: [],
             excluded_sources: [],
@@ -231,7 +231,6 @@ describe("Home", () => {
             effective_sensitivity: "personal",
             maximum_sensitivity: "sensitive",
             policy_version: "personal-ai-context-policy-v2",
-            grant_versions: [],
             expires_at: "2026-10-12T00:00:00Z",
             fingerprint: "a".repeat(64),
           },

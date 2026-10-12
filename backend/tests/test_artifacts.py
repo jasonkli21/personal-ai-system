@@ -22,8 +22,13 @@ from personal_ai.artifacts.contracts import (
 )
 from personal_ai.artifacts.gcs import PrivateGCSArtifactStore
 from personal_ai.artifacts.local import InMemoryArtifactMetadataRepository, InMemoryArtifactStore
+from personal_ai.artifacts.provenance import permission_dependencies_from_snapshots
 from personal_ai.artifacts.service import ArtifactService, decode, encode
 from personal_ai.auth.scope import ApplicationScope
+from personal_ai.contracts.context_references import (
+    ContextPermissionDependency,
+    ContextSourceSnapshot,
+)
 from personal_ai.settings import Settings
 
 SCOPE = ApplicationScope()
@@ -69,6 +74,61 @@ def test_roundtrip_scope_generation_hash_and_jsonl(tier):
         with pytest.raises(ArtifactUnavailable):
             service.read(ref.artifact_id, owner_id=owner, scope=scope)
     assert repo.observations()["dynamodb"]["artifact_body_bytes"] == 0
+
+
+def test_source_derived_artifact_path_binds_snapshot_dependencies(tier):
+    metadata, store, clock = tier[1], tier[2], tier[3]
+    dependency = ContextPermissionDependency(
+        permission_id="federation_grant:grant-1",
+        version="issuance-1:2:3",
+        purpose="use selected trip data",
+        owner_id="owner",
+        acting_user_id="issuer|user",
+        source_application_id="travel",
+        destination_application_id=SCOPE.application_id,
+    )
+    snapshot = ContextSourceSnapshot(
+        provider_id="federation.travel_trip_to_shopping",
+        source_id="trip-source",
+        source_version="trip-v8",
+        item_id="trip-v8",
+        source_classes=("domain_current",),
+        owner_id="owner",
+        application_id=SCOPE.application_id,
+        content_fingerprint="a" * 64,
+        permission_dependencies=(dependency,),
+    )
+    assert permission_dependencies_from_snapshots((snapshot,)) == (dependency,)
+
+    class CurrentPermission:
+        def is_current(self, value):
+            return value == dependency
+
+    service = ArtifactService(
+        metadata,
+        store,
+        clock=lambda: clock[0],
+        permission_revalidator=CurrentPermission(),
+    )
+    ref = service.write_source_derived(
+        {"summary": "redacted"},
+        source_snapshots=(snapshot,),
+        owner_id="owner",
+        scope=SCOPE,
+        kind="export",
+        identity="source-derived-v1",
+        schema_version="source-derived-v1",
+        required=True,
+    )
+    assert ref is not None and ref.permission_dependencies == (dependency,)
+    assert service.read(ref.artifact_id, owner_id="owner", scope=SCOPE) == {
+        "summary": "redacted"
+    }
+
+    with pytest.raises(ArtifactUnavailable, match="source_dependencies_required"):
+        permission_dependencies_from_snapshots(
+            (snapshot.model_copy(update={"permission_dependencies": ()}),)
+        )
 
 
 def test_scope_key_and_ready_reference_are_validated(tier):

@@ -65,7 +65,7 @@ class ContextPackage(BaseModel):
     """Transient exact prepared content plus a redacted, bounded inspection view."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal["context-package-v1"] = "context-package-v1"
+    schema_version: Literal["context-package-v2"] = "context-package-v2"
     messages: tuple[PreparedMessage, ...] = Field(min_length=1, max_length=256)
     included_sources: tuple[ContextPackageSourceSummary, ...] = Field(default=(), max_length=32)
     excluded_sources: tuple[ContextPackageExclusionSummary, ...] = Field(default=(), max_length=128)
@@ -76,7 +76,6 @@ class ContextPackage(BaseModel):
     effective_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
     maximum_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
     policy_version: str = Field(min_length=1, max_length=200)
-    grant_versions: tuple[str, ...] = Field(default=(), max_length=512)
     expires_at: datetime
     fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
 

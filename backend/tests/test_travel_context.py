@@ -51,7 +51,7 @@ from personal_ai.contracts.execution import ContinuationRequest
 from personal_ai.entities import Conversation, Message, MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.llm.fake import FakeLLMClient
-from personal_ai.services.chat.events import TurnCompleted
+from personal_ai.services.chat.events import TurnCompleted, TurnFailed, TurnMessageCreated
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import Settings
 from personal_ai.storage import InMemoryConversationRepository, InMemoryMessageRepository
@@ -487,7 +487,11 @@ def test_travel_provider_runs_through_the_shared_planner_and_context_assembler()
     assert assembled.source_items[0].application_id == "travel"
     assert assembled.source_items[0].workspace_id is None
     assert "internal-trip-id" not in assembled.source_items[0].item_id
-    assert [request.operation for request, _deadline in client.requests] == ["current", "verify"]
+    assert [request.operation for request, _deadline in client.requests] == [
+        "current",
+        "verify",
+        "verify",
+    ]
 
 
 def test_revoked_trip_context_is_removed_from_history_and_compatible_summary():
@@ -686,6 +690,138 @@ def test_revoked_trip_context_is_removed_from_history_and_compatible_summary():
     assert "Trip answer used current trip data." not in second_prompt
     assert second_assistant.status is MessageStatus.COMPLETED
     assert [request.operation for request, _deadline in client.requests].count("verify") >= 3
+
+
+@pytest.mark.parametrize("revocation_point", ("before_dispatch", "before_finalize"))
+def test_automatic_turn_rechecks_source_authority_at_dispatch_and_finalize(revocation_point):
+    scope = _scope()
+    conversation_id = uuid4()
+    reference = ContextEntityReference(
+        entity_type="trip",
+        entity_id="trip-id",
+        application_id="travel",
+        workspace_id=None,
+    )
+
+    class MutableTripClient:
+        revision = "8"
+
+        def read(self, request, *, deadline):
+            revision = "8" if request.operation == "current" else self.revision
+            record = _record("trip", reference.entity_id, revision=revision).model_copy(
+                update={
+                    "permission_dependencies": (
+                        ContextPermissionDependency(
+                            permission_id=f"travel_context_read:{reference.entity_id}",
+                            version=revision,
+                            purpose="confirm current owner access and source revision",
+                        ),
+                    )
+                }
+            )
+            return TravelContextReadResponse(items=(record,))
+
+    client = MutableTripClient()
+
+    class RevokingLLM(FakeLLMClient):
+        async def stream_events(self, messages, **kwargs):
+            async for event in super().stream_events(messages, **kwargs):
+                if revocation_point == "before_finalize" and event.kind == "terminal":
+                    client.revision = "9"
+                yield event
+
+    registration = default_application_registry().registration("travel")
+    application_context = ApplicationContextRequest(
+        definition=registration.definition,
+        scope=scope,
+        context_provider_capabilities=registration.context_providers,
+        tool_capabilities=registration.tools,
+    )
+    runtime = ContextRuntimeRegistry(
+        provider_factories={TRAVEL_CONTEXT_PROVIDER_ID: TravelContextProviderFactory(client)},
+        planning_rules=travel_context_planning_rules(),
+        permission_revalidators=(TravelContextPermissionRevalidator(client),),
+    )
+    assembler = ContextAssembler(
+        Settings(
+            ai_provider="fake",
+            ai_model="fixture",
+            max_context_tokens=4_096,
+            max_response_tokens=128,
+            context_safety_margin_tokens=32,
+            max_summary_tokens=512,
+            summary_trigger_tokens=1_000,
+        ),
+        FakeTokenCounter(),
+        context_provider_coordinator=ContextProviderCoordinator(
+            runtime.provider_factories,
+            feature_flags={"travel_context_enabled": True},
+        ),
+        permission_revalidator=ContextPermissionRevalidatorRegistry(
+            runtime.permission_revalidators
+        ),
+        context_planner=ContextPlanner(runtime.planning_rules),
+    )
+    conversations = InMemoryConversationRepository()
+    messages = InMemoryMessageRepository(conversations)
+    conversation = Conversation(
+        id=conversation_id,
+        owner_id=scope.owner_id,
+        application_id=scope.application_id,
+        workspace_id=scope.workspace_id,
+        title="Trip authority boundary",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    with application_scope_context(ApplicationScope(application_id="travel")):
+        conversations.create(conversation)
+    llm = RevokingLLM(deltas=("Trip answer used current trip data.",))
+    service = ChatTurnService(
+        conversations,
+        messages,
+        llm,
+        owner_id=scope.owner_id,
+        application_context=application_context,
+        model="fixture",
+        context_assembler=assembler,
+    )
+    launch = ApplicationLaunchContext(
+        application_id="travel",
+        workspace_id=None,
+        entity_refs=(reference,),
+        conversation_id=str(conversation_id),
+    )
+
+    async def run_turn():
+        with application_scope_context(ApplicationScope(application_id="travel")):
+            stream = service.continue_turn(
+                conversation_id,
+                ContinuationRequest(
+                    content="Tell me about this trip.",
+                    idempotency_key=uuid4(),
+                    launch_context=launch,
+                ),
+            )
+            if revocation_point == "before_dispatch":
+                created = [await anext(stream), await anext(stream)]
+                assert all(isinstance(event, TurnMessageCreated) for event in created)
+                client.revision = "9"
+            return [event async for event in stream]
+
+    events = asyncio.run(run_turn())
+    assert not any(isinstance(event, TurnCompleted) for event in events)
+    assert isinstance(events[-1], TurnFailed)
+    assert events[-1].code == "context_source_authority_changed"
+    with application_scope_context(ApplicationScope(application_id="travel")):
+        assistant = messages.list_active(
+            owner_id=scope.owner_id, conversation_id=conversation_id
+        )[-1]
+    assert assistant.status is MessageStatus.FAILED
+    assert assistant.content == ""
+    if revocation_point == "before_dispatch":
+        assert llm.requests == []
+    else:
+        assert len(llm.requests) == 1
 
 
 async def _collect_turn_events(events):

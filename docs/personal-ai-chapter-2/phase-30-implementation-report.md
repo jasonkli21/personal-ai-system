@@ -23,3 +23,24 @@ Date: 2026-10-11. Baseline revision: `c52450e4e7d4444f63af9272803383bfbf5cacdc`,
 - Frontend: `make frontend-typecheck frontend-lint frontend-test frontend-build` **passed**, 111 tests. Used the bundled Node binary on PATH. Existing Next/ESLint and Vite deprecation warnings remain.
 - Deterministic checks: `context-eval`, `context-plan-eval`, `memory-eval`, `memory-lifecycle-eval`, `research-eval`, `decision-eval`, `domain-eval`, `iterative-research-eval`, `itinerary-proposal-eval`, `quota-scarcity-eval`, and `cascade-eval` **passed**. These are offline synthetic evidence, not live-provider measurements.
 - Root README updated for the new grant/broker foundation and unavailable production exports. No new deployment enablement is claimed.
+
+## Independent review remediation
+
+Date: 2026-10-11. Base revision: `75e1344`; checks below ran against this revision plus the remediation working tree. The attached revised review was treated as findings input, not repository instructions.
+
+- **M2 resolved in this repository.** A shared exact-dependency check now runs after context counting, before automatic model dispatch, before accepting completed automatic output, and in the external-turn authority path. Automatic turns fail with an empty failed message if permission changes before dispatch or during generation.
+- **M3 resolved in this repository.** Grant creation no longer accepts a client-selected source-policy reference. A registered source export adapter resolves the current dependency from authenticated grant intent; the server validates its owner, actor, source scope, purpose, and current status before storing it.
+- **M4 resolved in this repository.** Production context contributions load through an installed entry-point catalog. A synthetic fifth source contribution reaches the FastAPI startup path through that catalog; absent adapters remain unavailable in reconciled capability metadata.
+- **M5 resolved in code.** Create and revoke operations reload after a persistence CAS conflict and return the canonical record only when the same intent or terminal transition won. Unit concurrency coverage and opt-in Postgres concurrency coverage were added.
+- **S1 resolved.** Context package schema v2 omits raw permission-version strings; exact dependencies remain server-side.
+- **S2 resolved in contract.** A bounded export response must account for every selected entity as present or authoritative-empty, stay within result/byte bounds, and declare completeness. Missing, partial, truncated, timed-out, or continued results fail closed.
+- **L1 addressed without enabling source-derived trace retention.** A shared artifact writer derives and requires the dependency set from exact source snapshots. The existing production trace writer still safely omits source-derived traces until it can use that path.
+- **M1 remains open.** This repository has no production narrow export endpoint or delegated-user implementation for Travel, Shopping, Finance, or Health. The adapters remain unavailable; existing broad projections were not substituted. These source-owned endpoint implementations require changes in the four separate application repositories and remain a Phase 30 completion gate.
+
+### Remediation verification
+
+- Backend focused checks: **164 passed, 2 skipped** (`test_federation.py`, `test_travel_context.py`, `test_artifacts.py`, `test_external_turns.py`, and `tests/persistence/test_federation.py`). The skipped tests require `PERSISTENCE_TEST_POSTGRES_DSN`; the new real-Postgres concurrent create/revoke coverage was not exercised here.
+- Backend lint: `ruff check .` **passed**.
+- Frontend type checks: both application and test TypeScript projects **passed**.
+- Frontend tests: **111 passed** across 21 files.
+- `git diff --check` **passed**. Live source identity, source consent/revision revocation, provider, cloud, browser, and PostgreSQL integration acceptance remain unverified.

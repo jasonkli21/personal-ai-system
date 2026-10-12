@@ -29,7 +29,7 @@ const prepared: PreparedExternalTurn = {
   model_id: null,
   package_fingerprint: "a".repeat(64),
   context_package: {
-    schema_version: "context-package-v1",
+    schema_version: "context-package-v2",
     messages: [{ role: "user", content: "Continue from this answer." }],
     included_sources: [{ category: "conversation_history", item_count: 1, sensitivity: ["personal"], authority: ["user_owned"] }],
     excluded_sources: [],
@@ -39,7 +39,6 @@ const prepared: PreparedExternalTurn = {
     effective_sensitivity: "personal",
     maximum_sensitivity: "sensitive",
     policy_version: "personal-ai-context-policy-v2",
-    grant_versions: [],
     expires_at: "2026-10-11T00:00:00Z",
     fingerprint: "a".repeat(64),
   },

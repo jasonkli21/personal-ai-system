@@ -2,11 +2,14 @@
 
 import os
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock
 from uuid import uuid4
 
 import pytest
 
+from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import ApplicationScope, application_scope_context
+from personal_ai.federation.service import FederationPermissionAuthority
 from personal_ai.persistence.postgres import PersistenceConflict, PostgresDatabase
 from personal_ai.persistence.postgres.auth import PostgresAccountLifecycleRepository
 from personal_ai.persistence.postgres.federation import PostgresFederationGrantRepository
@@ -84,3 +87,79 @@ def test_grant_cas_restart_export_and_fenced_deletion(database, federation):
             ).fetchone()[0]
             == 0
         )
+
+
+def test_concurrent_identical_create_and_revoke_converge_in_postgres(database, federation):
+    owner = f"federation-idempotency-{uuid4()}"
+    repo = PostgresFederationGrantRepository(database)
+
+    class ReadBarrierRepository:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.lock = Lock()
+            self.arm()
+
+        def arm(self):
+            self.barrier = Barrier(2)
+            self.reads = 0
+
+        def get(self, owner_id, grant_id):
+            value = self.wrapped.get(owner_id, grant_id)
+            with self.lock:
+                wait = self.reads < 2
+                self.reads += 1
+            if wait:
+                self.barrier.wait(timeout=10)
+            return value
+
+        def save(self, grant, *, expected_revision):
+            return self.wrapped.save(grant, expected_revision=expected_revision)
+
+        def record_access(self, selection, scope, result):
+            return self.wrapped.record_access(selection, scope, result)
+
+    synchronized_repo = ReadBarrierRepository(repo)
+    authority = FederationPermissionAuthority(
+        synchronized_repo, federation["source_policy"]
+    )
+    adapter = federation["adapter"]
+    from personal_ai.federation.broker import federation_contribution
+
+    federation_contribution(
+        (federation["case"],),
+        authority,
+        {federation["case"].export.provider_id: adapter},
+    )
+    intent = federation["intent"].model_copy(
+        update={"grant_id": uuid4(), "owner_id": owner}
+    )
+    principal = AuthenticatedPrincipal("issuer", "user", owner, None, 1, True)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            created = tuple(
+                executor.map(lambda _: authority.create(principal, intent), range(2))
+            )
+        assert created[0] == created[1]
+        assert created[0].revision == 1
+
+        synchronized_repo.arm()
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            revoked = tuple(
+                executor.map(
+                    lambda _: authority.revoke(
+                        principal,
+                        created[0].grant_id,
+                        expected_revision=1,
+                        expected_issuance_id=created[0].issuance_id,
+                    ),
+                    range(2),
+                )
+            )
+        assert revoked[0] == revoked[1]
+        assert revoked[0].state == "revoked" and revoked[0].revision == 2
+    finally:
+        from personal_ai.persistence.postgres.owner_lifecycle import lock_owner
+
+        with database.transaction() as connection:
+            lock_owner(connection, owner)
+            connection.execute("DELETE FROM federation_grants WHERE owner_id=%s", (owner,))

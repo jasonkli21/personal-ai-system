@@ -46,7 +46,10 @@ from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 async def lifespan(application: FastAPI):
     validate_startup_configuration()
     settings_provider = application.dependency_overrides.get(get_settings, get_settings)
-    application.state.context_runtime_registry = configured_context_runtime(settings_provider())
+    contribution_catalog = getattr(application.state, "context_runtime_catalog", None)
+    application.state.context_runtime_registry = configured_context_runtime(
+        settings_provider(), catalog=contribution_catalog
+    )
     from personal_ai.federation.deployment import reconcile_federation_runtime_metadata
     application.state.application_registry = reconcile_federation_runtime_metadata(
         application.state.application_registry, application.state.context_runtime_registry

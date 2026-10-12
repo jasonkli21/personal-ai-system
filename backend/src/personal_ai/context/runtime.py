@@ -1,7 +1,8 @@
 """Deployment-owned context implementation and planning contributions."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib.metadata import entry_points
 from types import MappingProxyType
 
 from personal_ai.context.planner import ContextPlanningRule
@@ -16,6 +17,45 @@ class ContextRuntimeContribution:
     planning_rules: Sequence[ContextPlanningRule] = ()
     permission_revalidators: Sequence[object] = ()
     export_adapters: Mapping[str, object] = field(default_factory=dict)
+    federation_cases: Sequence[object] = ()
+
+
+class ContextRuntimeContributionCatalog:
+    """Named startup registrations that can be extended without app branches."""
+
+    ENTRY_POINT_GROUP = "personal_ai.context_contributions"
+
+    def __init__(self, registrations=()):
+        self._registrations: dict[str, Callable] = {}
+        for name, factory in registrations:
+            self.register(name, factory)
+
+    @classmethod
+    def from_entry_points(cls):
+        points = sorted(entry_points(group=cls.ENTRY_POINT_GROUP), key=lambda point: point.name)
+        return cls((point.name, point.load()) for point in points)
+
+    def register(self, name: str, factory: Callable) -> None:
+        if (
+            not isinstance(name, str)
+            or not name
+            or name in self._registrations
+            or not callable(factory)
+        ):
+            raise ValueError("context_runtime_registration_invalid")
+        self._registrations[name] = factory
+
+    @property
+    def registration_names(self) -> tuple[str, ...]:
+        return tuple(sorted(self._registrations))
+
+    def compose(self, settings):
+        contributions = tuple(
+            self._registrations[name](settings) for name in self.registration_names
+        )
+        if any(not isinstance(value, ContextRuntimeContribution) for value in contributions):
+            raise ValueError("context_runtime_contribution_invalid")
+        return compose_context_runtime(*contributions)
 
 
 class ContextPermissionRevalidatorRegistry:
@@ -46,6 +86,7 @@ class ContextRuntimeRegistry:
         planning_rules: Sequence[ContextPlanningRule] = (),
         permission_revalidators: Sequence[object] = (),
         export_adapters: Mapping[str, object] | None = None,
+        federation_cases: Sequence[object] = (),
     ) -> None:
         providers = dict(provider_factories or {})
         for provider_id, provider in providers.items():
@@ -58,6 +99,7 @@ class ContextRuntimeRegistry:
         self.planning_rules = tuple(planning_rules)
         self.permission_revalidators = tuple(permission_revalidators)
         self.export_adapters = MappingProxyType(dict(export_adapters or {}))
+        self.federation_cases = tuple(federation_cases)
 
 
 def compose_context_runtime(
@@ -69,6 +111,8 @@ def compose_context_runtime(
     revalidators: list[object] = []
     namespaces: set[str] = set()
     export_adapters: dict[str, object] = {}
+    federation_cases: list[object] = []
+    case_provider_ids: set[str] = set()
     for contribution in contributions:
         overlap = providers.keys() & contribution.provider_factories.keys()
         if overlap:
@@ -81,10 +125,17 @@ def compose_context_runtime(
                 not isinstance(key, str)
                 or not key
                 or not callable(getattr(adapter, "authorize_export", None))
+                or not callable(getattr(adapter, "resolve_source_policy", None))
                 or not callable(getattr(adapter, "fetch", None))
             ):
                 raise ValueError("context_runtime_export_adapter_contract_invalid")
         export_adapters.update(contribution.export_adapters)
+        for case in contribution.federation_cases:
+            provider_id = getattr(getattr(case, "export", None), "provider_id", None)
+            if not isinstance(provider_id, str) or not provider_id or provider_id in case_provider_ids:
+                raise ValueError("context_runtime_federation_case_invalid")
+            case_provider_ids.add(provider_id)
+            federation_cases.append(case)
         rules.extend(contribution.planning_rules)
         for revalidator in contribution.permission_revalidators:
             declared = getattr(revalidator, "permission_namespaces", None)
@@ -96,7 +147,9 @@ def compose_context_runtime(
                 raise ValueError("context_runtime_revalidator_namespace_duplicate")
             namespaces.update(declared)
             revalidators.append(revalidator)
-    return ContextRuntimeRegistry(providers, rules, revalidators, export_adapters)
+    return ContextRuntimeRegistry(
+        providers, rules, revalidators, export_adapters, federation_cases
+    )
 
 
 EMPTY_CONTEXT_RUNTIME_REGISTRY = ContextRuntimeRegistry()

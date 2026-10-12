@@ -196,15 +196,6 @@ class ExternalTurnPreparation:
                 elif item.omission_reason:
                     key = (category, item.omission_reason)
                     excluded[key] = excluded.get(key, 0) + 1
-            grant_versions = tuple(
-                sorted(
-                    {
-                        dependency.version
-                        for snapshot in snapshots
-                        for dependency in snapshot.permission_dependencies
-                    }
-                )
-            )
             context_package = ContextPackage(
                 messages=messages,
                 included_sources=tuple(
@@ -232,7 +223,6 @@ class ExternalTurnPreparation:
                 effective_sensitivity=inference.effective_sensitivity,
                 maximum_sensitivity=inference.maximum_sensitivity,
                 policy_version=inference.policy_version,
-                grant_versions=grant_versions,
                 expires_at=reservation.expires_at,
                 fingerprint=package_hash,
             )

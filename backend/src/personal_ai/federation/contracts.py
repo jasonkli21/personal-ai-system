@@ -4,15 +4,50 @@ from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
-from pydantic import AwareDatetime, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.auth.scope import ApplicationScope
-from personal_ai.contracts.context_references import ContextPermissionDependency
+from personal_ai.contracts.context_references import (
+    ContextEntityReference,
+    ContextPermissionDependency,
+)
 from personal_ai.contracts.federation import FederationSelection
 
 
 class FederationGrantConflict(ValueError):
     """A stale grant lifetime/version or conflicting idempotent intent."""
+
+
+class FederationGrantIntent(BaseModel):
+    """Caller intent for a grant; it carries no source authority proof."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    grant_id: UUID
+    owner_id: str = Field(min_length=1, max_length=200)
+    acting_user_id: str = Field(min_length=1, max_length=512)
+    source: ApplicationScope
+    destination: ApplicationScope
+    category: str = Field(min_length=1, max_length=80)
+    purpose: str = Field(min_length=1, max_length=160)
+    entities: tuple[ContextEntityReference, ...] = Field(min_length=1, max_length=16)
+    fields: tuple[str, ...] = Field(min_length=1, max_length=32)
+    expires_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def valid_intent(self):
+        if self.source.application_id == self.destination.application_id:
+            raise ValueError("federation_requires_distinct_applications")
+        if len(set(self.fields)) != len(self.fields):
+            raise ValueError("federation_fields_not_unique")
+        if len(set(self.entities)) != len(self.entities):
+            raise ValueError("federation_entities_not_unique")
+        if any(
+            entity.application_id != self.source.application_id
+            or entity.workspace_id != self.source.workspace_id
+            for entity in self.entities
+        ):
+            raise ValueError("federation_entity_scope_invalid")
+        return self
 
 
 class FederationGrant(FederationSelection):

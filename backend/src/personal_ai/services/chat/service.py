@@ -15,6 +15,7 @@ import anyio
 from personal_ai.applications.contracts import ApplicationContextRequest, ContextSensitivity
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
+from personal_ai.context.authority import source_snapshots_current
 from personal_ai.context.authorization import authorize_base_disclosure, make_inference_context
 from personal_ai.context.contracts import ContextError
 from personal_ai.context.deadline import remaining
@@ -882,6 +883,12 @@ class ChatTurnService:
             # while sending either event must fail the already-persisted turn.
             for message in turn.created:
                 yield TurnMessageCreated(message)
+            if not source_snapshots_current(
+                turn.source_snapshots,
+                self._context.permission_revalidator,
+                now=datetime.now(UTC),
+            ):
+                raise ContextPreparationError("context_source_authority_changed")
             events: asyncio.Queue[GenerationEvent | Exception | None] = asyncio.Queue(maxsize=1)
             demand = asyncio.Semaphore(0)
             with bind_usage_task("chat_generation"):
@@ -937,6 +944,12 @@ class ChatTurnService:
                 raise LLMIncompleteGenerationError("language model ended without a terminal result")
             if not content.strip():
                 raise LLMInvalidResponseError("language model response was empty")
+            if not source_snapshots_current(
+                turn.source_snapshots,
+                self._context.permission_revalidator,
+                now=datetime.now(UTC),
+            ):
+                raise ContextPreparationError("context_source_authority_changed")
             completed = await io_call(
                 self._messages.update_status,
                 owner_id=self._owner_id,
@@ -1011,6 +1024,10 @@ class ChatTurnService:
                 await self._fail(turn.assistant, "client_cancelled", "".join(parts))
                 logger.info("Chat stream closed request_id=%s", turn.request_id)
             raise
+        except ContextPreparationError as error:
+            event = await self._error_event(turn.assistant, error.code, "")
+            terminal = True
+            yield event
         except LLMError as error:
             logger.warning(
                 "Chat stream failed request_id=%s error_class=%s",

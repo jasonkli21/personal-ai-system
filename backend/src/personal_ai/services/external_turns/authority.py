@@ -10,6 +10,7 @@ from uuid import UUID
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import WorkspaceAuthorizer
+from personal_ai.context.authority import permission_dependencies_current
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.contracts.execution import ExecutionChoice
 from personal_ai.entities import MessageStatus
@@ -127,8 +128,6 @@ class PrincipalBoundExternalTurnAuthority:
             )
 
         now = self.clock()
-        source_digests = []
-        permission_results = {}
         for snapshot in source_snapshots:
             if (
                 snapshot.owner_id != scope.owner_id
@@ -137,25 +136,16 @@ class PrincipalBoundExternalTurnAuthority:
                 or (snapshot.expires_at is not None and now >= snapshot.expires_at)
             ):
                 raise ConversationConflictError("external_source_scope_or_expiry_invalid")
-            if snapshot.permission_dependencies:
-                if self.permission_revalidator is None:
-                    raise ConversationConflictError("external_permission_revalidator_unavailable")
-                for dependency in snapshot.permission_dependencies:
-                    if dependency in permission_results:
-                        continue
-                    try:
-                        permission_results[dependency] = bool(
-                            self.permission_revalidator.is_current(dependency)
-                        )
-                    except Exception:  # noqa: BLE001 - revalidation failures deny stale sources.
-                        permission_results[dependency] = False
-                current = all(
-                    permission_results[dependency]
-                    for dependency in snapshot.permission_dependencies
-                )
-                if not current:
-                    raise ConversationConflictError("external_source_permission_revoked")
-            source_digests.append(_authority_model_dump(snapshot))
+        dependencies = tuple(
+            dict.fromkeys(
+                dependency
+                for snapshot in source_snapshots
+                for dependency in snapshot.permission_dependencies
+            )
+        )
+        if not permission_dependencies_current(dependencies, self.permission_revalidator):
+            raise ConversationConflictError("external_source_permission_revoked")
+        source_digests = [_authority_model_dump(snapshot) for snapshot in source_snapshots]
 
         principal_digest = hashlib.sha256(
             f"{self.principal.issuer}\0{self.principal.subject}".encode()

@@ -1,7 +1,9 @@
 """Federation conformance through shared registration, policy and provider composition."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
-from threading import RLock
+from threading import Barrier, RLock
+from time import monotonic
 from uuid import uuid4
 
 import pytest
@@ -34,8 +36,12 @@ from personal_ai.contracts.context_references import (
     ContextSourceReference,
 )
 from personal_ai.contracts.federation import FederationExportDeclaration, FederationSelection
-from personal_ai.federation.broker import FederationCase, federation_contribution
-from personal_ai.federation.contracts import FederationGrant
+from personal_ai.federation.broker import (
+    FederationCase,
+    FederationExportResult,
+    federation_contribution,
+)
+from personal_ai.federation.contracts import FederationGrant, FederationGrantIntent
 from personal_ai.federation.deployment import INITIAL_FEDERATION_CASES, install_federation_metadata
 from personal_ai.federation.service import FederationPermissionAuthority
 from personal_ai.persistence.postgres.database import PersistenceConflict
@@ -112,28 +118,7 @@ def federation():
     )
     repository, source_policy = Repository(), SourcePolicy()
     authority = FederationPermissionAuthority(repository, source_policy)
-    grant = FederationGrant(
-        grant_id=uuid4(),
-        issuance_id=uuid4(),
-        revision=1,
-        epoch=1,
-        source=source,
-        destination=destination,
-        owner_id="owner",
-        acting_user_id="issuer|user",
-        category="constraints",
-        purpose="planning",
-        entities=(entity,),
-        fields=("constraint",),
-        expires_at=now + timedelta(hours=1),
-        created_at=now,
-        updated_at=now,
-        source_policy=policy,
-        sensitivity="sensitive",
-        maximum_sensitivity="restricted",
-    )
     principal = AuthenticatedPrincipal("issuer", "user", "owner", None, 1, True)
-    grant = authority.create(principal, grant)
     case = FederationCase(
         source.application_id,
         destination.application_id,
@@ -150,6 +135,12 @@ def federation():
         hook = None
         export_allowed = True
 
+        def resolve_source_policy(self, intent, *, deadline):
+            assert intent.source == source and intent.category == case.export.category
+            return policy.model_copy(
+                update={"owner_id": intent.owner_id, "acting_user_id": intent.acting_user_id}
+            )
+
         def authorize_export(self, granted, selected, acting_scope, *, deadline):
             return (
                 self.export_allowed
@@ -162,35 +153,47 @@ def federation():
             self.calls += 1
             if self.hook:
                 self.hook()
-            return (
-                ContextItem(
-                    provider_id="synthetic.export",
-                    source_class="domain_current",
-                    source_id="variant-2",
-                    source_version="variant-v12",
-                    item_id="variant-2:12",
-                    owner_id="owner",
-                    **source.model_dump(),
-                    entity_refs=(entity,),
-                    sensitivity="sensitive",
-                    authority="authoritative",
-                    source_refs=(
-                        ContextSourceReference(
-                            kind="record", reference_id="variant-2:12", fingerprint="a" * 64
-                        ),
+            item = ContextItem(
+                provider_id="synthetic.export",
+                source_class="domain_current",
+                source_id="variant-2",
+                source_version="variant-v12",
+                item_id="variant-2:12",
+                owner_id="owner",
+                **source.model_dump(),
+                entity_refs=(entity,),
+                sensitivity="sensitive",
+                authority="authoritative",
+                source_refs=(
+                    ContextSourceReference(
+                        kind="record", reference_id="variant-2:12", fingerprint="a" * 64
                     ),
-                    permission_dependencies=(policy, revision),
-                    observed_at=now,
-                    expires_at=now + timedelta(minutes=30),
-                    payload=Payload(constraint="narrow export"),
                 ),
+                permission_dependencies=(policy, revision),
+                observed_at=now,
+                expires_at=now + timedelta(minutes=30),
+                payload=Payload(constraint="narrow export"),
             )
+            return FederationExportResult(items=(item,), complete=True)
 
     adapter = Adapter()
     runtime = compose_context_runtime(
         ContextRuntimeContribution({}, permission_revalidators=(source_policy,)),
         federation_contribution((case,), authority, {case.export.provider_id: adapter}),
     )
+    intent = FederationGrantIntent(
+        grant_id=uuid4(),
+        source=source,
+        destination=destination,
+        owner_id="owner",
+        acting_user_id="issuer|user",
+        category="constraints",
+        purpose="planning",
+        entities=(entity,),
+        fields=("constraint",),
+        expires_at=now + timedelta(hours=1),
+    )
+    grant = authority.create(principal, intent)
     definitions, capabilities = install_federation_metadata(
         (
             ApplicationDefinition(
@@ -635,6 +638,8 @@ def test_sidecar_package_and_finalize_use_the_same_grant(federation):
             )
             prepared = service.prepare(conversation.id, request)
             assert prepared.context_package.effective_sensitivity == "restricted"
+            assert prepared.context_package.schema_version == "context-package-v2"
+            assert "grant_versions" not in prepared.context_package.model_dump()
             assert any(
                 source.category == "synthetic_source → synthetic_destination: constraints"
                 for source in prepared.context_package.included_sources
@@ -667,6 +672,8 @@ def test_four_initial_cases_use_identical_narrow_broker_contract(federation, cas
             "fields": case.export.fields,
             "entities": (entity,),
             "source_policy": policy,
+            "sensitivity": case.export.sensitivity,
+            "maximum_sensitivity": case.export.sensitivity,
         }
     )
     f["repository"].records[("owner", grant.grant_id)] = grant
@@ -682,6 +689,9 @@ def test_four_initial_cases_use_identical_narrow_broker_contract(federation, cas
     scope = f["scope"].model_copy(update=destination.model_dump())
 
     class Adapter:
+        def resolve_source_policy(self, intent, *, deadline):
+            return policy
+
         def authorize_export(self, granted, selected, acting_scope, *, deadline):
             return (
                 granted == grant
@@ -694,8 +704,9 @@ def test_four_initial_cases_use_identical_narrow_broker_contract(federation, cas
             payload_type = create_model(
                 "NarrowExport", **{name: (str, ...) for name in selected.fields}
             )
-            item = f["adapter"].fetch(granted, selected, acting_scope, deadline=deadline)[0]
-            return (
+            original = f["adapter"].fetch(granted, selected, acting_scope, deadline=deadline)
+            item = original.items[0]
+            return FederationExportResult(items=(
                 item.model_copy(
                     update={
                         **source.model_dump(),
@@ -704,10 +715,10 @@ def test_four_initial_cases_use_identical_narrow_broker_contract(federation, cas
                         "payload": payload_type(**{name: "bounded" for name in selected.fields}),
                     }
                 ),
-            )
+            ), complete=True)
 
     provider = FederationProvider(case, f["authority"], Adapter())
-    item = provider.fetch(selection, scope, deadline=100)[0]
+    item = provider.fetch(selection, scope, deadline=monotonic() + 100)[0]
     assert item.federation.source == source and item.federation.destination == destination
     assert item.federation.category == case.export.category
     assert item.payload.model_dump().keys() == set(case.export.fields)
@@ -753,17 +764,123 @@ def test_source_overfetch_missing_revision_and_redelegation_fail_closed(federati
         {"federation": baseline.federation},
         {"sensitivity": "unknown"},
     ):
-        f["adapter"].fetch = lambda *args, updates=updates, **kwargs: tuple(
-            item.model_copy(update=updates) for item in original(*args, **kwargs)
+        f["adapter"].fetch = lambda *args, updates=updates, **kwargs: FederationExportResult(
+            items=tuple(
+                item.model_copy(update=updates)
+                for item in original(*args, **kwargs).items
+            ),
+            complete=True,
         )
         with pytest.raises(ContextPreparationError):
-            provider.fetch(f["selection"], f["scope"], deadline=100)
+            provider.fetch(f["selection"], f["scope"], deadline=monotonic() + 100)
     f["adapter"].fetch = original
     f["repository"].records[("owner", f["grant"].grant_id)] = f["grant"].model_copy(
         update={"maximum_sensitivity": "sensitive"}
     )
     with pytest.raises(ContextPreparationError, match="sensitivity_denied"):
         prepare(f)
+
+
+def test_federation_export_requires_authoritative_completeness(federation):
+    f = federation
+    provider = f["runtime"].provider_factories[f["case"].export.provider_id]
+    original = f["adapter"].fetch
+    item = original(
+        f["grant"], f["selection"], f["scope"], deadline=monotonic() + 100
+    ).items[0]
+
+    f["adapter"].fetch = lambda *args, **kwargs: FederationExportResult(
+        items=(), complete=True, authoritative_empty_entities=(f["entity"],)
+    )
+    assert provider.fetch(f["selection"], f["scope"], deadline=monotonic() + 100) == ()
+
+    f["adapter"].fetch = lambda *args, **kwargs: FederationExportResult(
+        items=(item,), complete=False, continuation="next-page"
+    )
+    with pytest.raises(ContextPreparationError, match="export_incomplete"):
+        provider.fetch(f["selection"], f["scope"], deadline=monotonic() + 100)
+
+    second_entity = ContextEntityReference(
+        **f["source"].model_dump(), entity_type="variant", entity_id="variant-3"
+    )
+    second_intent = f["intent"].model_copy(
+        update={"grant_id": uuid4(), "entities": (f["entity"], second_entity)}
+    )
+    second_grant = f["authority"].create(f["principal"], second_intent)
+    second_hint = FederationSelection(
+        **{
+            name: getattr(second_grant, name)
+            for name in FederationSelection.model_fields
+        }
+    )
+    second_selection = f["selection"].model_copy(update={"federation": second_hint})
+    f["adapter"].fetch = lambda *args, **kwargs: FederationExportResult(
+        items=(item,), complete=True
+    )
+    with pytest.raises(ContextPreparationError, match="export_incomplete"):
+        provider.fetch(second_selection, f["scope"], deadline=monotonic() + 100)
+
+    bounded_selection = f["selection"].model_copy(update={"max_results": 1})
+    f["adapter"].fetch = lambda *args, **kwargs: FederationExportResult(
+        items=(item, item.model_copy(update={"item_id": "variant-2:13"})), complete=True
+    )
+    with pytest.raises(ContextPreparationError, match="export_incomplete"):
+        provider.fetch(bounded_selection, f["scope"], deadline=monotonic() + 100)
+
+    f["adapter"].fetch = lambda *args, **kwargs: FederationExportResult(
+        items=(item,), complete=False
+    )
+    with pytest.raises(ContextPreparationError, match="export_incomplete"):
+        provider.fetch(f["selection"], f["scope"], deadline=monotonic() + 100)
+    f["adapter"].fetch = original
+
+
+def test_builder_rechecks_permissions_after_token_counting(federation):
+    from personal_ai.context.builder import (
+        SOURCE_CLASSES,
+        ContextBuilder,
+        ContextBuildItem,
+        ContextBuildPolicy,
+    )
+    from personal_ai.context.contracts import ContextError
+    from personal_ai.context.tokens import FakeTokenCounter
+    from personal_ai.llm.client import ChatMessage
+
+    f = federation
+
+    class Revalidator:
+        current = True
+
+        def supports(self, dependency):
+            return True
+
+        def is_current(self, dependency):
+            return self.current and self.supports(dependency)
+
+    revalidator = Revalidator()
+
+    class RevokingCounter(FakeTokenCounter):
+        calls = 0
+
+        def count(self, messages):
+            result = super().count(messages)
+            self.calls += 1
+            if self.calls == 4:
+                revalidator.current = False
+            return result
+
+    item = prepare(f)
+    entry = ContextBuildItem.from_context_item(item, required=True)
+    builder = ContextBuilder(
+        RevokingCounter(),
+        permission_revalidator=ContextPermissionRevalidatorRegistry((revalidator,)),
+    )
+    policy = ContextBuildPolicy(
+        global_input_tokens=1000,
+        source_max_tokens={category: 1000 for category in SOURCE_CLASSES},
+    )
+    with pytest.raises(ContextError, match="source_authority_changed"):
+        builder.build((ChatMessage(role="user", content="plan"),), (entry,), policy)
 
 
 def test_absent_federation_keeps_legacy_permission_serialization_stable():
@@ -806,16 +923,16 @@ def test_registered_grant_api_idempotency_revocation_and_owner_isolation(federat
                 "fields",
                 "entities",
                 "expires_at",
-                "source_policy",
             )
         },
     }
     created = client.post("/v1/federation/grants", json=request)
     assert created.status_code == 201
+    assert created.json()["source_policy"] == f["policy"].model_dump(mode="json")
     grant_id = created.json()["grant_id"]
     assert client.post("/v1/federation/grants", json=request).json()["grant_id"] == grant_id
     bad = client.post("/v1/federation/grants", json={**request, "purpose": "different"})
-    assert bad.status_code == 422
+    assert bad.status_code == 409
     for _ in range(2):
         revoked = client.post(
             f"/v1/federation/grants/{grant_id}/revoke",
@@ -828,11 +945,60 @@ def test_registered_grant_api_idempotency_revocation_and_owner_isolation(federat
         client.post("/v1/federation/grants", json={**request, "re_delegation": True}).status_code
         == 422
     )
+    assert client.post(
+        "/v1/federation/grants",
+        json={**request, "source_policy": f["policy"].model_dump(mode="json")},
+    ).status_code == 422
     app.dependency_overrides[require_recent_auth] = lambda: AuthenticatedPrincipal(
         "issuer", "other", "other", None, 1, True
     )
     assert client.get(f"/v1/federation/grants/{grant_id}").status_code == 404
     assert f["adapter"].calls == 0
+
+
+def test_concurrent_identical_grant_create_returns_canonical_record(federation, monkeypatch):
+    f = federation
+    barrier = Barrier(2)
+    save = f["repository"].save
+
+    def synchronized_save(grant, *, expected_revision):
+        barrier.wait(timeout=5)
+        return save(grant, expected_revision=expected_revision)
+
+    monkeypatch.setattr(f["repository"], "save", synchronized_save)
+    intent = f["intent"].model_copy(update={"grant_id": uuid4()})
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(
+            executor.map(lambda _: f["authority"].create(f["principal"], intent), range(2))
+        )
+    assert results[0] == results[1]
+    assert results[0].issuance_id == results[1].issuance_id
+
+
+def test_concurrent_revoke_retries_return_same_terminal_record(federation, monkeypatch):
+    f = federation
+    barrier = Barrier(2)
+    save = f["repository"].save
+
+    def synchronized_save(grant, *, expected_revision):
+        barrier.wait(timeout=5)
+        return save(grant, expected_revision=expected_revision)
+
+    monkeypatch.setattr(f["repository"], "save", synchronized_save)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(
+            executor.map(
+                lambda _: f["authority"].revoke(
+                    f["principal"],
+                    f["grant"].grant_id,
+                    expected_revision=1,
+                    expected_issuance_id=f["grant"].issuance_id,
+                ),
+                range(2),
+            )
+        )
+    assert results[0] == results[1]
+    assert results[0].state == "revoked" and results[0].revision == 2
 
 
 def test_source_policy_epoch_change_blocks_existing_grant(federation):
@@ -952,41 +1118,61 @@ def test_source_adapter_requires_registered_export_authorization(federation):
         )
 
 
-def test_synthetic_export_uses_configured_production_registration_path(federation, monkeypatch):
-    from personal_ai.federation.deployment import (
-        configured_federation_contribution,
-        reconcile_federation_runtime_metadata,
-    )
+def test_synthetic_export_uses_real_startup_contribution_catalog(federation, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from personal_ai.api.dependencies import get_settings
+    from personal_ai.context.deployment import default_context_runtime_catalog
+    from personal_ai.federation.service import FederationPermissionAuthority
+    from personal_ai.main import lifespan
     from personal_ai.settings import Settings
 
     f = federation
-
+    monkeypatch.setattr(
+        "personal_ai.main.validate_startup_configuration", lambda: None
+    )
+    monkeypatch.setattr("personal_ai.main.close_persistence_clients", lambda: None)
     class Factory:
         def federation_grant_repository(self):
             return f["repository"]
 
     monkeypatch.setattr(
-        "personal_ai.persistence.factory.persistence_factory", lambda settings: Factory()
+        "personal_ai.persistence.factory.persistence_factory", lambda _settings: Factory()
     )
+    settings = Settings(_env_file=None, ai_provider="fake", ai_model="fake")
     source_contribution = ContextRuntimeContribution(
         {},
         permission_revalidators=(f["source_policy"],),
         export_adapters={f["case"].export.provider_id: f["adapter"]},
+        federation_cases=(f["case"],),
     )
-    source_runtime = compose_context_runtime(source_contribution)
-    installed = configured_federation_contribution(
-        Settings(_env_file=None, ai_provider="fake", ai_model="fake"),
-        source_runtime,
-        cases=(f["case"],),
-    )
-    runtime = compose_context_runtime(source_contribution, installed)
-    registry = reconcile_federation_runtime_metadata(f["registry"], runtime)
-    registration = registry.registration(f["scope"].application_id)
-    assert next(
-        cap
-        for cap in registration.context_providers
-        if cap.capability_id == f["case"].export.provider_id
-    ).available
+    catalog = default_context_runtime_catalog()
+    catalog.register("synthetic-five", lambda _settings: source_contribution)
+
+    app = FastAPI(lifespan=lifespan)
+    app.state.application_registry = f["registry"]
+    app.state.context_runtime_catalog = catalog
+    app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(app):
+        runtime = app.state.context_runtime_registry
+        registry = app.state.application_registry
+        registration = registry.registration(f["scope"].application_id)
+        assert next(
+            cap
+            for cap in registration.context_providers
+            if cap.capability_id == f["case"].export.provider_id
+        ).available
+        provider = runtime.provider_factories[f["case"].export.provider_id]
+        authority = next(
+            item
+            for item in runtime.permission_revalidators
+            if isinstance(item, FederationPermissionAuthority)
+        )
+        assert provider.adapter is f["adapter"]
+        assert provider.authority is authority
+        assert f["source_policy"] in authority.source_permissions.validators
+
     f["context"] = f["context"].model_copy(
         update={"context_provider_capabilities": registration.context_providers}
     )
@@ -994,10 +1180,30 @@ def test_synthetic_export_uses_configured_production_registration_path(federatio
     assert prepare(f).source_version == "variant-v12"
     assert f["adapter"].calls == 1
     assert f["case"] not in INITIAL_FEDERATION_CASES
-    with pytest.raises(ValueError, match="registration_invalid"):
-        configured_federation_contribution(
-            Settings(_env_file=None, ai_provider="fake", ai_model="fake"), source_runtime
+
+    unavailable = ContextRuntimeContribution(
+        {},
+        permission_revalidators=(f["source_policy"],),
+        federation_cases=(f["case"],),
+    )
+    unavailable_catalog = default_context_runtime_catalog()
+    unavailable_catalog.register("synthetic-five", lambda _settings: unavailable)
+    unavailable_app = FastAPI(lifespan=lifespan)
+    unavailable_app.state.application_registry = f["registry"]
+    unavailable_app.state.context_runtime_catalog = unavailable_catalog
+    unavailable_app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(unavailable_app):
+        unavailable_provider = unavailable_app.state.context_runtime_registry.provider_factories[
+            f["case"].export.provider_id
+        ]
+        unavailable_capability = next(
+            cap
+            for cap in unavailable_app.state.application_registry
+            .registration(f["scope"].application_id).context_providers
+            if cap.capability_id == f["case"].export.provider_id
         )
+        assert unavailable_provider.adapter is None
+        assert unavailable_capability.available is False
 
 
 @pytest.mark.parametrize("change", ("expiry", "revocation"))

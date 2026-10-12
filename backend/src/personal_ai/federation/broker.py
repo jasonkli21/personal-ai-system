@@ -9,12 +9,14 @@ from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context.providers import (
     ContextItem,
     ContextOperationSpec,
+    ContextPermissionDependency,
     ContextPreparationError,
     ContextProviderSpec,
 )
 from personal_ai.context.runtime import ContextRuntimeContribution
-from personal_ai.contracts.context_references import FederationProvenance
+from personal_ai.contracts.context_references import ContextEntityReference, FederationProvenance
 from personal_ai.contracts.federation import FederationExportDeclaration
+from personal_ai.federation.contracts import FederationGrantIntent
 
 
 class FederationExportAdapter(Protocol):
@@ -23,7 +25,14 @@ class FederationExportAdapter(Protocol):
     fetch receives the authorized exact grant/selection; implementations must issue
     a narrow export request, never retrieve a broad record and filter afterward.
     Returned items must carry exact revision and revocable source dependencies.
+    Completeness is explicit so empty results cannot be confused with truncation.
     """
+
+    def resolve_source_policy(
+        self, intent: FederationGrantIntent, *, deadline: float
+    ) -> ContextPermissionDependency:
+        """Resolve current source policy without reading domain values."""
+        ...
 
     def authorize_export(self, grant, selection, scope, *, deadline: float) -> bool:
         """Check current source eligibility for exact category/fields/entities/purpose.
@@ -33,7 +42,17 @@ class FederationExportAdapter(Protocol):
         """
         ...
 
-    def fetch(self, grant, selection, scope, *, deadline) -> tuple[ContextItem, ...]: ...
+    def fetch(self, grant, selection, scope, *, deadline) -> "FederationExportResult": ...
+
+
+@dataclass(frozen=True)
+class FederationExportResult:
+    """A complete bounded export, including explicitly authoritative empty entities."""
+
+    items: tuple[ContextItem, ...]
+    complete: bool
+    authoritative_empty_entities: tuple[ContextEntityReference, ...] = ()
+    continuation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -119,13 +138,75 @@ class FederationProvider:
     def validate_selection(self, selection, inputs):
         self.authorize_selection(selection, inputs.scope)
 
+    def resolve_source_policy(self, intent: FederationGrantIntent, *, deadline: float):
+        if (
+            self.adapter is None
+            or intent.source.application_id != self.case.source_application_id
+            or intent.destination.application_id != self.case.destination_application_id
+            or intent.category != self.case.export.category
+            or not set(intent.fields) <= set(self.case.export.fields)
+        ):
+            raise ContextPreparationError("context_federation_export_unavailable")
+        resolver = getattr(self.adapter, "resolve_source_policy", None)
+        if not callable(resolver):
+            raise ContextPreparationError("context_federation_source_policy_unavailable")
+        try:
+            dependency = resolver(intent, deadline=deadline)
+        except Exception as error:
+            raise ContextPreparationError(
+                "context_federation_source_policy_unavailable"
+            ) from error
+        if (
+            not isinstance(dependency, ContextPermissionDependency)
+            or dependency.permission_id.startswith("federation_grant:")
+            or dependency.owner_id != intent.owner_id
+            or dependency.acting_user_id != intent.acting_user_id
+            or dependency.source_scope != intent.source
+            or dependency.purpose != intent.purpose
+            or not self.authority.source_is_current(dependency)
+            or monotonic() >= deadline
+        ):
+            raise ContextPreparationError("context_federation_source_policy_denied")
+        return dependency
+
     def fetch(self, selection, scope, *, deadline):
         grant = self.authorize_selection(selection, scope)
-        records = self.adapter.fetch(grant, selection, scope, deadline=deadline)
+        response = self.adapter.fetch(grant, selection, scope, deadline=deadline)
+        if (
+            not isinstance(response, FederationExportResult)
+            or response.complete is not True
+            or response.continuation is not None
+            or not isinstance(response.items, tuple)
+            or any(not isinstance(item, ContextItem) for item in response.items)
+            or not isinstance(response.authoritative_empty_entities, tuple)
+            or any(
+                not isinstance(entity, ContextEntityReference)
+                for entity in response.authoritative_empty_entities
+            )
+            or len(response.items) > selection.max_results
+            or (deadline is not None and monotonic() >= deadline)
+        ):
+            raise ContextPreparationError("context_federation_export_incomplete")
+        selected_entities = set(selection.federation.entities)
+        empty_entities = set(response.authoritative_empty_entities)
+        if len(empty_entities) != len(response.authoritative_empty_entities):
+            raise ContextPreparationError("context_federation_export_incomplete")
+        present_entities = {
+            entity for item in response.items for entity in item.entity_refs
+        }
+        if (
+            not present_entities <= selected_entities
+            or not empty_entities <= selected_entities
+            or present_entities & empty_entities
+            or present_entities | empty_entities != selected_entities
+        ):
+            raise ContextPreparationError("context_federation_export_incomplete")
+        if sum(len(item.model_dump_json().encode("utf-8")) for item in response.items) > selection.max_bytes:
+            raise ContextPreparationError("context_federation_export_incomplete")
         self.authorize_selection(selection, scope)
         hint = selection.federation
         result = []
-        for item in records:
+        for item in response.items:
             if (
                 item.owner_id != scope.owner_id
                 or item.application_id != grant.source.application_id
@@ -144,6 +225,8 @@ class FederationProvider:
                 )
                 or not item.source_refs
                 or any(ref.fingerprint is None for ref in item.source_refs)
+                or item.partial_result
+                or (item.omitted_count is not None and item.omitted_count > 0)
                 or item.observed_at is None
                 or item.expires_at is None
                 or item.expires_at <= self.authority.clock()
@@ -218,6 +301,7 @@ def federation_contribution(cases, authority, adapters=None):
         raise ValueError("federation_registration_invalid")
     if any(
         not callable(getattr(adapter, "authorize_export", None))
+        or not callable(getattr(adapter, "resolve_source_policy", None))
         or not callable(getattr(adapter, "fetch", None))
         for adapter in adapters.values()
     ):

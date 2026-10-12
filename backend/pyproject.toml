@@ -29,6 +29,12 @@ dev = [
   "httpx>=0.27,<1.0",
 ]
 
+[project.entry-points."personal_ai.context_contributions"]
+travel = "personal_ai.context.travel:configured_travel_context_contribution"
+shopping = "personal_ai.context.shopping:configured_shopping_context_contribution"
+finance = "personal_ai.context.finance:configured_finance_context_contribution"
+health = "personal_ai.context.health:configured_health_context_contribution"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/personal_ai"]
 

@@ -1,8 +1,7 @@
 """Explicit owner permission controls; source data never passes through this API."""
 
-from datetime import UTC, datetime
 from typing import Annotated
-from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
@@ -16,12 +15,14 @@ from personal_ai.api.dependencies import (
 from personal_ai.applications.registry import ApplicationNotRegisteredError, ApplicationRegistry
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import ApplicationScope, RequestScope
+from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.runtime import ContextRuntimeRegistry
-from personal_ai.contracts.context_references import (
-    ContextEntityReference,
-    ContextPermissionDependency,
+from personal_ai.contracts.context_references import ContextEntityReference
+from personal_ai.federation.contracts import (
+    FederationGrant,
+    FederationGrantConflict,
+    FederationGrantIntent,
 )
-from personal_ai.federation.contracts import FederationGrant, FederationGrantConflict
 from personal_ai.federation.service import FederationPermissionAuthority
 from personal_ai.persistence.postgres.database import PersistenceConflict
 
@@ -38,7 +39,6 @@ class GrantChoice(BaseModel):
     fields: tuple[str, ...] = Field(min_length=1, max_length=32)
     entities: tuple[ContextEntityReference, ...] = Field(min_length=1, max_length=16)
     expires_at: AwareDatetime
-    source_policy: ContextPermissionDependency
 
 
 class GrantRevision(BaseModel):
@@ -94,24 +94,18 @@ def create_grant(
     )
     if export is None or not set(choice.fields) <= set(export.fields):
         raise HTTPException(403, "federation_case_denied")
-    now = datetime.now(UTC)
     try:
-        grant = FederationGrant(
+        intent = FederationGrantIntent(
             **choice.model_dump(exclude={"idempotency_key"}),
             grant_id=uuid5(
                 NAMESPACE_URL, f"federation-grant:{principal.owner_id}:{choice.idempotency_key}"
             ),
-            issuance_id=uuid4(),
-            revision=1,
-            epoch=1,
             owner_id=principal.owner_id,
             acting_user_id=f"{principal.issuer}|{principal.subject}",
-            created_at=now,
-            updated_at=now,
-            sensitivity=export.sensitivity,
-            maximum_sensitivity=export.sensitivity,
         )
-        return authority.create(principal, grant)
+        return authority.create(principal, intent)
+    except ContextPreparationError as error:
+        raise HTTPException(403, "federation_source_authority_unavailable") from error
     except (PersistenceConflict, FederationGrantConflict) as error:
         raise HTTPException(409, "federation_grant_conflict") from error
     except ValueError as error:

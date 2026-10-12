@@ -63,11 +63,16 @@ def install_federation_metadata(
     if implemented - {case.export.provider_id for case in cases}:
         raise ValueError("federation_implementation_not_declared")
     values = []
+    case_provider_ids = {case.export.provider_id for case in cases}
     for definition in definitions:
         imports = tuple(
             case for case in cases if case.destination_application_id == definition.application_id
         )
         exports = tuple(
+            export
+            for export in definition.federation_exports
+            if export.provider_id not in case_provider_ids
+        ) + tuple(
             case.export for case in cases if case.source_application_id == definition.application_id
         )
         providers = tuple(
@@ -91,18 +96,29 @@ def install_federation_metadata(
                 update={
                     "federation_exports": exports,
                     "context_provider_ids": (
-                        *definition.context_provider_ids,
+                        *(
+                            provider_id
+                            for provider_id in definition.context_provider_ids
+                            if provider_id not in case_provider_ids
+                        ),
                         *(case.export.provider_id for case in imports),
                     ),
                     "context_policy": definition.context_policy.model_copy(
                         update={
                             "provider_policies": (
-                                *definition.context_policy.provider_policies,
+                                *(
+                                    provider
+                                    for provider in definition.context_policy.provider_policies
+                                    if provider.provider_id not in case_provider_ids
+                                ),
                                 *providers,
                             ),
-                            "version": f"{definition.context_policy.version}:federation-v1"
-                            if imports
-                            else definition.context_policy.version,
+                            "version": (
+                                definition.context_policy.version
+                                if not imports
+                                or definition.context_policy.version.endswith(":federation-v1")
+                                else f"{definition.context_policy.version}:federation-v1"
+                            ),
                         }
                     ),
                 }
@@ -119,7 +135,11 @@ def install_federation_metadata(
         )
         for case in cases
     )
-    return tuple(values), (*capabilities, *metadata)
+    remaining_capabilities = tuple(
+        capability for capability in capabilities
+        if capability.capability_id not in case_provider_ids
+    )
+    return tuple(values), (*remaining_capabilities, *metadata)
 
 
 class _ConfiguredGrantRepository:
@@ -154,7 +174,12 @@ class _ConfiguredGrantRepository:
         )
 
 
-def configured_federation_contribution(settings, source_runtime, *, cases=INITIAL_FEDERATION_CASES):
+def configured_federation_contribution(settings, source_runtime, *, cases=None):
+    cases = (
+        (*INITIAL_FEDERATION_CASES, *source_runtime.federation_cases)
+        if cases is None
+        else tuple(cases)
+    )
     authority = FederationPermissionAuthority(
         _ConfiguredGrantRepository(settings),
         ContextPermissionRevalidatorRegistry(source_runtime.permission_revalidators),
@@ -163,33 +188,44 @@ def configured_federation_contribution(settings, source_runtime, *, cases=INITIA
 
 
 def reconcile_federation_runtime_metadata(registry, runtime):
-    """Set implementation availability on existing declarations; never add a case/app."""
+    """Reconcile registered federation cases with installed runtime implementations."""
     from personal_ai.applications.registry import ApplicationRegistry
     from personal_ai.federation.broker import FederationProvider
 
     registrations = tuple(registry.registration(key) for key in sorted(registry.application_ids))
-    export_ids = {
-        export.provider_id for app in registrations for export in app.definition.federation_exports
+    definitions = tuple(app.definition for app in registrations)
+    capabilities = {
+        capability.capability_id: capability
+        for app in registrations
+        for capability in (*app.context_providers, *app.tools)
     }
-    capabilities = {}
-    modules = {}
-    for app in registrations:
-        modules.update({module.registration.domain_id: module for module in app.comparison_modules})
-        for capability in (*app.context_providers, *app.tools):
-            if capability.capability_id in export_ids and capability.kind == "context_provider":
-                provider = runtime.provider_factories.get(capability.capability_id)
-                available = (
-                    isinstance(provider, FederationProvider) and provider.adapter is not None
-                )
-                capability = capability.model_copy(
-                    update={
-                        "available": available,
-                        "unavailable_reason": None
-                        if available
-                        else "narrow_source_export_implementation_unavailable",
-                    }
-                )
-            capabilities[capability.capability_id] = capability
+    modules = {
+        module.registration.domain_id: module
+        for app in registrations
+        for module in app.comparison_modules
+    }
+    if runtime.federation_cases:
+        definitions, registered_capabilities = install_federation_metadata(
+            definitions,
+            tuple(capabilities.values()),
+            cases=runtime.federation_cases,
+        )
+        capabilities = {item.capability_id: item for item in registered_capabilities}
+    export_ids = {
+        export.provider_id for definition in definitions for export in definition.federation_exports
+    }
+    for capability_id, capability in tuple(capabilities.items()):
+        if capability_id in export_ids and capability.kind == "context_provider":
+            provider = runtime.provider_factories.get(capability_id)
+            available = isinstance(provider, FederationProvider) and provider.adapter is not None
+            capabilities[capability_id] = capability.model_copy(
+                update={
+                    "available": available,
+                    "unavailable_reason": None
+                    if available
+                    else "narrow_source_export_implementation_unavailable",
+                }
+            )
     return ApplicationRegistry(
-        (app.definition for app in registrations), capabilities.values(), comparison_modules=modules
+        definitions, capabilities.values(), comparison_modules=modules
     )

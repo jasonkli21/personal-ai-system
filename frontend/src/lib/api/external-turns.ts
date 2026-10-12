@@ -62,7 +62,7 @@ export type ContinuationRequest = {
   }[];
 };
 export type ContextPackage = {
-  schema_version: "context-package-v1";
+  schema_version: "context-package-v2";
   messages: { role: "system" | "developer" | "user" | "assistant"; content: string }[];
   included_sources: { category: string; item_count: number; sensitivity: string[]; authority: string[] }[];
   excluded_sources: { category: string; reason: string; item_count: number }[];
@@ -73,7 +73,6 @@ export type ContextPackage = {
   effective_sensitivity: string;
   maximum_sensitivity: string;
   policy_version: string;
-  grant_versions: string[];
   expires_at: string;
   fingerprint: string;
 };
