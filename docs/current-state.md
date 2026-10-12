@@ -49,6 +49,20 @@ Phase 30 adds owner-controlled, versioned Postgres grants, typed source-policy/e
 
 Phase 31 adds the generic authoritative-effect foundation through the existing Application Integration Contract and installed contribution catalog. Versioned declarations, strict payload adapters, and narrowing sidecar policy are independent; current Travel, Shopping, Finance, and Health writes remain undeclared/unavailable. Postgres migration 025 owns immutable proposal intent, validation, exact confirmation, one execution attempt, reconciliation reservations, domain receipts, and revision audit. Domain adapters alone own current authorization, business validation, atomic revision/idempotency checks, writes, and authoritative post-state. A timeout or interrupted local commit never authorizes a resend: recovery queries the original domain-operation key. Candidate creation resolves canonical output attribution server-side; manual-import labels stay explicitly unverified and are omitted from verified producer fields while the attribution fingerprint binds the full source record. Candidate conversion now distinguishes deterministic not-applicable/invalid results, transient unavailability, and malformed adapter contracts. Contract fingerprints and a startup compatibility guard retain reconciliation resolvers across policy retirement; public views omit internal recovery IDs. No live domain mutation operation is enabled, and target-store/deployment acceptance remains open. See [architecture](personal-ai-chapter-2/phase-31-architecture.md), [implementation report](personal-ai-chapter-2/phase-31-implementation-report.md), and [2026-10-12 follow-up evidence](personal-ai-chapter-2/phase-30-31-follow-up-review-implementation-evidence-2026-10-12.md).
 
+
+Phase 32 adds a locally verified, versioned deterministic baseline, a bounded
+narrowing-only experiment envelope/proposal validator through the canonical
+assembler, shared provider admission, and payload-free planning diagnostics in
+existing context traces. The 23 synthetic cases expose two paraphrase omissions,
+one negated-request over-fetch, expected sharing/revocation exclusions and a
+required-budget denial. Eighteen scripted retain-control pairs preserve input
+and support, but establish no assisted model-quality or quota benefit. No
+assisted task/application slice is promoted; planner inference budget is zero
+and no model planner is installed. This is a non-promotion outcome, not acceptance
+of an assisted inference runtime or closure of Phase 15/30 external gates. See
+[experiment contract](personal-ai-chapter-2/phase-32-experiment-contract.md) and
+[implementation report](personal-ai-chapter-2/phase-32-implementation-report.md).
+
 ## Persistence
 
 P10.6 switched normal API and worker wiring to Postgres/pgvector plus DynamoDB and removed Firestore SDK, repositories, migration tooling, and runtime fallback. Local/test configurations require explicit Postgres and DynamoDB Local endpoints; deployed configuration targets Neon and federated AWS DynamoDB. Phase 19 places canonical usage attempts, reservations, shared quota windows, health, and compact owner aggregates in Postgres; DynamoDB holds scoped operational attempt events. This is an implemented code/runtime cutover, not evidence of a live cloud cutover or data migration. The user-reported no-source disposition has not been checked against a cloud account.

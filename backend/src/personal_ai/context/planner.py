@@ -7,6 +7,7 @@ operation fields, deadlines, and result bounds before any provider runs.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -128,11 +129,73 @@ class ContextPlanDecision(BaseModel):
     reason: str = Field(min_length=1, max_length=180)
 
 
+class PlanningSelectionSummary(BaseModel):
+    """Payload-free projection; exact entity/grant/window references stay transient."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    provider_id: str = Field(max_length=81)
+    operation: ContextOperation
+    fields_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    fields: tuple[str, ...] = Field(default=(), max_length=8)
+    fields_truncated: bool = False
+    field_count: int = Field(ge=0, le=32)
+    entity_count: int = Field(ge=0, le=16)
+    window_seconds: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    max_results: int = Field(ge=1, le=50)
+    max_bytes: int = Field(ge=1, le=65_536)
+    max_tokens: int | None = Field(default=None, ge=1, le=128_000)
+    required: bool
+
+    @classmethod
+    def from_selection(cls, selection):
+        return cls(
+            provider_id=selection.provider_id, operation=selection.operation,
+            fields_digest=planning_digest(selection.fields), field_count=len(selection.fields),
+            fields=selection.fields[:8], fields_truncated=len(selection.fields) > 8,
+            entity_count=len(selection.entity_refs),
+            window_seconds=((selection.window_end - selection.window_start).total_seconds()
+                            if selection.window_start else None),
+            max_results=selection.max_results, max_bytes=selection.max_bytes,
+            max_tokens=selection.max_tokens, required=selection.required,
+        )
+
+
+class PlanningTrace(BaseModel):
+    """Compact experiment identity; never includes intent, entity IDs or source bodies."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["planning-trace-v1"] = "planning-trace-v1"
+    promotion_version: Literal["context-planning-promotion-v1"] = "context-planning-promotion-v1"
+    strategy: Literal["deterministic", "validated_narrowing"] = "deterministic"
+    configuration_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    baseline_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    proposal_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    final_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    baseline: tuple[PlanningSelectionSummary, ...] = Field(default=(), max_length=16)
+    final: tuple[PlanningSelectionSummary, ...] = Field(default=(), max_length=16)
+    planning_latency_ms: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    proposal_choice_count: int | None = Field(default=None, ge=0, le=16)
+    reasons: tuple[str, ...] = Field(default=("no_promoted_coverage",), max_length=16)
+    planner_calls: int = Field(default=0, ge=0, le=16)
+    planner_input_tokens: int = Field(default=0, ge=0)
+    planner_output_tokens: int = Field(default=0, ge=0)
+    planner_quota: int = Field(default=0, ge=0)
+
+
+def planning_digest(value) -> str:
+    """Stable identity for a bounded typed artifact, not proof of current authority."""
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="json", exclude={"planning_trace"})
+    return sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 class ContextPlan(BaseModel):
     """Deterministic retrieval choices for one request and application scope."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    planning_trace: PlanningTrace | None = None
     schema_version: Literal["context-plan-v1"] = "context-plan-v1"
     planner_version: str = Field(min_length=1, max_length=100)
     application_id: str
@@ -291,6 +354,14 @@ class ContextPlanner:
         self.rules = tuple(sorted(configured, key=lambda rule: (rule.priority, rule.rule_id)))
         self.max_total_tokens = max_total_tokens
         self.clock = clock or (lambda: datetime.now(UTC))
+
+    @property
+    def configuration_digest(self) -> str:
+        return planning_digest({
+            "strategy": self.VERSION,
+            "rules": [rule.model_dump(mode="json") for rule in self.rules],
+            "max_total_tokens": self.max_total_tokens,
+        })
 
     def plan(
         self,

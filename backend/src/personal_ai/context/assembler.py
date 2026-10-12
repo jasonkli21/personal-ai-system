@@ -38,7 +38,14 @@ from personal_ai.context.contracts import (
     fingerprint,
 )
 from personal_ai.context.history import conversation_context_messages, message_context_authority
-from personal_ai.context.planner import ContextPlan, ContextPlanDecision, ContextPlanner
+from personal_ai.context.planner import (
+    ContextPlan,
+    ContextPlanDecision,
+    ContextPlanner,
+    PlanningSelectionSummary,
+    PlanningTrace,
+    planning_digest,
+)
 from personal_ai.context.providers import (
     ContextPreparationError,
     ContextProviderCoordinator,
@@ -162,7 +169,36 @@ class ContextAssembler:
         )
         if self.context_provider_coordinator is not None:
             self.context_provider_coordinator.authorize_boundaries(plan.selections, application_context.scope)
-        return plan
+        digest = planning_digest(plan)
+        summary = tuple(PlanningSelectionSummary.from_selection(s) for s in plan.selections)
+        return plan.model_copy(update={"planning_trace": PlanningTrace(
+            configuration_digest=self.context_planner.configuration_digest,
+            baseline_digest=digest, final_digest=digest, baseline=summary, final=summary,
+        )})
+
+    def planning_envelope(self, baseline, application_context, *, deadline, maximum_sensitivity=None):
+        """Build request-local narrowing metadata; no model strategy is promoted."""
+        from personal_ai.context.planning_experiment import create_planning_envelope
+
+        if self.context_provider_coordinator is None:
+            raise ContextPreparationError("planning_provider_unavailable")
+        return create_planning_envelope(
+            baseline, application_context, self.context_provider_coordinator,
+            configuration_digest=self.context_planner.configuration_digest,
+            deadline=deadline, maximum_sensitivity=maximum_sensitivity,
+        )
+
+    def validate_context_proposal(self, envelope, proposal, application_context, *, now=None):
+        """Validate experiment selections through the same policy/provider boundary."""
+        from personal_ai.context.planning_experiment import validate_planning_proposal
+
+        if self.context_provider_coordinator is None:
+            raise ContextPreparationError("planning_provider_unavailable")
+        if envelope.request.configuration_digest != self.context_planner.configuration_digest:
+            raise ContextPreparationError("planning_configuration_changed")
+        return validate_planning_proposal(
+            envelope, proposal, application_context, self.context_provider_coordinator, now=now,
+        )
 
     def input_budget(self, output_reserve: int | None = None) -> int:
         reserve = self.settings.max_response_tokens if output_reserve is None else output_reserve

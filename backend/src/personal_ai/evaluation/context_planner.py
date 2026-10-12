@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from math import ceil
 from pathlib import Path
@@ -276,7 +276,7 @@ def _policy_with_fixture_operations(
     return base.model_copy(update={"provider_policies": tuple(providers.values())})
 
 
-def _run_fixture(fixture: dict, *, counter=None) -> dict:
+def _run_fixture(fixture: dict, *, counter=None, configured_planner=None, planning_variant=None) -> dict:
     provider_ids = fixture.get("provider_ids", [fixture.get("provider_id")])
     scope = RequestScope(
         owner_id="synthetic-owner",
@@ -295,7 +295,7 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
     settings = Settings(
         ai_provider="gemini",
         ai_model="synthetic-eval",
-        max_context_tokens=2_048,
+        max_context_tokens=fixture.get("max_context_tokens", 2_048),
         max_response_tokens=100,
         context_safety_margin_tokens=20,
         summary_trigger_tokens=1_000,
@@ -308,7 +308,7 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
     )
 
     for provider_id in provider_ids:
-        if fixture.get("use_default_rules"):
+        if fixture.get("use_default_rules") and provider_id in {"ai_memory", "global_profile"}:
             if provider_id == "ai_memory":
                 recording_factory = _RecordingFactory(MemoryContextProviderFactory(settings))
                 factories[provider_id] = recording_factory
@@ -411,7 +411,7 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         scope=scope,
         context_provider_capabilities=tuple(capabilities),
     )
-    planner = ContextPlanner(
+    planner = configured_planner or ContextPlanner(
         rules or None, include_default_rules=fixture.get("use_default_rules", False)
     )
     coordinator = ContextProviderCoordinator(factories, feature_flags={"memory_enabled": True})
@@ -448,6 +448,11 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
     plan = assembler.plan_context(
         fixture["intent"], context, candidate_entities=candidate_entities, now=NOW
     )
+    if planning_variant is not None:
+        envelope = assembler.planning_envelope(plan, context, deadline=NOW + timedelta(seconds=1))
+        proposal = planning_variant(envelope.request)
+        plan = assembler.validate_context_proposal(envelope, proposal, context, now=NOW)
+    planning_latency_ms = (time.perf_counter() - started) * 1000
     scope_token = bind_request_scope(scope)
     try:
         assembled = assembler.assemble(
@@ -565,6 +570,12 @@ def _run_fixture(fixture: dict, *, counter=None) -> dict:
         "source_item_authorities": sorted({item.authority for item in returned}),
         "source_reference_counts": [len(item.source_refs) for item in returned],
         "permission_dependency_counts": [len(item.permission_dependencies) for item in returned],
+        "selected_source_count": len(plan.selections),
+        "selected_item_count": len(injected_items),
+        "assembled_bytes": sum(len(message.content.encode("utf-8")) for message in assembled.messages),
+        "planner_configuration_digest": planner.configuration_digest,
+        "planning_trace": plan.planning_trace.model_dump(mode="json"),
+        "planning_latency_ms": round(planning_latency_ms, 3),
         "estimated_input_tokens": assembled.budget.selected_total,
         "planned_source_token_budgets": [
             {"source_class": source, "tokens": tokens}

@@ -299,6 +299,7 @@ The repository also includes deterministic evaluation suites:
 ```bash
 make context-eval
 make context-plan-eval
+make planning-eval
 make memory-eval
 make memory-lifecycle-eval
 make research-eval
@@ -306,6 +307,12 @@ make iterative-research-eval
 make decision-eval
 make domain-eval
 ```
+
+Phase 32 adds a frozen context-planning benchmark, bounded proposal validation,
+and compact diagnostics through the shared assembler. Its current decision is
+non-promotion: planning remains deterministic, with no planner inference calls.
+See the [implementation report](docs/personal-ai-chapter-2/phase-32-implementation-report.md)
+for measured limitations and verification.
 
 These evaluations are designed to make changes to memory, retrieval, ranking, context assembly, and research behavior measurable rather than purely subjective.
 

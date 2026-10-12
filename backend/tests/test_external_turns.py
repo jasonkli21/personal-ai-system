@@ -1295,13 +1295,29 @@ def test_authenticated_external_turn_routes_prepare_and_import_through_shared_se
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from personal_ai.api.dependencies import get_external_turn_service, get_settings
+    from personal_ai.api.dependencies import (
+        get_application_context,
+        get_current_principal,
+        get_external_turn_service,
+        get_request_scope,
+        get_settings,
+    )
     from personal_ai.api.external_turns import router
+    from personal_ai.auth.contracts import AuthenticatedPrincipal
     from personal_ai.settings import Settings
 
     service, conversation_id, _messages, *_ = setup
     app = FastAPI()
     app.include_router(router)
+    # This isolated route harness has no authentication middleware. Supply the
+    # verified identity normally established before entering the route.
+    app.dependency_overrides[get_current_principal] = lambda: AuthenticatedPrincipal(
+        "synthetic-issuer", "synthetic-user", "local", None,
+        int(datetime.now(UTC).timestamp()), True,
+        authenticated_at=int(datetime.now(UTC).timestamp()),
+    )
+    app.dependency_overrides[get_request_scope] = lambda: service.context.scope
+    app.dependency_overrides[get_application_context] = lambda: service.context
     app.dependency_overrides[get_external_turn_service] = lambda: service
     app.dependency_overrides[get_settings] = lambda: Settings(
         ai_provider="fake", ai_model="fixture", external_turn_acceptance_enabled=True

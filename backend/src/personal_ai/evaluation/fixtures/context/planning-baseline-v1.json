@@ -1,0 +1,11 @@
+{
+  "baseline_version": "deterministic-context-planner-v1",
+  "configuration_digest": "d5a21dbc1568ec8b5704139f2e908a17c1b9e4289ed3f25b6c105b9378a768a9",
+  "algorithm_digest": "5a7e664523da6893a675c1a3e270066bcab59dc155404c11df0607be78087c57",
+  "corpus_digest": "6378721cf26fb6cfdc0520577fca0b8edddcf77abbc41c80f3aa1b9d0d505b73",
+  "frozen_at": "2026-10-12",
+  "source_revision": "b3c50ea",
+  "evidence_kind": "synthetic_offline",
+  "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+  "federation_fixture_digest": "7fb6cf10462acaed5708af842c8192a0b58d0f4790abd1b74158a1148662f9d3"
+}

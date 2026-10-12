@@ -432,7 +432,7 @@ def test_health_capabilities_are_registered_but_gate_and_mutation_stay_closed() 
     assert registration.definition.context_policy.sidecar.copy_allowed is True
     assert registration.definition.context_policy.sidecar.draft_insert_target_ids == ()
     contribution = configured_health_context_contribution(
-        type("Settings", (), {"health_context_enabled": True})()
+        type("Settings", (), {"health_context_enabled": True, "health_federation_enabled": False})()
     )
     assert contribution.provider_factories == {}
     assert contribution.planning_rules == ()

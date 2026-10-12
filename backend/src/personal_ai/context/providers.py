@@ -511,6 +511,35 @@ class ContextProviderCoordinator:
             if callable(authorize):
                 authorize(selection, scope)
 
+    @staticmethod
+    def validate_operation_bounds(selection, spec, operation):
+        """Shared metadata-only admission for planning and actual retrieval."""
+        if selection.fields:
+            if not operation.dynamic_fields and not set(selection.fields).issubset(
+                operation.allowed_fields
+            ):
+                raise ContextPreparationError("context_fields_not_allowed")
+        elif operation.fields_required:
+            raise ContextPreparationError("context_fields_required")
+        if selection.entity_refs and not operation.accepts_entity_refs:
+            raise ContextPreparationError("context_entity_scope_not_supported")
+        if operation.requires_time_window and selection.window_start is None:
+            raise ContextPreparationError("context_time_window_required")
+        if selection.window_start is not None:
+            assert selection.window_end is not None
+            if operation.maximum_window_seconds < 1 or (
+                selection.window_end - selection.window_start
+            ).total_seconds() > operation.maximum_window_seconds:
+                raise ContextPreparationError("context_time_window_exceeded")
+        if selection.max_results > operation.maximum_results:
+            raise ContextPreparationError("context_result_limit_exceeded")
+        if selection.max_bytes > operation.maximum_bytes:
+            raise ContextPreparationError("context_byte_limit_exceeded")
+        if selection.timeout_seconds > operation.maximum_timeout_seconds:
+            raise ContextPreparationError("context_timeout_limit_exceeded")
+        if not spec.maximum_items_per_call:
+            raise ContextPreparationError("context_provider_bounds_invalid")
+
     def prepare(
         self,
         context: ApplicationContextRequest,
@@ -604,31 +633,7 @@ class ContextProviderCoordinator:
                     raise ContextPreparationError("required_context_operation_unsupported")
                 planned.append((selection, None, "unsupported_operation"))
                 continue
-            if selection.fields:
-                if not operation.dynamic_fields and not set(selection.fields).issubset(
-                    operation.allowed_fields
-                ):
-                    raise ContextPreparationError("context_fields_not_allowed")
-            elif operation.fields_required:
-                raise ContextPreparationError("context_fields_required")
-            if selection.entity_refs and not operation.accepts_entity_refs:
-                raise ContextPreparationError("context_entity_scope_not_supported")
-            if operation.requires_time_window and selection.window_start is None:
-                raise ContextPreparationError("context_time_window_required")
-            if selection.window_start is not None:
-                assert selection.window_end is not None
-                if operation.maximum_window_seconds < 1 or (
-                    selection.window_end - selection.window_start
-                ).total_seconds() > operation.maximum_window_seconds:
-                    raise ContextPreparationError("context_time_window_exceeded")
-            if selection.max_results > operation.maximum_results:
-                raise ContextPreparationError("context_result_limit_exceeded")
-            if selection.max_bytes > operation.maximum_bytes:
-                raise ContextPreparationError("context_byte_limit_exceeded")
-            if selection.timeout_seconds > operation.maximum_timeout_seconds:
-                raise ContextPreparationError("context_timeout_limit_exceeded")
-            if not spec.maximum_items_per_call:
-                raise ContextPreparationError("context_provider_bounds_invalid")
+            self.validate_operation_bounds(selection, spec, operation)
             try:
                 provider = factory.create(inputs) if hasattr(factory, "create") else factory
             except ContextPreparationError:

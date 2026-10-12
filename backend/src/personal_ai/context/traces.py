@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context.builder import ContextBuildManifest
-from personal_ai.context.planner import ContextPlan
+from personal_ai.context.planner import ContextPlan, PlanningTrace
 
 MAX_CONTEXT_TRACE_DECISIONS = 64
 MAX_CONTEXT_TRACE_MESSAGES = 64
@@ -109,6 +109,7 @@ class ContextTraceManifest(BaseModel):
     policy_version: str = Field(min_length=1, max_length=64)
     context_policy_version: str | None = Field(default=None, max_length=100)
     planner_version: str | None = Field(default=None, max_length=100)
+    planning_trace: PlanningTrace | None = None
     counter_kind: str = Field(min_length=1, max_length=32)
     counter_version: str = Field(min_length=1, max_length=200)
     global_input_tokens: int = Field(ge=1)
@@ -224,6 +225,7 @@ class ContextTraceManifest(BaseModel):
             policy_version=CONTEXT_BUILD_POLICY_VERSION,
             context_policy_version=manifest.context_policy_version,
             planner_version=manifest.planner_version,
+            planning_trace=context_plan.planning_trace if context_plan else None,
             counter_kind=manifest.counter_kind,
             counter_version=manifest.counter_version,
             global_input_tokens=manifest.global_input_tokens,

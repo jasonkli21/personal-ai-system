@@ -46,6 +46,7 @@ def owner_principal(issued_at: int | None = None) -> AuthenticatedPrincipal:
         owner_id="usr_0123456789abcdef0123456789abcdef",
         email="owner@gmail.com",
         issued_at=issued_at or int(time.time()),
+        authenticated_at=issued_at or int(time.time()),
         authenticated=True,
     )
 

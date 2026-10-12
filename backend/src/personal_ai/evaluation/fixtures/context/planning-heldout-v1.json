@@ -1,0 +1,147 @@
+{
+  "version": "planning-heldout-v1",
+  "cases": [
+    {
+      "id": "literal-units",
+      "family": "units",
+      "base": "standalone-profile-units",
+      "overrides": {}
+    },
+    {
+      "id": "paraphrase-units",
+      "family": "units",
+      "base": "standalone-profile-units",
+      "overrides": {
+        "intent": "Should you use miles or kilometres for me?"
+      }
+    },
+    {
+      "id": "literal-memory",
+      "family": "recall",
+      "base": "standalone-personal-recall",
+      "overrides": {}
+    },
+    {
+      "id": "paraphrase-memory",
+      "family": "recall",
+      "base": "standalone-personal-recall",
+      "overrides": {
+        "intent": "Remind me of my saved seating preference."
+      }
+    },
+    {
+      "id": "no-context",
+      "family": "general",
+      "base": "standalone-profile-units",
+      "overrides": {
+        "intent": "Explain prime numbers.",
+        "expected_fields": [],
+        "answer_support_needs": []
+      }
+    },
+    {
+      "id": "conversation-sufficient",
+      "family": "conversation",
+      "base": "standalone-profile-units",
+      "overrides": {
+        "intent": "Rephrase the last sentence more simply.",
+        "expected_fields": [],
+        "answer_support_needs": []
+      }
+    },
+    {
+      "id": "negated-units",
+      "family": "negation",
+      "base": "standalone-profile-units",
+      "overrides": {
+        "intent": "Do not use my preferred units; explain metric units generally.",
+        "expected_fields": [],
+        "answer_support_needs": []
+      }
+    },
+    {
+      "id": "unshared-units",
+      "family": "sharing",
+      "base": "standalone-profile-units",
+      "expected_exclusion": true,
+      "overrides": {
+        "shared_profile_fields": [],
+        "expected_injected_fields": [],
+        "expected_retrieved_fields": []
+      }
+    },
+    {
+      "id": "travel-trip",
+      "family": "selected-trip",
+      "rule": "travel.selected-trip:v1"
+    },
+    {
+      "id": "travel-place",
+      "family": "selected-place",
+      "rule": "travel.selected-entities:v1",
+      "entity_types": [
+        "place"
+      ]
+    },
+    {
+      "id": "shopping-project",
+      "family": "selected-project",
+      "rule": "shopping.selected-project-context:v1"
+    },
+    {
+      "id": "shopping-products",
+      "family": "selected-products",
+      "rule": "shopping.selected-catalog-evidence:v1"
+    },
+    {
+      "id": "finance-account",
+      "family": "selected-account",
+      "rule": "finance.selected-account:v1"
+    },
+    {
+      "id": "finance-thesis",
+      "family": "selected-thesis",
+      "rule": "finance.selected-thesis:v1"
+    },
+    {
+      "id": "finance-tight-budget",
+      "family": "tight-budget",
+      "rule": "finance.selected-account:v1",
+      "max_context_tokens": 1536
+    },
+    {
+      "id": "travel-memory",
+      "family": "memory-and-domain",
+      "rule": "travel.selected-trip:v1",
+      "include_memory": true,
+      "intent": "What did I tell you about this trip?"
+    },
+    {
+      "id": "ambiguous-general",
+      "family": "ambiguity",
+      "base": "standalone-profile-units",
+      "overrides": {
+        "intent": "Review travel and health things.",
+        "expected_fields": [],
+        "answer_support_needs": []
+      }
+    },
+    {
+      "id": "sparse-profile",
+      "family": "sparse",
+      "base": "standalone-profile-units",
+      "expected_exclusion": true,
+      "overrides": {
+        "shared_profile_fields": [],
+        "expected_injected_fields": [],
+        "expected_retrieved_fields": []
+      }
+    },
+    {
+      "id": "fresh-trip-dates",
+      "family": "freshness",
+      "rule": "travel.selected-trip:v1",
+      "intent": "Use the current dates of this trip."
+    }
+  ]
+}
