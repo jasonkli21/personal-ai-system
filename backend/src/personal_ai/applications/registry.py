@@ -360,8 +360,8 @@ def default_application_registry() -> ApplicationRegistry:
             _capability(
                 provider_id,
                 "context_provider",
-                available=True,
-                feature_gate="health_context_enabled",
+                available=False,
+                reason="health_delegated_identity_contract_unavailable",
             )
             for provider_id in (
                 "health.profile_background_context",

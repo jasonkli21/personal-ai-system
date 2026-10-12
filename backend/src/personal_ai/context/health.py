@@ -509,8 +509,6 @@ class HealthContextProvider:
             ),
             deadline=deadline,
         )
-        if response.truncated:
-            raise ContextPreparationError("health_context_result_truncated")
         if len(response.items) > selection.max_results:
             raise ContextPreparationError("health_context_result_limit_exceeded")
         selected_ids = {reference.entity_id for reference in selection.entity_refs}
@@ -583,6 +581,7 @@ class HealthContextProvider:
                     observed_at=record.observed_at,
                     effective_at=record.effective_at,
                     expires_at=record.expires_at,
+                    partial_result=response.truncated,
                     sensitivity=record.sensitivity,
                     source_refs=source_refs,
                     permission_dependencies=dependencies,
@@ -700,24 +699,5 @@ def health_context_planning_rules() -> tuple[ContextPlanningRule, ...]:
 
 
 def configured_health_context_contribution(settings) -> ContextRuntimeContribution:
-    """Install Health readers only behind the separate default-off context gate."""
-    if not settings.health_context_enabled:
-        return ContextRuntimeContribution(provider_factories={})
-    from personal_ai.auth.service_tokens import fetch_google_service_token
-
-    client = HealthContextHTTPClient(
-        base_url=str(settings.health_context_base_url),
-        auth_mode=settings.auth_mode,
-        service_audience=settings.health_context_service_audience,
-        service_account=settings.health_context_service_account,
-        timeout_seconds=settings.health_context_timeout_seconds,
-        service_token_fetcher=fetch_google_service_token,
-    )
-    return ContextRuntimeContribution(
-        provider_factories={
-            provider_id: HealthContextProviderFactory(client, provider_id)
-            for provider_id in HEALTH_CATEGORY_PROVIDERS
-        },
-        planning_rules=health_context_planning_rules(),
-        permission_revalidators=(HealthContextPermissionRevalidator(client),),
-    )
+    """Keep the Health adapter unregistered until delegated identity is accepted."""
+    return ContextRuntimeContribution(provider_factories={})

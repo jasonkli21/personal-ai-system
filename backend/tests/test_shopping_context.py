@@ -22,6 +22,7 @@ from personal_ai.context.providers import (
     ContextFieldSensitivity,
     ContextPermissionDependency,
     ContextPreparationError,
+    ContextProviderError,
     ContextSelection,
 )
 from personal_ai.context.shopping import (
@@ -85,8 +86,16 @@ def _selection(provider_id, operation, fields, refs):
     )
 
 
-def _record(entity_type, entity_id, *, source_class="domain_current", authority="authoritative", payload):
-    project_id = str(uuid4())
+def _record(
+    entity_type,
+    entity_id,
+    *,
+    source_class="domain_current",
+    authority="authoritative",
+    payload,
+    project_id=None,
+):
+    project_id = project_id or (entity_id if entity_type == "project" else str(uuid4()))
     now = datetime.now(UTC)
     field_sensitivity = tuple(
         ContextFieldSensitivity(
@@ -165,7 +174,10 @@ def test_shopping_product_provider_preserves_exact_identity_and_shared_policy_me
 
     assert item.application_id == "shopping"
     assert item.workspace_id is None
-    assert item.entity_refs == ()
+    assert [(ref.entity_type, ref.entity_id) for ref in item.entity_refs] == [
+        ("project", project_id),
+        ("project_product", membership_id),
+    ]
     assert item.payload.selected_products[0]["product_id"] == product_id
     assert item.payload.selected_products[0]["variant_id"] == variant_id
     assert item.payload.selected_products[0]["decision_state"] == "rejected"
@@ -187,10 +199,16 @@ def test_catalog_provider_accepts_only_selected_evidence_with_exact_record_ancho
             "catalog_observations": {
                 "project_product_id": selected_id,
                 "product_id": product_id,
+                "product_revision": 2,
                 "variant_id": variant_id,
+                "variant_revision": 3,
                 "observations": [{"freshness": "stale"}],
+                "partial_result": True,
+                "omitted_count": 2,
+                "selection_policy_version": "shopping-catalog-recent-first-v1",
             }
         },
+        project_id=project_id,
     )
     record = ShoppingContextRecord.model_validate(
         {
@@ -216,7 +234,16 @@ def test_catalog_provider_accepts_only_selected_evidence_with_exact_record_ancho
     assert str(item.payload.catalog_observations.project_product_id) == selected_id
     assert str(item.payload.catalog_observations.product_id) == product_id
     assert str(item.payload.catalog_observations.variant_id) == variant_id
+    assert item.partial_result is True
+    assert item.omitted_count == 2
+    assert item.selection_policy_version == "shopping-catalog-recent-first-v1"
     assert {ref.reference_id for ref in item.source_refs if ref.kind == "record"} == {selected_id}
+    assert [(ref.entity_type, ref.entity_id) for ref in item.entity_refs] == [
+        ("project", project_id),
+        ("project_product", selected_id),
+        ("product", product_id),
+        ("variant", variant_id),
+    ]
 
     unbound_payload = {
         **record.payload,
@@ -265,6 +292,49 @@ def test_permission_revalidator_checks_the_exact_project_and_revision():
     assert revalidator.is_current(stale) is False
 
 
+def test_permission_revalidator_checks_selected_product_and_variant_version():
+    project_id, project_product_id = str(uuid4()), str(uuid4())
+    current = _record(
+        "project_product",
+        project_product_id,
+        payload={"selected_products": ()},
+        project_id=project_id,
+    )
+    current = ShoppingContextRecord.model_validate(
+        {
+            **current.model_dump(),
+            "permission_dependencies": (
+                {
+                    "permission_id": f"shopping_project_read:{project_id}",
+                    "version": "4",
+                    "purpose": "verify current Shopping project ownership and revision",
+                },
+                {
+                    "permission_id": (
+                        f"shopping_product_read:{project_id}:{project_product_id}"
+                    ),
+                    "version": "b" * 64,
+                    "purpose": "verify selected Shopping product and current catalog identity",
+                },
+            )
+        }
+    )
+    client = _FakeShoppingClient(current)
+    revalidator = ShoppingContextPermissionRevalidator(client)
+    dependency = ContextPermissionDependency(
+        permission_id=f"shopping_product_read:{project_id}:{project_product_id}",
+        version="b" * 64,
+        purpose="verify selected Shopping product and current catalog identity",
+    )
+
+    assert revalidator.is_current(dependency) is True
+    request = client.requests[0][0]
+    assert request.operation == "verify"
+    assert request.fields == ("selected_products",)
+    assert request.selected_project_product_ids == (project_product_id,)
+    assert revalidator.is_current(dependency.model_copy(update={"version": "c" * 64})) is False
+
+
 def test_context_http_client_sends_separate_service_and_user_assertions():
     project_id = str(uuid4())
     body = {
@@ -307,7 +377,7 @@ def test_context_http_client_sends_separate_service_and_user_assertions():
             auth_mode="google_oidc",
             service_audience="https://shopping.example",
             service_account="personal-ai@example.iam.gserviceaccount.com",
-            service_token_fetcher=lambda *, audience, service_account: "service-token",
+            service_token_fetcher=lambda *, audience, service_account, deadline: "service-token",
             transport=httpx.MockTransport(respond),
         )
         response = client.read(
@@ -330,6 +400,45 @@ def test_context_http_client_sends_separate_service_and_user_assertions():
     assert observed["headers"]["x-application-id"] == "shopping"
     assert observed["body"]["workspace_id"] is None
     assert response.items[0].entity_id == project_id
+
+
+def test_shopping_token_fetch_uses_provider_deadline_and_stops_before_http(monkeypatch):
+    project_id = str(uuid4())
+    user_identity = bind_verified_user_identity_token("verified-user-token")
+    token_arguments = {}
+    requests = []
+    clock_values = iter((100.0, 100.8))
+    monkeypatch.setattr("personal_ai.context.shopping.monotonic", lambda: next(clock_values))
+
+    def fetch_token(**kwargs):
+        token_arguments.update(kwargs)
+        return "service-token"
+
+    client = ShoppingContextHTTPClient(
+        base_url="https://shopping.example",
+        auth_mode="google_oidc",
+        service_audience="https://shopping.example",
+        service_account="personal-ai@example.iam.gserviceaccount.com",
+        service_token_fetcher=fetch_token,
+        transport=httpx.MockTransport(lambda request: requests.append(request)),
+    )
+    try:
+        with pytest.raises(ContextProviderError, match="shopping_context_unavailable"):
+            client.read(
+                ShoppingContextReadRequest(
+                    operation="current",
+                    project_id=project_id,
+                    fields=("project_title",),
+                    max_results=1,
+                    max_bytes=4096,
+                ),
+                deadline=100.5,
+            )
+    finally:
+        reset_verified_user_identity_token(user_identity)
+
+    assert token_arguments["deadline"] == 100.5
+    assert requests == []
 
 
 def test_shopping_contribution_is_off_by_default_and_registry_action_stays_unavailable():

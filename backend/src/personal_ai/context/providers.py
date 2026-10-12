@@ -73,6 +73,9 @@ class ContextItem(BaseModel, Generic[PayloadT]):
     observed_at: datetime | None = None
     effective_at: datetime | None = None
     expires_at: datetime | None = None
+    partial_result: bool = False
+    omitted_count: int | None = Field(default=None, ge=0)
+    selection_policy_version: str | None = Field(default=None, max_length=100)
     sensitivity: ContextSensitivity = "unknown"
     source_refs: tuple[ContextSourceReference, ...] = Field(default=(), max_length=200)
     inherited_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)

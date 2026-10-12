@@ -12,6 +12,7 @@ from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context.assembler import ContextAssembler
+from personal_ai.context.builder import ContextBuildItem
 from personal_ai.context.health import (
     HEALTH_CONTEXT_SCHEMA,
     HEALTH_DAILY_FIELDS,
@@ -189,6 +190,29 @@ def test_profile_provider_preserves_provenance_sensitivity_and_permission_depend
     assert item.permission_dependencies[0].permission_id == (
         f"health_context_read:profile_preferences:profile_item:{selected_id}"
     )
+
+
+def test_truncated_health_slice_remains_usable_and_marks_shared_context_partial() -> None:
+    record = _record()
+    client = FakeHealthClient(
+        HealthContextReadResponse(operation="profile", items=(record,), truncated=True)
+    )
+    provider = HealthContextProvider(client, HEALTH_PROFILE_PROVIDER_ID)
+    selection = ContextSelection(
+        provider_id=HEALTH_PROFILE_PROVIDER_ID,
+        operation="profile",
+        fields=HEALTH_PROFILE_FIELDS,
+        max_results=4,
+        max_bytes=12_288,
+        max_tokens=512,
+        timeout_seconds=3,
+    )
+
+    (item,) = provider.fetch(selection, _scope(), deadline=monotonic() + 3)
+    rendered = ContextBuildItem.from_context_item(item)
+
+    assert item.partial_result is True
+    assert '"partial_result":true' in rendered.content
 
 
 def test_health_daily_provider_preserves_time_units_quality_and_unknown_uncertainty() -> None:
@@ -394,10 +418,10 @@ def test_health_capabilities_are_registered_but_gate_and_mutation_stay_closed() 
     }
     for provider in providers.values():
         if provider.capability_id.startswith("health."):
-            assert provider.available is True
-            assert provider.feature_gate == "health_context_enabled"
+            assert provider.available is False
+            assert provider.unavailable_reason == "health_delegated_identity_contract_unavailable"
             assert provider.is_enabled({}) is False
-            assert provider.is_enabled({"health_context_enabled": True}) is True
+            assert provider.is_enabled({"health_context_enabled": True}) is False
     assert registration.tools[0].capability_id == "health.record_action"
     assert registration.tools[0].available is False
     assert registration.definition.cross_application.mode == "disabled"
@@ -408,7 +432,7 @@ def test_health_capabilities_are_registered_but_gate_and_mutation_stay_closed() 
     assert registration.definition.context_policy.sidecar.copy_allowed is True
     assert registration.definition.context_policy.sidecar.draft_insert_target_ids == ()
     contribution = configured_health_context_contribution(
-        type("Settings", (), {"health_context_enabled": False})()
+        type("Settings", (), {"health_context_enabled": True})()
     )
     assert contribution.provider_factories == {}
     assert contribution.planning_rules == ()
@@ -430,11 +454,23 @@ def test_health_candidate_uses_shared_planner_coordinator_and_assembler() -> Non
         feature_flags={"health_context_enabled": True},
     )
     registration = default_application_registry().registration("health")
+    test_capabilities = tuple(
+        capability.model_copy(
+            update={
+                "available": True,
+                "feature_gate": "health_context_enabled",
+                "unavailable_reason": None,
+            }
+        )
+        if capability.capability_id == HEALTH_PROFILE_PROVIDER_ID
+        else capability
+        for capability in registration.context_providers
+    )
     scope = _scope()
     context = ApplicationContextRequest(
         definition=registration.definition,
         scope=scope,
-        context_provider_capabilities=registration.context_providers,
+        context_provider_capabilities=test_capabilities,
         tool_capabilities=registration.tools,
     )
     assembler = ContextAssembler(

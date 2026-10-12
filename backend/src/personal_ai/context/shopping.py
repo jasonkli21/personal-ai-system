@@ -103,11 +103,14 @@ class ShoppingContextRecord(BaseModel):
     expires_at: datetime | None = None
     sensitivity: Literal["public", "personal", "sensitive", "restricted", "unknown"]
     payload: dict[str, object] = Field(max_length=32)
-    source_refs: tuple[ShoppingContextSourceRef, ...] = Field(min_length=1, max_length=16)
+    source_refs: tuple[ShoppingContextSourceRef, ...] = Field(min_length=1, max_length=32)
     permission_dependencies: tuple[ShoppingContextPermission, ...] = Field(
-        default=(), max_length=16
+        default=(), max_length=32
     )
     field_sensitivity: tuple[ContextFieldSensitivity, ...] = Field(default=(), max_length=32)
+    partial_result: bool = False
+    omitted_count: int | None = Field(default=None, ge=0)
+    selection_policy_version: str | None = Field(default=None, max_length=100)
 
 
 class ShoppingContextReadResponse(BaseModel):
@@ -124,8 +127,13 @@ class ShoppingCatalogEvidence(BaseModel):
 
     project_product_id: UUID
     product_id: UUID
+    product_revision: int = Field(ge=1)
     variant_id: UUID
-    observations: tuple[dict[str, object], ...] = Field(min_length=1, max_length=5)
+    variant_revision: int = Field(ge=1)
+    observations: tuple[dict[str, object], ...] = Field(min_length=1, max_length=1)
+    partial_result: bool = False
+    omitted_count: int = Field(default=0, ge=0)
+    selection_policy_version: str = Field(max_length=100)
 
 
 class ShoppingProjectPayload(BaseModel):
@@ -192,12 +200,16 @@ class ShoppingContextHTTPClient:
             service_token = fetcher(
                 audience=self.service_audience,
                 service_account=self.service_account,
+                deadline=deadline,
             )
         except Exception as error:
             raise ContextProviderError("shopping_service_identity_unavailable") from error
         if not service_token or len(service_token) > 8192:
             raise ContextProviderError("shopping_service_identity_unavailable")
 
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise ContextProviderError("shopping_context_unavailable")
         timeout = min(remaining, self.timeout_seconds)
         try:
             with (
@@ -388,27 +400,48 @@ class ShoppingCatalogSearchProviderFactory:
 
 
 class ShoppingContextPermissionRevalidator:
-    """Recheck project ownership and revision before any later disclosure."""
+    """Recheck project and selected product dependencies before later disclosure."""
 
     permission_prefix = "shopping_project_read:"
-    permission_namespaces = (permission_prefix,)
+    product_permission_prefix = "shopping_product_read:"
+    permission_namespaces = (permission_prefix, product_permission_prefix)
 
     def __init__(self, client: ShoppingContextHTTPClient) -> None:
         self.client = client
 
     def supports(self, dependency: ContextPermissionDependency) -> bool:
-        return dependency.permission_id.startswith(self.permission_prefix)
+        return dependency.permission_id.startswith(self.permission_namespaces)
 
     def is_current(self, dependency: ContextPermissionDependency) -> bool:
         if not self.supports(dependency):
             return False
-        project_id = dependency.permission_id.removeprefix(self.permission_prefix)
+        if dependency.permission_id.startswith(self.permission_prefix):
+            project_id = dependency.permission_id.removeprefix(self.permission_prefix)
+            fields = ("project_revision",)
+            selected_ids: tuple[str, ...] = ()
+            expected_type = "project"
+            expected_id = project_id
+        else:
+            raw_scope = dependency.permission_id.removeprefix(self.product_permission_prefix)
+            project_id, separator, project_product_id = raw_scope.partition(":")
+            if not separator:
+                return False
+            try:
+                project_id = str(UUID(project_id))
+                project_product_id = str(UUID(project_product_id))
+            except ValueError:
+                return False
+            fields = ("selected_products",)
+            selected_ids = (project_product_id,)
+            expected_type = "project_product"
+            expected_id = project_product_id
         try:
             response = self.client.read(
                 ShoppingContextReadRequest(
                     operation="verify",
                     project_id=project_id,
-                    fields=("project_revision",),
+                    selected_project_product_ids=selected_ids,
+                    fields=fields,
                     max_results=1,
                     max_bytes=2_048,
                     timeout_seconds=0.75,
@@ -417,11 +450,15 @@ class ShoppingContextPermissionRevalidator:
             )
         except Exception:  # noqa: BLE001 - unavailable owner checks fail closed
             return False
-        return (
-            len(response.items) == 1
-            and response.items[0].entity_type == "project"
-            and response.items[0].entity_id == project_id
-            and response.items[0].source_version == dependency.version
+        if len(response.items) != 1:
+            return False
+        item = response.items[0]
+        if item.entity_type != expected_type or item.entity_id != expected_id:
+            return False
+        return any(
+            current.permission_id == dependency.permission_id
+            and current.version == dependency.version
+            for current in item.permission_dependencies
         )
 
 
@@ -479,8 +516,8 @@ def _context_item(
     if record.entity_type != "project" and record.entity_id not in selected_ids:
         raise ContextPreparationError("shopping_context_unselected_product")
     if any(
-        product.get("project_product_id") is not None
-        and str(product["project_product_id"]) not in selected_ids
+        not isinstance(product.get("project_product_id"), str)
+        or str(product["project_product_id"]) not in selected_ids
         for product in (payload.selected_products or ())
     ):
         raise ContextPreparationError("shopping_context_unselected_product")
@@ -492,6 +529,55 @@ def _context_item(
     if record.source_class == "external_research" and record.authority == "authoritative":
         raise ContextPreparationError("shopping_catalog_authority_invalid")
 
+    normalized_entities = (
+        ContextEntityReference(
+            entity_type="project",
+            entity_id=_project_id(selection.entity_refs),
+            application_id="shopping",
+            workspace_id=None,
+        ),
+    )
+    if record.entity_type == "project" and payload.selected_products:
+        normalized_entities = (
+            *normalized_entities,
+            *(
+                ContextEntityReference(
+                    entity_type="project_product",
+                    entity_id=str(product["project_product_id"]),
+                    application_id="shopping",
+                    workspace_id=None,
+                )
+                for product in payload.selected_products
+            ),
+        )
+    if record.entity_type in {"project_product", "evidence"}:
+        normalized_entities = (
+            *normalized_entities,
+            ContextEntityReference(
+                entity_type="project_product",
+                entity_id=record.entity_id,
+                application_id="shopping",
+                workspace_id=None,
+            ),
+        )
+    if record.entity_type == "evidence" and payload.catalog_observations is not None:
+        product = payload.catalog_observations
+        normalized_entities = (
+            *normalized_entities,
+            ContextEntityReference(
+                entity_type="product",
+                entity_id=str(product.product_id),
+                application_id="shopping",
+                workspace_id=None,
+            ),
+            ContextEntityReference(
+                entity_type="variant",
+                entity_id=str(product.variant_id),
+                application_id="shopping",
+                workspace_id=None,
+            ),
+        )
+
     return ContextItem(
         source_class=record.source_class,
         provider_id=selection.provider_id,
@@ -501,11 +587,32 @@ def _context_item(
         owner_id=scope.owner_id,
         application_id="shopping",
         workspace_id=None,
-        entity_refs=(),
+        entity_refs=normalized_entities,
         authority=record.authority,
         observed_at=record.observed_at,
         effective_at=record.effective_at,
         expires_at=record.expires_at,
+        partial_result=(
+            record.partial_result
+            or bool(payload.catalog_observations and payload.catalog_observations.partial_result)
+        ),
+        omitted_count=(
+            record.omitted_count
+            if record.omitted_count is not None
+            else (
+                payload.catalog_observations.omitted_count
+                if payload.catalog_observations is not None
+                else None
+            )
+        ),
+        selection_policy_version=(
+            record.selection_policy_version
+            or (
+                payload.catalog_observations.selection_policy_version
+                if payload.catalog_observations is not None
+                else None
+            )
+        ),
         sensitivity=record.sensitivity,
         source_refs=tuple(
             ContextSourceReference(

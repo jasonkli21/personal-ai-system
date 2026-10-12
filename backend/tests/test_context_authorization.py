@@ -333,6 +333,13 @@ def test_denied_conversation_policy_fails_before_history_summary_and_counting():
 def test_default_health_policy_is_application_scoped_and_field_specific():
     registry = default_application_registry()
     health = registry.get("health")
+    provider_id = "health.nutrition_context"
+    test_capabilities = tuple(
+        provider.model_copy(update={"available": True, "unavailable_reason": None})
+        if provider.capability_id == provider_id
+        else provider
+        for provider in registry.registration("health").context_providers
+    )
     health_scope = RequestScope(
         owner_id="owner-1", request_id="health-policy", application_id="health",
         workspace_id="workspace-1",
@@ -340,12 +347,12 @@ def test_default_health_policy_is_application_scoped_and_field_specific():
     health_context = ApplicationContextRequest(
         definition=health,
         scope=health_scope,
-        context_provider_capabilities=registry.registration("health").context_providers,
+        context_provider_capabilities=test_capabilities,
     )
     allowed_health_fields = ContextSelection(
-        provider_id="health.history_context",
+        provider_id=provider_id,
         operation="history",
-        fields=("medication_name", "dose", "observed_at"),
+        fields=("record", "domain", "time"),
         target_scope=ApplicationScope(application_id="health", workspace_id="workspace-1"),
     )
     authorize_context_selections(health_context, (allowed_health_fields,))
@@ -364,15 +371,15 @@ def test_default_health_policy_is_application_scoped_and_field_specific():
         ),
         # A forged capability entry cannot create a policy rule.
         context_provider_capabilities=(CapabilityRegistration(
-            capability_id="health.history_context", kind="context_provider", available=True
+            capability_id=provider_id, kind="context_provider", available=True
         ),),
     )
     with pytest.raises(ContextPreparationError, match="context_policy_denied"):
         authorize_context_selections(
             personal_context,
             (ContextSelection(
-                provider_id="health.history_context", operation="history",
-                fields=("medication_name",),
+                provider_id=provider_id, operation="history",
+                fields=("record",),
             ),),
         )
 

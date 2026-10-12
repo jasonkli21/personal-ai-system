@@ -68,3 +68,63 @@ Google certificate/token verification against live credentials, operator mapping
 ## Independent review focus
 
 Review the exact Google-subject-to-fixed-Firebase-owner mapping and its operator attestation/revocation lifecycle; Google audience and claim verification; transaction ordering/isolation and timeout handling; whether all project-child updates advance the permission revision; source-version and observation-fingerprint semantics; field-level sensitivity and selected-only projection; and confirmation that registry metadata cannot bypass either gate. Review P27.1 generation/routing and P27.2 host integration as incomplete work rather than delivered behavior.
+
+## Post-implementation review follow-up — 2026-10-11
+
+The follow-up promotes Shopping's owner-scoped current-state projection to a
+public domain context read seam and routes both the legacy conversation helper
+and Personal AI adapter through it. Current and catalog records now retain
+selected product, variant, and project-product membership identities, source
+revisions, and permission dependencies. Catalog records are emitted per
+observation with their own expiry; the bounded recent-first selection reports
+omitted records and a selection-policy version. Normalized Personal AI context
+preserves the selected Shopping entity references. Google token acquisition is
+bounded by the shared request deadline, and the certificate request closes its
+HTTP session.
+
+The required mapping-version label and exact configured Google/Firebase
+identity mapping are now fingerprinted into the Shopping project permission
+dependency. Reads and permission verification recompute that fingerprint, so
+changing the label or mapped identity invalidates previously derived context.
+This is deployment-managed configuration for the current single-owner model,
+not a multi-owner grant store. Both context gates remain off pending live
+identity and operator-configuration verification. Workflow routing and the
+shared sidecar remain blocked on common prerequisites and host/identity
+contracts.
+
+Verification on 2026-10-11:
+
+- Personal AI full backend suite: **1,398 passed, 82 skipped**; Ruff passed.
+- Shopping offline API suite: **197 passed, 130 database tests deselected**;
+  focused context tests **13 passed, 1 database test deselected**; Ruff and
+  format checks passed on changed files.
+- Health changed-surface suite: **7 passed, 16 database-backed tests skipped**;
+  Ruff, Mypy, and generated client TypeScript checks passed.
+- Finance context route smoke test: **9 passed**.
+- No PostgreSQL-backed integration, live Google/Firebase identity, deployed
+  cloud, provider, or browser/sidecar check was established by these runs.
+
+## Cross-repository review correction follow-up — 2026-10-11
+
+The Shopping owner-mapping lifecycle now participates in the dependency
+version used by the shared context revalidator. The Health daily Event and
+Observation create/edit flow exposes the source-domain cross-domain consent
+switch in the mobile app; this does not bypass the default-off integration or
+the unavailable delegated-identity capability.
+
+Verification on 2026-10-11:
+
+- Personal AI backend: **1,398 passed, 82 skipped**; Ruff passed.
+- Shopping API: **197 passed, 130 database tests deselected**; focused context
+  tests **13 passed, 1 database test deselected**; Ruff and format checks
+  passed.
+- Health API: **179 passed, 75 skipped**; mobile daily model/form tests
+  **22 passed**, TypeScript typecheck passed, Ruff and Mypy passed, and the
+  Prettier-formatted OpenAPI artifact matched a fresh schema export.
+- Finance context smoke test: **9 passed**.
+
+PostgreSQL-backed cases were skipped because no local test database was
+configured. CI contains disposable-PostgreSQL jobs for Shopping and Health.
+Live identity, cloud/IAM, provider privacy, and sidecar behavior remain
+unverified. Phases 27–29 remain incomplete where task routing and sidecar
+work depend on shared identity, workflow, and host prerequisites.

@@ -162,10 +162,10 @@ def test_default_registry_registers_initial_manifests_and_unavailable_stubs() ->
         "health.symptoms_context",
     ):
         provider = registry.capability("health", capability, kind="context_provider")
-        assert provider.available is True
-        assert provider.feature_gate == "health_context_enabled"
+        assert provider.available is False
+        assert provider.unavailable_reason == "health_delegated_identity_contract_unavailable"
         assert provider.is_enabled({}) is False
-        assert provider.is_enabled({"health_context_enabled": True}) is True
+        assert provider.is_enabled({"health_context_enabled": True}) is False
 
 
 def test_unknown_application_fails_with_a_stable_registry_error() -> None:

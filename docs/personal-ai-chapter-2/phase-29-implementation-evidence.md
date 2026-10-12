@@ -98,3 +98,34 @@ real-data safety, and sidecar behavior remain unverified. Health's OpenAPI
 export could not write its repository artifact from the restricted temporary
 execution context; the generated-client command was also unavailable because
 the installed pnpm version is outside the repository's supported range.
+
+## Post-implementation review follow-up — 2026-10-11
+
+Health daily Event and Observation owner create/update requests now expose
+`cross_domain_use_allowed`, defaulting to false. Updates use the existing
+expected-revision path, advance the canonical object revision, and record both
+consent flags in revision history. Health context permission versions include
+the monotonic revision and the current source-consent state, so revoke/regrant
+does not restore the old dependency version. A future Phase 30 federation
+grant remains a separate prerequisite; effective access must require both
+source consent and the federation grant.
+
+The shared Personal AI `ContextItem` and source envelope carry generic partial
+result information. Truncated Health responses remain available as explicitly
+partial. Health provider capabilities are now unavailable in the registry
+until its Firebase owner-token requirement can be reconciled with Personal
+AI's Google OIDC identity; changing the feature flag cannot bypass this gate.
+The Health sidecar remains unavailable.
+
+Verification on 2026-10-11:
+
+- Personal AI full backend suite: **1,398 passed, 82 skipped**; Ruff passed.
+- Health API/contract tests: **7 passed, 16 skipped**. The skipped cases need
+  `TEST_DATABASE_URL`, so the revisioned revoke/regrant database assertion was
+  not executed locally.
+- Health Ruff and Mypy passed. OpenAPI JSON and TypeScript client artifacts
+  were regenerated with the underlying repository scripts, and client
+  typechecking passed. The repository's pnpm wrapper was unavailable because
+  installed pnpm 11.25.0 is outside its supported 9.x range.
+- Live identity, PostgreSQL, deployment, provider privacy, and sidecar checks
+  remain unverified.
