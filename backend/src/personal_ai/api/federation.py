@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from personal_ai.api.dependencies import (
@@ -18,6 +18,7 @@ from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.runtime import ContextRuntimeRegistry
 from personal_ai.contracts.context_references import ContextEntityReference
+from personal_ai.contracts.federation import FederationContextChoice
 from personal_ai.federation.contracts import (
     FederationGrant,
     FederationGrantConflict,
@@ -66,6 +67,47 @@ def authority_dependency(
     return authority
 
 
+def choice_authority_dependency(
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
+    scope: Annotated[RequestScope, Depends(get_request_scope)],
+    registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
+):
+    if scope.application_id == "personal_ai":
+        raise HTTPException(404, "not_found")
+    try:
+        definition = registry.get(scope.application_id)
+    except ApplicationNotRegisteredError as error:
+        raise HTTPException(404, "not_found") from error
+    if (
+        (definition.workspace_kind == "unsupported" and scope.workspace_id is not None)
+        or (definition.workspace_kind == "required" and scope.workspace_id is None)
+    ):
+        raise HTTPException(404, "not_found")
+    authority = next(
+        (
+            value
+            for value in runtime.permission_revalidators
+            if isinstance(value, FederationPermissionAuthority)
+        ),
+        None,
+    )
+    if authority is None:
+        raise HTTPException(503, "federation_authority_unavailable")
+    return authority
+
+
+class FederationChoiceOption(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    id: str
+    category_label: str = Field(min_length=1, max_length=100)
+    choice: FederationContextChoice
+
+
+class FederationChoicesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    choices: tuple[FederationChoiceOption, ...] = Field(max_length=100)
+
+
 @router.post("", response_model=FederationGrant, status_code=201)
 def create_grant(
     choice: GrantChoice,
@@ -110,6 +152,29 @@ def create_grant(
         raise HTTPException(409, "federation_grant_conflict") from error
     except ValueError as error:
         raise HTTPException(422, "federation_grant_invalid") from error
+
+
+@router.get("/choices", response_model=FederationChoicesResponse)
+def list_federation_choices(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_recent_auth)],
+    scope: Annotated[RequestScope, Depends(get_request_scope)],
+    authority: Annotated[FederationPermissionAuthority, Depends(choice_authority_dependency)],
+    response: Response,
+):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    try:
+        choices = authority.current_choices(
+            principal,
+            ApplicationScope(
+                application_id=scope.application_id,
+                workspace_id=scope.workspace_id,
+            ),
+        )
+        return FederationChoicesResponse(choices=choices)
+    except ContextPreparationError as error:
+        raise HTTPException(503, "federation_choices_unavailable") from error
 
 
 @router.get("/{grant_id}", response_model=FederationGrant)

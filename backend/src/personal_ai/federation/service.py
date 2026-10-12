@@ -6,7 +6,7 @@ from types import MappingProxyType
 from uuid import UUID, uuid4
 
 from personal_ai.auth.contracts import AuthenticatedPrincipal
-from personal_ai.auth.scope import current_request_scope
+from personal_ai.auth.scope import ApplicationScope, RequestScope, current_request_scope
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.federation.contracts import (
     FederationGrant,
@@ -65,6 +65,60 @@ class FederationPermissionAuthority:
         # Authorization only: never reconstruct/retrieve source values for reuse.
         provider._authorize_selection(selection, scope)
         return True
+
+    def current_choices(self, principal: AuthenticatedPrincipal, destination: ApplicationScope):
+        """Project current owner grants as UI selectors, without source policy details."""
+        from personal_ai.contracts.federation import FederationContextChoice, FederationSelection
+
+        if not principal.authenticated:
+            return ()
+        acting_user_id = f"{principal.issuer}|{principal.subject}"
+        scope = RequestScope(
+            application_id=destination.application_id,
+            workspace_id=destination.workspace_id,
+            owner_id=principal.owner_id,
+            acting_user_id=acting_user_id,
+            request_id="federation-choice-list",
+        )
+        choices = []
+        for grant in self.repository.list_destination(principal.owner_id, destination):
+            if (
+                not grant.current(self.clock())
+                or grant.acting_user_id != acting_user_id
+                or not self.source_is_current(grant.source_policy)
+                or not self._export_current(grant, scope)
+            ):
+                continue
+            provider = (
+                self._exports.get(
+                    (grant.source.application_id, grant.destination.application_id, grant.category)
+                )
+                if self._exports is not None
+                else None
+            )
+            if provider is None:
+                continue
+            selection = FederationSelection(
+                **{
+                    field: getattr(grant, field)
+                    for field in FederationSelection.model_fields
+                }
+            )
+            choices.append(
+                {
+                    "id": str(grant.grant_id),
+                    "category_label": (
+                        f"{grant.source.application_id.replace('_', ' ').title()} · "
+                        f"{grant.category.replace('_', ' ')}"
+                    ),
+                    "choice": FederationContextChoice(
+                        provider_id=provider.spec.provider_id,
+                        fields=grant.fields,
+                        federation=selection,
+                    ),
+                }
+            )
+        return tuple(choices)
 
     def supports(self, dependency):
         return dependency.permission_id.startswith("federation_grant:")

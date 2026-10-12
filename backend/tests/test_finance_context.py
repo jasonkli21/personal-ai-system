@@ -635,3 +635,154 @@ def test_monthly_budget_federation_adapter_preserves_exact_fields_and_dependency
         and request.purpose == "shopping_discretionary_budget"
         for request in client.requests
     )
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    [
+        "entity_id",
+        "permission_entity",
+        "purpose",
+        "namespace",
+        "extra_dependency",
+        "source_revision",
+        "source_reference",
+        "extra_source_reference",
+    ],
+)
+def test_monthly_budget_federation_rejects_mismatched_source_binding(mismatch) -> None:
+    now = datetime.now(UTC)
+    budget_id = str(uuid4())
+    other_id = str(uuid4())
+    source = ApplicationScope(application_id="finance")
+    destination = ApplicationScope(application_id="shopping")
+    source_entity = ContextEntityReference(
+        entity_type="discretionary_budget",
+        entity_id=budget_id,
+        application_id="finance",
+        workspace_id=None,
+    )
+    valid_record = _budget_record(budget_id)
+    client = FakeFinanceClient(FinanceContextReadResponse(items=(valid_record,)))
+    adapter = FinanceBudgetFederationAdapter(client)
+    intent = FederationGrantIntent(
+        grant_id=uuid4(),
+        owner_id="verified-owner",
+        acting_user_id="issuer|verified-user",
+        source=source,
+        destination=destination,
+        category="discretionary_budget",
+        purpose="shopping_discretionary_budget",
+        entities=(source_entity,),
+        fields=("amount", "currency", "period"),
+        expires_at=now + timedelta(minutes=10),
+    )
+    source_policy = adapter.resolve_source_policy(intent, deadline=monotonic() + 1)
+    grant = FederationGrant(
+        grant_id=intent.grant_id,
+        issuance_id=uuid4(),
+        revision=1,
+        epoch=1,
+        source=source,
+        destination=destination,
+        category=intent.category,
+        purpose=intent.purpose,
+        entities=intent.entities,
+        owner_id=intent.owner_id,
+        acting_user_id=intent.acting_user_id,
+        fields=intent.fields,
+        expires_at=intent.expires_at,
+        created_at=now,
+        updated_at=now,
+        source_policy=source_policy,
+        sensitivity="restricted",
+        maximum_sensitivity="restricted",
+    )
+    scope = RequestScope(
+        application_id="shopping",
+        owner_id="verified-owner",
+        acting_user_id="issuer|verified-user",
+        request_id="finance-budget-mismatch-test",
+    )
+    selection = ContextSelection(
+        provider_id=FINANCE_BUDGET_EXPORT_PROVIDER_ID,
+        operation="entity",
+        fields=intent.fields,
+        federation=FederationSelection(
+            grant_id=grant.grant_id,
+            issuance_id=grant.issuance_id,
+            revision=grant.revision,
+            epoch=grant.epoch,
+            source=source,
+            category=grant.category,
+            purpose=grant.purpose,
+            entities=grant.entities,
+        ),
+    )
+
+    record = valid_record
+    if mismatch == "entity_id":
+        record = record.model_copy(update={"entity_id": other_id})
+    elif mismatch == "permission_entity":
+        record = record.model_copy(
+            update={
+                "permission_dependencies": (
+                    record.permission_dependencies[0].model_copy(
+                        update={"permission_id": f"finance_context_read:discretionary_budget:{other_id}"}
+                    ),
+                )
+            }
+        )
+    elif mismatch == "purpose":
+        record = record.model_copy(
+            update={
+                "permission_dependencies": (
+                    record.permission_dependencies[0].model_copy(
+                        update={"purpose": "personal_ai_context"}
+                    ),
+                )
+            }
+        )
+    elif mismatch == "namespace":
+        record = record.model_copy(
+            update={
+                "permission_dependencies": (
+                    record.permission_dependencies[0].model_copy(
+                        update={"permission_id": f"foreign_permission:{budget_id}"}
+                    ),
+                )
+            }
+        )
+    elif mismatch == "extra_dependency":
+        record = record.model_copy(
+            update={
+                "permission_dependencies": (
+                    *record.permission_dependencies,
+                    record.permission_dependencies[0].model_copy(
+                        update={"permission_id": f"finance_context_read:discretionary_budget:{other_id}"}
+                    ),
+                )
+            }
+        )
+    elif mismatch == "source_revision":
+        record = record.model_copy(update={"source_version": "different-revision"})
+    elif mismatch == "source_reference":
+        record = record.model_copy(
+            update={
+                "source_refs": (
+                    record.source_refs[0].model_copy(update={"reference_id": other_id}),
+                )
+            }
+        )
+    else:
+        record = record.model_copy(
+            update={"source_refs": (*record.source_refs, record.source_refs[0])}
+        )
+    client.response = FinanceContextReadResponse(items=(record,))
+
+    with pytest.raises(ContextPreparationError, match="finance_budget_export_policy_invalid"):
+        adapter.resolve_source_policy(intent, deadline=monotonic() + 1)
+    with pytest.raises(ContextPreparationError):
+        adapter.authorize_export(grant, selection, scope, deadline=monotonic() + 1)
+    with pytest.raises(ContextPreparationError):
+        adapter.fetch(grant, selection, scope, deadline=monotonic() + 1)

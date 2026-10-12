@@ -19,6 +19,7 @@ from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry, ContextRuntimeRegistry
 from personal_ai.mutations.contracts import (
+    MutationAdapterContractError,
     MutationCandidateRequest,
     MutationError,
     MutationUnavailableError,
@@ -64,8 +65,12 @@ def invoke(service, principal, scope, method, *args, **kwargs):
         return service._present(principal, scope, proposal)
     except MutationUnavailableError as error:
         raise HTTPException(503, error.code) from error
+    except MutationAdapterContractError as error:
+        raise HTTPException(500, error.code) from error
     except MutationError as error:
-        status = 404 if error.code in {
+        status = 422 if error.code in {
+            "mutation_candidate_not_applicable", "mutation_candidate_invalid"
+        } else 404 if error.code in {
             "mutation_not_found", "mutation_output_not_found", "mutation_output_not_active"
         } else 403 if "denied" in error.code else 409
         raise HTTPException(status, error.code) from error

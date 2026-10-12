@@ -133,6 +133,9 @@ _application_scope: ContextVar[ApplicationScope | None] = ContextVar(
 _verified_user_identity_token: ContextVar[str | None] = ContextVar(
     "personal_ai_verified_user_identity_token", default=None
 )
+_verified_principal: ContextVar[AuthenticatedPrincipal | None] = ContextVar(
+    "personal_ai_verified_principal", default=None
+)
 _DEFAULT_APPLICATION_SCOPE = ApplicationScope()
 
 
@@ -149,12 +152,25 @@ def current_verified_user_identity_token() -> str | None:
     return _verified_user_identity_token.get()
 
 
+def current_verified_principal() -> AuthenticatedPrincipal | None:
+    """Return the principal established by request authentication, for server adapters."""
+    return _verified_principal.get()
+
+
 def bind_verified_user_identity_token(token: str | None):
     return _verified_user_identity_token.set(token)
 
 
 def reset_verified_user_identity_token(token) -> None:
     _verified_user_identity_token.reset(token)
+
+
+def bind_verified_principal(principal: AuthenticatedPrincipal | None):
+    return _verified_principal.set(principal)
+
+
+def reset_verified_principal(token) -> None:
+    _verified_principal.reset(token)
 
 
 def current_application_scope() -> ApplicationScope:

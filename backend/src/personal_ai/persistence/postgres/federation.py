@@ -1,6 +1,7 @@
 """Transactional owner-wide grant heads and immutable revision audit."""
 
 import json
+from datetime import UTC, datetime
 from hashlib import sha256
 
 from personal_ai.auth.scope import ApplicationScope
@@ -72,6 +73,32 @@ class PostgresFederationGrantRepository:
         if grant.owner_id != owner_id or grant.grant_id != grant_id:
             raise RuntimeError("federation_grant_identity_invalid")
         return grant
+
+    def list_destination(self, owner_id, destination):
+        """Return only active, unexpired grants for one exact owner/destination scope."""
+        now = datetime.now(UTC)
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM federation_grants "
+                "WHERE owner_id=%s AND destination_application_id=%s "
+                "AND destination_workspace_id IS NOT DISTINCT FROM %s "
+                "AND state='active' AND expires_at>%s "
+                "AND NOT EXISTS (SELECT 1 FROM owner_lifecycle_fences WHERE owner_id=%s) "
+                "ORDER BY updated_at DESC LIMIT 100",
+                (
+                    owner_id,
+                    destination.application_id,
+                    destination.workspace_id,
+                    now,
+                    owner_id,
+                ),
+            ).fetchall()
+        grants = tuple(FederationGrant.model_validate(row[0]) for row in rows)
+        if any(
+            grant.owner_id != owner_id or grant.destination != destination for grant in grants
+        ):
+            raise RuntimeError("federation_grant_identity_invalid")
+        return grants
 
     def save(self, grant, *, expected_revision):
         grant = FederationGrant.model_validate(grant.model_dump())

@@ -36,6 +36,9 @@ from personal_ai.mutations.contracts import (
     AuthoritativePostState,
     DomainOutcome,
     DomainValidation,
+    MutationAdapterContractError,
+    MutationCandidateInvalidError,
+    MutationCandidateNotApplicableError,
     MutationCandidateRequest,
     MutationError,
     MutationOperationDeclaration,
@@ -147,6 +150,7 @@ def mutation_case(owner="owner"):
             self.receipts = {}
         timeout = False
         mismatch = False
+        candidate_mode = "valid"
         block = False
         entered = Event()
         release = Event()
@@ -169,6 +173,14 @@ def mutation_case(owner="owner"):
             assert request == scope
             assert output.id == output_id
             assert output.status == MessageStatus.COMPLETED
+            if self.candidate_mode == "not_applicable":
+                raise MutationCandidateNotApplicableError()
+            if self.candidate_mode == "invalid":
+                raise MutationCandidateInvalidError()
+            if self.candidate_mode == "unavailable":
+                raise MutationUnavailableError("candidate_source_unavailable")
+            if self.candidate_mode == "malformed":
+                return {"not": "a typed candidate"}
             return TypedMutationCandidate(
                 target=target,
                 payload_schema_id="note-title-v1",
@@ -650,6 +662,94 @@ def test_producer_identity_and_labels_never_supply_authority(mutation):
     f["adapter"].allowed = False
     with pytest.raises(MutationError, match="authorization_denied"):
         f["service"].create_from_output(f["principal"], f["scope"], f["candidate"])
+
+
+@pytest.mark.parametrize(
+    "provider_label,model_label",
+    [
+        (None, None),
+        ("user-entered provider", None),
+        (None, "user-entered model"),
+        ("x" * 150, "user-entered model"),
+    ],
+)
+def test_manual_import_labels_do_not_block_or_claim_mutation_provenance(
+    mutation, provider_label, model_label
+):
+    f = mutation
+    original = f["message"].attribution
+    manual = TurnAttribution(
+        fact_source="user_declared",
+        execution_origin="manual_import",
+        provider_id=provider_label,
+        model_id=model_label,
+        recorded_at=original.recorded_at,
+        source_snapshots=original.source_snapshots,
+    )
+    output = f["message"].model_copy(update={"attribution": manual})
+    f["output_messages"].current_message = output
+
+    proposal = f["service"].create_from_output(
+        f["principal"], f["scope"], f["candidate"]
+    )
+
+    assert proposal.intent.producer.execution_origin == "manual_import"
+    assert proposal.intent.producer.fact_source == "user_declared"
+    assert proposal.intent.producer.provider_id is None
+    assert proposal.intent.producer.model_id is None
+    assert proposal.intent.producer.endpoint_profile_id is None
+    expected_fingerprint = sha256(
+        json.dumps(
+            manual.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+    assert proposal.intent.producer.attribution_fingerprint == expected_fingerprint
+    assert proposal.intent.producer.output_message_id == output.id
+
+
+@pytest.mark.parametrize(
+    "mode,error_type",
+    [
+        ("not_applicable", MutationCandidateNotApplicableError),
+        ("invalid", MutationCandidateInvalidError),
+        ("malformed", MutationAdapterContractError),
+    ],
+)
+def test_candidate_conversion_rejections_are_stable_and_do_not_persist(
+    mutation, mode, error_type
+):
+    f = mutation
+    f["adapter"].candidate_mode = mode
+
+    with pytest.raises(error_type):
+        f["service"].create_from_output(
+            f["principal"], f["scope"], f["candidate"]
+        )
+
+    assert not f["repo"].audit
+    assert f["adapter"].sends == 0
+
+
+def test_candidate_conversion_outage_is_retryable_without_persisting(mutation):
+    f = mutation
+    f["adapter"].candidate_mode = "unavailable"
+    with pytest.raises(MutationUnavailableError):
+        f["service"].create_from_output(
+            f["principal"], f["scope"], f["candidate"]
+        )
+    assert not f["repo"].audit
+
+    f["adapter"].candidate_mode = "valid"
+    proposal = f["service"].create_from_output(
+        f["principal"], f["scope"], f["candidate"]
+    )
+    assert proposal.proposal_id == f["service"].create_from_output(
+        f["principal"], f["scope"], f["candidate"]
+    ).proposal_id
+    assert len(f["repo"].audit) == 1
 
 
 @pytest.mark.parametrize("change,code", [

@@ -155,6 +155,13 @@ class _ConfiguredGrantRepository:
             persistence_factory(self.settings).federation_grant_repository().get(owner_id, grant_id)
         )
 
+    def list_destination(self, owner_id, destination):
+        from personal_ai.persistence.factory import persistence_factory
+
+        return persistence_factory(self.settings).federation_grant_repository().list_destination(
+            owner_id, destination
+        )
+
     def record_access(self, selection, scope, result):
         from personal_ai.persistence.factory import persistence_factory
 

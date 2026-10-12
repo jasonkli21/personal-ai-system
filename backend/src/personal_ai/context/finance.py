@@ -609,12 +609,28 @@ class FinanceBudgetFederationAdapter:
         owner_id: str,
         acting_user_id: str,
     ) -> ContextPermissionDependency:
+        expected_permission_id = (
+            f"finance_context_read:discretionary_budget:{entity.entity_id}"
+        )
+        expected_source_id = f"finance:monthly_discretionary_budget:{entity.entity_id}"
         if (
             record.entity_type != "discretionary_budget"
+            or record.entity_id != entity.entity_id
+            or record.source_id != expected_source_id
             or len(record.permission_dependencies) != 1
+            or len(record.source_refs) != 1
+            or record.source_refs[0].kind != "record"
+            or record.source_refs[0].reference_id != entity.entity_id
+            or record.source_refs[0].fingerprint is None
         ):
             raise ContextPreparationError("finance_budget_export_policy_invalid")
         source_dependency = record.permission_dependencies[0]
+        if (
+            source_dependency.permission_id != expected_permission_id
+            or source_dependency.purpose != FinanceBudgetFederationAdapter.purpose
+            or source_dependency.version != record.source_version
+        ):
+            raise ContextPreparationError("finance_budget_export_policy_invalid")
         return ContextPermissionDependency(
             permission_id=source_dependency.permission_id,
             version=source_dependency.version,
@@ -629,7 +645,9 @@ class FinanceBudgetFederationAdapter:
     def resolve_source_policy(self, intent, *, deadline: float) -> ContextPermissionDependency:
         if (
             intent.source.application_id != "finance"
+            or intent.source.workspace_id is not None
             or intent.destination.application_id != "shopping"
+            or intent.destination.workspace_id is not None
             or intent.category != "discretionary_budget"
             or intent.purpose != self.purpose
             or tuple(intent.fields) != ("amount", "currency", "period")
@@ -653,7 +671,9 @@ class FinanceBudgetFederationAdapter:
     def authorize_export(self, grant, selection, scope, *, deadline: float) -> bool:
         if (
             grant.source.application_id != "finance"
+            or grant.source.workspace_id is not None
             or grant.destination.application_id != "shopping"
+            or grant.destination.workspace_id is not None
             or grant.category != "discretionary_budget"
             or grant.purpose != self.purpose
             or tuple(grant.fields) != ("amount", "currency", "period")
@@ -680,6 +700,21 @@ class FinanceBudgetFederationAdapter:
         )
 
     def fetch(self, grant, selection, scope, *, deadline: float) -> FederationExportResult:
+        if (
+            grant.source.application_id != "finance"
+            or grant.source.workspace_id is not None
+            or grant.destination.application_id != "shopping"
+            or grant.destination.workspace_id is not None
+            or grant.category != "discretionary_budget"
+            or grant.purpose != self.purpose
+            or grant.fields != ("amount", "currency", "period")
+            or selection.fields != grant.fields
+            or scope.application_id != "shopping"
+            or scope.workspace_id is not None
+            or scope.owner_id != grant.owner_id
+            or scope.acting_user_id != grant.acting_user_id
+        ):
+            raise ContextPreparationError("finance_budget_export_scope_invalid")
         entity = self._single_budget(selection.federation.entities)
         response = self.client.read(
             self._request(entity, operation="current", fields=selection.fields),
@@ -689,8 +724,21 @@ class FinanceBudgetFederationAdapter:
             raise ContextPreparationError("finance_budget_export_incomplete")
         record = response.items[0]
         try:
+            if (
+                set(record.payload) != {"discretionary_budget"}
+                or {item.field for item in record.field_sensitivity}
+                != {"amount", "currency", "period"}
+                or len(record.field_sensitivity) != 3
+            ):
+                raise ContextPreparationError("finance_budget_export_contract_invalid")
             values = record.payload["discretionary_budget"]
             payload = FinanceBudgetExportPayload.model_validate(values)
+            if any(
+                value.source_version != record.source_version
+                or entity.entity_id not in value.evidence_refs
+                for value in (payload.amount, payload.currency, payload.period)
+            ):
+                raise ContextPreparationError("finance_budget_export_contract_invalid")
             source_dependency = self._dependency(
                 record,
                 grant.source,

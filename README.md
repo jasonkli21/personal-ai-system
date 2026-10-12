@@ -16,7 +16,7 @@ Core capabilities include:
 - persistent conversation history;
 - token-budgeted context building across conversation, memory, and deterministically planned eligible sources, with provenance and sensitivity manifests;
 - an owner-managed AI profile with explicit per-field application sharing;
-- a versioned federation grant API and shared broker foundation, with four domain exports declared but unavailable pending source contracts and identity acceptance;
+- a versioned federation grant API and shared broker with gated Travel, Finance, and Health exports; destination-product acceptance remains open;
 - attributable long-term memory with retrieval;
 - bounded memory lifecycle experiments;
 - source-grounded research with persisted evidence;
@@ -274,7 +274,7 @@ Phase 26 adds an optional, read-only Travel context integration through the shar
 
 Phase 28 adds a separate, read-only Finance context contract through the shared planner, context assembler, and permission-revalidation seams. Both Finance and Personal AI gates default off. Automatic chat routing and the Finance sidecar remain unavailable pending Phase 15/21 prerequisites, an accepted Finance embed contract, and deployed identity/provider privacy checks; see the [Phase 28 evidence](docs/personal-ai-chapter-2/phase-28-implementation-evidence.md).
 
-Phase 29 adds a separate, read-only Health `health-context-read-v1` contract and typed providers through those same shared seams. Both gates default off; Personal AI's current Google OIDC user identity does not satisfy Health's Firebase delegated-user requirement, daily cross-domain consent cannot yet be enabled by an owner, and the Health category sidecar remains unavailable. See the [Phase 29 evidence](docs/personal-ai-chapter-2/phase-29-implementation-evidence.md).
+Phase 29 adds a separate, read-only Health `health-context-read-v1` contract and typed providers through those same shared seams. Its broad context-read gate remains off and unavailable to Personal AI because that contract still requires a Firebase user token. Phase 30 adds a separate, default-off Health federation export using a request-bound, short-lived signed Google-user delegation; both services retain independent consent and owner checks. Shopping still lacks a trusted user-bound destination host, so Phase 30 remains open. See the [Phase 29 evidence](docs/personal-ai-chapter-2/phase-29-implementation-evidence.md) and the [Phase 30/31 follow-up evidence](docs/personal-ai-chapter-2/phase-30-31-follow-up-review-implementation-evidence-2026-10-12.md).
 
 Connected execution requires an operator-provisioned Ed25519 signer that matches the public key pinned in the local bridge's protected compatibility configuration. Set `EXTERNAL_DISPATCH_GRANT_ISSUER`, `EXTERNAL_DISPATCH_GRANT_KEY_ID`, and `EXTERNAL_DISPATCH_GRANT_PRIVATE_KEY` only through a protected local environment file or Secret Manager. The key is never sent to the browser. Manual copy/import does not need this signer or the ChatGPT bridge.
 

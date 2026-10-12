@@ -19,6 +19,7 @@ export function useContinuationSidecar() {
   const [instruction, setInstruction] = useState("Continue from this answer.");
   const [includeTarget, setIncludeTarget] = useState(true);
   const [excludedSources, setExcludedSources] = useState<ContextSourceClass[]>([]);
+  const [selectedFederationChoiceIds, setSelectedFederationChoiceIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<ContextPreview | null>(null);
   const [previewReviewed, setPreviewReviewed] = useState(false);
   const [finalPackageReviewed, setFinalPackageReviewed] = useState(false);
@@ -48,6 +49,7 @@ export function useContinuationSidecar() {
     instruction, setInstruction,
     includeTarget, setIncludeTarget,
     excludedSources, setExcludedSources,
+    selectedFederationChoiceIds, setSelectedFederationChoiceIds,
     preview, setPreview,
     previewReviewed, setPreviewReviewed,
     finalPackageReviewed, setFinalPackageReviewed,

@@ -12,6 +12,8 @@ import {
   type BridgeConnection,
   type BridgeModel,
   type ContextSourceClass,
+  type FederationChoiceOption,
+  type FederationContextChoice,
   type PreparedExternalTurn,
   type SidecarActionOptions,
 } from "../../../lib/api/external-turns";
@@ -39,9 +41,10 @@ type Props = {
   draftTargets?: readonly { id: string; label: string }[];
   onDraftInsert?: (targetId: string, text: string) => void;
   transportAdapters?: readonly ExternalTransportAdapter[];
+  federationChoices?: readonly FederationChoiceOption[];
   target: Message;
   onClose: () => void;
-  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest, launchContext: ApplicationLaunchContext) => void;
+  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest, launchContext: ApplicationLaunchContext, federationContext: FederationContextChoice[]) => void;
   onExternalPrepared?: (messageId: string) => Promise<void>;
   onExternalDelta?: (messageId: string, delta: string) => void;
   onExternalCompleted?: (message: Message) => void;
@@ -67,6 +70,7 @@ const NARROWABLE_SOURCES: { id: ContextSourceClass; label: string }[] = [
 ];
 
 const DEFAULT_SCOPE: ApplicationScopeRequest = { applicationId: "personal_ai" };
+const EMPTY_FEDERATION_CHOICES: readonly FederationChoiceOption[] = [];
 const noop = () => undefined;
 
 const CONTEXT_CLASSES: ContextSourceClass[] = [
@@ -97,13 +101,14 @@ function launchFor(
 }
 const noopPrepared = async () => undefined;
 
-export function ContinuationSidecar({ mutationProposalId, mutationCandidateOperation, conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
+export function ContinuationSidecar({ mutationProposalId, mutationCandidateOperation, conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, federationChoices = EMPTY_FEDERATION_CHOICES, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
   const {
     options, setOptions,
     mode, setMode,
     instruction, setInstruction,
     includeTarget, setIncludeTarget,
     excludedSources, setExcludedSources,
+    selectedFederationChoiceIds, setSelectedFederationChoiceIds,
     preview, setPreview,
     previewReviewed, setPreviewReviewed,
     finalPackageReviewed, setFinalPackageReviewed,
@@ -146,6 +151,23 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
     [scope, effectiveLaunch],
   );
   const actionOptions: SidecarActionOptions | null = options?.sidecar ?? null;
+  const federationChoiceById = useMemo(
+    () => new Map(federationChoices.map(option => [option.id, option])),
+    [federationChoices],
+  );
+  const selectedFederationChoices = selectedFederationChoiceIds
+    .map(id => federationChoiceById.get(id))
+    .filter((option): option is FederationChoiceOption => option !== undefined);
+  const selectedFederationContext = selectedFederationChoices.map(option => option.choice);
+
+  useEffect(() => {
+    setSelectedFederationChoiceIds(current => {
+      const next = current.filter(id => federationChoiceById.has(id)).slice(0, 4);
+      return next.length === current.length && next.every((id, index) => id === current[index])
+        ? current
+        : next;
+    });
+  }, [federationChoiceById]);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,7 +307,7 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
   function submitAutomatic(event: FormEvent) {
     event.preventDefault();
     if (!instruction.trim() || busy) return;
-    onAutomatic(instruction.trim(), target, includeTargetEffective, requestScope, effectiveLaunch);
+    onAutomatic(instruction.trim(), target, includeTargetEffective, requestScope, effectiveLaunch, selectedFederationContext);
   }
 
   function requestFor(modeChoice: "manual_external" | "connected_provider", idempotencyKey: string) {
@@ -315,6 +337,7 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
       candidate_message_ids: includeTargetEffective ? [target.id] : [],
       launch_context: effectiveLaunch,
       excluded_source_classes: [...new Set([...excludedSources, ...policyExcludedSources])],
+      ...(selectedFederationContext.length > 0 ? { federation_context: selectedFederationContext } : {}),
     };
   }
 
@@ -739,6 +762,28 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
         Include this completed turn as a context candidate
       </label>
       {manualTargetDenied && <p className={styles.note} role="status">This imported turn is excluded by the application’s manual reuse policy.</p>}
+      {federationChoices.length > 0 && <fieldset className={styles.form} disabled={busy || !!prepared || !!recovery}>
+        <legend>Shared context from other apps</legend>
+        <p className={styles.note}>Personal AI rechecks each selected grant and source permission when it builds the context.</p>
+        {federationChoices.map(option => <label className={styles.checkboxLabel} key={option.id}>
+          <input
+            type="checkbox"
+            checked={selectedFederationChoiceIds.includes(option.id)}
+            disabled={!selectedFederationChoiceIds.includes(option.id) && selectedFederationChoiceIds.length >= 4}
+            onChange={event => {
+              setSelectedFederationChoiceIds(current => event.target.checked
+                ? [...current, option.id]
+                : current.filter(id => id !== option.id));
+              setPreview(null);
+              setPreviewReviewed(false);
+            }}
+          />
+          Include {option.categoryLabel}
+        </label>)}
+        {selectedFederationChoices.length > 0 && <p className={styles.note} role="status">
+          Included shared context: {selectedFederationChoices.map(option => option.categoryLabel).join(", ")}
+        </p>}
+      </fieldset>}
       {mode !== "automatic" && <fieldset className={styles.form} disabled={busy || !!prepared}>
         <legend>Narrow sources for this external turn</legend>
         <p className={styles.note}>These controls only omit sources from the shared authorized planner. They cannot force a source into the package.</p>

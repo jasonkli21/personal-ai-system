@@ -47,8 +47,10 @@ from personal_ai.auth.scope import (
     DenyWorkspaceAuthorizer,
     RequestScope,
     bind_request_scope,
+    bind_verified_principal,
     bind_verified_user_identity_token,
     reset_request_scope,
+    reset_verified_principal,
     reset_verified_user_identity_token,
 )
 from personal_ai.auth.verification import (
@@ -651,6 +653,11 @@ class AuthenticationMiddleware:
             identity_token = (
                 bind_verified_user_identity_token(verified_user_token) if response is None else None
             )
+            principal_token = (
+                bind_verified_principal(getattr(request.state, "principal", None))
+                if response is None
+                else None
+            )
             if response is None:
                 await self.app(scope, app_receive, harden_send)
             else:
@@ -675,6 +682,8 @@ class AuthenticationMiddleware:
                 reset_request_scope(scope_token)
             if "identity_token" in locals() and identity_token is not None:
                 reset_verified_user_identity_token(identity_token)
+            if "principal_token" in locals() and principal_token is not None:
+                reset_verified_principal(principal_token)
 
 
 def _harden_response(response: Response, request: Request, correlation_id: str) -> Response:

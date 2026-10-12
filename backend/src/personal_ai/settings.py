@@ -168,6 +168,16 @@ class Settings(BaseSettings):
     health_context_service_audience: str = Field(default="", max_length=500)
     health_context_service_account: str = Field(default="", max_length=254)
     health_context_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
+    # Health federation is separately gated and signs a short-lived request-bound
+    # assertion; no user bearer credential is forwarded to the Health service.
+    health_federation_enabled: bool = False
+    health_federation_delegation_issuer: str = Field(
+        default="personal-ai-system", min_length=2, max_length=100
+    )
+    health_federation_delegation_key_id: str = Field(
+        default="health-federation-v1", min_length=1, max_length=80
+    )
+    health_federation_delegation_private_key: SecretStr = Field(default=SecretStr(""))
     worker_push_auth_required: bool = False
     worker_push_audience: str = Field(default="", max_length=500)
     worker_push_service_account: str = Field(default="", max_length=254)
@@ -380,7 +390,7 @@ class Settings(BaseSettings):
                 or not self.finance_context_service_account.strip()
             ):
                 raise ValueError("finance_context_identity_configuration_required")
-        if self.health_context_enabled:
+        if self.health_context_enabled or self.health_federation_enabled:
             health_url = str(self.health_context_base_url)
             if (
                 self.auth_mode != "google_oidc"
@@ -390,6 +400,26 @@ class Settings(BaseSettings):
                 or not self.health_context_service_account.strip()
             ):
                 raise ValueError("health_context_identity_configuration_required")
+        if self.health_federation_enabled:
+            if (
+                not self.health_federation_delegation_issuer.strip()
+                or not self.health_federation_delegation_key_id.strip()
+            ):
+                raise ValueError("health_federation_delegation_configuration_required")
+            import base64
+
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+            encoded_key = self.health_federation_delegation_private_key.get_secret_value().strip()
+            try:
+                private_key = base64.b64decode(
+                    encoded_key + "=" * (-len(encoded_key) % 4),
+                    altchars=b"-_",
+                    validate=True,
+                )
+                Ed25519PrivateKey.from_private_bytes(private_key)
+            except (ValueError, TypeError):
+                raise ValueError("health_federation_delegation_key_invalid") from None
         signer_key = self.external_dispatch_grant_private_key.get_secret_value().strip()
         signer_configured = bool(
             signer_key

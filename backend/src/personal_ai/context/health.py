@@ -699,5 +699,9 @@ def health_context_planning_rules() -> tuple[ContextPlanningRule, ...]:
 
 
 def configured_health_context_contribution(settings) -> ContextRuntimeContribution:
-    """Keep the Health adapter unregistered until delegated identity is accepted."""
-    return ContextRuntimeContribution(provider_factories={})
+    """Keep context reads off while installing only configured Health federation exports."""
+    from personal_ai.context.health_federation import (
+        configured_health_federation_export_contribution,
+    )
+
+    return configured_health_federation_export_contribution(settings)

@@ -214,6 +214,26 @@ class MutationUnavailableError(MutationError):
     """Authority/runtime could not be checked before a physical effect was reserved."""
 
 
+class MutationCandidateNotApplicableError(MutationError):
+    """The completed output does not describe this registered operation."""
+
+    def __init__(self) -> None:
+        super().__init__("mutation_candidate_not_applicable")
+
+
+class MutationCandidateInvalidError(MutationError):
+    """The output is relevant, but cannot satisfy the operation's stable input rules."""
+
+    def __init__(self) -> None:
+        super().__init__("mutation_candidate_invalid")
+
+
+class MutationAdapterContractError(RuntimeError):
+    """A registered adapter failed to return its declared candidate contract."""
+
+    code = "mutation_candidate_adapter_contract_invalid"
+
+
 class MutationAdapter(Protocol):
     """Domain-owned authority, not a generic database writer.
 

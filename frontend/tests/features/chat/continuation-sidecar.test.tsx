@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ContinuationSidecar } from "../../../src/features/chat/continuation-sidecar/ContinuationSidecar";
 import type { Message } from "../../../src/lib/api/conversations";
 import type { PreparedExternalTurn } from "../../../src/lib/api/external-turns";
+import type { FederationChoiceOption } from "../../../src/lib/api/external-turns";
 
 const target: Message = {
   id: "answer-1",
@@ -92,6 +93,25 @@ const contextCategories = [
   "ai_memory", "conversation", "external_research", "tool_result", "client_context",
 ];
 
+const healthTravelChoice: FederationChoiceOption = {
+  id: "health-travel-choice",
+  categoryLabel: "Health dietary restrictions for Travel",
+  choice: {
+    provider_id: "federation.health_dietary_to_travel",
+    fields: ["dietary_restrictions"],
+    federation: {
+      grant_id: "grant-private-identifier",
+      issuance_id: "issuance-private-identifier",
+      revision: 3,
+      epoch: 2,
+      source: { application_id: "health", workspace_id: null },
+      category: "dietary_restrictions",
+      purpose: "health_dietary_restrictions_to_travel",
+      entities: [{ application_id: "health", workspace_id: null, entity_type: "profile_item", entity_id: "source-private-identifier" }],
+    },
+  },
+};
+
 function executionOptions(
   modes: string[],
   explicitProfiles: unknown[] = [],
@@ -177,6 +197,7 @@ describe("continuation sidecar", () => {
         client_context: {},
       },
     });
+    expect(JSON.parse(String(previewCall?.[1]?.body))).not.toHaveProperty("federation_context");
     fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
     fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
     expect(await screen.findByText(/Estimated 42 tokens/)).toBeInTheDocument();
@@ -279,8 +300,75 @@ describe("continuation sidecar", () => {
         conversation_id: "conversation-1",
         client_context: {},
       },
+      [],
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the same selected federation choice through external preview, prepare, and automatic continuation", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(executionOptions(["automatic", "manual_external"])))
+      .mockResolvedValueOnce(jsonResponse(preview))
+      .mockResolvedValueOnce(jsonResponse(prepared));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAutomatic = vi.fn();
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      federationChoices={[healthTravelChoice]}
+      target={target}
+      onClose={vi.fn()}
+      onAutomatic={onAutomatic}
+      onSaved={vi.fn()}
+    />);
+
+    const categoryLabel = "Health dietary restrictions for Travel";
+    fireEvent.click(await screen.findByLabelText(`Include ${categoryLabel}`));
+    expect(screen.getByText(`Included shared context: ${categoryLabel}`)).toBeInTheDocument();
+    const dialogText = screen.getByRole("dialog").textContent ?? "";
+    expect(dialogText).not.toContain("grant-private-identifier");
+    expect(dialogText).not.toContain("issuance-private-identifier");
+    expect(dialogText).not.toContain("source-private-identifier");
+    expect(dialogText).not.toContain("permission_version");
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
+    await screen.findByText("Bounded context preview");
+    const previewBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(previewBody.federation_context).toEqual([healthTravelChoice.choice]);
+    fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
+    await screen.findByText(/Estimated 42 tokens/);
+    const prepareBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
+    expect(prepareBody.federation_context).toEqual(previewBody.federation_context);
+
+    cleanup();
+    fetchMock.mockReset().mockResolvedValueOnce(jsonResponse(executionOptions(["automatic", "manual_external"])));
+    render(<ContinuationSidecar
+      conversationId="conversation-1"
+      federationChoices={[healthTravelChoice]}
+      target={target}
+      onClose={vi.fn()}
+      onAutomatic={onAutomatic}
+      onSaved={vi.fn()}
+    />);
+    fireEvent.click(await screen.findByLabelText(`Include ${categoryLabel}`));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Execution mode" }), { target: { value: "automatic" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Personal AI" }));
+    expect(onAutomatic).toHaveBeenLastCalledWith(
+      "Continue from this answer.",
+      target,
+      true,
+      { applicationId: "personal_ai", clientContext: {} },
+      {
+        schema_version: "application-launch-v1",
+        application_id: "personal_ai",
+        workspace_id: null,
+        entity_refs: [],
+        view_id: null,
+        conversation_id: "conversation-1",
+        client_context: {},
+      },
+      [healthTravelChoice.choice],
+    );
   });
 
   it("creates a proposal from the selected canonical output and gives the opaque ID to the shared panel", async () => {
@@ -753,6 +841,7 @@ describe("continuation sidecar", () => {
         conversation_id: "conversation-1",
         client_context: {},
       },
+      [],
     );
   });
 });

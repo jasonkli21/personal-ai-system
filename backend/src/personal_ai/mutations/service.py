@@ -9,6 +9,9 @@ from personal_ai.mutations.contracts import (
     Confirmation,
     DomainOutcome,
     DomainValidation,
+    MutationAdapterContractError,
+    MutationCandidateInvalidError,
+    MutationCandidateNotApplicableError,
     MutationCandidateRequest,
     MutationError,
     MutationProposal,
@@ -219,11 +222,24 @@ class MutationService:
             raise
         try:
             resolved = adapter.candidate_from_output(scope, message)
-            resolved = TypedMutationCandidate.model_validate_json(resolved.model_dump_json())
-        except MutationUnavailableError:
+        except (
+            MutationUnavailableError,
+            MutationCandidateNotApplicableError,
+            MutationCandidateInvalidError,
+        ):
             raise
         except Exception as error:
-            raise MutationUnavailableError("mutation_candidate_conversion_unavailable") from error
+            raise MutationAdapterContractError(
+                "mutation_candidate_adapter_contract_invalid"
+            ) from error
+        try:
+            if not isinstance(resolved, TypedMutationCandidate):
+                raise TypeError("mutation_candidate_type_invalid")
+            resolved = TypedMutationCandidate.model_validate_json(resolved.model_dump_json())
+        except Exception as error:
+            raise MutationAdapterContractError(
+                "mutation_candidate_adapter_contract_invalid"
+            ) from error
         endpoint_profile_id = (
             message.execution.endpoint_profile_id if message.execution is not None else None
         )
@@ -235,9 +251,21 @@ class MutationService:
             ensure_ascii=False,
         )
         producer = ProducerProvenance(
-            provider_id=attribution.provider_id,
-            model_id=attribution.model_id,
-            endpoint_profile_id=endpoint_profile_id,
+            # Manual-import labels remain bound by attribution_fingerprint but
+            # cannot be projected as verified producer identity.
+            provider_id=(
+                attribution.provider_id
+                if attribution.execution_origin != "manual_import"
+                else None
+            ),
+            model_id=(
+                attribution.model_id if attribution.execution_origin != "manual_import" else None
+            ),
+            endpoint_profile_id=(
+                endpoint_profile_id
+                if attribution.execution_origin != "manual_import"
+                else None
+            ),
             output_message_id=message.id,
             output_fingerprint=output_fingerprint,
             attribution_fingerprint=sha256(attribution_json.encode("utf-8")).hexdigest(),

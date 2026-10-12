@@ -60,6 +60,15 @@ class Repository:
     def get(self, owner_id, grant_id):
         return self.records.get((owner_id, grant_id))
 
+    def list_destination(self, owner_id, destination):
+        return tuple(
+            grant
+            for (grant_owner, _), grant in self.records.items()
+            if grant_owner == owner_id
+            and grant.destination == destination
+            and grant.state == "active"
+        )
+
     def save(self, grant, *, expected_revision):
         with self.lock:
             validate_transition(self.get(grant.owner_id, grant.grant_id), grant, expected_revision)
@@ -954,6 +963,41 @@ def test_registered_grant_api_idempotency_revocation_and_owner_isolation(federat
     )
     assert client.get(f"/v1/federation/grants/{grant_id}").status_code == 404
     assert f["adapter"].calls == 0
+
+
+def test_destination_host_lists_only_current_grant_choices_without_permission_metadata(federation):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from personal_ai.api.dependencies import get_request_scope, require_recent_auth
+    from personal_ai.api.federation import choice_authority_dependency, router
+
+    f = federation
+    f["authority"].create(f["principal"], f["intent"])
+    app = FastAPI()
+    app.include_router(router)
+    app.state.application_registry = f["registry"]
+    app.dependency_overrides.update(
+        {
+            require_recent_auth: lambda: f["principal"],
+            get_request_scope: lambda: f["scope"],
+            choice_authority_dependency: lambda: f["authority"],
+        }
+    )
+
+    response = TestClient(app).get("/v1/federation/grants/choices")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
+    payload = response.json()
+    assert len(payload["choices"]) == 1
+    option = payload["choices"][0]
+    assert option["category_label"] == "Synthetic Source · constraints"
+    assert option["choice"]["federation"]["grant_id"] == str(f["grant"].grant_id)
+    assert "source_policy" not in option
+    assert "permission_id" not in response.text
+    assert "source_revision" not in response.text
 
 
 def test_concurrent_identical_grant_create_returns_canonical_record(federation, monkeypatch):
