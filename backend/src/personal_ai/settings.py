@@ -138,6 +138,9 @@ class Settings(BaseSettings):
     auth_allowed_emails: tuple[str, ...] = Field(default=(), max_length=1)
     auth_hosted_domain: str = Field(default="", max_length=253)
     auth_recent_token_seconds: int = Field(default=300, ge=60, le=900)
+    # HMAC key keeps destination choice handles opaque and binds them to one
+    # grant issuance, owner/actor and exact destination. Required with federation.
+    federation_choice_hmac_key: SecretStr = Field(default=SecretStr(""))
     # Travel context reads are a separate opt-in integration. In hosted mode
     # both the Travel service audience/account and verified user identity are
     # required; local/test mode may use the explicit local owner fixture.
@@ -358,6 +361,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_context_budget(self) -> "Settings":
+        if (
+            self.travel_federation_enabled
+            or self.health_federation_enabled
+            or self.finance_context_enabled
+        ) and len(self.federation_choice_hmac_key.get_secret_value().encode("utf-8")) < 32:
+            raise ValueError("federation_choice_hmac_key_required")
         if self.travel_context_enabled or self.travel_federation_enabled:
             travel_url = str(self.travel_context_base_url)
             if self.auth_mode == "google_oidc":

@@ -127,13 +127,16 @@ def require_recent_auth(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    """Require a recently issued Google credential for account lifecycle actions."""
+    """Require a verified, recent upstream authentication event."""
     principal = get_current_principal(request)
     now = int(time.time())
     if (
         not principal.authenticated
-        or principal.issued_at > now + 60
-        or now - principal.issued_at > settings.auth_recent_token_seconds
+        or principal.authenticated_at is None
+        or not isinstance(principal.authenticated_at, int)
+        or isinstance(principal.authenticated_at, bool)
+        or principal.authenticated_at > now + 60
+        or now - principal.authenticated_at > settings.auth_recent_token_seconds
     ):
         raise HTTPException(status_code=401, detail="reauthentication_required")
     return principal

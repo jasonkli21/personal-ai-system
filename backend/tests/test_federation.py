@@ -35,6 +35,7 @@ from personal_ai.contracts.context_references import (
     ContextPermissionDependency,
     ContextSourceReference,
 )
+from personal_ai.contracts.execution import ContinuationRequestPayload
 from personal_ai.contracts.federation import FederationExportDeclaration, FederationSelection
 from personal_ai.federation.broker import (
     FederationCase,
@@ -79,11 +80,13 @@ class Repository:
 class SourcePolicy:
     permission_namespaces = ("synthetic_policy:", "synthetic_revision:")
     current = True
+    calls = 0
 
     def supports(self, dependency):
         return dependency.permission_id.startswith(self.permission_namespaces)
 
     def is_current(self, dependency):
+        self.calls += 1
         return self.current and self.supports(dependency)
 
 
@@ -126,7 +129,9 @@ def federation():
         source_scope=source,
     )
     repository, source_policy = Repository(), SourcePolicy()
-    authority = FederationPermissionAuthority(repository, source_policy)
+    authority = FederationPermissionAuthority(
+        repository, source_policy, choice_hmac_key=b"synthetic-federation-choice-key-32"
+    )
     principal = AuthenticatedPrincipal("issuer", "user", "owner", None, 1, True)
     case = FederationCase(
         source.application_id,
@@ -141,6 +146,7 @@ def federation():
 
     class Adapter:
         calls = 0
+        authorize_calls = 0
         hook = None
         export_allowed = True
 
@@ -151,6 +157,7 @@ def federation():
             )
 
         def authorize_export(self, granted, selected, acting_scope, *, deadline):
+            self.authorize_calls += 1
             return (
                 self.export_allowed
                 and selected.federation.category == granted.category
@@ -985,6 +992,8 @@ def test_destination_host_lists_only_current_grant_choices_without_permission_me
         }
     )
 
+    source_checks_before_list = f["source_policy"].calls
+    export_checks_before_list = f["adapter"].authorize_calls
     response = TestClient(app).get("/v1/federation/grants/choices")
 
     assert response.status_code == 200
@@ -994,11 +1003,100 @@ def test_destination_host_lists_only_current_grant_choices_without_permission_me
     assert len(payload["choices"]) == 1
     option = payload["choices"][0]
     assert option["category_label"] == "Synthetic Source · constraints"
-    assert option["choice"]["federation"]["grant_id"] == str(f["grant"].grant_id)
-    assert "source_policy" not in option
+    assert set(option) == {"id", "category_label"}
+    assert len(option["id"]) == 43
+    assert str(f["grant"].grant_id) not in response.text
+    assert str(f["grant"].issuance_id) not in response.text
+    assert "synthetic_source" not in response.text
+    assert "variant-2" not in response.text
     assert "permission_id" not in response.text
     assert "source_revision" not in response.text
+    assert f["source_policy"].calls == source_checks_before_list
+    assert f["adapter"].authorize_calls == export_checks_before_list
 
+
+def test_opaque_choice_handles_bind_owner_destination_issuance_and_current_grant(federation):
+    f = federation
+    source_checks_before_resolve = f["source_policy"].calls
+    export_checks_before_resolve = f["adapter"].authorize_calls
+    handle = f["authority"].current_choices(f["principal"], f["destination"])[0]["id"]
+    choices = f["authority"].resolve_choice_handles(
+        f["principal"], f["destination"], (handle,)
+    )
+    assert f["source_policy"].calls == source_checks_before_resolve
+    assert f["adapter"].authorize_calls == export_checks_before_resolve
+    assert len(choices) == 1
+    assert choices[0].federation.grant_id == f["grant"].grant_id
+    assert choices[0].fields == f["grant"].fields
+
+    with pytest.raises(ValueError, match="federation_choice_invalid"):
+        f["authority"].resolve_choice_handles(
+            f["principal"],
+            ApplicationScope(
+                application_id=f["destination"].application_id,
+                workspace_id="another-destination",
+            ),
+            (handle,),
+        )
+    other_owner = f["principal"].__class__("issuer", "other", "other-owner", None, 1, True)
+    with pytest.raises(ValueError, match="federation_choice_invalid"):
+        f["authority"].resolve_choice_handles(other_owner, f["destination"], (handle,))
+
+    revoked = f["authority"].revoke(
+        f["principal"],
+        f["grant"].grant_id,
+        expected_revision=f["grant"].revision,
+        expected_issuance_id=f["grant"].issuance_id,
+    )
+    with pytest.raises(ValueError, match="federation_choice_invalid"):
+        f["authority"].resolve_choice_handles(f["principal"], f["destination"], (handle,))
+
+    f["repository"].records.pop((revoked.owner_id, revoked.grant_id))
+    recreated = f["authority"].create(f["principal"], f["intent"])
+    current_handle = f["authority"].current_choices(f["principal"], f["destination"])[0]["id"]
+    assert recreated.issuance_id != f["grant"].issuance_id
+    assert current_handle != handle
+    with pytest.raises(ValueError, match="federation_choice_invalid"):
+        f["authority"].resolve_choice_handles(f["principal"], f["destination"], (handle,))
+
+
+def test_api_continuation_resolves_opaque_handles_before_shared_context_use(federation):
+    from personal_ai.api.federation_choices import resolve_continuation_payload
+
+    f = federation
+    source_checks_before_resolve = f["source_policy"].calls
+    export_checks_before_resolve = f["adapter"].authorize_calls
+    handle = f["authority"].current_choices(f["principal"], f["destination"])[0]["id"]
+    payload = ContinuationRequestPayload(
+        content="Use the selected constraints.",
+        idempotency_key=uuid4(),
+        federation_choice_ids=(handle,),
+    )
+    internal = resolve_continuation_payload(
+        payload, f["principal"], f["scope"], f["runtime"]
+    )
+    assert internal.federation_context[0].federation.grant_id == f["grant"].grant_id
+    assert f["source_policy"].calls == source_checks_before_resolve
+    assert f["adapter"].authorize_calls == export_checks_before_resolve
+
+    selection = internal.explicit_context_selections[0]
+    f["coordinator"].prepare(
+        f["context"], (selection,), ContextProviderInputs(f["scope"])
+    )
+    assert f["source_policy"].calls > 0
+    assert f["adapter"].authorize_calls > 0
+
+    with pytest.raises(ValidationError):
+        ContinuationRequestPayload.model_validate(
+            {
+                "content": "Use the selected constraints.",
+                "idempotency_key": str(uuid4()),
+                "choice": {"mode": "automatic"},
+                "federation_context": [
+                    internal.federation_context[0].model_dump(mode="json")
+                ],
+            }
+        )
 
 def test_concurrent_identical_grant_create_returns_canonical_record(federation, monkeypatch):
     f = federation

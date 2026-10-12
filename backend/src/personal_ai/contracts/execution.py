@@ -1,5 +1,6 @@
 """Provider-neutral request choices for shared conversation continuation."""
 
+import re
 from enum import StrEnum
 from hashlib import sha256
 from typing import Literal
@@ -160,3 +161,37 @@ class ContinuationRequest(BaseModel):
             ensure_ascii=False,
         ).encode("utf-8")
         return sha256(canonical).hexdigest()
+
+
+class ContinuationRequestPayload(BaseModel):
+    """Browser/API continuation contract; federation authority stays server-side."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    content: str = Field(min_length=1, max_length=20000)
+    idempotency_key: UUID
+    choice: ExecutionChoice = Field(default_factory=ExecutionChoice)
+    federation_choice_ids: tuple[str, ...] = Field(default=(), max_length=4)
+    candidate_message_ids: tuple[UUID, ...] | None = Field(default=None, max_length=10000)
+    launch_context: ApplicationLaunchContext | None = None
+    excluded_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
+
+    @model_validator(mode="after")
+    def choices_and_exclusions_are_unique(self):
+        if any(not re.fullmatch(r"[A-Za-z0-9_-]{43}", handle) for handle in self.federation_choice_ids):
+            raise ValueError("federation_choice_invalid")
+        if len(set(self.federation_choice_ids)) != len(self.federation_choice_ids):
+            raise ValueError("federation_choices_must_be_unique")
+        if len(set(self.excluded_source_classes)) != len(self.excluded_source_classes):
+            raise ValueError("context_source_exclusions_must_be_unique")
+        return self
+
+    def to_internal_request(self, federation_context=()) -> ContinuationRequest:
+        return ContinuationRequest(
+            content=self.content,
+            idempotency_key=self.idempotency_key,
+            choice=self.choice,
+            federation_context=tuple(federation_context),
+            candidate_message_ids=self.candidate_message_ids,
+            launch_context=self.launch_context,
+            excluded_source_classes=self.excluded_source_classes,
+        )

@@ -13,13 +13,16 @@ from fastapi.responses import StreamingResponse
 from personal_ai.api.chat_stream import sse_frames
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
+    get_context_runtime_registry,
     get_context_trace_repository,
     get_conversation_service,
+    get_current_principal,
     get_lifecycle_repository,
     get_memory_repository,
     get_request_scope,
     get_summary_repository,
 )
+from personal_ai.api.federation_choices import resolve_continuation_payload
 from personal_ai.api.schemas import (
     ConversationDetailResponse,
     ConversationListResponse,
@@ -28,14 +31,16 @@ from personal_ai.api.schemas import (
     EditAndRetryRequest,
     ErrorResponse,
 )
+from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context.contracts import ConversationSummaryRepository
 from personal_ai.context.inspection import ContextInspector
+from personal_ai.context.runtime import ContextRuntimeRegistry
 from personal_ai.context.traces import (
     ContextTraceRepository,
     UnsupportedContextTraceSchemaError,
 )
-from personal_ai.contracts.execution import ContinuationRequest
+from personal_ai.contracts.execution import ContinuationRequestPayload
 from personal_ai.entities import Conversation
 from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.settings import Settings, get_settings
@@ -172,11 +177,15 @@ def create_message(
 )
 def continue_conversation_turn(
     conversation_id: UUID,
-    continuation: ContinuationRequest,
+    continuation: ContinuationRequestPayload,
     http_request: Request,
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
+    scope: Annotated[RequestScope, Depends(get_request_scope)],
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     service: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
 ) -> StreamingResponse:
     """Continue through the shared automatic lane or external-turn preparation UI."""
+    continuation = resolve_continuation_payload(continuation, principal, scope, runtime)
     if continuation.choice.mode != "automatic":
         raise HTTPException(status_code=422, detail="external_choice_requires_preparation")
     request_id = _request_id(http_request)

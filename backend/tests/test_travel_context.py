@@ -344,6 +344,7 @@ def test_travel_federation_capability_is_discovered_only_with_executable_adapter
         auth_mode="development",
         app_environment="test",
         travel_federation_enabled=True,
+        federation_choice_hmac_key="synthetic-federation-choice-key-32",
     )
     contribution = configured_travel_context_contribution(settings)
     assert set(contribution.export_adapters) == {TRAVEL_TRIP_EXPORT_PROVIDER_ID}

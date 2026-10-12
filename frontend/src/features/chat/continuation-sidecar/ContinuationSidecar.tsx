@@ -13,7 +13,6 @@ import {
   type BridgeModel,
   type ContextSourceClass,
   type FederationChoiceOption,
-  type FederationContextChoice,
   type PreparedExternalTurn,
   type SidecarActionOptions,
 } from "../../../lib/api/external-turns";
@@ -44,7 +43,7 @@ type Props = {
   federationChoices?: readonly FederationChoiceOption[];
   target: Message;
   onClose: () => void;
-  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest, launchContext: ApplicationLaunchContext, federationContext: FederationContextChoice[]) => void;
+  onAutomatic: (instruction: string, target: Message, includeTarget: boolean, scope: ApplicationScopeRequest, launchContext: ApplicationLaunchContext, federationChoiceIds: string[]) => void;
   onExternalPrepared?: (messageId: string) => Promise<void>;
   onExternalDelta?: (messageId: string, delta: string) => void;
   onExternalCompleted?: (message: Message) => void;
@@ -158,7 +157,6 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
   const selectedFederationChoices = selectedFederationChoiceIds
     .map(id => federationChoiceById.get(id))
     .filter((option): option is FederationChoiceOption => option !== undefined);
-  const selectedFederationContext = selectedFederationChoices.map(option => option.choice);
 
   useEffect(() => {
     setSelectedFederationChoiceIds(current => {
@@ -307,7 +305,7 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
   function submitAutomatic(event: FormEvent) {
     event.preventDefault();
     if (!instruction.trim() || busy) return;
-    onAutomatic(instruction.trim(), target, includeTargetEffective, requestScope, effectiveLaunch, selectedFederationContext);
+    onAutomatic(instruction.trim(), target, includeTargetEffective, requestScope, effectiveLaunch, selectedFederationChoiceIds);
   }
 
   function requestFor(modeChoice: "manual_external" | "connected_provider", idempotencyKey: string) {
@@ -337,7 +335,7 @@ export function ContinuationSidecar({ mutationProposalId, mutationCandidateOpera
       candidate_message_ids: includeTargetEffective ? [target.id] : [],
       launch_context: effectiveLaunch,
       excluded_source_classes: [...new Set([...excludedSources, ...policyExcludedSources])],
-      ...(selectedFederationContext.length > 0 ? { federation_context: selectedFederationContext } : {}),
+      ...(selectedFederationChoiceIds.length > 0 ? { federation_choice_ids: selectedFederationChoiceIds } : {}),
     };
   }
 

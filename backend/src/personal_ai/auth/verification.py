@@ -84,6 +84,7 @@ def principal_from_google_token(token: str, settings: Settings) -> Authenticated
     email = claims.get("email")
     email_verified = claims.get("email_verified")
     issued_at = claims.get("iat")
+    authenticated_at = claims.get("auth_time")
     if (
         not isinstance(subject, str)
         or not subject
@@ -91,6 +92,13 @@ def principal_from_google_token(token: str, settings: Settings) -> Authenticated
         or email.strip().lower() not in settings.auth_allowed_emails
         or email_verified is not True
         or not isinstance(issued_at, (int, float))
+    ):
+        raise InvalidIdentityToken
+    if authenticated_at is not None and (
+        isinstance(authenticated_at, bool)
+        or not isinstance(authenticated_at, int)
+        or authenticated_at < 0
+        or authenticated_at > now_with_skew()
     ):
         raise InvalidIdentityToken
     email_domain = email.strip().lower().rsplit("@", 1)[-1]
@@ -110,6 +118,7 @@ def principal_from_google_token(token: str, settings: Settings) -> Authenticated
         email=email.strip().lower(),
         issued_at=int(issued_at),
         authenticated=True,
+        authenticated_at=authenticated_at,
     )
 
 

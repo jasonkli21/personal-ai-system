@@ -41,6 +41,12 @@ def delegated_user_assertion(
         or lifetime_seconds > 120
         or principal.issued_at > current + 30
         or current - principal.issued_at > 300
+        or principal.authenticated_at is None
+        or not isinstance(principal.authenticated_at, int)
+        or isinstance(principal.authenticated_at, bool)
+        or principal.authenticated_at < 0
+        or principal.authenticated_at > current + 30
+        or current - principal.authenticated_at > 300
     ):
         raise ValueError("delegated_user_identity_unavailable")
 
@@ -59,7 +65,7 @@ def delegated_user_assertion(
         "user_subject": principal.subject,
         "iat": current,
         "exp": current + lifetime_seconds,
-        "auth_time": principal.issued_at,
+        "auth_time": principal.authenticated_at,
         "jti": str(uuid4()),
         "request_sha256": sha256(encoded_body).hexdigest(),
         "purpose": request_body.get("purpose"),

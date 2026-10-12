@@ -10,28 +10,30 @@ from pydantic import Field
 from personal_ai.api.dependencies import (
     get_application_context,
     get_chat_turn_service,
+    get_context_runtime_registry,
+    get_current_principal,
     get_endpoint_registry,
     get_external_dispatch_signer,
     get_external_turn_service,
     get_settings,
 )
+from personal_ai.api.federation_choices import resolve_continuation_payload
 from personal_ai.api.schemas import APIModel
 from personal_ai.applications.contracts import (
     ApplicationContextRequest,
     ApplicationSidecarPolicy,
 )
+from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner, SignedDispatchGrant
 from personal_ai.context.authorization import authorize_base_disclosure
-from personal_ai.contracts.execution import ContinuationRequest, ExternalFailureCode
+from personal_ai.context.runtime import ContextRuntimeRegistry
+from personal_ai.contracts.execution import ContinuationRequestPayload, ExternalFailureCode
 from personal_ai.entities import Message
 from personal_ai.llm.external import PreparedExecution
 from personal_ai.routing.contracts import EndpointRef
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services.chat import ChatTurnService
-from personal_ai.services.external_turns import (
-    ContextPackage,
-    ExternalTurnService,
-)
+from personal_ai.services.external_turns import ContextPackage, ExternalTurnService
 from personal_ai.settings import Settings
 
 
@@ -142,11 +144,14 @@ class ContextPreviewResponse(APIModel):
 )
 def preview_automatic_context(
     conversation_id: UUID,
-    request: ContinuationRequest,
+    payload: ContinuationRequestPayload,
     context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     service: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
 ) -> ContextPreviewResponse:
     """Show the shared automatic planner's bounded source choices before a turn."""
+    request = resolve_continuation_payload(payload, principal, context.scope, runtime)
     if request.choice.mode != "automatic":
         raise HTTPException(status_code=422, detail="context_preview_requires_automatic_mode")
     if request.launch_context is not None:
@@ -277,9 +282,13 @@ def execution_options(
 )
 def preview_external_turn(
     conversation_id: UUID,
-    request: ContinuationRequest,
+    payload: ContinuationRequestPayload,
+    context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     service: Annotated[ExternalTurnService, Depends(get_external_turn_service)],
 ) -> ContextPreviewResponse:
+    request = resolve_continuation_payload(payload, principal, context.scope, runtime)
     return ContextPreviewResponse.model_validate(service.preview(conversation_id, request))
 
 
@@ -318,9 +327,13 @@ def abandon_external_turn_by_key(
 )
 def prepare_external_turn(
     conversation_id: UUID,
-    request: ContinuationRequest,
+    payload: ContinuationRequestPayload,
+    context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     service: Annotated[ExternalTurnService, Depends(get_external_turn_service)],
 ) -> PreparedTurnResponse:
+    request = resolve_continuation_payload(payload, principal, context.scope, runtime)
     prepared = service.prepare(conversation_id, request)
     reservation = prepared.reservation
     return PreparedTurnResponse(

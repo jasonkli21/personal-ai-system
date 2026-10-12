@@ -202,7 +202,7 @@ export default function Home() {
     includeTarget: boolean,
     scope: ApplicationScopeRequest,
     launchContext: ApplicationLaunchContext,
-    federationContext: import("../lib/api/external-turns").FederationContextChoice[],
+    federationChoiceIds: string[],
   ) {
     if (!selectedId || controlsDisabled) return;
     const conversationId = selectedId;
@@ -214,7 +214,7 @@ export default function Home() {
       choice: { mode: "automatic" },
       candidate_message_ids: includeTarget ? [target.id] : [],
       launch_context: launchContext,
-      ...(federationContext.length > 0 ? { federation_context: federationContext } : {}),
+      ...(federationChoiceIds.length > 0 ? { federation_choice_ids: federationChoiceIds } : {}),
     }, handlers, signal, scope));
   }
 

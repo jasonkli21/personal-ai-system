@@ -94,22 +94,8 @@ const contextCategories = [
 ];
 
 const healthTravelChoice: FederationChoiceOption = {
-  id: "health-travel-choice",
+  id: "A".repeat(43),
   categoryLabel: "Health dietary restrictions for Travel",
-  choice: {
-    provider_id: "federation.health_dietary_to_travel",
-    fields: ["dietary_restrictions"],
-    federation: {
-      grant_id: "grant-private-identifier",
-      issuance_id: "issuance-private-identifier",
-      revision: 3,
-      epoch: 2,
-      source: { application_id: "health", workspace_id: null },
-      category: "dietary_restrictions",
-      purpose: "health_dietary_restrictions_to_travel",
-      entities: [{ application_id: "health", workspace_id: null, entity_type: "profile_item", entity_id: "source-private-identifier" }],
-    },
-  },
 };
 
 function executionOptions(
@@ -325,20 +311,22 @@ describe("continuation sidecar", () => {
     fireEvent.click(await screen.findByLabelText(`Include ${categoryLabel}`));
     expect(screen.getByText(`Included shared context: ${categoryLabel}`)).toBeInTheDocument();
     const dialogText = screen.getByRole("dialog").textContent ?? "";
-    expect(dialogText).not.toContain("grant-private-identifier");
-    expect(dialogText).not.toContain("issuance-private-identifier");
-    expect(dialogText).not.toContain("source-private-identifier");
-    expect(dialogText).not.toContain("permission_version");
+    expect(dialogText).not.toContain("grant_id");
+    expect(dialogText).not.toContain("issuance_id");
+    expect(dialogText).not.toContain("entity_id");
+    expect(Object.keys(healthTravelChoice)).toEqual(["id", "categoryLabel"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview bounded context" }));
     await screen.findByText("Bounded context preview");
     const previewBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
-    expect(previewBody.federation_context).toEqual([healthTravelChoice.choice]);
+    expect(previewBody.federation_choice_ids).toEqual([healthTravelChoice.id]);
+    expect(previewBody).not.toHaveProperty("federation_context");
     fireEvent.click(screen.getByLabelText("I reviewed this bounded preview"));
     fireEvent.click(screen.getByRole("button", { name: "Prepare and review exact package" }));
     await screen.findByText(/Estimated 42 tokens/);
     const prepareBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
-    expect(prepareBody.federation_context).toEqual(previewBody.federation_context);
+    expect(prepareBody.federation_choice_ids).toEqual(previewBody.federation_choice_ids);
+    expect(prepareBody).not.toHaveProperty("federation_context");
 
     cleanup();
     fetchMock.mockReset().mockResolvedValueOnce(jsonResponse(executionOptions(["automatic", "manual_external"])));
@@ -367,7 +355,7 @@ describe("continuation sidecar", () => {
         conversation_id: "conversation-1",
         client_context: {},
       },
-      [healthTravelChoice.choice],
+      [healthTravelChoice.id],
     );
   });
 

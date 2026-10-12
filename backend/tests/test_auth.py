@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import time
 from collections.abc import Iterator
 
@@ -15,6 +17,7 @@ from personal_ai.api.dependencies import (
     get_settings,
 )
 from personal_ai.auth.contracts import AuthenticatedPrincipal
+from personal_ai.auth.delegation import delegated_user_assertion
 from personal_ai.auth.directory import InMemoryPrincipalDirectory
 from personal_ai.auth.verification import (
     IdentityProviderUnavailable,
@@ -61,14 +64,16 @@ def test_google_token_uses_verified_subject_and_exact_audience(monkeypatch) -> N
         del request
         calls.append(audience)
         assert token == "signed-id-token"
+        now = int(time.time())
         return {
             "iss": "https://accounts.google.com",
             "sub": "stable-google-subject",
             "aud": audience,
             "email": "owner@gmail.com",
             "email_verified": True,
-            "iat": int(time.time()),
-            "exp": int(time.time()) + 3600,
+            "iat": now,
+            "auth_time": now - 120,
+            "exp": now + 3600,
         }
 
     monkeypatch.setattr("personal_ai.auth.verification.id_token.verify_oauth2_token", verify)
@@ -81,6 +86,7 @@ def test_google_token_uses_verified_subject_and_exact_audience(monkeypatch) -> N
     assert first.owner_id.startswith("usr_")
     assert first.owner_id != first.email
     assert first.subject == "stable-google-subject"
+    assert first.authenticated_at == first.issued_at - 120
     assert calls == ["personal-ai-web-client"]
 
 
@@ -92,6 +98,8 @@ def test_google_token_uses_verified_subject_and_exact_audience(monkeypatch) -> N
         {"email": "another@example.com"},
         {"email_verified": False},
         {"exp": 1791000000},
+        {"auth_time": True},
+        {"auth_time": int(time.time()) + 120},
     ],
 )
 def test_google_token_rejects_invalid_or_unapproved_claims(monkeypatch, claim_update) -> None:
@@ -118,6 +126,77 @@ def test_google_token_is_not_accepted_in_development_mode(monkeypatch) -> None:
     settings = Settings(ai_provider="fake", ai_model="fake-model")
     with pytest.raises(InvalidIdentityToken):
         principal_from_google_token("signed-id-token", settings)
+
+
+@pytest.mark.parametrize(
+    "auth_time_kind",
+    ["missing", "stale", "future"],
+    ids=["missing", "stale", "future"],
+)
+def test_health_delegation_requires_recent_verified_auth_time(auth_time_kind: str) -> None:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    now = int(time.time())
+    authenticated_at = {
+        "missing": None,
+        "stale": now - 301,
+        "future": now + 600,
+    }[auth_time_kind]
+    principal = AuthenticatedPrincipal(
+        issuer="https://accounts.google.com",
+        subject="delegated-user",
+        owner_id="usr_delegated-user",
+        email="owner@gmail.com",
+        issued_at=now,
+        authenticated=True,
+        authenticated_at=authenticated_at,
+    )
+    with pytest.raises(ValueError, match="delegated_user_identity_unavailable"):
+        delegated_user_assertion(
+            principal=principal,
+            request_body={
+                "purpose": "health_dietary_restrictions_to_travel",
+                "destination_application_id": "travel",
+            },
+            private_key=Ed25519PrivateKey.from_private_bytes(bytes(range(32))),
+            issuer="personal-ai-system",
+            audience="https://health.example.test",
+            key_id="health-v1",
+            now=now,
+        )
+
+
+def test_health_delegation_signs_verified_auth_time_separately_from_fresh_token_iat() -> None:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    now = int(time.time())
+    authenticated_at = now - 120
+    principal = AuthenticatedPrincipal(
+        issuer="https://accounts.google.com",
+        subject="delegated-user",
+        owner_id="usr_delegated-user",
+        email="owner@gmail.com",
+        issued_at=now,
+        authenticated=True,
+        authenticated_at=authenticated_at,
+    )
+    assertion = delegated_user_assertion(
+        principal=principal,
+        request_body={
+            "purpose": "health_dietary_restrictions_to_travel",
+            "destination_application_id": "travel",
+        },
+        private_key=Ed25519PrivateKey.from_private_bytes(bytes(range(32))),
+        issuer="personal-ai-system",
+        audience="https://health.example.test",
+        key_id="health-v1",
+        now=now,
+    )
+    encoded_claims = assertion.split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(encoded_claims + "=" * (-len(encoded_claims) % 4)))
+    assert claims["iat"] == now
+    assert claims["auth_time"] == authenticated_at
+    assert claims["auth_time"] != claims["iat"]
 
 
 def test_workspace_identity_requires_matching_verified_hosted_domain(monkeypatch) -> None:

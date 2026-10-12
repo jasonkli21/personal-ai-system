@@ -138,6 +138,27 @@ def test_health_context_requires_separate_hosted_service_identity_and_defaults_o
     assert configured.health_context_enabled is True
 
 
+def test_federation_choice_handles_require_a_stable_hmac_key_when_enabled() -> None:
+    with pytest.raises(ValidationError, match="federation_choice_hmac_key_required"):
+        Settings(
+            _env_file=None,
+            ai_provider="fake",
+            ai_model="test",
+            app_environment="test",
+            travel_federation_enabled=True,
+        )
+
+    configured = Settings(
+        _env_file=None,
+        ai_provider="fake",
+        ai_model="test",
+        app_environment="test",
+        travel_federation_enabled=True,
+        federation_choice_hmac_key="synthetic-federation-choice-key-32",
+    )
+    assert len(configured.federation_choice_hmac_key.get_secret_value()) >= 32
+
+
 def test_external_dispatch_signer_rejects_partial_or_malformed_configuration() -> None:
     with pytest.raises(ValidationError, match="external_dispatch_signer_configuration_incomplete"):
         Settings(

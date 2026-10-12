@@ -51,23 +51,12 @@ export type ContinuationRequest = {
   candidate_message_ids?: string[] | null;
   launch_context?: ApplicationLaunchContext | null;
   excluded_source_classes?: ContextSourceClass[];
-  federation_context?: FederationContextChoice[];
+  federation_choice_ids?: string[];
 };
-export type FederationContextChoice = {
-  provider_id: string;
-  fields: string[];
-  federation: {
-    grant_id: string; issuance_id: string; revision: number; epoch: number;
-    source: { application_id: string; workspace_id: string | null };
-    category: string; purpose: string;
-    entities: { application_id: string; workspace_id: string | null; entity_type: string; entity_id: string }[];
-  };
-};
-/** Host-scoped display option. The request selector is still reauthorized by Personal AI. */
+/** Destination-scoped opaque selector; canonical grant data stays on the server. */
 export type FederationChoiceOption = {
   id: string;
   categoryLabel: string;
-  choice: FederationContextChoice;
 };
 export type ContextPackage = {
   schema_version: "context-package-v2";

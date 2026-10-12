@@ -11,6 +11,7 @@ class AuthenticatedPrincipal:
     email: str | None
     issued_at: int
     authenticated: bool
+    authenticated_at: int | None = None
 
     @classmethod
     def development(cls) -> "AuthenticatedPrincipal":
@@ -22,4 +23,5 @@ class AuthenticatedPrincipal:
             email=None,
             issued_at=0,
             authenticated=False,
+            authenticated_at=None,
         )

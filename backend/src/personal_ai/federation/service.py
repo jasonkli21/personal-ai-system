@@ -1,12 +1,16 @@
 """Owner-only permission mutation and shared dependency revalidation."""
 
+import base64
+import hashlib
+import hmac
+import json
 from datetime import UTC, datetime
 from time import monotonic
 from types import MappingProxyType
 from uuid import UUID, uuid4
 
 from personal_ai.auth.contracts import AuthenticatedPrincipal
-from personal_ai.auth.scope import ApplicationScope, RequestScope, current_request_scope
+from personal_ai.auth.scope import ApplicationScope, current_request_scope
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.federation.contracts import (
     FederationGrant,
@@ -19,11 +23,43 @@ from personal_ai.persistence.postgres.database import PersistenceConflict
 class FederationPermissionAuthority:
     permission_namespaces = ("federation_grant:",)
 
-    def __init__(self, repository, source_permissions, *, clock=None):
+    def __init__(self, repository, source_permissions, *, choice_hmac_key=None, clock=None):
         self.repository = repository
         self.source_permissions = source_permissions
+        self.choice_hmac_key = choice_hmac_key
         self.clock = clock or (lambda: datetime.now(UTC))
         self._exports = None
+
+    def _choice_handle(self, grant):
+        if not self.choice_hmac_key or len(self.choice_hmac_key) < 32:
+            raise ContextPreparationError("federation_choice_signing_unavailable")
+        payload = {
+            "version": 1,
+            "grant_id": str(grant.grant_id),
+            "issuance_id": str(grant.issuance_id),
+            "revision": grant.revision,
+            "epoch": grant.epoch,
+            "state": grant.state,
+            "owner_id": grant.owner_id,
+            "acting_user_id": grant.acting_user_id,
+            "source": grant.source.model_dump(mode="json"),
+            "destination": grant.destination.model_dump(mode="json"),
+            "category": grant.category,
+            "purpose": grant.purpose,
+            "entities": [item.model_dump(mode="json") for item in grant.entities],
+            "fields": grant.fields,
+            "expires_at": grant.expires_at.astimezone(UTC).isoformat(),
+        }
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        digest = hmac.new(self.choice_hmac_key, canonical, hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+    def _provider_for_grant(self, grant):
+        if self._exports is None:
+            return None
+        return self._exports.get(
+            (grant.source.application_id, grant.destination.application_id, grant.category)
+        )
 
     def bind_exports(self, providers):
         """Retain the same registered adapter references for later grant reuse checks."""
@@ -67,58 +103,85 @@ class FederationPermissionAuthority:
         return True
 
     def current_choices(self, principal: AuthenticatedPrincipal, destination: ApplicationScope):
-        """Project current owner grants as UI selectors, without source policy details."""
-        from personal_ai.contracts.federation import FederationContextChoice, FederationSelection
+        """List local current grants as opaque selectors without source authority calls."""
 
         if not principal.authenticated:
             return ()
         acting_user_id = f"{principal.issuer}|{principal.subject}"
-        scope = RequestScope(
-            application_id=destination.application_id,
-            workspace_id=destination.workspace_id,
-            owner_id=principal.owner_id,
-            acting_user_id=acting_user_id,
-            request_id="federation-choice-list",
-        )
         choices = []
-        for grant in self.repository.list_destination(principal.owner_id, destination):
+        for grant in self.repository.list_destination(principal.owner_id, destination)[:100]:
             if (
                 not grant.current(self.clock())
+                or grant.owner_id != principal.owner_id
                 or grant.acting_user_id != acting_user_id
-                or not self.source_is_current(grant.source_policy)
-                or not self._export_current(grant, scope)
             ):
                 continue
-            provider = (
-                self._exports.get(
-                    (grant.source.application_id, grant.destination.application_id, grant.category)
-                )
-                if self._exports is not None
-                else None
-            )
+            provider = self._provider_for_grant(grant)
             if provider is None:
                 continue
-            selection = FederationSelection(
-                **{
-                    field: getattr(grant, field)
-                    for field in FederationSelection.model_fields
-                }
-            )
             choices.append(
                 {
-                    "id": str(grant.grant_id),
+                    "id": self._choice_handle(grant),
                     "category_label": (
                         f"{grant.source.application_id.replace('_', ' ').title()} · "
                         f"{grant.category.replace('_', ' ')}"
                     ),
-                    "choice": FederationContextChoice(
-                        provider_id=provider.spec.provider_id,
-                        fields=grant.fields,
-                        federation=selection,
-                    ),
                 }
             )
         return tuple(choices)
+
+    def resolve_choice_handles(
+        self,
+        principal: AuthenticatedPrincipal,
+        destination: ApplicationScope,
+        handles: tuple[str, ...],
+    ):
+        """Resolve opaque selectors to canonical grant data without remote checks."""
+        from personal_ai.contracts.federation import FederationContextChoice, FederationSelection
+
+        if (
+            not principal.authenticated
+            or not handles
+            or len(handles) > 4
+            or len(set(handles)) != len(handles)
+            or any(len(handle) != 43 for handle in handles)
+        ):
+            raise ValueError("federation_choice_invalid")
+        acting_user_id = f"{principal.issuer}|{principal.subject}"
+        grants = self.repository.list_destination(principal.owner_id, destination)[:100]
+        now = self.clock()
+        resolved = []
+        for handle in handles:
+            grant = next(
+                (
+                    candidate
+                    for candidate in grants
+                    if hmac.compare_digest(self._choice_handle(candidate), handle)
+                ),
+                None,
+            )
+            if (
+                grant is None
+                or not grant.current(now)
+                or grant.owner_id != principal.owner_id
+                or grant.acting_user_id != acting_user_id
+                or grant.destination != destination
+            ):
+                raise ValueError("federation_choice_invalid")
+            provider = self._provider_for_grant(grant)
+            if provider is None:
+                raise ValueError("federation_choice_invalid")
+            selection = FederationSelection(
+                **{field: getattr(grant, field) for field in FederationSelection.model_fields}
+            )
+            resolved.append(
+                FederationContextChoice(
+                    provider_id=provider.spec.provider_id,
+                    fields=grant.fields,
+                    federation=selection,
+                )
+            )
+        return tuple(resolved)
 
     def supports(self, dependency):
         return dependency.permission_id.startswith("federation_grant:")

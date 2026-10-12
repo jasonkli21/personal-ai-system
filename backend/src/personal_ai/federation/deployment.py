@@ -190,6 +190,11 @@ def configured_federation_contribution(settings, source_runtime, *, cases=None):
     authority = FederationPermissionAuthority(
         _ConfiguredGrantRepository(settings),
         ContextPermissionRevalidatorRegistry(source_runtime.permission_revalidators),
+        choice_hmac_key=(
+            settings.federation_choice_hmac_key.get_secret_value().encode("utf-8")
+            if settings.federation_choice_hmac_key.get_secret_value()
+            else None
+        ),
     )
     return federation_contribution(cases, authority, source_runtime.export_adapters)
 

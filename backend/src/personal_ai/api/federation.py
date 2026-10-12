@@ -18,7 +18,6 @@ from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.runtime import ContextRuntimeRegistry
 from personal_ai.contracts.context_references import ContextEntityReference
-from personal_ai.contracts.federation import FederationContextChoice
 from personal_ai.federation.contracts import (
     FederationGrant,
     FederationGrantConflict,
@@ -98,9 +97,8 @@ def choice_authority_dependency(
 
 class FederationChoiceOption(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    id: str
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
     category_label: str = Field(min_length=1, max_length=100)
-    choice: FederationContextChoice
 
 
 class FederationChoicesResponse(BaseModel):
