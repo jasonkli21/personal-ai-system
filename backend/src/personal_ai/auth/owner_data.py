@@ -42,6 +42,8 @@ OWNER_DATA_COLLECTIONS = (
     "routing_decision_events",
     "routing_decisions_legacy",
     "global_profiles",
+    "mutation_proposals",
+    "mutation_proposal_revisions",
     "federation_grants",
     "federation_grant_revisions",
     "artifact_metadata",

@@ -330,6 +330,20 @@ class PostgresAccountLifecycleRepository:
                     for grant_id, revision, payload in grant_rows:
                         add(table, f"{grant_id}:{revision}", payload)
                         p_count += 1
+                for table in ("mutation_proposals", "mutation_proposal_revisions"):
+                    mutation_rows = connection.execute(
+                        f"SELECT proposal_id::text,revision,payload FROM {table} WHERE owner_id=%s "
+                        "AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s "
+                        "ORDER BY proposal_id,revision LIMIT %s",
+                        (owner_id, scope.application_id, scope.workspace_id, MAX_EXPORT_SCAN_RECORDS + 1),
+                    ).fetchall()
+                    if len(mutation_rows) > MAX_EXPORT_SCAN_RECORDS:
+                        raise ExportTooLarge
+                    p_collection_counts[table] = len(mutation_rows)
+                    p_revision_coverage[table] = max((int(row[1]) for row in mutation_rows), default=0)
+                    for proposal_id, revision, payload in mutation_rows:
+                        add(table, f"{proposal_id}:{revision}", payload)
+                        p_count += 1
                 artifact_rows = connection.execute(
                     "SELECT artifact_id,payload,revision FROM artifact_metadata "
                     "WHERE owner_id=%s AND application_id=%s "

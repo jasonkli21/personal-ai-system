@@ -8,13 +8,11 @@ from time import monotonic
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
+from personal_ai.storage.errors import PersistenceConflict  # noqa: F401 - compatibility re-export
+
 
 class PersistenceUnavailable(RuntimeError):
     """A persistence dependency did not complete within its configured bound."""
-
-
-class PersistenceConflict(RuntimeError):
-    """A stable identity, revision, replay key, or scope conflicts with stored data."""
 
 
 class PersistenceRecordNotFound(LookupError):

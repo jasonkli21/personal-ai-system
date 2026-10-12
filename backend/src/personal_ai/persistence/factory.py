@@ -35,6 +35,7 @@ class PersistenceFactory(Protocol):
     def summary_repository(self) -> ConversationSummaryRepository: ...
     def context_trace_repository(self) -> ContextTraceRepository: ...
     def federation_grant_repository(self): ...
+    def mutation_repository(self): ...
     def global_profile_repository(self) -> GlobalProfileRepository: ...
     def memory_repository(self) -> MemoryRepository: ...
     def memory_lifecycle_repository(
@@ -158,6 +159,11 @@ class PostgresDynamoPersistenceFactory:
         from personal_ai.persistence.postgres.federation import PostgresFederationGrantRepository
 
         return PostgresFederationGrantRepository(self.database)
+
+    def mutation_repository(self):
+        from personal_ai.persistence.postgres.mutations import PostgresMutationRepository
+
+        return PostgresMutationRepository(self.database)
 
     def global_profile_repository(self):
         from personal_ai.persistence.postgres.context import PostgresGlobalProfileRepository

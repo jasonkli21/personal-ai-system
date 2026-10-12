@@ -24,6 +24,7 @@ export type ExternalDisclosureOptions = {
   maximum_sensitivity: "public" | "personal" | "sensitive" | "restricted";
 };
 export type SidecarActionOptions = {
+  mutation_operations?: { operation_id: string; version: number }[];
   connected_provider_disclosure: ExternalDisclosureOptions;
   manual_external_disclosure: ExternalDisclosureOptions;
   manual_import_reuse: {

@@ -12,6 +12,7 @@ from personal_ai.contracts.context_categories import (
 )
 from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.contracts.federation import FederationExportDeclaration
+from personal_ai.mutations.contracts import MutationOperationDeclaration, OperationRef
 
 ApplicationId = str
 Sensitivity = Literal["public", "personal", "sensitive", "restricted"]
@@ -254,11 +255,15 @@ class ApplicationSidecarPolicy(BaseModel):
     manual_import_reuse: ManualImportReusePolicy = Field(
         default_factory=ManualImportReusePolicy
     )
+    mutation_operations: tuple[OperationRef, ...] = Field(default=(), max_length=16)
     copy_allowed: bool = True
     draft_insert_target_ids: tuple[str, ...] = Field(default=(), max_length=16)
 
     @model_validator(mode="after")
     def action_targets_are_valid(self) -> "ApplicationSidecarPolicy":
+        keys = [(item.operation_id, item.version) for item in self.mutation_operations]
+        if len(keys) != len(set(keys)):
+            raise ValueError("sidecar_mutation_operations_duplicate")
         values = self.draft_insert_target_ids
         if len(values) != len(set(values)) or any(
             not re.fullmatch(_VIEW_ID_PATTERN, value) for value in values
@@ -381,12 +386,19 @@ class ApplicationDefinition(BaseModel):
     cross_application: CrossApplicationDeclaration = Field(
         default_factory=CrossApplicationDeclaration
     )
+    mutation_operations: tuple[MutationOperationDeclaration, ...] = Field(default=(), max_length=16)
     federation_exports: tuple[FederationExportDeclaration, ...] = Field(default=(), max_length=16)
     budget_hints: ApplicationBudgetHints = Field(default_factory=ApplicationBudgetHints)
     comparison_domain_ids: tuple[str, ...] = Field(default=(), max_length=8)
 
     @model_validator(mode="after")
     def references_are_unambiguous(self) -> "ApplicationDefinition":
+        keys = [(item.operation_id, item.version) for item in self.mutation_operations]
+        if len(keys) != len(set(keys)):
+            raise ValueError("application_mutation_operations_duplicate")
+        if any((item.operation_id, item.version) not in keys
+               for item in self.context_policy.sidecar.mutation_operations):
+            raise ValueError("sidecar_mutation_operation_undeclared")
         for name, values in (
             ("context_provider_ids", self.context_provider_ids),
             ("tool_ids", self.tool_ids),

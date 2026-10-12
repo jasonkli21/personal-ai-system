@@ -9,3 +9,5 @@ in `frontend/src/lib/api/common.ts`. The continuation sidecar is imported from
 `frontend/src/features/chat/continuation-sidecar/ContinuationSidecar.tsx`.
 
 Component and API regression tests live separately under `frontend/tests`.
+
+The shared continuation sidecar accepts an optional `mutationProposalId` supplied by a host integration. It loads a typed server proposal through `/api/mutations`, reviews domain validation, confirms an exact digest, applies the saved confirmation and reconciles unknown results. Server `apply_available` combines declaration, implementation, policy and current domain authorization. Arbitrary assistant/import text never produces an Apply control. Current domain integrations supply no write adapters or conversion path; their Apply remains unavailable.

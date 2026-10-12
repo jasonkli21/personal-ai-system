@@ -26,6 +26,7 @@ Core capabilities include:
 - decision snapshots with source attribution;
 - travel and shopping comparison modules;
 - itinerary-proposal and booking-extraction capability boundaries;
+- a typed, confirmed mutation framework with Postgres reservations and domain-owned reconciliation; current domain write adapters remain unavailable;
 - owner-scoped application/workspace identity foundations;
 - bounded provider-attempt accounting with a default-off owner-scoped developer summary;
 - account export/deletion workflow foundations;

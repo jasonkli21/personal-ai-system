@@ -1,5 +1,7 @@
 "use client";
 
+import { MutationProposalPanel } from "./MutationProposalPanel";
+
 import { FormEvent, useEffect, useMemo, useRef } from "react";
 
 import { ApiError, type ApplicationScopeRequest } from "../../../lib/api/common";
@@ -28,6 +30,7 @@ import { useContinuationSidecar } from "./useContinuationSidecar";
 import styles from "./continuation-sidecar.module.css";
 
 type Props = {
+  mutationProposalId?: string;
   conversationId: string;
   scope?: ApplicationScopeRequest;
   launchContext?: ApplicationLaunchContext;
@@ -92,7 +95,7 @@ function launchFor(
 }
 const noopPrepared = async () => undefined;
 
-export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
+export function ContinuationSidecar({ mutationProposalId, conversationId, scope = DEFAULT_SCOPE, launchContext, draftTargets = [], onDraftInsert, transportAdapters = DEFAULT_EXTERNAL_TRANSPORTS, target, onClose, onAutomatic, onExternalPrepared = noopPrepared, onExternalDelta = noop, onExternalCompleted = noop, onExternalInterrupted = noop, onSaved }: Props) {
   const {
     options, setOptions,
     mode, setMode,
@@ -760,5 +763,6 @@ export function ContinuationSidecar({ conversationId, scope = DEFAULT_SCOPE, lau
         <button type="button" disabled={busy} onClick={() => void discardPrepared()}>Discard and prepare again</button>
       </div>
     </>}
+    {mutationProposalId && <MutationProposalPanel key={mutationProposalId} proposalId={mutationProposalId} scope={requestScope} />}
   </aside>;
 }

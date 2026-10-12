@@ -25,3 +25,7 @@ class StorageUnavailableError(StorageError):
 # names for HTTP/API adapters.
 NotFoundError = ResourceNotFoundError
 RepositoryError = StorageError
+
+
+class PersistenceConflict(RuntimeError):
+    """A stable identity, revision, replay key, or scope conflicts with stored data."""

@@ -44,6 +44,7 @@ def configured_context_runtime(
             source_runtime.permission_revalidators,
             source_runtime.export_adapters,
             source_runtime.federation_cases,
+            source_runtime.mutation_adapters,
         ),
         federation,
     )
