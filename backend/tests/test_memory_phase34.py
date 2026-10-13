@@ -111,6 +111,33 @@ def test_compact_trace_and_original_rollback_preserve_provenance():
     assert env["memories"].records == originals
 
 
+def test_bound_request_retrieval_preserves_actor_and_denies_foreign_owner_before_embedding():
+    env = environment()
+    scope = RequestScope(
+        owner_id="local", acting_user_id="verified-actor", application_id="personal_ai",
+        request_id="bound-memory-request",
+    )
+    calls = []
+    original = env["embedder"].embed
+
+    def observed(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    env["embedder"].embed = observed
+    token = bind_request_scope(scope)
+    try:
+        result = retriever(env).retrieve("local", "query", [])
+        assert result.selected and result.trace.query.scope == scope
+        assert result.trace.query.scope.acting_user_id == "verified-actor"
+        assert len(calls) == 1
+        denied = retriever(env).retrieve("foreign-owner", "query", [])
+        assert not denied.selected and denied.diagnostics == ("policy_denied",)
+        assert len(calls) == 1
+    finally:
+        reset_request_scope(token)
+
+
 def test_completed_turn_sweep_discovers_preexisting_duplicates_and_deduplicates_intent():
     env = environment()
     assert not env["memories"].derived_records

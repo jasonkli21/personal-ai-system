@@ -1,0 +1,309 @@
+{
+  "status_counts": {
+    "passed": 24,
+    "unverified": 21,
+    "blocked": 3
+  },
+  "capabilities": {
+    "context": {
+      "blockers": [
+        {
+          "verification_id": "P36-IDENTITY",
+          "status": "unverified",
+          "severity": "critical",
+          "evidence_class": "domain",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-VERSION-AUTHORITY",
+          "status": "blocked",
+          "severity": "high",
+          "evidence_class": "domain",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
+          "rationale": "Immutable durable policy/source references and end-to-end deployed membership/revocation acceptance remain open"
+        }
+      ],
+      "passed": [
+        "P36-ISOLATION",
+        "P36-CONTEXT",
+        "P36-FIFTH-APP"
+      ],
+      "release_status": "unavailable"
+    },
+    "federation": {
+      "blockers": [
+        {
+          "verification_id": "P36-FEDERATION-NATIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-30-implementation-report.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-FEDERATION"
+      ],
+      "release_status": "unavailable"
+    },
+    "optimization": {
+      "blockers": [
+        {
+          "verification_id": "P36-QUALITY-LIVE",
+          "status": "unverified",
+          "severity": "quality",
+          "evidence_class": "live",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-35-implementation-report.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-MEMORY-RESOURCES",
+          "status": "unverified",
+          "severity": "resource",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-34-implementation-report.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-PLANNER",
+        "P36-SEARCH",
+        "P36-MEMORY",
+        "P36-COMBINED"
+      ],
+      "release_status": "unavailable"
+    },
+    "routing": {
+      "blockers": [
+        {
+          "verification_id": "P36-USAGE-NATIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-19-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-HEADROOM",
+          "status": "unverified",
+          "severity": "resource",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/phase-10-local-persistence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-WORKFLOW",
+          "status": "blocked",
+          "severity": "high",
+          "evidence_class": "domain",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+          "rationale": "Automatic workflows remain Gemini-only; Phase 15 membership/revocation and neutral dispatch integration remain open"
+        },
+        {
+          "verification_id": "P36-PROVIDER-LIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "live",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-16-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-ADAPTIVE",
+        "P36-STRICT-FREE",
+        "P36-SENSITIVE",
+        "P36-CASCADE",
+        "P36-TRANSPORT",
+        "P36-CHURN",
+        "P36-PROVIDER-TASK"
+      ],
+      "release_status": "unavailable"
+    },
+    "mutation": {
+      "blockers": [
+        {
+          "verification_id": "P36-MUTATION-NATIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-31-implementation-report.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-MUTATION"
+      ],
+      "release_status": "unavailable"
+    },
+    "artifacts": {
+      "blockers": [
+        {
+          "verification_id": "P36-ARTIFACT-NATIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-GCS-REAL",
+          "status": "unverified",
+          "severity": "critical",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-ARTIFACT"
+      ],
+      "release_status": "unavailable"
+    },
+    "account": {
+      "blockers": [
+        {
+          "verification_id": "P36-DELETE-PHYSICAL",
+          "status": "blocked",
+          "severity": "critical",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/phase-9-release-checklist.md",
+          "rationale": "Original Phase 9 obligation remains open: physical deletion and deletion-aware restore are not implemented/accepted"
+        },
+        {
+          "verification_id": "P36-RECOVERY",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/phase-9-release-checklist.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-TELEMETRY",
+          "status": "unverified",
+          "severity": "critical",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/phase-9-release-checklist.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-EXPORT"
+      ],
+      "release_status": "unavailable"
+    },
+    "storage": {
+      "blockers": [
+        {
+          "verification_id": "P36-DYNAMO-NATIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-DYNAMO-REAL",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-POSTGRES-NATIVE",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "local",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-CROSS-CLOUD",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-RETIREMENT",
+          "status": "unverified",
+          "severity": "high",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-DB-FAULT",
+        "P36-STORAGE-OWNERS"
+      ],
+      "release_status": "unavailable"
+    },
+    "chatgpt": {
+      "blockers": [
+        {
+          "verification_id": "P36-CHATGPT-LIVE",
+          "status": "unverified",
+          "severity": "critical",
+          "evidence_class": "live",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-BRIDGE"
+      ],
+      "release_status": "unavailable"
+    },
+    "sidecar": {
+      "blockers": [
+        {
+          "verification_id": "P36-SIDECAR-BROWSER",
+          "status": "unverified",
+          "severity": "critical",
+          "evidence_class": "browser",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        },
+        {
+          "verification_id": "P36-DOMAIN-CLIENT",
+          "status": "unverified",
+          "severity": "critical",
+          "evidence_class": "domain",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-30-implementation-report.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-SIDECAR"
+      ],
+      "release_status": "unavailable"
+    },
+    "lifecycle": {
+      "blockers": [
+        {
+          "verification_id": "P36-STORE-SOAK",
+          "status": "unverified",
+          "severity": "resource",
+          "evidence_class": "cloud",
+          "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+          "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+        }
+      ],
+      "passed": [
+        "P36-SOAK"
+      ],
+      "release_status": "unavailable"
+    },
+    "verification-program": {
+      "blockers": [],
+      "passed": [
+        "P36-PROGRAM"
+      ],
+      "release_status": "evidence_complete_for_declared_scope"
+    }
+  },
+  "release_ready": false
+}

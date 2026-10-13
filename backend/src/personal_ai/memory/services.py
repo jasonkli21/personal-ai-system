@@ -401,6 +401,11 @@ class MemoryRetriever:
         started = monotonic()
         requested = self.settings.memory_experiment_variant
         try:
+            from personal_ai.auth.scope import current_request_scope
+
+            bound_scope = current_request_scope()
+            if bound_scope is not None and bound_scope.owner_id != owner_id:
+                return RetrievalResult(diagnostics=("policy_denied",))
             inference_context = None
             if application_context is not None:
                 scope = application_context.scope
@@ -446,6 +451,8 @@ class MemoryRetriever:
             scope = (
                 application_context.scope
                 if application_context
+                else bound_scope
+                if bound_scope is not None
                 else RequestScope(
                     owner_id=owner_id,
                     request_id="memory-local",

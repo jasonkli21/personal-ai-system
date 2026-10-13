@@ -286,6 +286,7 @@ Common checks from the repository root:
 
 ```bash
 make backend-test
+make backend-test-offline
 make backend-lint
 make frontend-test
 make frontend-lint
@@ -293,6 +294,13 @@ make frontend-typecheck
 make backend-build
 make frontend-build
 ```
+
+`make backend-test-offline` excludes the intentionally deferred native-store,
+cloud-smoke and live Gemini suites. `make integrated-verification` runs the
+structured Phase 36 offline matrix and generates receipts, a blocker ledger and
+a release report in `artifacts/phase36/`. A successful command establishes its
+local evidence only; mandatory external gates keep affected capabilities
+unavailable. See the [Phase 36 model](docs/personal-ai-chapter-2/phase-36/architecture.md).
 
 The repository also includes deterministic evaluation suites:
 

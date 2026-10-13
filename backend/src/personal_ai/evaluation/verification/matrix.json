@@ -1,0 +1,1345 @@
+{
+  "schema_version": "phase36-matrix-v1",
+  "normative_boundaries": [
+    "adaptive-routing",
+    "app-conformance",
+    "artifacts",
+    "cascades",
+    "chatgpt",
+    "client-actions",
+    "combined-resources",
+    "context-quality",
+    "cross-cloud",
+    "endpoint-churn",
+    "export-deletion",
+    "federation",
+    "identity",
+    "isolation",
+    "memory-optimization",
+    "mutations",
+    "operations",
+    "persistence",
+    "planner-optimization",
+    "provider-conformance",
+    "provider-transport",
+    "search-optimization",
+    "sensitivity",
+    "soak",
+    "storage-ownership",
+    "strict-free",
+    "verification"
+  ],
+  "strategy_coverage": {
+    "planner": "deterministic-context-planner-v1 default; narrowing-experiment-v1 validation only; no assisted coverage",
+    "search": "literal-snippet-v1 query / literal-extractive-v1 packing default; qualifier/expansion/compact experiments unpromoted",
+    "memory": "fixed exact default; compact/consolidated unpromoted; lifecycle gates default off",
+    "routing": "quota-aware deterministic internal; capacity rule shadow default off; no adaptive coverage",
+    "cascade": "direct default; bounded cascade internal only",
+    "workflow": "Gemini-only; automatic P21 integration unavailable"
+  },
+  "thresholds": {
+    "minimum_supported_quality_delta": 0,
+    "maximum_omission_delta": 0,
+    "maximum_irrelevance_delta": 0,
+    "minimum_exact_support": 1,
+    "maximum_false_stale_superseded_memory": 0,
+    "maximum_authority_confusion": 0,
+    "minimum_mutation_correctness": 1,
+    "minimum_aggregate_resource_saving_fraction": 0.05,
+    "maximum_pipeline_p95_latency_increase_ms": 0,
+    "maximum_synthetic_pipeline_ms": 2000,
+    "maximum_logical_calls_per_fixture": 32,
+    "maximum_context_token_estimate": 8192,
+    "soak_iterations": 32,
+    "maximum_derived_views_per_soak_turn": 4,
+    "maximum_maintenance_jobs_per_soak_turn": 4
+  },
+  "rows": [
+    {
+      "verification_id": "P36-ISOLATION",
+      "boundary": "isolation",
+      "capability": "context",
+      "scenario": "Unauthorized app/workspace/actor selection",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Deny before source/count work",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_context_authorization.py",
+        "tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope"
+      ],
+      "command": "python -m pytest -q tests/test_context_authorization.py tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-FEDERATION",
+      "boundary": "federation",
+      "capability": "federation",
+      "scenario": "Revocation after accumulated derived context",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "History, summary, cache, artifact and final count fail closed",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_federation.py"
+      ],
+      "command": "python -m pytest -q tests/test_federation.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-30-31-third-review-remediation-evidence-2026-10-12.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-CONTEXT",
+      "boundary": "context-quality",
+      "capability": "context",
+      "scenario": "Omission, over-fetch, authority and freshness",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Exact authorized source fields and honest omission/provenance",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_context_planner_evaluation.py",
+        "tests/test_context_builder.py",
+        "tests/test_context_traces.py"
+      ],
+      "command": "python -m pytest -q tests/test_context_planner_evaluation.py tests/test_context_builder.py tests/test_context_traces.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-PLANNER",
+      "boundary": "planner-optimization",
+      "capability": "optimization",
+      "scenario": "Unauthorized narrowing proposal and stale baseline",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Reject widening and use current deterministic safe baseline",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_planning_experiment.py"
+      ],
+      "command": "python -m pytest -q tests/test_planning_experiment.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-32-review-remediation-evidence-2026-10-12.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-SEARCH",
+      "boundary": "search-optimization",
+      "capability": "optimization",
+      "scenario": "Rewrite literal constraints, compression support/conflict loss",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Retain exact support or deny promotion; deterministic rollback",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_retrieval_phase33.py",
+        "tests/test_phase36_integrated.py::test_iterative_evaluation_checks_typed_domain_envelope"
+      ],
+      "command": "python -m pytest -q tests/test_retrieval_phase33.py tests/test_phase36_integrated.py::test_iterative_evaluation_checks_typed_domain_envelope",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-33-independent-review-remediation-evidence-2026-10-12.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-MEMORY",
+      "boundary": "memory-optimization",
+      "capability": "optimization",
+      "scenario": "Revoked consolidated memory and contradiction",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "No stale/false resurrection; conflicts explicit; exact space",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_memory_phase34.py"
+      ],
+      "command": "python -m pytest -q tests/test_memory_phase34.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-34-independent-review-remediation-evidence-2026-10-12.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-ADAPTIVE",
+      "boundary": "adaptive-routing",
+      "capability": "routing",
+      "scenario": "Hard admission before shadow and profile churn",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Ineligible endpoints never enter replaceable strategy",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_adaptive_routing_phase35.py"
+      ],
+      "command": "python -m pytest -q tests/test_adaptive_routing_phase35.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-35-independent-review-remediation-evidence-2026-10-12.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-COMBINED",
+      "boundary": "combined-resources",
+      "capability": "optimization",
+      "scenario": "Sequential combined implemented optimization paths",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Measure all logical overhead and context tokens; missing physical/live labels prevent promotion",
+      "severity": "resource",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_phase36_integrated.py::test_combined_heldout_pipeline_measurements_and_deterministic_rollback"
+      ],
+      "command": "python -m pytest -q tests/test_phase36_integrated.py::test_combined_heldout_pipeline_measurements_and_deterministic_rollback",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-STRICT-FREE",
+      "boundary": "strict-free",
+      "capability": "routing",
+      "scenario": "Free capacity exhausted; paid/unknown/BYOK/plan/explicit-only siblings",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "No automatic overflow despite identical provider/model identities",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory",
+        "tests/test_endpoint_registry.py",
+        "tests/test_routing_phase23.py"
+      ],
+      "command": "python -m pytest -q tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory tests/test_endpoint_registry.py tests/test_routing_phase23.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-23-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-SENSITIVE",
+      "boundary": "sensitivity",
+      "capability": "routing",
+      "scenario": "Sensitive context under unavailable/unsafe endpoint",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "No sensitivity-unsafe fallback",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_routing_phase21.py",
+        "tests/test_memory_disclosure_authorization.py"
+      ],
+      "command": "python -m pytest -q tests/test_routing_phase21.py tests/test_memory_disclosure_authorization.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-CASCADE",
+      "boundary": "cascades",
+      "capability": "routing",
+      "scenario": "Validator failure/unknown physical effect",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Bounded accounted count and generation, no blind escalation",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_cascade_phase24.py",
+        "tests/test_cascade_evaluation.py"
+      ],
+      "command": "python -m pytest -q tests/test_cascade_phase24.py tests/test_cascade_evaluation.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-24-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-MUTATION",
+      "boundary": "mutations",
+      "capability": "mutation",
+      "scenario": "Exact confirmation, double Apply, restart, uncertain effect",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "One authoritative effect or reconciliation under original key",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_mutations.py"
+      ],
+      "command": "python -m pytest -q tests/test_mutations.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-31-post-review-remediation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-TRANSPORT",
+      "boundary": "provider-transport",
+      "capability": "routing",
+      "scenario": "Malformed provider, timeout, cancellation and hidden retries",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Exact endpoint identity, one accounted physical send per attempt",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_litellm_gateway.py"
+      ],
+      "command": "python -m pytest -q tests/test_litellm_gateway.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-17r-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-ARTIFACT",
+      "boundary": "artifacts",
+      "capability": "artifacts",
+      "scenario": "Unauthorized GCS/body, outage, partial metadata, retention",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Deny, bounded recovery, generation preconditions and cleanup",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_artifacts.py"
+      ],
+      "command": "python -m pytest -q tests/test_artifacts.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-EXPORT",
+      "boundary": "export-deletion",
+      "capability": "account",
+      "scenario": "Bounded inventory, nested artifact dependencies and fences",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Export cannot omit live/unauthorized families or grant reuse",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_account_data.py",
+        "tests/test_phase9_controls.py"
+      ],
+      "command": "python -m pytest -q tests/test_account_data.py tests/test_phase9_controls.py",
+      "authority_ref": "docs/phase-9-release-checklist.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-DB-FAULT",
+      "boundary": "persistence",
+      "capability": "storage",
+      "scenario": "Expired DB budget, lock/statement timeouts, profile read failures",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Stable bounded errors before connection/I/O; no fabricated empty state",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_postgres_deadlines.py",
+        "tests/test_profile_persistence_errors.py",
+        "tests/test_routing_migration.py"
+      ],
+      "command": "python -m pytest -q tests/test_postgres_deadlines.py tests/test_profile_persistence_errors.py tests/test_routing_migration.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-STORAGE-OWNERS",
+      "boundary": "storage-ownership",
+      "capability": "storage",
+      "scenario": "Canonical factory, static schema ownership and cross-store config",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Postgres/Dynamo/GCS owners and retired Firestore absence",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_factory.py",
+        "tests/persistence/test_cloud_static_config.py",
+        "tests/test_phase36_integrated.py::test_retired_runtime_and_migration_ownership"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_factory.py tests/persistence/test_cloud_static_config.py tests/test_phase36_integrated.py::test_retired_runtime_and_migration_ownership",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-storage-ownership-and-access-patterns.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-CHURN",
+      "boundary": "endpoint-churn",
+      "capability": "routing",
+      "scenario": "Model/profile removal or account/serializer churn",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Explicit unavailable or linked reselect, no rediscovery",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_external_turns.py::test_endpoint_version_churn_is_not_model_name_fallback",
+        "tests/test_adaptive_routing_phase35.py::test_endpoint_model_account_tier_serializer_count_task_churn_demotes"
+      ],
+      "command": "python -m pytest -q tests/test_external_turns.py::test_endpoint_version_churn_is_not_model_name_fallback tests/test_adaptive_routing_phase35.py::test_endpoint_model_account_tier_serializer_count_task_churn_demotes",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-18-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-BRIDGE",
+      "boundary": "chatgpt",
+      "capability": "chatgpt",
+      "scenario": "Caller auth, credentials, account/model/scope/usage/proof expiry",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Explicit unavailable/unknown; no secret leakage or silent billing switch",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_chatgpt_bridge_transport.py",
+        "tests/test_chatgpt_local_lifecycle.py",
+        "tests/test_chatgpt_oauth.py"
+      ],
+      "command": "python -m pytest -q tests/test_chatgpt_bridge_transport.py tests/test_chatgpt_local_lifecycle.py tests/test_chatgpt_oauth.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-SIDECAR",
+      "boundary": "client-actions",
+      "capability": "sidecar",
+      "scenario": "Launch, Copy/Insert/Apply and interrupted provenance",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Server policy narrows actions; exact confirmation and attribution",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_application_sidecar_contract.py",
+        "tests/test_external_turns.py",
+        "tests/test_external_turn_composition.py"
+      ],
+      "command": "python -m pytest -q tests/test_application_sidecar_contract.py tests/test_external_turns.py tests/test_external_turn_composition.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-FIFTH-APP",
+      "boundary": "app-conformance",
+      "capability": "context",
+      "scenario": "Startup catalog installs two typed app providers and action policy",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Shared API planner/builder and sidecar with scoped permission authority",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope",
+        "tests/test_context_runtime_composition.py"
+      ],
+      "command": "python -m pytest -q tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope tests/test_context_runtime_composition.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-PROVIDER-TASK",
+      "boundary": "provider-conformance",
+      "capability": "routing",
+      "scenario": "New provider/task/validator through neutral composition",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Identity dimensions vary independently; no generic name branches",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory",
+        "tests/test_provider_matrix.py",
+        "tests/test_cascade_phase24.py::test_custom_domain_validator_can_register_without_coordinator_changes",
+        "tests/test_phase36_integrated.py::test_provider_task_evaluation_and_validator_use_production_routing_factory"
+      ],
+      "command": "python -m pytest -q tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory tests/test_provider_matrix.py tests/test_cascade_phase24.py::test_custom_domain_validator_can_register_without_coordinator_changes tests/test_phase36_integrated.py::test_provider_task_evaluation_and_validator_use_production_routing_factory",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-22-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-SOAK",
+      "boundary": "soak",
+      "capability": "lifecycle",
+      "scenario": "Accumulated runtime/memory/research/routing/artifacts then revoke/cleanup",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "Measure growth and bounds; no stale cache reuse/retry/overflow",
+      "severity": "resource",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_phase36_integrated.py::test_bounded_accumulation_revocation_and_artifact_cleanup"
+      ],
+      "command": "python -m pytest -q tests/test_phase36_integrated.py::test_bounded_accumulation_revocation_and_artifact_cleanup",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-PROGRAM",
+      "boundary": "verification",
+      "capability": "verification-program",
+      "scenario": "Skipped/missing/failed evidence and reproducible ledger",
+      "preconditions": [
+        "Synthetic records and substituted I/O only"
+      ],
+      "evidence_class": "offline",
+      "fixtures_environment": "pytest synthetic/mock boundaries",
+      "expected_result": "No forged pass or external gate collapse; report derived from matrix",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_phase36_verification.py"
+      ],
+      "command": "python -m pytest -q tests/test_phase36_verification.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Awaiting executed evidence"
+    },
+    {
+      "verification_id": "P36-DYNAMO-NATIVE",
+      "boundary": "persistence",
+      "capability": "storage",
+      "scenario": "DynamoDB concurrent conditional writes/job generation/fences",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Exactly one winning conditional operation and restart-safe receipts",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_external_turns.py",
+        "tests/persistence/test_local_persistence.py::test_dynamodb_job_publication_replay_and_generation_fencing"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_external_turns.py tests/persistence/test_local_persistence.py::test_dynamodb_job_publication_replay_and_generation_fencing",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-DYNAMO-REAL",
+      "boundary": "persistence",
+      "capability": "storage",
+      "scenario": "AWS hot-key/capacity/index propagation/IAM",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Reviewed real-service access patterns, concurrency and capacity evidence",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_cloud_smoke.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_cloud_smoke.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-POSTGRES-NATIVE",
+      "boundary": "persistence",
+      "capability": "storage",
+      "scenario": "Migrations/connections/locking/pgvector precision compatibility",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Explicit schema/space mismatch and relational/vector correctness",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_local_persistence.py",
+        "tests/persistence/test_memory_lifecycle_projection.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_local_persistence.py tests/persistence/test_memory_lifecycle_projection.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-USAGE-NATIVE",
+      "boundary": "strict-free",
+      "capability": "routing",
+      "scenario": "Postgres reservation/claim/quota concurrent races",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Physical-attempt and shared-pool accounting under real transactions",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_provider_usage_accounting.py",
+        "tests/persistence/test_routing_decisions.py",
+        "tests/persistence/test_cascade_phase24.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_provider_usage_accounting.py tests/persistence/test_routing_decisions.py tests/persistence/test_cascade_phase24.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-19-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-FEDERATION-NATIVE",
+      "boundary": "federation",
+      "capability": "federation",
+      "scenario": "Grant epochs and immutable references under relational races",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Current grant/source authority before reuse",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_federation.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_federation.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-30-implementation-report.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-MUTATION-NATIVE",
+      "boundary": "mutations",
+      "capability": "mutation",
+      "scenario": "Execution reservation CAS and reconciliation after restart",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Single reservation; original key and authoritative post-state",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_mutations.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_mutations.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-31-implementation-report.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-ARTIFACT-NATIVE",
+      "boundary": "artifacts",
+      "capability": "artifacts",
+      "scenario": "Transactional metadata, cross-store failure and export",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Fences and generation reconciliation",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_artifact_tier.py",
+        "tests/persistence/test_account_export.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_artifact_tier.py tests/persistence/test_account_export.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-GCS-REAL",
+      "boundary": "artifacts",
+      "capability": "artifacts",
+      "scenario": "Bucket IAM/authorization/retention/operations/free-tier",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Private scoped test object, real generation/retention and budgets",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-CROSS-CLOUD",
+      "boundary": "cross-cloud",
+      "capability": "storage",
+      "scenario": "Neon/AWS/GCS timeout/cancel/network loss and recovery",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Bounded degraded service without assumed cross-store commit",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_cloud_smoke.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_cloud_smoke.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-HEADROOM",
+      "boundary": "strict-free",
+      "capability": "routing",
+      "scenario": "Supporting cloud/Neon/AWS/network headroom",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Reviewed account-specific strict-$0 capacity/egress assumptions",
+      "severity": "resource",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_strict_zero_gate.py"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_strict_zero_gate.py",
+      "authority_ref": "docs/phase-10-local-persistence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-QUALITY-LIVE",
+      "boundary": "combined-resources",
+      "capability": "optimization",
+      "scenario": "Independent held-out whole-workflow answer/resource comparison",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "live",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Supported quality >= baseline, zero hard regressions, >=5% saving, latency no regression",
+      "severity": "quality",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-35-implementation-report.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-35-implementation-report.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-MEMORY-RESOURCES",
+      "boundary": "memory-optimization",
+      "capability": "optimization",
+      "scenario": "Native vector operation/storage growth after accumulated maintenance",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "local",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Bounded resource use and no silent embedding-space coercion",
+      "severity": "resource",
+      "mandatory": true,
+      "test_refs": [
+        "tests/persistence/test_local_persistence.py::test_phase34_pgvector_lossless_baseline_eligibility_and_resource_measurement"
+      ],
+      "command": "python -m pytest -q tests/persistence/test_local_persistence.py::test_phase34_pgvector_lossless_baseline_eligibility_and_resource_measurement",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-34-implementation-report.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-STORE-SOAK",
+      "boundary": "soak",
+      "capability": "lifecycle",
+      "scenario": "Native store retention/growth/connection/hot-key degradation",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Bounded measured operations/storage and cleanup under accumulated state",
+      "severity": "resource",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-DELETE-PHYSICAL",
+      "boundary": "export-deletion",
+      "capability": "account",
+      "scenario": "Physical account deletion and deletion-aware restore",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "All canonical/derived stores/jobs/replays fenced and cleaned",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/phase-9-release-checklist.md",
+      "authority_ref": "docs/phase-9-release-checklist.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "blocked",
+      "rationale": "Original Phase 9 obligation remains open: physical deletion and deletion-aware restore are not implemented/accepted"
+    },
+    {
+      "verification_id": "P36-IDENTITY",
+      "boundary": "identity",
+      "capability": "context",
+      "scenario": "Verified deployed owner/actor/workspace/domain membership",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "domain",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Same owner cannot authorize cross-app or delegated actor",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-VERSION-AUTHORITY",
+      "boundary": "context-quality",
+      "capability": "context",
+      "scenario": "Immutable source/policy versions and full derived revocation",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "domain",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Original Phase 14/15 acceptance evidence closes dependency gaps",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "blocked",
+      "rationale": "Immutable durable policy/source references and end-to-end deployed membership/revocation acceptance remain open"
+    },
+    {
+      "verification_id": "P36-WORKFLOW",
+      "boundary": "adaptive-routing",
+      "capability": "routing",
+      "scenario": "Canonical user workflow dispatch through P21/P19",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "domain",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "All default workflow physical sends use selected endpoint and final source authority",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "blocked",
+      "rationale": "Automatic workflows remain Gemini-only; Phase 15 membership/revocation and neutral dispatch integration remain open"
+    },
+    {
+      "verification_id": "P36-CHATGPT-LIVE",
+      "boundary": "chatgpt",
+      "capability": "chatgpt",
+      "scenario": "Supported-client plan billing/account/model/privacy and real transport",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "live",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "No inference from fake catalogs or signed synthetic proofs",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-SIDECAR-BROWSER",
+      "boundary": "client-actions",
+      "capability": "sidecar",
+      "scenario": "Browser bridge, private network transport, Copy/Insert/Apply UI",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "browser",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Real supported-client/browser acceptance with exact action boundaries",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-DOMAIN-CLIENT",
+      "boundary": "client-actions",
+      "capability": "sidecar",
+      "scenario": "Travel/Shopping/Finance/Health domain repositories and consent",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "domain",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Authenticated domain identity, exact narrow revisions and revocation",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-30-implementation-report.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-30-implementation-report.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-RECOVERY",
+      "boundary": "operations",
+      "capability": "account",
+      "scenario": "Backups/restore/migration rollback/legacy owner disposition",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Original Phase 9/10 operator evidence and deletion-aware recovery",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/phase-9-release-checklist.md",
+      "authority_ref": "docs/phase-9-release-checklist.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-TELEMETRY",
+      "boundary": "operations",
+      "capability": "account",
+      "scenario": "Cloud telemetry/worker/IAM/service credentials/redaction",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Reviewed log access/retention/alerts, PubSub/OIDC and secret rotation",
+      "severity": "critical",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/phase-9-release-checklist.md",
+      "authority_ref": "docs/phase-9-release-checklist.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-PROVIDER-LIVE",
+      "boundary": "provider-transport",
+      "capability": "routing",
+      "scenario": "Live count/stream/structured/embedding compatibility and data rights",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "live",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Exact account/tier/endpoint/privacy provider verification",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [
+        "tests/test_gemini_manual.py",
+        "tests/test_context_manual.py"
+      ],
+      "command": "python -m pytest -q tests/test_gemini_manual.py tests/test_context_manual.py",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-16-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    },
+    {
+      "verification_id": "P36-RETIREMENT",
+      "boundary": "storage-ownership",
+      "capability": "storage",
+      "scenario": "Cloud legacy-store inventory and no-source disposition",
+      "preconditions": [
+        "Explicit reviewed environment and scoped operator evidence"
+      ],
+      "evidence_class": "cloud",
+      "fixtures_environment": "Deferred isolated native/service/domain/browser environment",
+      "expected_result": "Actual account inventory closes original retirement obligation",
+      "severity": "high",
+      "mandatory": true,
+      "test_refs": [],
+      "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md",
+      "authority_ref": "docs/personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md",
+      "evidence_ref": null,
+      "tested_revision": null,
+      "configuration_sha256": null,
+      "status": "unverified",
+      "rationale": "Required environment/service acceptance intentionally deferred; local parity cannot close this gate"
+    }
+  ],
+  "fault_scenarios": [
+    {
+      "fault_id": "timeout",
+      "verification_id": "P36-TRANSPORT",
+      "injection_point": "Provider stream deadline",
+      "test_refs": [
+        "tests/test_litellm_gateway.py::test_stream_deadline_closes_a_reader_blocked_after_done"
+      ],
+      "expected_result": "Close transport and preserve bounded unknown attempt",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "cancellation",
+      "verification_id": "P36-TRANSPORT",
+      "injection_point": "Cancellation during response consumption",
+      "test_refs": [
+        "tests/test_litellm_gateway.py::test_cancelling_sdk_stream_closes_the_underlying_response"
+      ],
+      "expected_result": "Close response; do not resend",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "stale-version",
+      "verification_id": "P36-MUTATION",
+      "injection_point": "Domain revision changes after confirmation before atomic effect",
+      "test_refs": [
+        "tests/test_mutations.py::test_stale_domain_version_rejected_at_atomic_effect_boundary"
+      ],
+      "expected_result": "Reject stale exact confirmation before effect",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "quota-exhaustion",
+      "verification_id": "P36-STRICT-FREE",
+      "injection_point": "Capacity disappears before routing",
+      "test_refs": [
+        "tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory"
+      ],
+      "expected_result": "No paid/unknown/BYOK/plan/explicit overflow",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "malformed-provider",
+      "verification_id": "P36-TRANSPORT",
+      "injection_point": "Provider returned model identity absent or unapproved",
+      "test_refs": [
+        "tests/test_litellm_gateway.py::test_missing_or_unapproved_returned_model_identity_fails_closed"
+      ],
+      "expected_result": "Fail closed and account original attempt",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "partial-persistence",
+      "verification_id": "P36-ARTIFACT",
+      "injection_point": "Upload committed before metadata publication crash",
+      "test_refs": [
+        "tests/test_artifacts.py::test_upload_before_metadata_crash_reconciles_same_generation"
+      ],
+      "expected_result": "Reconcile original immutable generation without duplicate body",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "uncertain-outcome",
+      "verification_id": "P36-MUTATION",
+      "injection_point": "Domain send completes or times out before response receipt",
+      "test_refs": [
+        "tests/test_mutations.py::test_unknown_outcome_reconciles_original_key_after_restart"
+      ],
+      "expected_result": "Reconcile original operation identity; no blind resend",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "boundary-revocation",
+      "verification_id": "P36-FEDERATION",
+      "injection_point": "Grant revoked between source read/count and build return",
+      "test_refs": [
+        "tests/test_federation.py::test_builder_rechecks_permissions_after_token_counting"
+      ],
+      "expected_result": "Prevent fresh/derived disclosure after count",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "artifact-outage",
+      "verification_id": "P36-ARTIFACT",
+      "injection_point": "Body store unavailable during required/optional upload",
+      "test_refs": [
+        "tests/test_artifacts.py::test_optional_failure_is_advisory_required_failure_explicit"
+      ],
+      "expected_result": "Required fails; optional advisory; pending recovery",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "database-outage",
+      "verification_id": "P36-DB-FAULT",
+      "injection_point": "Expired budget before connection and lock acquisition",
+      "test_refs": [
+        "tests/test_postgres_deadlines.py::test_database_rejects_an_expired_caller_budget_before_acquiring_connection"
+      ],
+      "expected_result": "Stable timeout with no connection work",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "network-outage",
+      "verification_id": "P36-TRANSPORT",
+      "injection_point": "Transport fails during an asynchronous physical attempt",
+      "test_refs": [
+        "tests/test_litellm_gateway.py::test_async_transport_failures_make_one_physical_send"
+      ],
+      "expected_result": "Exactly one physical send; explicit failure/unknown",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "revoked-cache",
+      "verification_id": "P36-FEDERATION",
+      "injection_point": "Accumulated memory/cache dependencies after grant revocation",
+      "test_refs": [
+        "tests/test_federation.py::test_memory_or_cached_derived_projection_rechecks_shared_dependencies"
+      ],
+      "expected_result": "Cache cannot reauthorize revoked dependency",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    },
+    {
+      "fault_id": "endpoint-churn",
+      "verification_id": "P36-ADAPTIVE",
+      "injection_point": "Endpoint/model/account/tier/serializer identity changes",
+      "test_refs": [
+        "tests/test_adaptive_routing_phase35.py::test_endpoint_model_account_tier_serializer_count_task_churn_demotes"
+      ],
+      "expected_result": "Abstain/rollback deterministically without extra sends",
+      "safety_constraint": "synthetic-only-no-external-effects"
+    }
+  ]
+}

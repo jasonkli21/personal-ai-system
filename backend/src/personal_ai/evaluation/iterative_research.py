@@ -37,7 +37,9 @@ from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
 from personal_ai.search.providers.brave import SearchError
 from personal_ai.settings import Settings
 
-FIXTURES = Path(__file__).parent / "fixtures" / "iterative_research" / "iterative-research-fixtures.json"
+FIXTURES = (
+    Path(__file__).parent / "fixtures" / "iterative_research" / "iterative-research-fixtures-v2.json"
+)
 RESULT_SCHEMA = Path(__file__).parent / "schemas" / "iterative-research-evaluation.schema.json"
 
 
@@ -334,6 +336,14 @@ def _result_record(fixture, baseline, run, session, events, adapter, decision_re
         query = actual["followup_queries"][0] if actual["followup_queries"] else ""
         passed = passed and all(
             part.casefold() in query.casefold() for part in expected["followup_query_contains"]
+        )
+    if "followup_allowed_domains" in expected:
+        # Phase 33 keeps typed domain bounds in the immutable operation sent to
+        # the adapter, separately from literal terms in the user's question.
+        dispatched_followups = adapter.calls[1:]
+        passed = passed and bool(dispatched_followups) and all(
+            tuple(operation.allowed_domains) == tuple(expected["followup_allowed_domains"])
+            for operation in dispatched_followups
         )
 
     expectation = fixture["comparison_expectation"]

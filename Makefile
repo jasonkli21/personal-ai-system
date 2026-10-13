@@ -1,6 +1,16 @@
 .PHONY: adaptive-routing-eval memory-optimization-eval planning-eval cascade-eval research-eval retrieval-eval decision-eval domain-eval iterative-research-eval itinerary-proposal-eval quota-scarcity-eval memory-lifecycle-eval memory-eval context-eval context-plan-eval backend-test backend-lint backend-build frontend-test frontend-lint frontend-typecheck frontend-build run-backend run-frontend persistence-up persistence-down persistence-ready persistence-bootstrap persistence-clean persistence-test-up persistence-test-down persistence-test
 .DEFAULT_GOAL := backend-test
 
+.PHONY: integrated-verification backend-test-offline
+
+integrated-verification:
+
+	cd backend && python -m personal_ai.evaluation.verification
+
+backend-test-offline:
+
+	cd backend && python -m pytest -m 'not persistence_integration and not cloud_smoke' --ignore=tests/test_gemini_manual.py --ignore=tests/test_context_manual.py
+
 adaptive-routing-eval:
 
 	cd backend && python -m personal_ai.evaluation.adaptive_routing

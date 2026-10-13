@@ -60,7 +60,7 @@ def runtime_identity():
                               for path in files]).encode()).hexdigest()
 
 
-async def measure(case, variant):
+async def measure(case, variant, *, packing_variant=None, observations=None):
     """Use the actual API composition seam with an installed public fixture adapter."""
     from personal_ai.agents.research.contracts import ResearchRequest
 
@@ -68,7 +68,9 @@ async def measure(case, variant):
         _env_file=None, ai_provider="fake", ai_model="synthetic", research_enabled=True,
         research_storage="memory", research_search_adapter="heldout",
         research_retrieval_experiments_enabled=True,
-        research_packing_strategy=(variant if variant in VARIANTS[:2] else VARIANTS[0]),
+        research_packing_strategy=(packing_variant or (
+            variant if variant in VARIANTS[:2] else VARIANTS[0]
+        )),
         research_max_queries=2 if variant == "expansion-v1" else 1,
         research_query_strategy=variant if variant in {"qualifier-v1", "expansion-v1"}
         else "literal-snippet-v1",
@@ -101,6 +103,12 @@ async def measure(case, variant):
     async def observed_stream(*args, **kwargs):
         nonlocal synthesis_calls, output_bytes
         synthesis_calls += 1
+        if observations is not None:
+            from personal_ai.context.tokens import EstimatedTokenCounter
+
+            observations["synthesis_input_token_estimate"] = EstimatedTokenCounter().count(
+                args[0]
+            ).tokens
         async for delta in original_stream(*args, **kwargs):
             output_bytes += len(delta.encode())
             yield delta
@@ -171,6 +179,8 @@ async def measure(case, variant):
         retrieved_bytes=sum(len(s.text.encode()) for s in adapter.results) * len(adapter.calls),
         packed_tokens=selection.token_count if selection else 0, latency_ms=latency,
     )
+    if observations is not None:
+        observations["synthesis_output_token_estimate"] = int(output_bytes * 1.1 + .999)
     return metrics, session
 
 

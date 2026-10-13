@@ -21,6 +21,12 @@ Phase 29 adds a separate, read-only Health contract/provider through the shared 
 
 ## Route by task
 
+Integrated verification and release hardening: read the [Phase 36 model](personal-ai-chapter-2/phase-36/architecture.md),
+[implementation report](personal-ai-chapter-2/phase-36/implementation-report.md),
+and [structured matrix](../backend/src/personal_ai/evaluation/verification/matrix.json).
+The program indexes original acceptance obligations; local evidence never closes
+native-store, cloud, live-provider, domain or browser gates.
+
 Search/evidence retrieval optimization: read the [Phase 33 report](personal-ai-chapter-2/phase-33-implementation-report.md), its [independent-review remediation evidence](personal-ai-chapter-2/phase-33-independent-review-remediation-evidence-2026-10-12.md), [search experiment contract](../experiments/search/README.md), and [written plan](personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/plans/phase-33-implementation-plan.md). The literal path remains default; no strategy coverage is promoted.
 
 | Task | Read first | Authority note |
