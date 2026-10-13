@@ -27,6 +27,67 @@ from personal_ai.persistence.postgres import (
 
 _ACCOUNT_SCOPE = ApplicationScope(application_id="personal_ai", workspace_id=None)
 
+_EXPORT_PATH_GROUPS = {
+    "postgres.payload-family": (
+        "research_sessions",
+        "research_experiments",
+        "research_request_keys",
+        "itinerary_proposals",
+        "booking_document_extractions",
+        "iterative_research_runs",
+        "iterative_research_request_keys",
+        "memory_lifecycle_states",
+        "memory_lifecycle_events",
+        "canonical_entities",
+        "entity_aliases",
+        "entity_claims",
+        "entity_matches",
+        "decision_snapshots",
+        "decision_evidence_snapshots",
+        "candidate_evaluations",
+        "domain_registrations",
+        "domain_claim_extensions",
+        "provider_observations",
+        "domain_comparison_views",
+        "domain_lookup_idempotency",
+        "account_lifecycle_requests",
+        "audit_events",
+        "identity_mappings",
+        "global_profiles",
+    ),
+    "postgres.federation": ("federation_grants", "federation_grant_revisions"),
+    "postgres.mutation": ("mutation_proposals", "mutation_proposal_revisions"),
+    "postgres.artifact-metadata": ("artifact_metadata",),
+    "postgres.routing": (
+        "routing_decisions",
+        "routing_decision_events",
+        "routing_decisions_legacy",
+    ),
+    "postgres.usage-budget": ("usage_budgets",),
+    "postgres.provider-usage": (
+        "provider_invocations",
+        "provider_attempts",
+        "provider_quota_reservations",
+        "provider_usage_daily_aggregates",
+    ),
+    "postgres.memory-record": ("memories", "derived_memories"),
+    "postgres.derived-memory-source": ("derived_memory_sources",),
+    "postgres.memory-lifecycle-operation": ("memory_lifecycle_operations",),
+    "dynamodb.conversation-directory": ("conversations",),
+    "dynamodb.conversation-message": ("messages",),
+    "dynamodb.conversation-summary": ("conversation_summaries",),
+    "dynamodb.context-trace": ("context_traces",),
+    "dynamodb.memory-lifecycle-job": ("memory_lifecycle_jobs",),
+    "dynamodb.provider-usage-event": ("provider_usage_events",),
+}
+EXPORT_IMPLEMENTATION_PATHS = {
+    family: path for path, families in _EXPORT_PATH_GROUPS.items() for family in families
+}
+
+
+def _export_families(path: str) -> tuple[str, ...]:
+    return _EXPORT_PATH_GROUPS[path]
+
 
 def _json(value):
     return PostgresPayloadRepository._json(value)
@@ -228,6 +289,7 @@ class PostgresAccountLifecycleRepository:
             ExportTooLarge,
             _portable,
         )
+        from personal_ai.auth.owner_data import OWNER_DATA_COLLECTIONS
         from personal_ai.context.traces import ContextTraceManifest
         from personal_ai.persistence.dynamodb._helpers import (
             MAX_CONVERSATION_MESSAGES,
@@ -240,6 +302,8 @@ class PostgresAccountLifecycleRepository:
 
         if self.runtime_table is None or max_records < 1 or max_bytes < 1:
             raise AccountDataUnavailable("portable export stores unavailable")
+        if not set(OWNER_DATA_COLLECTIONS).issubset(EXPORT_IMPLEMENTATION_PATHS):
+            raise AccountDataUnavailable("owner data export path mapping incomplete")
         scope = current_application_scope()
         started_at = datetime.now(UTC)
         collections = {}
@@ -253,7 +317,10 @@ class PostgresAccountLifecycleRepository:
 
         def add(collection, document_id, values):
             nonlocal count, estimated_bytes
-            if collection not in EXPORT_COLLECTIONS:
+            if (
+                collection not in EXPORT_COLLECTIONS
+                or collection not in EXPORT_IMPLEMENTATION_PATHS
+            ):
                 raise AccountDataUnavailable("export collection mapping invalid")
             record = {"document_id": str(document_id), "data": _portable(values)}
             encoded = _json(record).encode("utf-8")
@@ -267,32 +334,7 @@ class PostgresAccountLifecycleRepository:
                 raise ExportTooLarge
             collections.setdefault(collection, []).append(record)
 
-        p_families = (
-            "research_sessions",
-            "research_experiments",
-            "research_request_keys",
-            "itinerary_proposals",
-            "booking_document_extractions",
-            "iterative_research_runs",
-            "iterative_research_request_keys",
-            "memory_lifecycle_states",
-            "memory_lifecycle_events",
-            "canonical_entities",
-            "entity_aliases",
-            "entity_claims",
-            "entity_matches",
-            "decision_snapshots",
-            "decision_evidence_snapshots",
-            "candidate_evaluations",
-            "domain_claim_extensions",
-            "provider_observations",
-            "domain_comparison_views",
-            "domain_lookup_idempotency",
-            "account_lifecycle_requests",
-            "audit_events",
-            "identity_mappings",
-            "global_profiles",
-        )
+        p_families = _export_families("postgres.payload-family")
         try:
             with self.database.connection(snapshot=True) as connection:
                 p_snapshot_id = connection.execute(
@@ -318,7 +360,7 @@ class PostgresAccountLifecycleRepository:
                         p_revision_max = max(p_revision_max, int(revision or 0))
                         add(family, record_id, payload)
                         p_count += 1
-                for table in ("federation_grants", "federation_grant_revisions"):
+                for table in _export_families("postgres.federation"):
                     grant_rows = connection.execute(
                         f"SELECT grant_id::text,revision,payload FROM {table} WHERE owner_id=%s "
                         "ORDER BY grant_id,revision LIMIT %s",
@@ -331,38 +373,48 @@ class PostgresAccountLifecycleRepository:
                     for grant_id, revision, payload in grant_rows:
                         add(table, f"{grant_id}:{revision}", payload)
                         p_count += 1
-                for table in ("mutation_proposals", "mutation_proposal_revisions"):
+                for table in _export_families("postgres.mutation"):
                     mutation_rows = connection.execute(
                         f"SELECT proposal_id::text,revision,payload FROM {table} WHERE owner_id=%s "
                         "AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s "
                         "ORDER BY proposal_id,revision LIMIT %s",
-                        (owner_id, scope.application_id, scope.workspace_id, MAX_EXPORT_SCAN_RECORDS + 1),
+                        (
+                            owner_id,
+                            scope.application_id,
+                            scope.workspace_id,
+                            MAX_EXPORT_SCAN_RECORDS + 1,
+                        ),
                     ).fetchall()
                     if len(mutation_rows) > MAX_EXPORT_SCAN_RECORDS:
                         raise ExportTooLarge
                     p_collection_counts[table] = len(mutation_rows)
-                    p_revision_coverage[table] = max((int(row[1]) for row in mutation_rows), default=0)
+                    p_revision_coverage[table] = max(
+                        (int(row[1]) for row in mutation_rows), default=0
+                    )
                     for proposal_id, revision, payload in mutation_rows:
                         add(table, f"{proposal_id}:{revision}", payload)
                         p_count += 1
+                artifact_family = _export_families("postgres.artifact-metadata")[0]
                 artifact_rows = connection.execute(
                     "SELECT artifact_id,payload,revision FROM artifact_metadata "
                     "WHERE owner_id=%s AND application_id=%s "
                     "AND workspace_id IS NOT DISTINCT FROM %s ORDER BY artifact_id LIMIT %s",
                     (owner_id, scope.application_id, scope.workspace_id, max_records + 1),
                 ).fetchall()
-                p_collection_counts["artifact_metadata"] = len(artifact_rows)
-                p_revision_coverage["artifact_metadata"] = max(
+                p_collection_counts[artifact_family] = len(artifact_rows)
+                p_revision_coverage[artifact_family] = max(
                     (int(row[2]) for row in artifact_rows), default=0
                 )
                 for artifact_id, payload, revision in artifact_rows:
-                    add("artifact_metadata", artifact_id, payload)
+                    add(artifact_family, artifact_id, payload)
                     p_count += 1
-                for table, key in (
-                    ("routing_decisions", "decision_id"),
-                    ("routing_decision_events", "event_id"),
-                    ("routing_decisions_legacy", "decision_id"),
-                ):
+                routing_keys = {
+                    "routing_decisions": "decision_id",
+                    "routing_decision_events": "event_id",
+                    "routing_decisions_legacy": "decision_id",
+                }
+                for table in _export_families("postgres.routing"):
+                    key = routing_keys[table]
                     routing_rows = connection.execute(
                         f"SELECT {key}::text,to_jsonb(r) FROM {table} r "
                         "WHERE owner_id=%s AND application_id=%s "
@@ -382,6 +434,7 @@ class PostgresAccountLifecycleRepository:
                     for identity, payload in routing_rows:
                         add(table, identity, payload)
                         p_count += 1
+                budget_family = _export_families("postgres.usage-budget")[0]
                 budget_rows = connection.execute(
                     "SELECT record_id,owner_id,application_id,workspace_id,record_version,status,"
                     "revision,created_at,expires_at,budget_day,provider_calls,input_tokens "
@@ -396,8 +449,8 @@ class PostgresAccountLifecycleRepository:
                 ).fetchall()
                 if len(budget_rows) > MAX_EXPORT_SCAN_RECORDS:
                     raise ExportTooLarge
-                p_collection_counts["usage_budgets"] = len(budget_rows)
-                p_revision_coverage["usage_budgets"] = max(
+                p_collection_counts[budget_family] = len(budget_rows)
+                p_revision_coverage[budget_family] = max(
                     (int(row[6] or 0) for row in budget_rows), default=0
                 )
                 for (
@@ -415,7 +468,7 @@ class PostgresAccountLifecycleRepository:
                     input_tokens,
                 ) in budget_rows:
                     add(
-                        "usage_budgets",
+                        budget_family,
                         record_id,
                         {
                             "owner_id": record_owner,
@@ -496,6 +549,8 @@ class PostgresAccountLifecycleRepository:
                         ),
                     ),
                 }
+                if set(provider_usage_queries) != set(_export_families("postgres.provider-usage")):
+                    raise AccountDataUnavailable("provider usage export path mapping incomplete")
                 for family, (query, parameters) in provider_usage_queries.items():
                     rows = connection.execute(query, parameters).fetchall()
                     if len(rows) > MAX_EXPORT_SCAN_RECORDS:
@@ -505,7 +560,7 @@ class PostgresAccountLifecycleRepository:
                     for record_id, payload in rows:
                         add(family, record_id, payload)
                         p_count += 1
-                for family in ("memories", "derived_memories"):
+                for family in _export_families("postgres.memory-record"):
                     rows = connection.execute(
                         f"SELECT record_id,payload,embedding FROM {family} "
                         "WHERE owner_id=%s AND application_id=%s "
@@ -541,10 +596,9 @@ class PostgresAccountLifecycleRepository:
                 ).fetchall()
                 if len(relation_rows) > MAX_EXPORT_SCAN_RECORDS:
                     raise ExportTooLarge
-                p_collection_counts["derived_memory_sources"] = len(relation_rows)
-                p_revision_coverage["derived_memory_sources"] = (
-                    "parent_revision_in_repeatable_read_snapshot"
-                )
+                relation_family = _export_families("postgres.derived-memory-source")[0]
+                p_collection_counts[relation_family] = len(relation_rows)
+                p_revision_coverage[relation_family] = "parent_revision_in_repeatable_read_snapshot"
                 for (
                     derived_id,
                     source_id,
@@ -565,7 +619,7 @@ class PostgresAccountLifecycleRepository:
                         "derived_memory_id": derived_id,
                         "created_at": created_at,
                     }
-                    add("derived_memory_sources", relation_id, values)
+                    add(relation_family, relation_id, values)
                     p_count += 1
                 receipts = connection.execute(
                     "SELECT operation_id,attempt_id,fingerprint,outcome,result_refs,"
@@ -583,8 +637,9 @@ class PostgresAccountLifecycleRepository:
                     raise ExportTooLarge
                 if len(receipts) > MAX_EXPORT_SCAN_RECORDS:
                     raise ExportTooLarge
-                p_collection_counts["memory_lifecycle_operations"] = len(receipts)
-                p_revision_coverage["memory_lifecycle_operations"] = (
+                operation_family = _export_families("postgres.memory-lifecycle-operation")[0]
+                p_collection_counts[operation_family] = len(receipts)
+                p_revision_coverage[operation_family] = (
                     "receipt_identity_in_repeatable_read_snapshot"
                 )
                 for operation_id, attempt_id, fp, outcome, refs, deadline, created_at in receipts:
@@ -595,7 +650,7 @@ class PostgresAccountLifecycleRepository:
                         ).encode()
                     ).hexdigest()
                     add(
-                        "memory_lifecycle_operations",
+                        operation_family,
                         document_id,
                         {
                             "owner_id": owner_id,

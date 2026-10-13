@@ -1,9 +1,11 @@
 # Phase 36 release verification
 
-Tested revision: `2d4d5a4c21d820ad0894619cb5a1985436f7c665`.
-Configuration/source: `9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc`.
-Matrix SHA256: `b6bc470a7e791ca1fd28dbabfc434b5e60aa8c7ffc27e7a23978c75ecb1139d5`.
-Recorded UTC: 2026-10-13T03:32:40.853721+00:00.
+Tested revision: `77fdce50790f45b9d04b3cae48e71d1dd43e4621`.
+Tracked source/configuration inputs: `308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d`.
+
+Sanitized verifier environment: {"artifact_retention": false, "excluded_markers": ["persistence_integration", "cloud_smoke"], "profile_identities": {"account": "synthetic-owner-only; no-personal-data", "provider": "fake-or-synthetic; no-live-provider-dispatch", "storage": "synthetic-and-scripted-fakes; no-native-store"}, "profile_identities_sha256": "7231328e34852f5eed6647bc68d15bfd0448ff442fa6fdaeb1a93df24b12c8b8", "profiles": {"account": "synthetic-owner-only; no-personal-data", "provider": "fake-or-synthetic; no-live-provider-dispatch", "storage": "synthetic-and-scripted-fakes; no-native-store"}, "provider_dispatch": "disabled", "pytest_selection": "all references from offline rows in the canonical matrix", "schema_version": "phase36-verifier-environment-v1"}.
+Matrix SHA256: `9c691a6f6744047fcc43c8a4e1c0d42c57ae63cced5cf39434b326d41809df09`.
+Recorded UTC: 2026-10-13T04:27:25.538687+00:00.
 
 Release ready: **false**. This report grants no runtime authorization or promotion.
 
@@ -13,30 +15,30 @@ Default/promoted strategy coverage: {"cascade": "direct default; bounded cascade
 
 | ID | Boundary | Class | Severity | Status | Evidence / original authority |
 | --- | --- | --- | --- | --- | --- |
-| P36-ISOLATION | isolation | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-FEDERATION | federation | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-CONTEXT | context-quality | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-PLANNER | planner-optimization | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-SEARCH | search-optimization | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-MEMORY | memory-optimization | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-ADAPTIVE | adaptive-routing | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-COMBINED | combined-resources | offline | resource | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-STRICT-FREE | strict-free | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-SENSITIVE | sensitivity | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-CASCADE | cascades | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-MUTATION | mutations | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-TRANSPORT | provider-transport | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-ARTIFACT | artifacts | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-EXPORT | export-deletion | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-DB-FAULT | persistence | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-STORAGE-OWNERS | storage-ownership | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-CHURN | endpoint-churn | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-BRIDGE | chatgpt | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-SIDECAR | client-actions | offline | critical | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-FIFTH-APP | app-conformance | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-PROVIDER-TASK | provider-conformance | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-SOAK | soak | offline | resource | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
-| P36-PROGRAM | verification | offline | high | passed | receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9 |
+| P36-ISOLATION | isolation | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-FEDERATION | federation | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-CONTEXT | context-quality | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-PLANNER | planner-optimization | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-SEARCH | search-optimization | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-MEMORY | memory-optimization | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-ADAPTIVE | adaptive-routing | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-COMBINED | combined-resources | offline | resource | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-STRICT-FREE | strict-free | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-SENSITIVE | sensitivity | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-CASCADE | cascades | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-MUTATION | mutations | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-TRANSPORT | provider-transport | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-ARTIFACT | artifacts | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-EXPORT | export-deletion | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-DB-FAULT | persistence | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-STORAGE-OWNERS | storage-ownership | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-CHURN | endpoint-churn | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-BRIDGE | chatgpt | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-SIDECAR | client-actions | offline | critical | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-FIFTH-APP | app-conformance | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-PROVIDER-TASK | provider-conformance | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-SOAK | soak | offline | resource | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
+| P36-PROGRAM | verification | offline | high | passed | receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44 |
 | P36-DYNAMO-NATIVE | persistence | local | high | unverified | docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md |
 | P36-DYNAMO-REAL | persistence | cloud | high | unverified | docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md |
 | P36-POSTGRES-NATIVE | persistence | local | high | unverified | docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md |
@@ -105,28 +107,32 @@ Full observations are in `matrix-results.json`; summaries follow.
     "timeline_records": 8,
     "original_memory_records": 3,
     "derived_memory_records": 2,
+    "derived_views_created": 1,
     "maintenance_jobs": 3,
+    "maintenance_jobs_created": 2,
     "routing_records": 1,
     "research_sessions": 1,
     "research_metadata_bytes": 6143,
     "artifact_objects": 1,
     "artifact_bytes": 45,
     "artifact_operations": 3,
-    "latency_ms": 18.792624992784113
+    "latency_ms": 25.443083024583757
   },
   "last_sample": {
     "iteration": 32,
     "timeline_records": 70,
     "original_memory_records": 34,
-    "derived_memory_records": 81,
-    "maintenance_jobs": 113,
+    "derived_memory_records": 49,
+    "derived_views_created": 1,
+    "maintenance_jobs": 81,
+    "maintenance_jobs_created": 2,
     "routing_records": 32,
     "research_sessions": 32,
     "research_metadata_bytes": 196576,
     "artifact_objects": 32,
     "artifact_bytes": 1462,
     "artifact_operations": 96,
-    "latency_ms": 486.26095900544897
+    "latency_ms": 409.251957986271
   }
 }
 ```
@@ -137,14 +143,26 @@ Full observations are in `matrix-results.json`; summaries follow.
   "evidence_class": "offline",
   "corpus": "retrieval-heldout-v2",
   "corpus_sha256": "679e05ed0c6ad8be3136a1938f444cb27ec05df3997425df52e9cc1cd12d5cdc",
-  "p50_ms": 24.557750002713874,
-  "p95_ms": 31.549334002193063,
-  "token_estimate_totals": {
-    "baseline": 34502,
-    "combined": 33921,
-    "rollback": 34502
+  "latency_by_variant": {
+    "baseline": {
+      "p50_ms": 33.47333398414776,
+      "p95_ms": 35.57679199730046
+    },
+    "combined": {
+      "p50_ms": 39.97495799558237,
+      "p95_ms": 41.353958018589765
+    },
+    "rollback": {
+      "p50_ms": 33.537208015332,
+      "p95_ms": 34.730207989923656
+    }
   },
-  "aggregate_saving_fraction": 0.01683960350124636,
+  "token_estimate_totals": {
+    "baseline": 34902,
+    "combined": 34321,
+    "rollback": 34902
+  },
+  "aggregate_saving_fraction": 0.016646610509426396,
   "promotion": "not_promoted",
   "promoted_coverage": [],
   "missing": [
@@ -156,7 +174,7 @@ Full observations are in `matrix-results.json`; summaries follow.
 }
 ```
 
-Optimization promotion assessment: {"decision": "not_promoted", "gates": {"assisted_planner_implementation": {"observed": null, "status": "unverified"}, "complete_physical_attempt_quota_lineage": {"observed": null, "status": "unverified"}, "native_store_operations_storage_headroom": {"observed": null, "status": "unverified"}, "supported_live_answer_quality": {"observed": null, "status": "unverified"}, "synthetic_aggregate_resource_saving": {"observed": 0.01683960350124636, "status": "failed", "threshold": 0.05}, "whole_workflow_p95_latency": {"observed": null, "status": "unverified"}}, "promoted_coverage": []}.
+Optimization promotion assessment: {"decision": "not_promoted", "gates": {"maximum_authority_confusion": {"observed": 0, "status": "passed", "threshold": 0.0}, "maximum_context_token_estimate": {"observed": 1375, "status": "passed", "threshold": 8192.0}, "maximum_derived_views_per_soak_turn": {"observed": 4, "status": "passed", "threshold": 4.0}, "maximum_false_stale_superseded_memory": {"observed": 0, "status": "passed", "threshold": 0.0}, "maximum_irrelevance_delta": {"observed": null, "status": "unverified", "threshold": 0.0}, "maximum_logical_calls_per_fixture": {"observed": 26, "status": "passed", "threshold": 32.0}, "maximum_maintenance_jobs_per_soak_turn": {"observed": 5, "status": "failed", "threshold": 4.0}, "maximum_omission_delta": {"observed": null, "status": "unverified", "threshold": 0.0}, "maximum_pipeline_p95_latency_increase_ms": {"observed": 5.777166021289304, "status": "failed", "threshold": 0.0}, "maximum_synthetic_pipeline_ms": {"observed": 41.353958018589765, "status": "passed", "threshold": 2000.0}, "minimum_aggregate_resource_saving_fraction": {"observed": 0.016646610509426396, "status": "failed", "threshold": 0.05}, "minimum_exact_support": {"observed": 1.0, "status": "passed", "threshold": 1.0}, "minimum_mutation_correctness": {"observed": null, "status": "unverified", "threshold": 1.0}, "minimum_supported_quality_delta": {"observed": null, "status": "unverified", "threshold": 0.0}, "soak_iterations": {"observed": 32, "status": "passed", "threshold": 32.0}}, "promoted_coverage": []}.
 
 ## Deferred environment-dependent verification — intentionally not executed
 

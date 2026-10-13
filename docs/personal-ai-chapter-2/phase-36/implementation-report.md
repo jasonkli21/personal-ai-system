@@ -1,6 +1,6 @@
 # Phase 36 implementation report
 
-Date: 2026-10-12. Tested base revision: `2d4d5a4c21d820ad0894619cb5a1985436f7c665`
+Date: 2026-10-12. Tested base revision: `77fdce50790f45b9d04b3cae48e71d1dd43e4621`
 plus the final working-tree source/configuration digest recorded in
 [matrix results](matrix-results.json). The single implementation commit is the
 direct child of this base; evidence binds file contents rather than claiming the
@@ -11,7 +11,10 @@ base commit alone contains the implementation.
    original blockers. Passed, failed, blocked, unverified and justified
    not-applicable remain distinct. The [model](architecture.md) was established
    before implementation; the [release report](release-report.md) and
-   [blocker ledger](blockers.json) are derived projections.
+   [blocker ledger](blockers.json) are derived projections. A typed
+   `--external-evidence` receipt path can merge separately executed non-offline
+   results only when row, class, revision, matrix/source digest, environment,
+   profile, authority, artifact, freshness and provenance bindings match.
 2. **Canonical owners and identities.** DynamoDB owns timeline/runtime/jobs;
    Postgres owns knowledge, lifecycle, grants, proposals, routing and P19 usage;
    GCS owns bulky private bodies. Owner/actor/app/workspace, exact source revision,
@@ -23,9 +26,13 @@ base commit alone contains the implementation.
    composition, memory lifecycle/retrieval, routing factory, P19/P21/P22/P24,
    mutation reconciliation and artifact lifecycle. The research evaluator now
    observes combined rewrite/packing and full synthesis-envelope estimates.
-4. **Production composition.** `main.lifespan` installs a fifth app's two typed
-   providers through the contribution catalog; FastAPI dependencies compose
-   automatic/external assemblers and shared sidecar policy. Provider/task
+4. **Production composition.** The production `create_app` factory installs a
+   fifth app's manifests and workspace authority through the generic application
+   contribution catalog. `AuthenticationMiddleware` constructs the request scope
+   and checks required workspace membership through that registered authority;
+   absent membership authority denies access. `main.lifespan` installs the app's
+   two typed providers through the context contribution catalog. FastAPI dependencies
+   compose automatic/external assemblers and shared sidecar policy. Provider/task
    evaluation and registered cascade validation consume the production routing
    factory, with only I/O and authority fixtures substituted. No fifth product,
    alternate inference runtime or generic app/provider-name branch is added.
@@ -47,15 +54,18 @@ base commit alone contains the implementation.
    owner: bound request retrieval preserves owner/actor/app/workspace rather than
    constructing duplicate owner arguments; foreign owners are denied before
    embedding. Revoked accumulated memory remains excluded.
-8. **Baseline and promotion.** The unchanged 30-case planner corpus has a v9
-   runtime freeze; v8 remains historical. Combined held-out synthetic estimates
-   total 34,502 baseline, 33,921 combined and 34,502 rollback tokens: 1.68% saving
-   misses the 5% gate. Live answer quality, whole-workflow timing, physical quota
-   lineage and native-store resources are unmeasured. No coverage is promoted;
-   deterministic defaults remain. The 32-step soak measures 70 timeline records,
-   34 original memories, 59 views, 91 jobs, 32 research sessions and 32 routing
-   records; all 32 artifact bodies are reclaimed. These are synthetic bounds,
-   not native capacity or physical account-deletion evidence.
+8. **Baseline and promotion.** The unchanged 30-case planner corpus has a v10
+   runtime freeze for the review-fix source tree; v9 and v8 remain historical.
+   The combined held-out measurement
+   reports baseline and candidate latency distributions separately and evaluates
+   every declared threshold as passed, failed, or unverified. Live answer quality,
+   whole-workflow timing, physical quota lineage and native-store resources remain
+   unavailable. No coverage is promoted; deterministic defaults remain. The
+   32-step soak's exact final counts are recorded only in the generated
+   [release report](release-report.md) and [matrix results](matrix-results.json);
+   the report does not duplicate sample counts that can vary between runs. Its
+   synthetic observations are not native capacity or physical account-deletion
+   evidence.
    Internal routing uses `quota-scarcity@1` with
    `remaining-sends-reset-relief-health-v1`; optional shadow uses
    `bounded-capacity-rule@1`. Memory uses `memory-read-v1` with `whole-v1` or
@@ -85,11 +95,13 @@ base commit alone contains the implementation.
     job growth, eventual cleanup, mutation uncertainty and any implied live,
     strict-$0, privacy or release-readiness claim.
 
-Verification results are recorded in the accompanying evidence files. The final
-offline matrix executes 744 cases: 24 local rows passed, 21 external rows remain
-unverified and 3 original obligations remain blocked. All 13 declared fault
-scenarios pass. The failed synthetic resource-promotion gate is an experiment
-result, not an enabled-path failure.
+Verification results are recorded in the generated evidence files. The current
+matrix records 24 offline rows passed, 21 unverified external rows, and 3 original
+blocked obligations; exact case counts, source/configuration digest, and soak
+observations live in `matrix-results.json`, `receipts.json`, and
+`release-report.md`. This summary does not duplicate run-specific soak counts.
+All 13 declared fault scenarios pass. Failed or unverified synthetic promotion
+gates are experiment results, not enabled-path failures.
 
 The pre-final audit found no new dual canonical state, policy/ledger/registry,
 app-specific production singleton, transport rediscovery, mutable historical
@@ -102,12 +114,11 @@ report and ledger are reproducible from those stored facts.
 
 | Check | Result |
 | --- | --- |
-| `make backend-test-offline` | 1,692 passed; 89 deferred marked cases deselected; live files excluded |
-| `make integrated-verification` | 744 passed; matrix/report/blockers generated; release-ready false |
-| Backend lint and package build | Passed; build used writable temporary uv cache, offline mode |
-| Frontend tests/lint/typecheck/build | Passed; 123 tests; bundled Node runtime |
-| All 15 Makefile deterministic/offline evaluation targets | Passed; artifact retention disabled |
-| Link/content review and `git diff --check` | Passed |
+| Offline backend suite | 1,699 selected; 89 deferred marked cases deselected; manual live files excluded |
+| Integrated Phase 36 verifier | See generated matrix results and release report; external/native gates remain open |
+| Planning evaluation | Passed against the v10 runtime freeze; no strategy coverage promoted |
+| Backend lint | Passed with Ruff |
+| Documentation review and `git diff --check` | Passed |
 
 ## Deferred environment-dependent verification — intentionally not executed
 

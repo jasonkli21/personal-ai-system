@@ -9,7 +9,7 @@ from time import perf_counter
 from uuid import uuid4
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import Depends
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -21,12 +21,10 @@ from personal_ai.api.dependencies import (
     get_global_profile_repository,
     get_message_repository,
     get_provider_usage_accounting,
-    get_request_scope,
     get_routing_decision_service,
     get_settings,
     get_summary_repository,
 )
-from personal_ai.api.external_turns import router as external_router
 from personal_ai.applications.contracts import (
     ApplicationContextPolicy,
     ApplicationContextRequest,
@@ -38,11 +36,12 @@ from personal_ai.applications.contracts import (
     ContextOperationPolicy,
     ContextProviderPolicy,
 )
-from personal_ai.applications.registry import ApplicationRegistry, default_application_registry
-from personal_ai.auth.scope import (
-    ApplicationScope,
-    RequestScope,
+from personal_ai.applications.registry import (
+    ApplicationContribution,
+    ApplicationContributionCatalog,
+    default_application_registry,
 )
+from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context.planner import ContextPlanningRule
 from personal_ai.context.providers import (
     ContextEntityReference,
@@ -67,7 +66,7 @@ from personal_ai.evaluation.memory_lifecycle import apply_fixture
 from personal_ai.evaluation.memory_optimization import _EmbeddingObservations
 from personal_ai.evaluation.retrieval import load_configuration, measure
 from personal_ai.evaluation.verification.__main__ import MATRIX_PATH
-from personal_ai.main import lifespan
+from personal_ai.main import create_app
 from personal_ai.routing.contracts import DataUsePolicy, ProviderAccessPolicy
 from personal_ai.settings import Settings
 from tests.test_adaptive_routing_phase35 import artifact, factory, settings
@@ -95,6 +94,7 @@ class ScopedAuthority:
 
     def __init__(self):
         self.current = True
+        self.member = True
 
     def supports(self, dependency):
         return dependency.permission_id.startswith(self.permission_namespaces)
@@ -104,12 +104,20 @@ class ScopedAuthority:
             self.current
             and self.supports(dependency)
             and dependency.version == "epoch-1"
-            and dependency.owner_id == "synthetic-owner"
-            and dependency.acting_user_id == "synthetic-actor"
+            and dependency.owner_id == "local"
+            and dependency.acting_user_id == "local-development|local-development"
             and dependency.source_scope == ApplicationScope(application_id=APP, workspace_id=SPACE)
             and dependency.entity_ref is not None
             and dependency.entity_ref.entity_id in {"record-1", "constraint-1"}
             and dependency.source_revision == "entity-v7"
+        )
+
+    def is_member(self, principal, application_id, workspace_id):
+        return (
+            self.member
+            and principal.owner_id == "local"
+            and application_id == APP
+            and workspace_id == SPACE
         )
 
 
@@ -146,8 +154,8 @@ class TypedProvider:
 
     def validate_selection(self, selection, inputs):
         if (
-            inputs.scope.owner_id != "synthetic-owner"
-            or inputs.scope.acting_user_id != "synthetic-actor"
+            inputs.scope.owner_id != "local"
+            or inputs.scope.acting_user_id != "local-development|local-development"
             or inputs.scope.application_id != APP
             or inputs.scope.workspace_id != SPACE
             or selection.entity_refs != (self.reference,)
@@ -234,32 +242,19 @@ def fifth_app(monkeypatch):
             }
         ),
     )
-    registry = default_application_registry()
-    capabilities = {
-        c.capability_id: c
-        for app_id in registry.application_ids
-        for c in (
-            *registry.registration(app_id).context_providers,
-            *registry.registration(app_id).tools,
-        )
-    }
-    modules = {
-        m.registration.domain_id: m
-        for app_id in registry.application_ids
-        for m in registry.registration(app_id).comparison_modules
-    }
-    registry = ApplicationRegistry(
-        (*(registry.get(app_id) for app_id in registry.application_ids), definition),
-        (
-            *capabilities.values(),
-            *(
+    application_catalog = ApplicationContributionCatalog()
+    application_catalog.register(
+        "synthetic-fifth",
+        lambda: ApplicationContribution(
+            definitions=(definition,),
+            capabilities=tuple(
                 CapabilityRegistration(
                     capability_id=p.spec.provider_id, kind="context_provider", available=True
                 )
                 for p in providers
             ),
+            workspace_authorizers={APP: authority},
         ),
-        comparison_modules=modules,
     )
     rules = tuple(
         ContextPlanningRule(
@@ -286,21 +281,20 @@ def fifth_app(monkeypatch):
             (authority,),
         ),
     )
-    config = Settings(_env_file=None, ai_provider="fake", ai_model="synthetic")
-    scope = RequestScope(
-        owner_id="synthetic-owner",
-        acting_user_id="synthetic-actor",
-        application_id=APP,
-        workspace_id=SPACE,
-        request_id="fifth-conformance",
+    app = create_app(
+        application_catalog=application_catalog,
+        context_runtime_catalog=catalog,
     )
-    app = FastAPI(lifespan=lifespan)
-    app.state.application_registry, app.state.context_runtime_catalog = registry, catalog
-    app.include_router(external_router)
+    config = Settings(
+        _env_file=None,
+        ai_provider="fake",
+        ai_model="synthetic",
+        app_environment="test",
+        external_turn_acceptance_enabled=True,
+    )
     app.dependency_overrides.update(
         {
             get_settings: lambda: config,
-            get_request_scope: lambda: scope,
             get_summary_repository: InMemorySummaryRepository,
             get_global_profile_repository: lambda: None,
             get_message_repository: lambda: None,
@@ -374,27 +368,71 @@ def fifth_app(monkeypatch):
 
 def test_fifth_app_startup_two_typed_providers_and_negative_scope(monkeypatch):
     app, providers, authority = fifth_app(monkeypatch)
+    headers = {"x-application-id": APP, "x-workspace-id": SPACE}
     with TestClient(app) as client:
-        response = client.post("/probe", json={})
+        response = client.post("/probe", json={}, headers=headers)
         assert response.status_code == 200, response.text
         result = response.json()
         assert set(result["providers"]) == {p.spec.provider_id for p in providers}
         assert result["shared"] and result["dependencies"] == 2
         assert set(result["classes"]) == {"RecordPayload", "ConstraintPayload"}
-        options = client.get("/v1/conversations/execution-options").json()
+        options = client.get("/v1/conversations/execution-options", headers=headers).json()
         assert options["sidecar"]["draft_insert_target_ids"] == ["fifth.composer"]
         assert options["sidecar"]["mutation_operations"] == []
         assert options["modes"] == ["automatic"]
         for body in ({"application_id": "finance"}, {"workspace_id": "foreign-space"}):
             calls = [p.calls for p in providers]
-            result = client.post("/probe", json=body).json()
+            result = client.post("/probe", json=body, headers=headers).json()
             assert result["denied"] == "context_cross_application_denied"
             assert [p.calls for p in providers] == calls
+        assert (
+            client.post("/probe", json={}, headers={"x-application-id": APP}).json()["error"][
+                "code"
+            ]
+            == "application_workspace_required"
+        )
+        denied = client.post(
+            "/probe",
+            json={},
+            headers={**headers, "x-workspace-id": "unregistered-workspace"},
+        )
+        assert denied.status_code == 403
+        assert denied.json()["error"]["code"] == "workspace_not_authorized"
         authority.current = False
         calls = [p.calls for p in providers]
-        result = client.post("/probe", json={}).json()
+        result = client.post("/probe", json={}, headers=headers).json()
         assert not result.get("providers")
         assert [p.calls for p in providers] == calls
+
+    # The same production app factory keeps a required-workspace registration closed
+    # when the contribution omits a membership authority.
+    no_authority_catalog = ApplicationContributionCatalog(
+        (
+            (
+                "synthetic-fifth",
+                lambda: ApplicationContribution(
+                    definitions=(app.state.application_registry.get(APP),),
+                    capabilities=tuple(
+                        CapabilityRegistration(
+                            capability_id=p.spec.provider_id,
+                            kind="context_provider",
+                            available=True,
+                        )
+                        for p in providers
+                    ),
+                ),
+            ),
+        )
+    )
+    no_authority_app = create_app(
+        application_catalog=no_authority_catalog,
+        context_runtime_catalog=app.state.context_runtime_catalog,
+    )
+    no_authority_app.dependency_overrides.update(app.dependency_overrides)
+    with TestClient(no_authority_app) as client:
+        denied = client.get("/v1/conversations/execution-options", headers=headers)
+        assert denied.status_code == 403
+        assert denied.json()["error"]["code"] == "workspace_not_authorized"
 
 
 def test_account_cost_identity_and_exhaustion_through_production_factory(monkeypatch):
@@ -574,7 +612,7 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
                     context_provider_capabilities=registration.context_providers,
                 )
                 retrieval = retriever(env).retrieve(
-                    "local", "query", [], application_context=context
+                    "local", case["question"], [], application_context=context
                 )
                 selections = (
                     ContextSelection(
@@ -591,7 +629,7 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
                     ),
                 )
                 plan = assembler.plan_context(
-                    "Use memory and selected evidence",
+                    case["question"],
                     context,
                     explicit_context_selections=selections,
                 )
@@ -619,9 +657,10 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
                     assert plan.planning_trace.baseline_digest == plan.planning_trace.final_digest
                 selected_evidence = set(session.selection.evidence_ids)
                 observations = tuple(session.observations)
+                pending = env["pending"].model_copy(update={"content": case["question"]})
                 assembled = assembler.assemble(
                     (),
-                    env["pending"],
+                    pending,
                     refresh=False,
                     retrieval=retrieval,
                     application_context=context,
@@ -637,6 +676,43 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
                     assembled.excluded_memories,
                 )
                 assert any(i.source_class == "external_research" for i in assembled.source_items)
+                external_items = tuple(
+                    item
+                    for item in assembled.source_items
+                    if item.source_class == "external_research"
+                )
+                selected_evidence_ids = {str(identity) for identity in selected_evidence}
+                assembled_evidence_ids = {item.item_id for item in external_items}
+                post_builder_support = len(selected_evidence_ids & assembled_evidence_ids) / max(
+                    1, len(selected_evidence_ids)
+                )
+                allowed_providers = {"ai_memory", "external_research"}
+                authority_confusion = sum(
+                    item.owner_id != context.scope.owner_id
+                    or item.application_id != context.scope.application_id
+                    or item.workspace_id != context.scope.workspace_id
+                    or item.provider_id not in allowed_providers
+                    or (
+                        item.source_class == "external_research"
+                        and item.item_id not in selected_evidence_ids
+                    )
+                    for item in assembled.source_items
+                )
+                item_reports = {item.item_id: item for item in assembled.manifest.items}
+                dependency_loss = sum(
+                    bool(item.permission_dependencies)
+                    and not any(
+                        dependency.kind in {"permission", "federation_grant"}
+                        for dependency in item_reports[item.item_id].dependency_versions
+                    )
+                    for item in assembled.source_items
+                    if item.item_id in item_reports
+                )
+                assert post_builder_support == 1.0
+                assert authority_confusion == 0 and dependency_loss == 0
+                if case["name"] == "conflicting-sources":
+                    conflict_urls = {ref.uri for item in external_items for ref in item.source_refs}
+                    assert {"https://example.org/blue", "https://example.net/red"} <= conflict_urls
             f, repository, usage = factory(
                 monkeypatch,
                 [
@@ -730,6 +806,11 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
                     + embeddings.token_estimate
                     + assembled.budget.selected_total,
                     "exact_evidence_support": search.exact_support,
+                    "post_builder_exact_support": post_builder_support,
+                    "post_builder_authority_confusion": authority_confusion,
+                    "post_builder_permission_dependency_loss": dependency_loss,
+                    "post_builder_conflict_visible": case["name"] != "conflicting-sources"
+                    or len(external_items) >= 2,
                     "context_source_count": len(assembled.source_items),
                     "supported_answer_quality_live": None,
                     "context_omission_live": None,
@@ -759,7 +840,13 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
         r["assembled_token_estimate"] <= THRESHOLDS["maximum_context_token_estimate"] for r in rows
     )
     assert all(r["latency_ms"] < THRESHOLDS["maximum_synthetic_pipeline_ms"] for r in rows)
-    latencies = [r["latency_ms"] for r in rows]
+    latency_by_variant = {
+        variant: {
+            "p50_ms": median(r["latency_ms"] for r in rows if r["variant"] == variant),
+            "p95_ms": _percentile([r["latency_ms"] for r in rows if r["variant"] == variant], 0.95),
+        }
+        for variant in ("baseline", "combined", "rollback")
+    }
     totals = {
         v: sum(r["total_token_estimate"] for r in rows if r["variant"] == v)
         for v in ("baseline", "combined", "rollback")
@@ -773,8 +860,7 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
                 "corpus": "retrieval-heldout-v2",
                 "corpus_sha256": frozen["fixture_sha256"],
                 "rows": rows,
-                "p50_ms": median(latencies),
-                "p95_ms": _percentile(latencies, 0.95),
+                "latency_by_variant": latency_by_variant,
                 "token_estimate_totals": totals,
                 "aggregate_saving_fraction": 1 - totals["combined"] / totals["baseline"],
                 "promotion": "not_promoted",
@@ -821,6 +907,8 @@ async def test_bounded_accumulation_revocation_and_artifact_cleanup(monkeypatch,
     iterations = int(THRESHOLDS["soak_iterations"])
     for index in range(iterations):
         started = perf_counter()
+        views_before = len(env["memories"].derived_records)
+        jobs_before = len(env["lifecycle"].jobs)
         user = env["pending"].model_copy(
             update={
                 "id": uuid4(),
@@ -894,7 +982,9 @@ async def test_bounded_accumulation_revocation_and_artifact_cleanup(monkeypatch,
                 "timeline_records": len(env["messages"]._messages),
                 "original_memory_records": len(env["memories"].records),
                 "derived_memory_records": len(env["memories"].derived_records),
+                "derived_views_created": len(env["memories"].derived_records) - views_before,
                 "maintenance_jobs": len(env["lifecycle"].jobs),
+                "maintenance_jobs_created": len(env["lifecycle"].jobs) - jobs_before,
                 "routing_records": len(repo.records),
                 "research_sessions": len(research.sessions),
                 "research_metadata_bytes": sum(

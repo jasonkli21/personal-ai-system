@@ -21,7 +21,10 @@ from personal_ai.api.profile import router as profile_router
 from personal_ai.api.provider_usage import router as provider_usage_router
 from personal_ai.api.research import router as research_router
 from personal_ai.api.routes import router as conversations_router
-from personal_ai.applications.registry import default_application_registry
+from personal_ai.applications.registry import (
+    ApplicationContributionCatalog,
+    default_application_registry,
+)
 from personal_ai.auth.account_data import AccountDataUnavailable
 from personal_ai.auth.middleware import AuthenticationMiddleware
 from personal_ai.booking_extractions.repositories import ExtractionError
@@ -52,6 +55,7 @@ async def lifespan(application: FastAPI):
         settings_provider(), catalog=contribution_catalog
     )
     from personal_ai.federation.deployment import reconcile_federation_runtime_metadata
+
     application.state.application_registry = reconcile_federation_runtime_metadata(
         application.state.application_registry, application.state.context_runtime_registry
     )
@@ -70,23 +74,40 @@ async def lifespan(application: FastAPI):
         close_persistence_clients()
 
 
-app = FastAPI(title="Personal AI System", version="0.1.0", lifespan=lifespan)
-app.state.application_registry = default_application_registry()
-app.add_middleware(AuthenticationMiddleware)
-app.include_router(federation_router)
-app.include_router(mutations_router)
-app.include_router(external_turns_router)
-app.include_router(conversations_router)
-app.include_router(research_router)
-app.include_router(iterative_research_router)
-app.include_router(itinerary_proposals_router)
-app.include_router(booking_extractions_router)
-app.include_router(decisions_router)
-app.include_router(domains_router)
-app.include_router(account_router)
-app.include_router(artifacts_router)
-app.include_router(profile_router)
-app.include_router(provider_usage_router)
+def create_app(
+    *,
+    application_catalog: ApplicationContributionCatalog | None = None,
+    context_runtime_catalog=None,
+) -> FastAPI:
+    """Build the production API with registered application and context contributions."""
+    application = FastAPI(title="Personal AI System", version="0.1.0", lifespan=lifespan)
+    application.state.application_registry = default_application_registry(
+        contribution_catalog=application_catalog
+    )
+    if context_runtime_catalog is not None:
+        application.state.context_runtime_catalog = context_runtime_catalog
+    application.add_middleware(AuthenticationMiddleware)
+    for router in (
+        federation_router,
+        mutations_router,
+        external_turns_router,
+        conversations_router,
+        research_router,
+        iterative_research_router,
+        itinerary_proposals_router,
+        booking_extractions_router,
+        decisions_router,
+        domains_router,
+        account_router,
+        artifacts_router,
+        profile_router,
+        provider_usage_router,
+    ):
+        application.include_router(router)
+    return application
+
+
+app = create_app()
 
 
 def _error_response(status_code: int, code: str, message: str) -> JSONResponse:

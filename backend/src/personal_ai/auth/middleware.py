@@ -44,7 +44,6 @@ from personal_ai.auth.safeguards import (
     SafeguardUnavailable,
 )
 from personal_ai.auth.scope import (
-    DenyWorkspaceAuthorizer,
     RequestScope,
     bind_request_scope,
     bind_verified_principal,
@@ -440,9 +439,7 @@ async def authenticate_request(request: Request) -> Response | None:
                 correlation_id=correlation_id,
             )
         if request_scope.workspace_id is not None:
-            authorizer = getattr(request.app.state, "workspace_authorizer", None)
-            if authorizer is None:
-                authorizer = DenyWorkspaceAuthorizer()
+            authorizer = application_registry_for(request).workspace_authorizer
             try:
                 allowed = authorizer.is_member(
                     principal, request_scope.application_id, request_scope.workspace_id

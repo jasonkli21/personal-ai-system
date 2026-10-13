@@ -8,6 +8,7 @@ from personal_ai.auth.account_data import (
     _portable,
 )
 from personal_ai.auth.owner_data import OWNER_DATA_COLLECTIONS
+from personal_ai.persistence.postgres.auth import EXPORT_IMPLEMENTATION_PATHS
 
 
 def test_portable_export_encodes_nested_values_without_provider_types():
@@ -34,3 +35,9 @@ def test_account_export_inventory_covers_private_families_and_control_records():
     assert "account_lifecycle_requests" in EXPORT_COLLECTIONS
     assert "global_profiles" in OWNER_DATA_COLLECTIONS
     assert "global_profiles" in EXPORT_COLLECTIONS
+
+
+def test_canonical_export_read_paths_cover_every_owner_data_family_once():
+    assert set(OWNER_DATA_COLLECTIONS) == set(EXPORT_IMPLEMENTATION_PATHS) - {
+        "account_lifecycle_requests"
+    }

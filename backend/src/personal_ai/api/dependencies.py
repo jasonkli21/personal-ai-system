@@ -17,7 +17,6 @@ from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner
 from personal_ai.auth.scope import (
     STANDALONE_APPLICATION_ID,
-    DenyWorkspaceAuthorizer,
     RequestScope,
     WorkspaceAuthorizer,
 )
@@ -73,9 +72,9 @@ def get_current_principal(request: Request):
     return principal
 
 
-def get_workspace_authorizer() -> WorkspaceAuthorizer:
-    """Fail closed until the app injects a canonical membership adapter."""
-    return DenyWorkspaceAuthorizer()
+def get_workspace_authorizer(request: Request) -> WorkspaceAuthorizer:
+    """Use the authority installed with the authenticated application manifest."""
+    return application_registry_for(request).workspace_authorizer
 
 
 def get_request_scope(request: Request) -> RequestScope:
@@ -452,9 +451,7 @@ def get_routing_decision_service(
     Phase 15 membership/revocation acceptance gate closes.
     """
     try:
-        return persistence_factory(settings).routing_service(
-            settings, authorization=authorization
-        )
+        return persistence_factory(settings).routing_service(settings, authorization=authorization)
     except Exception:  # noqa: BLE001 - routing dependencies fail closed
         raise HTTPException(status_code=503, detail="routing_service_unavailable") from None
 

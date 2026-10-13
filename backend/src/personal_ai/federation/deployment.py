@@ -136,7 +136,8 @@ def install_federation_metadata(
         for case in cases
     )
     remaining_capabilities = tuple(
-        capability for capability in capabilities
+        capability
+        for capability in capabilities
         if capability.capability_id not in case_provider_ids
     )
     return tuple(values), (*remaining_capabilities, *metadata)
@@ -158,8 +159,10 @@ class _ConfiguredGrantRepository:
     def list_destination(self, owner_id, destination):
         from personal_ai.persistence.factory import persistence_factory
 
-        return persistence_factory(self.settings).federation_grant_repository().list_destination(
-            owner_id, destination
+        return (
+            persistence_factory(self.settings)
+            .federation_grant_repository()
+            .list_destination(owner_id, destination)
         )
 
     def record_access(self, selection, scope, result):
@@ -239,5 +242,8 @@ def reconcile_federation_runtime_metadata(registry, runtime):
                 }
             )
     return ApplicationRegistry(
-        definitions, capabilities.values(), comparison_modules=modules
+        definitions,
+        capabilities.values(),
+        comparison_modules=modules,
+        workspace_authorizers=registry.workspace_authorizers,
     )

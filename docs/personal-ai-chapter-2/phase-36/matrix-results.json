@@ -1,9 +1,9 @@
 {
   "schema_version": "phase36-matrix-v1",
-  "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-  "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
-  "matrix_sha256": "b6bc470a7e791ca1fd28dbabfc434b5e60aa8c7ffc27e7a23978c75ecb1139d5",
-  "recorded_at": "2026-10-13T03:32:40.853721+00:00",
+  "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+  "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
+  "matrix_sha256": "9c691a6f6744047fcc43c8a4e1c0d42c57ae63cced5cf39434b326d41809df09",
+  "recorded_at": "2026-10-13T04:27:25.538687+00:00",
   "strategy_coverage": {
     "planner": "deterministic-context-planner-v1 default; narrowing-experiment-v1 validation only; no assisted coverage",
     "search": "literal-snippet-v1 query / literal-extractive-v1 packing default; qualifier/expansion/compact experiments unpromoted",
@@ -40,7 +40,7 @@
       "expected_result": "Close transport and preserve bounded unknown attempt",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "cancellation",
@@ -52,7 +52,7 @@
       "expected_result": "Close response; do not resend",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "stale-version",
@@ -64,7 +64,7 @@
       "expected_result": "Reject stale exact confirmation before effect",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "quota-exhaustion",
@@ -76,7 +76,7 @@
       "expected_result": "No paid/unknown/BYOK/plan/explicit overflow",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "malformed-provider",
@@ -88,7 +88,7 @@
       "expected_result": "Fail closed and account original attempt",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "partial-persistence",
@@ -100,7 +100,7 @@
       "expected_result": "Reconcile original immutable generation without duplicate body",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "uncertain-outcome",
@@ -112,7 +112,7 @@
       "expected_result": "Reconcile original operation identity; no blind resend",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "boundary-revocation",
@@ -124,7 +124,7 @@
       "expected_result": "Prevent fresh/derived disclosure after count",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "artifact-outage",
@@ -136,7 +136,7 @@
       "expected_result": "Required fails; optional advisory; pending recovery",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "database-outage",
@@ -148,7 +148,7 @@
       "expected_result": "Stable timeout with no connection work",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "network-outage",
@@ -160,7 +160,7 @@
       "expected_result": "Exactly one physical send; explicit failure/unknown",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "revoked-cache",
@@ -172,7 +172,7 @@
       "expected_result": "Cache cannot reauthorize revoked dependency",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     },
     {
       "fault_id": "endpoint-churn",
@@ -184,13 +184,38 @@
       "expected_result": "Abstain/rollback deterministically without extra sends",
       "safety_constraint": "synthetic-only-no-external-effects",
       "status": "passed",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9"
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44"
     }
   ],
   "runtime": {
     "python": "3.11.15 (main, May 10 2026, 19:23:07) [Clang 22.1.3 ]",
     "platform": "darwin",
     "external_execution": "disabled; fixed offline pytest selection"
+  },
+  "verification_environment": {
+    "schema_version": "phase36-verifier-environment-v1",
+    "pytest_selection": "all references from offline rows in the canonical matrix",
+    "excluded_markers": [
+      "persistence_integration",
+      "cloud_smoke"
+    ],
+    "provider_dispatch": "disabled",
+    "artifact_retention": false,
+    "profile_identities": {
+      "storage": "synthetic-and-scripted-fakes; no-native-store",
+      "provider": "fake-or-synthetic; no-live-provider-dispatch",
+      "account": "synthetic-owner-only; no-personal-data"
+    },
+    "profiles": {
+      "storage": "synthetic-and-scripted-fakes; no-native-store",
+      "provider": "fake-or-synthetic; no-live-provider-dispatch",
+      "account": "synthetic-owner-only; no-personal-data"
+    },
+    "profile_identities_sha256": "7231328e34852f5eed6647bc68d15bfd0448ff442fa6fdaeb1a93df24b12c8b8"
+  },
+  "external_receipt_validation": {
+    "accepted": [],
+    "rejected": []
   },
   "rows": [
     {
@@ -206,15 +231,17 @@
       "expected_result": "Deny before source/count work",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_context_authorization.py",
         "tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope"
       ],
       "command": "python -m pytest -q tests/test_context_authorization.py tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope",
       "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -231,14 +258,16 @@
       "expected_result": "History, summary, cache, artifact and final count fail closed",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_federation.py"
       ],
       "command": "python -m pytest -q tests/test_federation.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-30-31-third-review-remediation-evidence-2026-10-12.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -255,6 +284,8 @@
       "expected_result": "Exact authorized source fields and honest omission/provenance",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_context_planner_evaluation.py",
         "tests/test_context_builder.py",
@@ -262,9 +293,9 @@
       ],
       "command": "python -m pytest -q tests/test_context_planner_evaluation.py tests/test_context_builder.py tests/test_context_traces.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -281,14 +312,16 @@
       "expected_result": "Reject widening and use current deterministic safe baseline",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_planning_experiment.py"
       ],
       "command": "python -m pytest -q tests/test_planning_experiment.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-32-review-remediation-evidence-2026-10-12.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -305,15 +338,17 @@
       "expected_result": "Retain exact support or deny promotion; deterministic rollback",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_retrieval_phase33.py",
         "tests/test_phase36_integrated.py::test_iterative_evaluation_checks_typed_domain_envelope"
       ],
       "command": "python -m pytest -q tests/test_retrieval_phase33.py tests/test_phase36_integrated.py::test_iterative_evaluation_checks_typed_domain_envelope",
       "authority_ref": "docs/personal-ai-chapter-2/phase-33-independent-review-remediation-evidence-2026-10-12.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -330,14 +365,16 @@
       "expected_result": "No stale/false resurrection; conflicts explicit; exact space",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_memory_phase34.py"
       ],
       "command": "python -m pytest -q tests/test_memory_phase34.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-34-independent-review-remediation-evidence-2026-10-12.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -354,14 +391,16 @@
       "expected_result": "Ineligible endpoints never enter replaceable strategy",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_adaptive_routing_phase35.py"
       ],
       "command": "python -m pytest -q tests/test_adaptive_routing_phase35.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-35-independent-review-remediation-evidence-2026-10-12.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -378,14 +417,16 @@
       "expected_result": "Measure all logical overhead and context tokens; missing physical/live labels prevent promotion",
       "severity": "resource",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_phase36_integrated.py::test_combined_heldout_pipeline_measurements_and_deterministic_rollback"
       ],
       "command": "python -m pytest -q tests/test_phase36_integrated.py::test_combined_heldout_pipeline_measurements_and_deterministic_rollback",
       "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -402,6 +443,8 @@
       "expected_result": "No automatic overflow despite identical provider/model identities",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory",
         "tests/test_endpoint_registry.py",
@@ -409,9 +452,9 @@
       ],
       "command": "python -m pytest -q tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory tests/test_endpoint_registry.py tests/test_routing_phase23.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-23-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -428,15 +471,17 @@
       "expected_result": "No sensitivity-unsafe fallback",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_routing_phase21.py",
         "tests/test_memory_disclosure_authorization.py"
       ],
       "command": "python -m pytest -q tests/test_routing_phase21.py tests/test_memory_disclosure_authorization.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -453,15 +498,17 @@
       "expected_result": "Bounded accounted count and generation, no blind escalation",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_cascade_phase24.py",
         "tests/test_cascade_evaluation.py"
       ],
       "command": "python -m pytest -q tests/test_cascade_phase24.py tests/test_cascade_evaluation.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-24-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -478,14 +525,16 @@
       "expected_result": "One authoritative effect or reconciliation under original key",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_mutations.py"
       ],
       "command": "python -m pytest -q tests/test_mutations.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-31-post-review-remediation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -502,14 +551,16 @@
       "expected_result": "Exact endpoint identity, one accounted physical send per attempt",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_litellm_gateway.py"
       ],
       "command": "python -m pytest -q tests/test_litellm_gateway.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-17r-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -526,14 +577,16 @@
       "expected_result": "Deny, bounded recovery, generation preconditions and cleanup",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_artifacts.py"
       ],
       "command": "python -m pytest -q tests/test_artifacts.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -550,15 +603,18 @@
       "expected_result": "Export cannot omit live/unauthorized families or grant reuse",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_account_data.py",
-        "tests/test_phase9_controls.py"
+        "tests/test_phase9_controls.py",
+        "tests/persistence/test_account_export.py"
       ],
-      "command": "python -m pytest -q tests/test_account_data.py tests/test_phase9_controls.py",
+      "command": "python -m pytest -q tests/test_account_data.py tests/test_phase9_controls.py tests/persistence/test_account_export.py",
       "authority_ref": "docs/phase-9-release-checklist.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -575,6 +631,8 @@
       "expected_result": "Stable bounded errors before connection/I/O; no fabricated empty state",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_postgres_deadlines.py",
         "tests/test_profile_persistence_errors.py",
@@ -582,9 +640,9 @@
       ],
       "command": "python -m pytest -q tests/test_postgres_deadlines.py tests/test_profile_persistence_errors.py tests/test_routing_migration.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -601,6 +659,8 @@
       "expected_result": "Postgres/Dynamo/GCS owners and retired Firestore absence",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_factory.py",
         "tests/persistence/test_cloud_static_config.py",
@@ -608,9 +668,9 @@
       ],
       "command": "python -m pytest -q tests/persistence/test_factory.py tests/persistence/test_cloud_static_config.py tests/test_phase36_integrated.py::test_retired_runtime_and_migration_ownership",
       "authority_ref": "docs/personal-ai-chapter-2/phase-10-storage-ownership-and-access-patterns.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -627,15 +687,17 @@
       "expected_result": "Explicit unavailable or linked reselect, no rediscovery",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_external_turns.py::test_endpoint_version_churn_is_not_model_name_fallback",
         "tests/test_adaptive_routing_phase35.py::test_endpoint_model_account_tier_serializer_count_task_churn_demotes"
       ],
       "command": "python -m pytest -q tests/test_external_turns.py::test_endpoint_version_churn_is_not_model_name_fallback tests/test_adaptive_routing_phase35.py::test_endpoint_model_account_tier_serializer_count_task_churn_demotes",
       "authority_ref": "docs/personal-ai-chapter-2/phase-18-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -652,6 +714,8 @@
       "expected_result": "Explicit unavailable/unknown; no secret leakage or silent billing switch",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_chatgpt_bridge_transport.py",
         "tests/test_chatgpt_local_lifecycle.py",
@@ -659,9 +723,9 @@
       ],
       "command": "python -m pytest -q tests/test_chatgpt_bridge_transport.py tests/test_chatgpt_local_lifecycle.py tests/test_chatgpt_oauth.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -678,6 +742,8 @@
       "expected_result": "Server policy narrows actions; exact confirmation and attribution",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_application_sidecar_contract.py",
         "tests/test_external_turns.py",
@@ -685,9 +751,9 @@
       ],
       "command": "python -m pytest -q tests/test_application_sidecar_contract.py tests/test_external_turns.py tests/test_external_turn_composition.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -704,15 +770,17 @@
       "expected_result": "Shared API planner/builder and sidecar with scoped permission authority",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope",
         "tests/test_context_runtime_composition.py"
       ],
       "command": "python -m pytest -q tests/test_phase36_integrated.py::test_fifth_app_startup_two_typed_providers_and_negative_scope tests/test_context_runtime_composition.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -729,6 +797,8 @@
       "expected_result": "Identity dimensions vary independently; no generic name branches",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory",
         "tests/test_provider_matrix.py",
@@ -737,9 +807,9 @@
       ],
       "command": "python -m pytest -q tests/test_phase36_integrated.py::test_account_cost_identity_and_exhaustion_through_production_factory tests/test_provider_matrix.py tests/test_cascade_phase24.py::test_custom_domain_validator_can_register_without_coordinator_changes tests/test_phase36_integrated.py::test_provider_task_evaluation_and_validator_use_production_routing_factory",
       "authority_ref": "docs/personal-ai-chapter-2/phase-22-implementation-evidence.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -756,14 +826,16 @@
       "expected_result": "Measure growth and bounds; no stale cache reuse/retry/overflow",
       "severity": "resource",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_phase36_integrated.py::test_bounded_accumulation_revocation_and_artifact_cleanup"
       ],
       "command": "python -m pytest -q tests/test_phase36_integrated.py::test_bounded_accumulation_revocation_and_artifact_cleanup",
       "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -780,14 +852,16 @@
       "expected_result": "No forged pass or external gate collapse; report derived from matrix",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_phase36_verification.py"
       ],
       "command": "python -m pytest -q tests/test_phase36_verification.py",
       "authority_ref": "docs/personal-ai-chapter-2/phase-36/architecture.md",
-      "evidence_ref": "receipts.json#sha256=bfe6af0309495d1d79d686571e7654ce190e813a8de2694d663fe1e8a2f327b9",
-      "tested_revision": "2d4d5a4c21d820ad0894619cb5a1985436f7c665",
-      "configuration_sha256": "9fd92ac629e9e72983b858c75595c75b031898d0b66a502b2aaa9106a6195dfc",
+      "evidence_ref": "receipts.json#sha256=dcefba83b174f4e3e18885e60d7e5e7a6a00bf60fb73c4dcbe5c05fe88ca4b44",
+      "tested_revision": "77fdce50790f45b9d04b3cae48e71d1dd43e4621",
+      "configuration_sha256": "308e8e6dd4500096eb7b2487f4b959085a3a8b25a82c5f318eb66aecab8e141d",
       "status": "passed",
       "rationale": "Executed selected canonical regression/conformance cases."
     },
@@ -804,6 +878,8 @@
       "expected_result": "Exactly one winning conditional operation and restart-safe receipts",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_external_turns.py",
         "tests/persistence/test_local_persistence.py::test_dynamodb_job_publication_replay_and_generation_fencing"
@@ -829,6 +905,8 @@
       "expected_result": "Reviewed real-service access patterns, concurrency and capacity evidence",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_cloud_smoke.py"
       ],
@@ -853,6 +931,8 @@
       "expected_result": "Explicit schema/space mismatch and relational/vector correctness",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_local_persistence.py",
         "tests/persistence/test_memory_lifecycle_projection.py"
@@ -878,6 +958,8 @@
       "expected_result": "Physical-attempt and shared-pool accounting under real transactions",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_provider_usage_accounting.py",
         "tests/persistence/test_routing_decisions.py",
@@ -904,6 +986,8 @@
       "expected_result": "Current grant/source authority before reuse",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_federation.py"
       ],
@@ -928,6 +1012,8 @@
       "expected_result": "Single reservation; original key and authoritative post-state",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_mutations.py"
       ],
@@ -952,6 +1038,8 @@
       "expected_result": "Fences and generation reconciliation",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_artifact_tier.py",
         "tests/persistence/test_account_export.py"
@@ -977,6 +1065,8 @@
       "expected_result": "Private scoped test object, real generation/retention and budgets",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-20-implementation-evidence.md",
@@ -999,6 +1089,8 @@
       "expected_result": "Bounded degraded service without assumed cross-store commit",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_cloud_smoke.py"
       ],
@@ -1023,6 +1115,8 @@
       "expected_result": "Reviewed account-specific strict-$0 capacity/egress assumptions",
       "severity": "resource",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_strict_zero_gate.py"
       ],
@@ -1047,6 +1141,8 @@
       "expected_result": "Supported quality >= baseline, zero hard regressions, >=5% saving, latency no regression",
       "severity": "quality",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-35-implementation-report.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-35-implementation-report.md",
@@ -1069,6 +1165,8 @@
       "expected_result": "Bounded resource use and no silent embedding-space coercion",
       "severity": "resource",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/persistence/test_local_persistence.py::test_phase34_pgvector_lossless_baseline_eligibility_and_resource_measurement"
       ],
@@ -1093,6 +1191,8 @@
       "expected_result": "Bounded measured operations/storage and cleanup under accumulated state",
       "severity": "resource",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md",
@@ -1115,6 +1215,8 @@
       "expected_result": "All canonical/derived stores/jobs/replays fenced and cleaned",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/phase-9-release-checklist.md",
       "authority_ref": "docs/phase-9-release-checklist.md",
@@ -1137,6 +1239,8 @@
       "expected_result": "Same owner cannot authorize cross-app or delegated actor",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
@@ -1159,6 +1263,8 @@
       "expected_result": "Original Phase 14/15 acceptance evidence closes dependency gaps",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-14-implementation-evidence.md",
@@ -1181,6 +1287,8 @@
       "expected_result": "All default workflow physical sends use selected endpoint and final source authority",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-15-implementation-evidence.md",
@@ -1203,6 +1311,8 @@
       "expected_result": "No inference from fake catalogs or signed synthetic proofs",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-25-1-implementation-evidence.md",
@@ -1225,6 +1335,8 @@
       "expected_result": "Real supported-client/browser acceptance with exact action boundaries",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-25-4-implementation-evidence.md",
@@ -1247,6 +1359,8 @@
       "expected_result": "Authenticated domain identity, exact narrow revisions and revocation",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-30-implementation-report.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-30-implementation-report.md",
@@ -1269,6 +1383,8 @@
       "expected_result": "Original Phase 9/10 operator evidence and deletion-aware recovery",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/phase-9-release-checklist.md",
       "authority_ref": "docs/phase-9-release-checklist.md",
@@ -1291,6 +1407,8 @@
       "expected_result": "Reviewed log access/retention/alerts, PubSub/OIDC and secret rotation",
       "severity": "critical",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/phase-9-release-checklist.md",
       "authority_ref": "docs/phase-9-release-checklist.md",
@@ -1313,6 +1431,8 @@
       "expected_result": "Exact account/tier/endpoint/privacy provider verification",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [
         "tests/test_gemini_manual.py",
         "tests/test_context_manual.py"
@@ -1338,6 +1458,8 @@
       "expected_result": "Actual account inventory closes original retirement obligation",
       "severity": "high",
       "mandatory": true,
+      "required_profile_identities": {},
+      "maximum_evidence_age_seconds": 2592000,
       "test_refs": [],
       "command": "Review and execute the original obligation: docs/personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md",
       "authority_ref": "docs/personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md",
@@ -1359,448 +1481,512 @@
           "timeline_records": 8,
           "original_memory_records": 3,
           "derived_memory_records": 2,
+          "derived_views_created": 1,
           "maintenance_jobs": 3,
+          "maintenance_jobs_created": 2,
           "routing_records": 1,
           "research_sessions": 1,
           "research_metadata_bytes": 6143,
           "artifact_objects": 1,
           "artifact_bytes": 45,
           "artifact_operations": 3,
-          "latency_ms": 18.792624992784113
+          "latency_ms": 25.443083024583757
         },
         {
           "iteration": 2,
           "timeline_records": 10,
           "original_memory_records": 4,
           "derived_memory_records": 3,
+          "derived_views_created": 1,
           "maintenance_jobs": 5,
+          "maintenance_jobs_created": 2,
           "routing_records": 2,
           "research_sessions": 2,
           "research_metadata_bytes": 12286,
           "artifact_objects": 2,
           "artifact_bytes": 90,
           "artifact_operations": 6,
-          "latency_ms": 21.87312499154359
+          "latency_ms": 28.023124992614612
         },
         {
           "iteration": 3,
           "timeline_records": 12,
           "original_memory_records": 5,
           "derived_memory_records": 5,
+          "derived_views_created": 2,
           "maintenance_jobs": 8,
+          "maintenance_jobs_created": 3,
           "routing_records": 3,
           "research_sessions": 3,
           "research_metadata_bytes": 18429,
           "artifact_objects": 3,
           "artifact_bytes": 135,
           "artifact_operations": 9,
-          "latency_ms": 27.943332999711856
+          "latency_ms": 37.115167011506855
         },
         {
           "iteration": 4,
           "timeline_records": 14,
           "original_memory_records": 6,
-          "derived_memory_records": 8,
-          "maintenance_jobs": 12,
+          "derived_memory_records": 6,
+          "derived_views_created": 1,
+          "maintenance_jobs": 10,
+          "maintenance_jobs_created": 2,
           "routing_records": 4,
           "research_sessions": 4,
           "research_metadata_bytes": 24572,
           "artifact_objects": 4,
           "artifact_bytes": 180,
           "artifact_operations": 12,
-          "latency_ms": 36.80233299382962
+          "latency_ms": 37.0038750115782
         },
         {
           "iteration": 5,
           "timeline_records": 16,
           "original_memory_records": 7,
-          "derived_memory_records": 12,
-          "maintenance_jobs": 17,
+          "derived_memory_records": 7,
+          "derived_views_created": 1,
+          "maintenance_jobs": 12,
+          "maintenance_jobs_created": 2,
           "routing_records": 5,
           "research_sessions": 5,
           "research_metadata_bytes": 30715,
           "artifact_objects": 5,
           "artifact_bytes": 225,
           "artifact_operations": 15,
-          "latency_ms": 50.075417006155476
+          "latency_ms": 41.822541010333225
         },
         {
           "iteration": 6,
           "timeline_records": 18,
           "original_memory_records": 8,
-          "derived_memory_records": 13,
-          "maintenance_jobs": 19,
+          "derived_memory_records": 8,
+          "derived_views_created": 1,
+          "maintenance_jobs": 14,
+          "maintenance_jobs_created": 2,
           "routing_records": 6,
           "research_sessions": 6,
           "research_metadata_bytes": 36858,
           "artifact_objects": 6,
           "artifact_bytes": 270,
           "artifact_operations": 18,
-          "latency_ms": 50.88054100633599
+          "latency_ms": 48.080084001412615
         },
         {
           "iteration": 7,
           "timeline_records": 20,
           "original_memory_records": 9,
-          "derived_memory_records": 16,
-          "maintenance_jobs": 23,
+          "derived_memory_records": 11,
+          "derived_views_created": 3,
+          "maintenance_jobs": 18,
+          "maintenance_jobs_created": 4,
           "routing_records": 7,
           "research_sessions": 7,
           "research_metadata_bytes": 43001,
           "artifact_objects": 7,
           "artifact_bytes": 315,
           "artifact_operations": 21,
-          "latency_ms": 65.93454099493101
+          "latency_ms": 67.57604199810885
         },
         {
           "iteration": 8,
           "timeline_records": 22,
           "original_memory_records": 10,
-          "derived_memory_records": 20,
-          "maintenance_jobs": 28,
+          "derived_memory_records": 13,
+          "derived_views_created": 2,
+          "maintenance_jobs": 21,
+          "maintenance_jobs_created": 3,
           "routing_records": 8,
           "research_sessions": 8,
           "research_metadata_bytes": 49144,
           "artifact_objects": 8,
           "artifact_bytes": 360,
           "artifact_operations": 24,
-          "latency_ms": 83.4783750178758
+          "latency_ms": 71.95679098367691
         },
         {
           "iteration": 9,
           "timeline_records": 24,
           "original_memory_records": 11,
-          "derived_memory_records": 23,
-          "maintenance_jobs": 32,
+          "derived_memory_records": 14,
+          "derived_views_created": 1,
+          "maintenance_jobs": 23,
+          "maintenance_jobs_created": 2,
           "routing_records": 9,
           "research_sessions": 9,
           "research_metadata_bytes": 55287,
           "artifact_objects": 9,
           "artifact_bytes": 405,
           "artifact_operations": 27,
-          "latency_ms": 92.50670799519867
+          "latency_ms": 76.38558399048634
         },
         {
           "iteration": 10,
           "timeline_records": 26,
           "original_memory_records": 12,
-          "derived_memory_records": 26,
-          "maintenance_jobs": 36,
+          "derived_memory_records": 17,
+          "derived_views_created": 3,
+          "maintenance_jobs": 27,
+          "maintenance_jobs_created": 4,
           "routing_records": 10,
           "research_sessions": 10,
           "research_metadata_bytes": 61430,
           "artifact_objects": 10,
           "artifact_bytes": 450,
           "artifact_operations": 30,
-          "latency_ms": 102.3357920057606
+          "latency_ms": 100.56887500104494
         },
         {
           "iteration": 11,
           "timeline_records": 28,
           "original_memory_records": 13,
-          "derived_memory_records": 28,
-          "maintenance_jobs": 39,
+          "derived_memory_records": 21,
+          "derived_views_created": 4,
+          "maintenance_jobs": 32,
+          "maintenance_jobs_created": 5,
           "routing_records": 11,
           "research_sessions": 11,
           "research_metadata_bytes": 67573,
           "artifact_objects": 11,
           "artifact_bytes": 496,
           "artifact_operations": 33,
-          "latency_ms": 110.42058299062774
+          "latency_ms": 123.74629199621268
         },
         {
           "iteration": 12,
           "timeline_records": 30,
           "original_memory_records": 14,
-          "derived_memory_records": 28,
-          "maintenance_jobs": 40,
+          "derived_memory_records": 21,
+          "derived_views_created": 0,
+          "maintenance_jobs": 33,
+          "maintenance_jobs_created": 1,
           "routing_records": 12,
           "research_sessions": 12,
           "research_metadata_bytes": 73716,
           "artifact_objects": 12,
           "artifact_bytes": 542,
           "artifact_operations": 36,
-          "latency_ms": 112.35083302017301
+          "latency_ms": 107.81629200209863
         },
         {
           "iteration": 13,
           "timeline_records": 32,
           "original_memory_records": 15,
-          "derived_memory_records": 30,
-          "maintenance_jobs": 43,
+          "derived_memory_records": 22,
+          "derived_views_created": 1,
+          "maintenance_jobs": 35,
+          "maintenance_jobs_created": 2,
           "routing_records": 13,
           "research_sessions": 13,
           "research_metadata_bytes": 79859,
           "artifact_objects": 13,
           "artifact_bytes": 588,
           "artifact_operations": 39,
-          "latency_ms": 129.77154101827182
+          "latency_ms": 121.2885830027517
         },
         {
           "iteration": 14,
           "timeline_records": 34,
           "original_memory_records": 16,
-          "derived_memory_records": 31,
-          "maintenance_jobs": 45,
+          "derived_memory_records": 23,
+          "derived_views_created": 1,
+          "maintenance_jobs": 37,
+          "maintenance_jobs_created": 2,
           "routing_records": 14,
           "research_sessions": 14,
           "research_metadata_bytes": 86002,
           "artifact_objects": 14,
           "artifact_bytes": 634,
           "artifact_operations": 42,
-          "latency_ms": 136.40116699389182
+          "latency_ms": 132.5351249834057
         },
         {
           "iteration": 15,
           "timeline_records": 36,
           "original_memory_records": 17,
-          "derived_memory_records": 34,
-          "maintenance_jobs": 49,
+          "derived_memory_records": 24,
+          "derived_views_created": 1,
+          "maintenance_jobs": 39,
+          "maintenance_jobs_created": 2,
           "routing_records": 15,
           "research_sessions": 15,
           "research_metadata_bytes": 92145,
           "artifact_objects": 15,
           "artifact_bytes": 680,
           "artifact_operations": 45,
-          "latency_ms": 158.10829197289422
+          "latency_ms": 143.3914579974953
         },
         {
           "iteration": 16,
           "timeline_records": 38,
           "original_memory_records": 18,
-          "derived_memory_records": 34,
-          "maintenance_jobs": 50,
+          "derived_memory_records": 24,
+          "derived_views_created": 0,
+          "maintenance_jobs": 40,
+          "maintenance_jobs_created": 1,
           "routing_records": 16,
           "research_sessions": 16,
           "research_metadata_bytes": 98288,
           "artifact_objects": 16,
           "artifact_bytes": 726,
           "artifact_operations": 48,
-          "latency_ms": 155.21220801747404
+          "latency_ms": 145.5143329803832
         },
         {
           "iteration": 17,
           "timeline_records": 40,
           "original_memory_records": 19,
-          "derived_memory_records": 38,
-          "maintenance_jobs": 55,
+          "derived_memory_records": 24,
+          "derived_views_created": 0,
+          "maintenance_jobs": 41,
+          "maintenance_jobs_created": 1,
           "routing_records": 17,
           "research_sessions": 17,
           "research_metadata_bytes": 104431,
           "artifact_objects": 17,
           "artifact_bytes": 772,
           "artifact_operations": 51,
-          "latency_ms": 185.6834579957649
+          "latency_ms": 152.46241699787788
         },
         {
           "iteration": 18,
           "timeline_records": 42,
           "original_memory_records": 20,
-          "derived_memory_records": 41,
-          "maintenance_jobs": 59,
+          "derived_memory_records": 27,
+          "derived_views_created": 3,
+          "maintenance_jobs": 45,
+          "maintenance_jobs_created": 4,
           "routing_records": 18,
           "research_sessions": 18,
           "research_metadata_bytes": 110574,
           "artifact_objects": 18,
           "artifact_bytes": 818,
           "artifact_operations": 54,
-          "latency_ms": 197.60979199782014
+          "latency_ms": 189.3741670064628
         },
         {
           "iteration": 19,
           "timeline_records": 44,
           "original_memory_records": 21,
-          "derived_memory_records": 42,
-          "maintenance_jobs": 61,
+          "derived_memory_records": 28,
+          "derived_views_created": 1,
+          "maintenance_jobs": 47,
+          "maintenance_jobs_created": 2,
           "routing_records": 19,
           "research_sessions": 19,
           "research_metadata_bytes": 116717,
           "artifact_objects": 19,
           "artifact_bytes": 864,
           "artifact_operations": 57,
-          "latency_ms": 202.21291601774283
+          "latency_ms": 190.05570901208557
         },
         {
           "iteration": 20,
           "timeline_records": 46,
           "original_memory_records": 22,
-          "derived_memory_records": 46,
-          "maintenance_jobs": 66,
+          "derived_memory_records": 31,
+          "derived_views_created": 3,
+          "maintenance_jobs": 51,
+          "maintenance_jobs_created": 4,
           "routing_records": 20,
           "research_sessions": 20,
           "research_metadata_bytes": 122860,
           "artifact_objects": 20,
           "artifact_bytes": 910,
           "artifact_operations": 60,
-          "latency_ms": 233.9962919941172
+          "latency_ms": 223.67450001183897
         },
         {
           "iteration": 21,
           "timeline_records": 48,
           "original_memory_records": 23,
-          "derived_memory_records": 49,
-          "maintenance_jobs": 70,
+          "derived_memory_records": 32,
+          "derived_views_created": 1,
+          "maintenance_jobs": 53,
+          "maintenance_jobs_created": 2,
           "routing_records": 21,
           "research_sessions": 21,
           "research_metadata_bytes": 129003,
           "artifact_objects": 21,
           "artifact_bytes": 956,
           "artifact_operations": 63,
-          "latency_ms": 247.1304580103606
+          "latency_ms": 219.2698750004638
         },
         {
           "iteration": 22,
           "timeline_records": 50,
           "original_memory_records": 24,
-          "derived_memory_records": 51,
-          "maintenance_jobs": 73,
+          "derived_memory_records": 34,
+          "derived_views_created": 2,
+          "maintenance_jobs": 56,
+          "maintenance_jobs_created": 3,
           "routing_records": 22,
           "research_sessions": 22,
           "research_metadata_bytes": 135146,
           "artifact_objects": 22,
           "artifact_bytes": 1002,
           "artifact_operations": 66,
-          "latency_ms": 259.3487910053227
+          "latency_ms": 241.56275001587346
         },
         {
           "iteration": 23,
           "timeline_records": 52,
           "original_memory_records": 25,
-          "derived_memory_records": 55,
-          "maintenance_jobs": 78,
+          "derived_memory_records": 35,
+          "derived_views_created": 1,
+          "maintenance_jobs": 58,
+          "maintenance_jobs_created": 2,
           "routing_records": 23,
           "research_sessions": 23,
           "research_metadata_bytes": 141289,
           "artifact_objects": 23,
           "artifact_bytes": 1048,
           "artifact_operations": 69,
-          "latency_ms": 292.61433400097303
+          "latency_ms": 247.6002920011524
         },
         {
           "iteration": 24,
           "timeline_records": 54,
           "original_memory_records": 26,
-          "derived_memory_records": 59,
-          "maintenance_jobs": 83,
+          "derived_memory_records": 35,
+          "derived_views_created": 0,
+          "maintenance_jobs": 59,
+          "maintenance_jobs_created": 1,
           "routing_records": 24,
           "research_sessions": 24,
           "research_metadata_bytes": 147432,
           "artifact_objects": 24,
           "artifact_bytes": 1094,
           "artifact_operations": 72,
-          "latency_ms": 309.08500001532957
+          "latency_ms": 251.20999998762272
         },
         {
           "iteration": 25,
           "timeline_records": 56,
           "original_memory_records": 27,
-          "derived_memory_records": 63,
-          "maintenance_jobs": 88,
+          "derived_memory_records": 36,
+          "derived_views_created": 1,
+          "maintenance_jobs": 61,
+          "maintenance_jobs_created": 2,
           "routing_records": 25,
           "research_sessions": 25,
           "research_metadata_bytes": 153575,
           "artifact_objects": 25,
           "artifact_bytes": 1140,
           "artifact_operations": 75,
-          "latency_ms": 334.40637501189485
+          "latency_ms": 275.8081660140306
         },
         {
           "iteration": 26,
           "timeline_records": 58,
           "original_memory_records": 28,
-          "derived_memory_records": 67,
-          "maintenance_jobs": 93,
+          "derived_memory_records": 39,
+          "derived_views_created": 3,
+          "maintenance_jobs": 65,
+          "maintenance_jobs_created": 4,
           "routing_records": 26,
           "research_sessions": 26,
           "research_metadata_bytes": 159718,
           "artifact_objects": 26,
           "artifact_bytes": 1186,
           "artifact_operations": 78,
-          "latency_ms": 360.3906669886783
+          "latency_ms": 313.595208019251
         },
         {
           "iteration": 27,
           "timeline_records": 60,
           "original_memory_records": 29,
-          "derived_memory_records": 67,
-          "maintenance_jobs": 94,
+          "derived_memory_records": 41,
+          "derived_views_created": 2,
+          "maintenance_jobs": 68,
+          "maintenance_jobs_created": 3,
           "routing_records": 27,
           "research_sessions": 27,
           "research_metadata_bytes": 165861,
           "artifact_objects": 27,
           "artifact_bytes": 1232,
           "artifact_operations": 81,
-          "latency_ms": 354.70595900551416
+          "latency_ms": 319.5311250165105
         },
         {
           "iteration": 28,
           "timeline_records": 62,
           "original_memory_records": 30,
-          "derived_memory_records": 70,
-          "maintenance_jobs": 98,
+          "derived_memory_records": 45,
+          "derived_views_created": 4,
+          "maintenance_jobs": 73,
+          "maintenance_jobs_created": 5,
           "routing_records": 28,
           "research_sessions": 28,
           "research_metadata_bytes": 172004,
           "artifact_objects": 28,
           "artifact_bytes": 1278,
           "artifact_operations": 84,
-          "latency_ms": 392.8867079957854
+          "latency_ms": 360.6608340051025
         },
         {
           "iteration": 29,
           "timeline_records": 64,
           "original_memory_records": 31,
-          "derived_memory_records": 74,
-          "maintenance_jobs": 103,
+          "derived_memory_records": 45,
+          "derived_views_created": 0,
+          "maintenance_jobs": 74,
+          "maintenance_jobs_created": 1,
           "routing_records": 29,
           "research_sessions": 29,
           "research_metadata_bytes": 178147,
           "artifact_objects": 29,
           "artifact_bytes": 1324,
           "artifact_operations": 87,
-          "latency_ms": 422.92587499832734
+          "latency_ms": 340.9321670187637
         },
         {
           "iteration": 30,
           "timeline_records": 66,
           "original_memory_records": 32,
-          "derived_memory_records": 75,
-          "maintenance_jobs": 105,
+          "derived_memory_records": 47,
+          "derived_views_created": 2,
+          "maintenance_jobs": 77,
+          "maintenance_jobs_created": 3,
           "routing_records": 30,
           "research_sessions": 30,
           "research_metadata_bytes": 184290,
           "artifact_objects": 30,
           "artifact_bytes": 1370,
           "artifact_operations": 90,
-          "latency_ms": 427.70300002302974
+          "latency_ms": 377.26262499927543
         },
         {
           "iteration": 31,
           "timeline_records": 68,
           "original_memory_records": 33,
-          "derived_memory_records": 79,
-          "maintenance_jobs": 110,
+          "derived_memory_records": 48,
+          "derived_views_created": 1,
+          "maintenance_jobs": 79,
+          "maintenance_jobs_created": 2,
           "routing_records": 31,
           "research_sessions": 31,
           "research_metadata_bytes": 190433,
           "artifact_objects": 31,
           "artifact_bytes": 1416,
           "artifact_operations": 93,
-          "latency_ms": 479.97033401043154
+          "latency_ms": 388.9236250251997
         },
         {
           "iteration": 32,
           "timeline_records": 70,
           "original_memory_records": 34,
-          "derived_memory_records": 81,
-          "maintenance_jobs": 113,
+          "derived_memory_records": 49,
+          "derived_views_created": 1,
+          "maintenance_jobs": 81,
+          "maintenance_jobs_created": 2,
           "routing_records": 32,
           "research_sessions": 32,
           "research_metadata_bytes": 196576,
           "artifact_objects": 32,
           "artifact_bytes": 1462,
           "artifact_operations": 96,
-          "latency_ms": 486.26095900544897
+          "latency_ms": 409.251957986271
         }
       ],
       "objects_after_cleanup": 0,
@@ -1837,10 +2023,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1074,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2474,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2479,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -1853,7 +2043,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.591624998720363
+          "latency_ms": 35.57679199730046
         },
         {
           "fixture": "direct-factual",
@@ -1870,10 +2060,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1046,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2446,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2451,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -1886,7 +2080,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 31.30795800825581
+          "latency_ms": 41.353958018589765
         },
         {
           "fixture": "direct-factual",
@@ -1903,10 +2097,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1074,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2474,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2479,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -1919,7 +2117,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.731417022645473
+          "latency_ms": 33.5724170145113
         },
         {
           "fixture": "conflicting-sources",
@@ -1936,10 +2134,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1452,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2852,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2857,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -1952,7 +2154,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 25.267082994105294
+          "latency_ms": 33.86208400479518
         },
         {
           "fixture": "conflicting-sources",
@@ -1969,10 +2171,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1397,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2797,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2802,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -1985,7 +2191,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 163.8116660178639
+          "latency_ms": 41.13429199787788
         },
         {
           "fixture": "conflicting-sources",
@@ -2002,10 +2208,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1452,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2852,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2857,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2018,7 +2228,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.704542011022568
+          "latency_ms": 34.14508298737928
         },
         {
           "fixture": "duplicate-urls-content",
@@ -2035,10 +2245,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1608,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 3008,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 3013,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2051,7 +2265,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.658125010319054
+          "latency_ms": 34.498416003771126
         },
         {
           "fixture": "duplicate-urls-content",
@@ -2068,10 +2282,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1438,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2838,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2843,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2084,7 +2302,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 31.549334002193063
+          "latency_ms": 40.894667006796226
         },
         {
           "fixture": "duplicate-urls-content",
@@ -2101,10 +2319,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1608,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 3008,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 3013,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2117,7 +2339,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 25.070542003959417
+          "latency_ms": 34.730207989923656
         },
         {
           "fixture": "citation-placement",
@@ -2134,10 +2356,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1074,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2474,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2479,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2150,7 +2376,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.826458025723696
+          "latency_ms": 32.92379097547382
         },
         {
           "fixture": "citation-placement",
@@ -2167,10 +2393,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1046,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2446,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2451,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2183,7 +2413,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 30.34645799198188
+          "latency_ms": 39.97495799558237
         },
         {
           "fixture": "citation-placement",
@@ -2200,10 +2430,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1074,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2474,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2479,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2216,7 +2450,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.614667006768286
+          "latency_ms": 33.137082995381206
         },
         {
           "fixture": "external-memory-like-claim",
@@ -2233,10 +2467,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1097,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2497,
+          "embedding_input_token_estimate": 75,
+          "assembled_token_estimate": 1340,
+          "total_token_estimate": 2512,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2249,7 +2487,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.69025000371039
+          "latency_ms": 33.608041994739324
         },
         {
           "fixture": "external-memory-like-claim",
@@ -2266,10 +2504,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1069,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2469,
+          "embedding_input_token_estimate": 75,
+          "assembled_token_estimate": 1340,
+          "total_token_estimate": 2484,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2282,7 +2524,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 30.19949997542426
+          "latency_ms": 39.57437499775551
         },
         {
           "fixture": "external-memory-like-claim",
@@ -2299,10 +2541,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1097,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2497,
+          "embedding_input_token_estimate": 75,
+          "assembled_token_estimate": 1340,
+          "total_token_estimate": 2512,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2315,7 +2561,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.418707995209843
+          "latency_ms": 33.537208015332
         },
         {
           "fixture": "near-duplicate-negation",
@@ -2332,10 +2578,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1627,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 3027,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 3032,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2348,7 +2598,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.542125000152737
+          "latency_ms": 33.886332996189594
         },
         {
           "fixture": "near-duplicate-negation",
@@ -2365,10 +2615,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1572,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2972,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2977,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2381,7 +2635,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 31.26808302477002
+          "latency_ms": 40.815957996528596
         },
         {
           "fixture": "near-duplicate-negation",
@@ -2398,10 +2652,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1627,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 3027,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 3032,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2414,7 +2672,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.5324159914162
+          "latency_ms": 34.546540991868824
         },
         {
           "fixture": "numeric-unit-date",
@@ -2431,10 +2689,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1236,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2636,
+          "embedding_input_token_estimate": 110,
+          "assembled_token_estimate": 1375,
+          "total_token_estimate": 2721,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2447,7 +2709,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.789084021700546
+          "latency_ms": 33.4467499924358
         },
         {
           "fixture": "numeric-unit-date",
@@ -2464,10 +2726,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1209,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2609,
+          "embedding_input_token_estimate": 110,
+          "assembled_token_estimate": 1375,
+          "total_token_estimate": 2694,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2480,7 +2746,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 30.648749991087243
+          "latency_ms": 39.33370899176225
         },
         {
           "fixture": "numeric-unit-date",
@@ -2497,10 +2763,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1236,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2636,
+          "embedding_input_token_estimate": 110,
+          "assembled_token_estimate": 1375,
+          "total_token_estimate": 2721,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2513,7 +2783,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.757292015943676
+          "latency_ms": 33.366541989380494
         },
         {
           "fixture": "quoted-entity",
@@ -2530,10 +2800,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1191,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2591,
+          "embedding_input_token_estimate": 92,
+          "assembled_token_estimate": 1357,
+          "total_token_estimate": 2640,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2546,7 +2820,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.715374991297722
+          "latency_ms": 32.96862501883879
         },
         {
           "fixture": "quoted-entity",
@@ -2563,10 +2837,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1164,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2564,
+          "embedding_input_token_estimate": 92,
+          "assembled_token_estimate": 1357,
+          "total_token_estimate": 2613,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2579,7 +2857,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 30.142042000079527
+          "latency_ms": 39.92145901429467
         },
         {
           "fixture": "quoted-entity",
@@ -2596,10 +2874,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1191,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2591,
+          "embedding_input_token_estimate": 92,
+          "assembled_token_estimate": 1357,
+          "total_token_estimate": 2640,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2612,7 +2894,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.566749994643033
+          "latency_ms": 32.76083301170729
         },
         {
           "fixture": "literal-sites",
@@ -2629,10 +2911,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1135,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2535,
+          "embedding_input_token_estimate": 101,
+          "assembled_token_estimate": 1367,
+          "total_token_estimate": 2603,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2645,7 +2931,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.578332999022678
+          "latency_ms": 33.02379199885763
         },
         {
           "fixture": "literal-sites",
@@ -2662,10 +2948,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1108,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2508,
+          "embedding_input_token_estimate": 101,
+          "assembled_token_estimate": 1367,
+          "total_token_estimate": 2576,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2678,7 +2968,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 31.071207980858162
+          "latency_ms": 39.61041601723991
         },
         {
           "fixture": "literal-sites",
@@ -2695,10 +2985,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1135,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2535,
+          "embedding_input_token_estimate": 101,
+          "assembled_token_estimate": 1367,
+          "total_token_estimate": 2603,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2711,7 +3005,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.557750002713874
+          "latency_ms": 34.41662501427345
         },
         {
           "fixture": "multipart",
@@ -2728,10 +3022,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1163,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2563,
+          "embedding_input_token_estimate": 97,
+          "assembled_token_estimate": 1362,
+          "total_token_estimate": 2622,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2744,7 +3042,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.59674997953698
+          "latency_ms": 33.03250001044944
         },
         {
           "fixture": "multipart",
@@ -2761,10 +3059,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1136,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2536,
+          "embedding_input_token_estimate": 97,
+          "assembled_token_estimate": 1362,
+          "total_token_estimate": 2595,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2777,7 +3079,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 30.493541999021545
+          "latency_ms": 39.83970798435621
         },
         {
           "fixture": "multipart",
@@ -2794,10 +3096,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1163,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2563,
+          "embedding_input_token_estimate": 97,
+          "assembled_token_estimate": 1362,
+          "total_token_estimate": 2622,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2810,7 +3116,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.981332982657477
+          "latency_ms": 33.1380830029957
         },
         {
           "fixture": "version-change",
@@ -2827,10 +3133,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1469,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2869,
+          "embedding_input_token_estimate": 72,
+          "assembled_token_estimate": 1337,
+          "total_token_estimate": 2878,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2843,7 +3153,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.496833997545764
+          "latency_ms": 34.129166015191004
         },
         {
           "fixture": "version-change",
@@ -2860,10 +3170,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1414,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2814,
+          "embedding_input_token_estimate": 72,
+          "assembled_token_estimate": 1337,
+          "total_token_estimate": 2823,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2876,7 +3190,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 31.01779200369492
+          "latency_ms": 40.45883397338912
         },
         {
           "fixture": "version-change",
@@ -2893,10 +3207,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1469,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2869,
+          "embedding_input_token_estimate": 72,
+          "assembled_token_estimate": 1337,
+          "total_token_estimate": 2878,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 3,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2909,7 +3227,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.40141700208187
+          "latency_ms": 34.18575000250712
         },
         {
           "fixture": "typed-literal-intersection",
@@ -2926,10 +3244,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1117,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2517,
+          "embedding_input_token_estimate": 110,
+          "assembled_token_estimate": 1375,
+          "total_token_estimate": 2602,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2942,7 +3264,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.16575001552701
+          "latency_ms": 33.42437499668449
         },
         {
           "fixture": "typed-literal-intersection",
@@ -2959,10 +3281,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1090,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2490,
+          "embedding_input_token_estimate": 110,
+          "assembled_token_estimate": 1375,
+          "total_token_estimate": 2575,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -2975,7 +3301,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 30.48266700352542
+          "latency_ms": 40.41629200219177
         },
         {
           "fixture": "typed-literal-intersection",
@@ -2992,10 +3318,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1117,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2517,
+          "embedding_input_token_estimate": 110,
+          "assembled_token_estimate": 1375,
+          "total_token_estimate": 2602,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -3008,7 +3338,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.17304099071771
+          "latency_ms": 33.309790975181386
         },
         {
           "fixture": "mandatory-published-after",
@@ -3025,10 +3355,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1059,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2459,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2464,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -3041,7 +3375,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 23.94537499640137
+          "latency_ms": 33.47333398414776
         },
         {
           "fixture": "mandatory-published-after",
@@ -3058,10 +3392,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1032,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2432,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2437,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -3074,7 +3412,7 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 31.28475000266917
+          "latency_ms": 39.62075000163168
         },
         {
           "fixture": "mandatory-published-after",
@@ -3091,10 +3429,14 @@
             "routing_dispatch": 0
           },
           "research_token_estimate": 1059,
-          "embedding_input_token_estimate": 52,
-          "assembled_token_estimate": 1348,
-          "total_token_estimate": 2459,
+          "embedding_input_token_estimate": 70,
+          "assembled_token_estimate": 1335,
+          "total_token_estimate": 2464,
           "exact_evidence_support": 1.0,
+          "post_builder_exact_support": 1.0,
+          "post_builder_authority_confusion": 0,
+          "post_builder_permission_dependency_loss": 0,
+          "post_builder_conflict_visible": true,
           "context_source_count": 2,
           "supported_answer_quality_live": null,
           "context_omission_live": null,
@@ -3107,17 +3449,29 @@
           "dynamodb_operations": null,
           "gcs_operations": null,
           "strict_free_headroom": null,
-          "latency_ms": 24.187500006519258
+          "latency_ms": 33.44987501623109
         }
       ],
-      "p50_ms": 24.557750002713874,
-      "p95_ms": 31.549334002193063,
-      "token_estimate_totals": {
-        "baseline": 34502,
-        "combined": 33921,
-        "rollback": 34502
+      "latency_by_variant": {
+        "baseline": {
+          "p50_ms": 33.47333398414776,
+          "p95_ms": 35.57679199730046
+        },
+        "combined": {
+          "p50_ms": 39.97495799558237,
+          "p95_ms": 41.353958018589765
+        },
+        "rollback": {
+          "p50_ms": 33.537208015332,
+          "p95_ms": 34.730207989923656
+        }
       },
-      "aggregate_saving_fraction": 0.01683960350124636,
+      "token_estimate_totals": {
+        "baseline": 34902,
+        "combined": 34321,
+        "rollback": 34902
+      },
+      "aggregate_saving_fraction": 0.016646610509426396,
       "promotion": "not_promoted",
       "promoted_coverage": [],
       "missing": [
@@ -3440,30 +3794,80 @@
   "optimization_promotion": {
     "promoted_coverage": [],
     "gates": {
-      "synthetic_aggregate_resource_saving": {
+      "minimum_supported_quality_delta": {
+        "status": "unverified",
+        "observed": null,
+        "threshold": 0.0
+      },
+      "maximum_omission_delta": {
+        "status": "unverified",
+        "observed": null,
+        "threshold": 0.0
+      },
+      "maximum_irrelevance_delta": {
+        "status": "unverified",
+        "observed": null,
+        "threshold": 0.0
+      },
+      "minimum_exact_support": {
+        "status": "passed",
+        "observed": 1.0,
+        "threshold": 1.0
+      },
+      "maximum_false_stale_superseded_memory": {
+        "status": "passed",
+        "observed": 0,
+        "threshold": 0.0
+      },
+      "maximum_authority_confusion": {
+        "status": "passed",
+        "observed": 0,
+        "threshold": 0.0
+      },
+      "minimum_mutation_correctness": {
+        "status": "unverified",
+        "observed": null,
+        "threshold": 1.0
+      },
+      "minimum_aggregate_resource_saving_fraction": {
         "status": "failed",
-        "observed": 0.01683960350124636,
+        "observed": 0.016646610509426396,
         "threshold": 0.05
       },
-      "supported_live_answer_quality": {
-        "status": "unverified",
-        "observed": null
+      "maximum_pipeline_p95_latency_increase_ms": {
+        "status": "failed",
+        "observed": 5.777166021289304,
+        "threshold": 0.0
       },
-      "whole_workflow_p95_latency": {
-        "status": "unverified",
-        "observed": null
+      "maximum_synthetic_pipeline_ms": {
+        "status": "passed",
+        "observed": 41.353958018589765,
+        "threshold": 2000.0
       },
-      "complete_physical_attempt_quota_lineage": {
-        "status": "unverified",
-        "observed": null
+      "maximum_logical_calls_per_fixture": {
+        "status": "passed",
+        "observed": 26,
+        "threshold": 32.0
       },
-      "native_store_operations_storage_headroom": {
-        "status": "unverified",
-        "observed": null
+      "maximum_context_token_estimate": {
+        "status": "passed",
+        "observed": 1375,
+        "threshold": 8192.0
       },
-      "assisted_planner_implementation": {
-        "status": "unverified",
-        "observed": null
+      "soak_iterations": {
+        "status": "passed",
+        "observed": 32,
+        "threshold": 32.0
+      },
+      "maximum_derived_views_per_soak_turn": {
+        "status": "passed",
+        "observed": 4,
+        "threshold": 4.0
+      },
+      "maximum_maintenance_jobs_per_soak_turn": {
+        "status": "failed",
+        "observed": 5,
+        "threshold": 4.0
       }
     },
     "decision": "not_promoted"

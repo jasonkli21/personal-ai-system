@@ -6,28 +6,36 @@ Updated: 2026-10-12. This is the single living status snapshot. Code, tests, and
 
 Phase 36 adds an executable 48-row matrix across 27 normative boundaries and 13
 safe fault scenarios, with exact parametrized test receipts, source/configuration
-identity, distinct offline/local/cloud/live/domain/browser classes and derived
-release/blocker reports. `make integrated-verification` produces this evidence;
+identity over tracked repository inputs, a sanitized verifier/profile manifest,
+distinct offline/local/cloud/live/domain/browser classes and derived release/blocker
+reports. `make integrated-verification` produces this evidence; separately
+executed non-offline receipts can be supplied through the typed
+`--external-evidence` merge path. `make integrated-verification` itself remains
+offline-only;
 exit zero means the local checks succeeded, not that a capability is release-ready.
-The current snapshot has 24 passed local rows, 21 unverified external rows and 3
+The current snapshot has 24 passed offline rows, 21 unverified external rows and 3
 original blocked obligations. All 13 fault scenarios pass. Historical obligations
 retain their original evidence owners; no mandatory real-service gate is closed
 by a fake or disabled feature.
 
 Startup/API conformance installs a synthetic fifth app with two typed providers,
-scope/sensitivity dependencies and shared sidecar actions through existing
-registration. Provider/task evaluation and registered validators consume the
+workspace membership authority, scope/sensitivity dependencies and shared sidecar
+actions through the generic application contribution catalog and production app
+factory. The real authentication middleware constructs its scope and fails closed
+when workspace authority is absent or denies membership. Provider/task evaluation and registered validators consume the
 production routing factory. Bound request memory retrieval now preserves its
 owner/actor/app/workspace identity; foreign-owner retrieval denies before embedding.
 The iterative evaluator's v2 fixture checks Phase 33's typed dispatched domain
 bounds, preserving the original fixture and rejecting domain-loss regressions.
 
-The combined narrowing/search rewrite/packing/memory/internal-routing probe saves
-1.68% estimated tokens (34,502 baseline; 33,921 combined), below its 5% promotion
-gate. Rollback reproduces baseline tokens. No optimization coverage is promoted;
-live quality, whole-workflow timing, physical quota lineage and native-store
-resources remain unknown. The planner's unchanged corpus now has a v9 runtime
-freeze. A 32-step accumulated-state probe measures memory/view/job, timeline,
+The combined narrowing/search rewrite/packing/memory/internal-routing probe remains
+below its 5% resource-saving gate. Rollback reproduces baseline tokens. Exact token
+totals and every integrated threshold result are recorded in the generated matrix
+results. No optimization coverage is promoted; live quality, whole-workflow timing,
+physical quota lineage and native-store resources remain unknown. The planner's
+unchanged corpus now has a v10 runtime freeze for the Phase 36 review-fix source
+tree; v9 remains historical. A 32-step accumulated-state probe measures
+memory/view/job, timeline,
 research, routing and artifact growth, fails closed under database/network/provider
 degradation and later revocation, and recovers interrupted artifact cleanup.
 Its local stock/operation measurements do not prove native capacity, retention or

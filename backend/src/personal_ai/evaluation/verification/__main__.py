@@ -11,9 +11,11 @@ from hashlib import sha256
 from pathlib import Path
 
 from personal_ai.evaluation.verification.contracts import (
+    ExternalEvidenceManifest,
     VerificationMatrix,
     execution_status,
     integrated_promotion,
+    merge_external_evidence,
     release_projection,
 )
 
@@ -21,30 +23,69 @@ ROOT = Path(__file__).resolve().parents[5]
 MATRIX_PATH = Path(__file__).with_name("matrix.json")
 
 
+GENERATED_EVIDENCE_PATHS = frozenset(
+    {
+        "docs/personal-ai-chapter-2/phase-36/matrix-results.json",
+        "docs/personal-ai-chapter-2/phase-36/receipts.json",
+        "docs/personal-ai-chapter-2/phase-36/blockers.json",
+        "docs/personal-ai-chapter-2/phase-36/release-report.md",
+    }
+)
+
+
 def source_identity(root=ROOT):
-    """Bind dirty/new code as well as HEAD; exclude generated evidence and personal files."""
-    paths = [
-        root / "Makefile",
-        root / "backend/pyproject.toml",
-        root / "backend/uv.lock",
-        root / "frontend/package.json",
-        root / "frontend/pnpm-lock.yaml",
-    ]
-    for directory in ("backend/src", "backend/tests", "frontend/src", "frontend/tests"):
-        paths.extend(
-            p
-            for p in (root / directory).rglob("*")
-            if p.is_file()
-            and "__pycache__" not in p.parts
-            and p.suffix != ".pyc"
-            and p.name != ".DS_Store"
+    """Bind every tracked repository input, including infrastructure and authority docs."""
+    root = Path(root)
+    try:
+        tracked = (
+            subprocess.run(["git", "ls-files", "-z"], cwd=root, check=True, capture_output=True)
+            .stdout.decode()
+            .split("\0")
         )
-    return sha256(
-        json.dumps(
-            [(str(p.relative_to(root)), sha256(p.read_bytes()).hexdigest()) for p in sorted(paths)],
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()
+        relative_paths = [name for name in tracked if name]
+    except (OSError, subprocess.CalledProcessError):
+        relative_paths = [
+            path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()
+        ]
+    inputs = []
+    for relative in sorted(set(relative_paths)):
+        if relative in GENERATED_EVIDENCE_PATHS:
+            continue
+        path = root / relative
+        if any(
+            part in {".git", ".venv", "node_modules", "__pycache__", "artifacts"}
+            for part in Path(relative).parts
+        ):
+            continue
+        if path.is_file():
+            mode = path.stat().st_mode & 0o777
+            digest = sha256(path.read_bytes()).hexdigest()
+        else:
+            mode, digest = 0, "missing"
+        inputs.append((relative, mode, digest))
+    return sha256(json.dumps(inputs, separators=(",", ":")).encode()).hexdigest()
+
+
+def verifier_environment():
+    """Sanitized, explicit description of the effective offline verification profile."""
+    profiles = {
+        "storage": "synthetic-and-scripted-fakes; no-native-store",
+        "provider": "fake-or-synthetic; no-live-provider-dispatch",
+        "account": "synthetic-owner-only; no-personal-data",
+    }
+    selection = {
+        "schema_version": "phase36-verifier-environment-v1",
+        "pytest_selection": "all references from offline rows in the canonical matrix",
+        "excluded_markers": ["persistence_integration", "cloud_smoke"],
+        "provider_dispatch": "disabled",
+        "artifact_retention": False,
+        "profile_identities": profiles,
+        "profiles": profiles,
+        "profile_identities_sha256": sha256(
+            json.dumps(profiles, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
+    return selection
 
 
 def render_report(report):
@@ -53,7 +94,11 @@ def render_report(report):
         "# Phase 36 release verification",
         "",
         f"Tested revision: `{report['tested_revision']}`.",
-        f"Configuration/source: `{report['configuration_sha256']}`.",
+        f"Tracked source/configuration inputs: `{report['configuration_sha256']}`.",
+        "",
+        "Sanitized verifier environment: "
+        + json.dumps(report["verification_environment"], sort_keys=True)
+        + ".",
         f"Matrix SHA256: `{report['matrix_sha256']}`.",
         f"Recorded UTC: {report['recorded_at']}.",
         "",
@@ -125,13 +170,14 @@ def render_report(report):
     return "\n".join(lines)
 
 
-def run(output):
+def run(output, external_evidence_path=None):
     raw = MATRIX_PATH.read_bytes()
     matrix = VerificationMatrix.model_validate_json(raw)
     # Source matrix cannot self-certify evidence. All passes are derived below.
     if any(r.status == "passed" for r in matrix.rows):
         raise ValueError("matrix_input_cannot_claim_pass")
     identity = source_identity()
+    matrix_digest = sha256(raw).hexdigest()
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
     ).stdout.strip()
@@ -207,11 +253,23 @@ def run(output):
                 }
             )
         rows.append(row)
+    external_manifest = None
+    if external_evidence_path is not None:
+        external_manifest = ExternalEvidenceManifest.model_validate_json(
+            Path(external_evidence_path).read_bytes()
+        )
+    rows, external_receipt_validation = merge_external_evidence(
+        rows,
+        external_manifest,
+        tested_revision=head,
+        source_configuration_sha256=identity,
+        matrix_sha256=matrix_digest,
+    )
     report = {
         "schema_version": matrix.schema_version,
         "tested_revision": head,
         "configuration_sha256": identity,
-        "matrix_sha256": sha256(raw).hexdigest(),
+        "matrix_sha256": matrix_digest,
         "recorded_at": datetime.now(UTC).isoformat(),
         "strategy_coverage": matrix.strategy_coverage,
         "thresholds": matrix.thresholds,
@@ -228,6 +286,8 @@ def run(output):
             "platform": sys.platform,
             "external_execution": "disabled; fixed offline pytest selection",
         },
+        "verification_environment": verifier_environment(),
+        "external_receipt_validation": external_receipt_validation,
         "rows": [row.model_dump(mode="json") for row in rows],
         "measurements": [
             c["metrics"] for c in receipt["cases"] if "metrics" in c and c["status"] == "passed"
@@ -244,6 +304,10 @@ def run(output):
         ("blockers.json", report["release"]),
     ):
         (output / name).write_text(json.dumps(data, indent=2, allow_nan=False) + "\n")
+    if external_manifest is not None:
+        (output / "external-evidence.json").write_text(
+            json.dumps(external_manifest.model_dump(mode="json"), indent=2, allow_nan=False) + "\n"
+        )
     (output / "release-report.md").write_text(render_report(report))
     print(json.dumps(report["release"]["status_counts"], sort_keys=True))
     return 1 if any(row.status == "failed" for row in rows) or receipt["exit_code"] else 0
@@ -252,8 +316,13 @@ def run(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "artifacts/phase36")
+    parser.add_argument(
+        "--external-evidence",
+        type=Path,
+        help="validated receipt manifest from separately executed non-offline gates",
+    )
     args = parser.parse_args()
-    return run(args.output)
+    return run(args.output, args.external_evidence)
 
 
 if __name__ == "__main__":

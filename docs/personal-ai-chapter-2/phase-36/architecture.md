@@ -18,8 +18,17 @@ and Phase 32–35 evidence govern coverage; code governs the tested boundary.
 - The matrix is an evidence index, not a second policy, usage, mutation, or
   persistence authority. Original Phase 9/10/14/15/19/20/25–35 obligations remain
   canonical. Reports and blocker ledgers are projections generated from rows.
-- Production composition uses `main.lifespan` -> contribution catalog ->
-  application registry -> FastAPI context dependencies -> planner/coordinator ->
+- Automatic execution remains limited to offline rows. Separately executed
+  `local`, `cloud`, `live`, `domain`, and `browser` evidence can be merged with
+  `--external-evidence` only through the typed receipt manifest. A receipt binds
+  its row/class, original authority and command, tested revision, matrix/source
+  digests, environment/profile identities, artifact digest, freshness, operator,
+  and required reviewer provenance. Missing, stale, mismatched, replayed, or
+  malformed receipts cannot close a row; this path never provisions or runs an
+  external environment.
+- Production composition uses `create_app` -> generic application contribution
+  catalog -> application registry and authentication middleware -> `main.lifespan`
+  context contribution catalog -> FastAPI context dependencies -> planner/coordinator ->
   token-budgeted builder. Routing uses the persistence factory and API dependency
   -> P21 hard admission -> strategy -> P19 reservation/claim/settlement. The
   synthetic app supplies two typed providers, sensitivity and exact scoped
@@ -40,12 +49,15 @@ and Phase 32–35 evidence govern coverage; code governs the tested boundary.
 - Dependency currentness comes from existing federation, memory, research and
   artifact authorities, including later history/summary/cache reuse. Original
   source records remain authoritative; consolidation and compression are derived.
-- Combined sequential pipeline measurements cover the implemented narrowing,
-  search rewrite/packing, memory retrieval/build and internal routing paths.
-  They are synthetic proxy evidence, not a promoted end-to-end user workflow.
-  Thresholds are versioned before execution. Missing live supported-answer,
-  physical quota, native-store operations/headroom or whole-workflow timing deny
-  promotion; unknown observations are never filled with zero.
+- Every declared integrated threshold projects to an explicit `passed`, `failed`,
+  or `unverified` gate. Combined sequential pipeline measurements cover the
+  implemented narrowing, search rewrite/packing, memory retrieval/build and
+  internal routing paths. Baseline and candidate latency distributions are
+  evaluated separately; post-builder source support, conflict visibility,
+  authority scope and dependencies are asserted on the coupled held-out fixture.
+  These remain synthetic proxy results, not a promoted end-to-end user workflow.
+  Missing live quality, physical quota, native-store operations/headroom or
+  assisted-planner observations remain `unverified`; unknown values are not zero.
 - Bounded soak measures accumulated synthetic runtime, memory/views/jobs,
   research metadata, routing records and artifact bodies before revoke/expiry/
   cleanup. Native capacity/storage/deletion-aware restore stay external gates.

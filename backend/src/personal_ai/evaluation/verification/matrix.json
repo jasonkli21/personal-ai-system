@@ -414,9 +414,10 @@
       "mandatory": true,
       "test_refs": [
         "tests/test_account_data.py",
-        "tests/test_phase9_controls.py"
+        "tests/test_phase9_controls.py",
+        "tests/persistence/test_account_export.py"
       ],
-      "command": "python -m pytest -q tests/test_account_data.py tests/test_phase9_controls.py",
+      "command": "python -m pytest -q tests/test_account_data.py tests/test_phase9_controls.py tests/persistence/test_account_export.py",
       "authority_ref": "docs/phase-9-release-checklist.md",
       "evidence_ref": null,
       "tested_revision": null,
