@@ -361,12 +361,14 @@ def test_reservation_race_reselects_as_a_linked_decision_without_a_send():
     facts = request()
     decision = service.route(owner_id="owner", scope=SCOPE, task=routing_task, request=facts)
     assert decision.selected.endpoint_profile_id == "scarce-endpoint"
-    assert decision.schema_version == 5
+    assert decision.schema_version == 6
     assert len(decision.quota_buckets) == 2
     assert decision.request.operation == "bounded_generation"
 
     legacy_payload = decision.model_dump(mode="json")
     legacy_payload["schema_version"] = 4
+    legacy_payload.pop("feature_context")
+    legacy_payload.pop("shadow")
     legacy_payload.pop("strategy_dependencies")
     legacy_payload.pop("strategy_implementation_sha256")
     legacy_payload.pop("strategy_configuration_sha256")

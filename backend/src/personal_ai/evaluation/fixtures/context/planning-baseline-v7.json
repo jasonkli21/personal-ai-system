@@ -1,0 +1,21 @@
+{
+  "baseline_lock_version": "planning-baseline-lock-v7",
+  "baseline_version": "deterministic-context-planner-v1",
+  "configuration_digest": "d5a21dbc1568ec8b5704139f2e908a17c1b9e4289ed3f25b6c105b9378a768a9",
+  "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+  "counter_identity": "phase13-envelope-byte-estimate-v1",
+  "evaluator_version": "planning-evaluator-v6",
+  "evidence_kind": "synthetic_offline",
+  "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+  "frozen_at": "2026-10-12",
+  "platform_runtime": "macOS-27.0.1-arm64-arm-64bit",
+  "pydantic_runtime": "2.13.5",
+  "python_abi": "cpython-311",
+  "python_implementation": "CPython",
+  "python_runtime": "3.11.15",
+  "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
+  "runtime_distribution_count": 94,
+  "source_identity_digest": "32dd44c75bcdb09406011a1e2756b0a6fd50dfec9df793a32799e6b2bdd9b4df",
+  "source_revision": "16f74f4005b83527e7fd6589a439182d4caa7513",
+  "source_revision_binding": "current-or-direct-child-with-identical-source-identity"
+}

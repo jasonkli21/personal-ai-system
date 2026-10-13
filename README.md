@@ -326,6 +326,13 @@ require `RESEARCH_RETRIEVAL_EXPERIMENTS_ENABLED=true`; no coverage is promoted.
 freshness, Phase 19 admission, and context budgets still apply. See the
 [Phase 33 report](docs/personal-ai-chapter-2/phase-33-implementation-report.md).
 
+Phase 35 adds a default-off adaptive routing shadow behind the existing strategy
+seam. It records preferences over admitted strict-free candidates and preserves
+the deterministic visible route. The synthetic corpus does not support promotion;
+learned ranking and online adaptation are deferred. Run
+`make adaptive-routing-eval`; see the [Phase 35 report](docs/personal-ai-chapter-2/phase-35-implementation-report.md)
+and [experiment contract](experiments/ranking/README.md).
+
 ## Cloud deployment
 
 The deployed topology uses Cloud Run for the web/API/worker, Neon Postgres and

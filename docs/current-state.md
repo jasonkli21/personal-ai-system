@@ -170,3 +170,29 @@ Chapter 2 Phases 0–2 are completed history; Phase 10 persistence, Phase 11 con
 - Latest external-turn state-machine record: [Phase 25.2 architecture](personal-ai-chapter-2/phase-25-2-architecture.md), [guide](personal-ai-chapter-2/phase-25-2-implementation-guide.md), and [evidence](personal-ai-chapter-2/phase-25-2-implementation-evidence.md).
 - Latest continuation sidecar/API record: [Phase 25.3 guide](personal-ai-chapter-2/phase-25-3-implementation-guide.md), [evidence](personal-ai-chapter-2/phase-25-3-implementation-evidence.md), and [decision review](personal-ai-chapter-2/phase-25-3-readiness-review-2026-10-10.md).
 - Latest application launch/sidecar contract record: [Phase 25.4 architecture](personal-ai-chapter-2/phase-25-4-architecture.md), [guide](personal-ai-chapter-2/phase-25-4-implementation-guide.md), and [evidence](personal-ai-chapter-2/phase-25-4-implementation-evidence.md).
+
+## Phase 35 adaptive routing experiments
+
+The internal P21 strategy seam now supports a default-off, non-dispatching bounded
+capacity rule shadow. The canonical persistence factory composes the registered
+strategy with the existing endpoint registry, explicit authorization and P19
+accounting. Hard admission precedes every strategy input; the visible ranking and
+producer identity remain quota-aware deterministic. Feature/implementation/config
+incompatibility, missing signals, stale coverage and excessive overhead abstain.
+Invalid/oversized optional diagnostics are omitted without changing routing.
+Schema 6 stores exact endpoint configuration digests, bounded feature context and
+shadow metadata in the existing Postgres decision JSON; older deterministic replay
+remains supported. Retention, export and deletion retain their existing owners.
+
+The privacy-safe dataset joins canonical P21/P22 facts, preserves missing labels,
+and groups runs, scoped requests, root/retry/cascade lineage and fixture families.
+Missing fixture-family classification merges the suite; ordinary traffic is
+excluded until canonical session grouping exists. A retained P19 projection counts
+claimed sends, auxiliary calls/retries, unknown consumption and conservative
+reservations separately; complete root lineage and end-to-end timing remain
+unmeasured. The frozen synthetic snapshot has 80 executed cases, one independent
+conservative family group and no live labels. No adaptive coverage is promoted.
+Strategy 2 and bandits are deferred on data/reward grounds. The context planner
+has a v7 runtime freeze for the changed backend composition; its corpus and
+non-promotion decision are unchanged. Existing workflow, identity, privacy and
+external-store gates remain open. See the [Phase 35 report](personal-ai-chapter-2/phase-35-implementation-report.md).

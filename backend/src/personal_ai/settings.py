@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     ai_provider: str = Field(min_length=1)
     ai_model: str = Field(min_length=1)
     ai_api_key: SecretStr = Field(default=SecretStr(""))
+    routing_shadow_enabled: bool = False
+    routing_shadow_artifact: dict[str, object] = Field(default_factory=dict, max_length=16)
     # Phase 18 endpoint facts are account-specific operator attestations. They
     # remain disabled/unknown by default and never contain credential values.
     gemini_account_scope_id: str = Field(default="", max_length=200)

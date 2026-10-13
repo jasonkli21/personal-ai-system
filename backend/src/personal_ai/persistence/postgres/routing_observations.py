@@ -325,6 +325,33 @@ class PostgresRoutingDecisionRepository:
                 for r in rows
             )
 
+    def observation_page(self, *, owner_id, scope, start, end, after=None, limit=100):
+        """Bounded retained snapshot page; never present a truncated list as complete."""
+        from personal_ai.routing.decision_models import _aware
+
+        _aware(start)
+        _aware(end)
+        if start >= end or not 1 <= limit <= 100:
+            raise ValueError("routing_observation_range_invalid")
+        if after is not None:
+            _aware(after[0])
+        with self.transaction(owner_id=owner_id) as c:
+            rows = c.execute(
+                "SELECT decision_id,created_at FROM routing_decisions WHERE owner_id=%s "
+                "AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s "
+                "AND created_at>=%s AND created_at<%s AND replay_until>clock_timestamp() "
+                + ("AND (created_at,decision_id)>(%s,%s) " if after else "")
+                + "ORDER BY created_at,decision_id LIMIT %s",
+                (owner_id, scope.application_id, scope.workspace_id, start, end,
+                 *(after or ()), limit + 1),
+            ).fetchall()
+            records = tuple(self.get_in_transaction(
+                c, owner_id=owner_id, scope=scope, decision_id=row[0], lock=True
+            ) for row in rows[:limit])
+            truncated = len(rows) > limit
+            cursor = (rows[limit-1][1], rows[limit-1][0]) if truncated else None
+            return records, cursor, not truncated
+
     def legacy_audit(self, *, owner_id, scope, decision_id):
         """Read-only retained V1 data. Historical strategy code is unavailable.
 

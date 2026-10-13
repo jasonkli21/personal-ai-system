@@ -13,3 +13,14 @@ LiteLLM transport or Postgres SQL implementation.
 - Routing contracts, decision records, integrity functions, policy rules, and strategy behavior are imported from their owning semantic modules.
 
 Routing tests live in `backend/tests/test_routing_*.py`, `backend/tests/test_provider_matrix.py`, and the usage suites. Decision persistence and replay must retain their current transaction and idempotency boundaries.
+
+Phase 35 adds `features.py` and `adaptive.py` behind `RoutingStrategy`. The normal
+persistence factory's `routing_service` composes registry, P19 accounting, explicit
+authorization and configured strategy. Its default remains the quota-aware
+baseline; optional shadow observes only admitted candidates and cannot dispatch.
+Schema 6 records exact endpoint configuration digests, bounded feature identity
+and optional compact shadow metadata inside the existing decision JSON. Historical
+schemas remain readable for deterministic replay and are excluded from feature
+training when decision-time identity is missing. No SQL schema change is needed.
+Malformed/oversized optional diagnostics are omitted without changing the visible
+route. See [the experiment contract](../../../../experiments/ranking/README.md).

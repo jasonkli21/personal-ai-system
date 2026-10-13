@@ -875,6 +875,45 @@ class PostgresProviderUsageAccounting:
                 (outcome, completed_at.astimezone(UTC), invocation.invocation_id),
             )
 
+    def request_observation(self, *, owner_id, scope, request_id, run_id, limit=256):
+        """Read P19's entire retained request lineage for evaluation, with a bound."""
+        from personal_ai.persistence.postgres.owner_lifecycle import assert_owner_unfenced
+        from personal_ai.usage.observations import pipeline_metrics
+
+        if not 1 <= limit <= 512:
+            raise ValueError("provider_observation_bound_invalid")
+        with self.database.transaction() as c:
+            assert_owner_unfenced(c, owner_id)
+            columns = ("attempt_id", "parent_attempt_id", "dispatch_claimed_at", "status",
+                       "input_tokens", "output_tokens", "latency_ms", "reserved_tokens",
+                       "operation", "endpoint_profile_id")
+            rows = c.execute(
+                "SELECT a.attempt_id,a.parent_attempt_id,a.dispatch_claimed_at,a.status,"
+                "a.input_tokens,a.output_tokens,a.latency_ms,a.reserved_tokens,"
+                "i.operation,i.endpoint_profile_id FROM provider_invocations i "
+                "JOIN provider_attempts a USING(invocation_id) WHERE i.owner_id=%s "
+                "AND i.application_id=%s AND i.workspace_id IS NOT DISTINCT FROM %s "
+                "AND i.request_id=%s AND i.run_id IS NOT DISTINCT FROM %s "
+                "AND i.retention_until>clock_timestamp() "
+                "ORDER BY a.started_at,a.attempt_id LIMIT %s",
+                (owner_id, scope.application_id, scope.workspace_id, request_id, run_id, limit+1),
+            ).fetchall()
+            attempts = [dict(zip(columns, row)) for row in rows[:limit]]
+            reservation_rows = c.execute(
+                "SELECT attempt_id,bucket_id,reserved_units FROM provider_quota_reservations "
+                "WHERE attempt_id=ANY(%s) ORDER BY attempt_id,bucket_id",
+                ([r["attempt_id"] for r in attempts],),
+            ).fetchall() if attempts else ()
+            for attempt in attempts:
+                attempt["reservations"] = tuple((bucket, units) for identity, bucket, units
+                                                in reservation_rows if identity == attempt["attempt_id"])
+            metrics = pipeline_metrics(attempts, complete=len(rows) <= limit)
+            # Retention can remove P19 records before a retained P21 decision.
+            # Empty observations are explicitly missing, not a zero-cost label.
+            if not attempts:
+                metrics["complete"] = metrics["settled"] = False
+            return metrics
+
     def summary(
         self, *, owner_id: str, application_id: str, workspace_id: str | None, days: int = 30
     ) -> dict:

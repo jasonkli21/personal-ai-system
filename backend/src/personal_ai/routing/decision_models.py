@@ -438,6 +438,8 @@ class QuotaReservationRequirement(_FrozenModel):
 
 class StrategyCandidate(_FrozenModel):
     endpoint: EndpointRef
+    endpoint_configuration_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    quality_identity_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     configured_priority: int = Field(default=0, ge=-100_000, le=100_000)
     quality_score: float | None = Field(default=None, ge=0, le=1)
     latency_ms: int | None = Field(default=None, ge=0, le=600_000)
@@ -563,6 +565,26 @@ class CandidateFact(StrategyCandidate):
         )
 
 
+class RoutingFeatureContext(_FrozenModel):
+    """Server-derived decision-time identity; no prompt, source or credential payload."""
+
+    schema_version: str = Field(default="routing-features-v1", pattern=r"^[A-Za-z0-9._:+/-]{1,100}$")
+    application_id: str = Field(min_length=2, max_length=42)
+    task_id: str
+    task_profile_id: str
+    task_profile_version: int = Field(ge=1)
+    task_configuration_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    requirements_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    input_token_bucket: int | None = Field(default=None, ge=0, le=21)
+    output_token_bucket: int | None = Field(default=None, ge=0, le=21)
+
+    @field_validator("task_id", "task_profile_id")
+    @classmethod
+    def safe_identity(cls, value):
+        return _safe_id(value)
+
+
 class StrategyView(_FrozenModel):
     preferences: RoutingPreferences
     candidates: tuple[StrategyCandidate, ...] = Field(max_length=32)
@@ -570,6 +592,7 @@ class StrategyView(_FrozenModel):
         default=(), max_length=MAX_ROUTING_QUOTA_BUCKET_FACTS
     )
     observed_at: datetime | None = None
+    feature_context: RoutingFeatureContext | None = None
 
     @field_validator("observed_at")
     @classmethod
@@ -600,6 +623,37 @@ class RankedCandidate(_FrozenModel):
     reason_code: str = Field(pattern=r"^[A-Za-z0-9._:+/-]{1,100}$")
 
 
+class RoutingShadowObservation(_FrozenModel):
+    """Preference diagnostics only. Never alternate execution/outcome evidence."""
+
+    strategy: StrategyRef
+    artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    artifact_metadata_json: str = Field(max_length=16384)
+    coverage_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_endpoints: tuple[EndpointRef, ...] = Field(max_length=32)
+    deterministic_choice: EndpointRef
+    ranking: tuple[RankedCandidate, ...] = Field(max_length=32)
+    agreement: bool
+    abstention_reason: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._:+/-]{1,100}$")
+    latency_us: int = Field(ge=0)
+    cpu_us: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if (
+            not self.ranking
+            or len(self.ranking) != len(self.candidate_endpoints)
+            or len(set(self.candidate_endpoints)) != len(self.candidate_endpoints)
+            or {r.endpoint for r in self.ranking} != set(self.candidate_endpoints)
+            or len({r.endpoint for r in self.ranking}) != len(self.ranking)
+            or self.deterministic_choice not in self.candidate_endpoints
+            or self.agreement != (self.ranking[0].endpoint == self.deterministic_choice)
+            or (self.abstention_reason is not None and not self.agreement)
+        ):
+            raise ValueError("routing_shadow_invalid")
+        return self
+
+
 class EvaluationQualityGate(_FrozenModel):
     """Exact, temporary waiver for measuring one task/profile/endpoint tuple."""
 
@@ -627,7 +681,7 @@ class EvaluationQualityGate(_FrozenModel):
 
 
 class RoutingDecision(_FrozenModel):
-    schema_version: Literal[2, 3, 4, 5] = 2
+    schema_version: Literal[2, 3, 4, 5, 6] = 2
     routing_decision_id: UUID
     root_decision_id: UUID
     parent_decision_id: UUID | None = None
@@ -653,6 +707,9 @@ class RoutingDecision(_FrozenModel):
     )
     ranking: tuple[RankedCandidate, ...] = Field(default=(), max_length=32)
     no_route_reason: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._:+/-]{1,100}$")
+    feature_context: RoutingFeatureContext | None = None
+    shadow: RoutingShadowObservation | None = None
+    shadow_omission_reason: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._:+/-]{1,100}$")
 
     @field_validator("created_at", "root_deadline_at", "replay_until")
     @classmethod
@@ -672,9 +729,9 @@ class RoutingDecision(_FrozenModel):
             raise ValueError("routing_task_capability_requirement_mismatch")
         if self.schema_version == 2 and self.evaluation_quality_gate is not None:
             raise ValueError("legacy_routing_decision_evaluation_gate_invalid")
-        if self.schema_version in (4, 5) and self.request.operation is None:
+        if self.schema_version in (4, 5, 6) and self.request.operation is None:
             raise ValueError("routing_operation_missing")
-        if self.schema_version == 5:
+        if self.schema_version in (5, 6):
             if (
                 self.strategy_implementation_sha256 is None
                 or self.strategy_configuration_sha256 is None
@@ -734,7 +791,7 @@ class RoutingDecision(_FrozenModel):
             for bucket_id in candidate.quota_bucket_ids
         ):
             raise ValueError("routing_quota_snapshot_incomplete")
-        if self.schema_version == 5 and any(
+        if self.schema_version in (5, 6) and any(
             {row.bucket_id for row in candidate.quota_requirements}
             != set(candidate.quota_bucket_ids)
             or len(candidate.quota_requirements) != len(candidate.quota_bucket_ids)
@@ -753,6 +810,32 @@ class RoutingDecision(_FrozenModel):
             raise ValueError("routing_selection_invalid")
         if self.ranking and self.root_deadline_at <= self.created_at:
             raise ValueError("routing_root_deadline_invalid")
+        if self.schema_version == 6:
+            from personal_ai.routing.features import feature_context_for
+
+            if self.feature_context != feature_context_for(self.application_id, self.task, self.request):
+                raise ValueError("routing_feature_context_mismatch")
+            if any(c.endpoint_configuration_sha256 is None for c in self.candidates):
+                raise ValueError("routing_endpoint_configuration_missing")
+        elif self.feature_context is not None or self.shadow is not None:
+            raise ValueError("historical_routing_features_unavailable")
+        if self.shadow is not None:
+            if (
+                self.shadow.deterministic_choice != self.selected
+                or set(self.shadow.candidate_endpoints) != set(eligible)
+            ):
+                raise ValueError("routing_shadow_decision_mismatch")
+            from personal_ai.routing.adaptive import AdaptiveArtifact
+
+            artifact = AdaptiveArtifact.model_validate_json(self.shadow.artifact_metadata_json)
+            if artifact.sha256 != self.shadow.artifact_sha256 or artifact.ref != self.shadow.strategy:
+                raise ValueError("routing_shadow_artifact_mismatch")
+            from personal_ai.routing.features import coverage_identity
+
+            if self.shadow.coverage_sha256 != coverage_identity(self.strategy_view()):
+                raise ValueError("routing_shadow_coverage_mismatch")
+            if self.shadow_omission_reason is not None:
+                raise ValueError("routing_shadow_omission_mismatch")
         if len(self.model_dump_json().encode()) > MAX_ROUTING_DECISION_BYTES:
             raise ValueError("routing_decision_payload_too_large")
         return self
@@ -786,6 +869,7 @@ class RoutingDecision(_FrozenModel):
                 bucket for bucket in self.quota_buckets if bucket.bucket_id in needed
             ),
             observed_at=self.created_at,
+            feature_context=self.feature_context,
         )
 
 

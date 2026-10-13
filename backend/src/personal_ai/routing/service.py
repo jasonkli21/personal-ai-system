@@ -28,6 +28,7 @@ from personal_ai.routing.decision_models import (
     RoutingTaskProfile,
     StrategyView,
 )
+from personal_ai.routing.features import feature_context_for
 from personal_ai.routing.integrity import (
     endpoint_configuration_sha256,
     quality_identity_sha256,
@@ -458,6 +459,7 @@ class RoutingDecisionService:
                 candidates.append(
                     CandidateFact(
                         endpoint=profile.ref,
+                        endpoint_configuration_sha256=endpoint_configuration_sha256(profile),
                         rejection_reasons=tuple(dict.fromkeys(reasons)),
                         configured_priority=task.priority_for(profile.endpoint_profile_id),
                         quality_score=q.score
@@ -554,6 +556,7 @@ class RoutingDecisionService:
                     if bucket_id in quota_facts
                 ),
                 observed_at=now,
+                feature_context=feature_context_for(scope.application_id, task, request),
             )
             reason = (
                 "quota-snapshot-overflow"
@@ -563,6 +566,8 @@ class RoutingDecisionService:
                 else None
             )
             ranking = ()
+            shadow = None
+            shadow_omission_reason = None
             if view.candidates and not quota_snapshot_overflow:
                 try:
                     from personal_ai.routing.decision_models import RankedCandidate
@@ -581,6 +586,19 @@ class RoutingDecisionService:
                 except Exception:  # noqa: BLE001 - missing authority/invalid strategy fails closed
                     ranking = ()
                     reason = "routing-strategy-contract-invalid"
+                if ranking:
+                    # Optional diagnostics cannot invalidate the deterministic route.
+                    try:
+                        from personal_ai.routing.decision_models import RoutingShadowObservation
+
+                        observe = getattr(self.strategy, "observe", None)
+                        if observe is not None:
+                            shadow = RoutingShadowObservation.model_validate(
+                                observe(view, ranking).model_dump()
+                            )
+                    except Exception:  # noqa: BLE001 - optional observation is unavailable
+                        shadow = None
+                        shadow_omission_reason = "routing-shadow-unavailable"
             if dependency_expires_at is not None:
                 if dependency_expires_at.tzinfo is None:
                     raise ValueError("routing_timestamp_must_be_aware")
@@ -593,7 +611,7 @@ class RoutingDecisionService:
             strategy_dependencies = strategy_dependencies_for(self.strategy)
             strategy_implementation = implementation_sha256_for(self.strategy)
             decision_fields = {
-                "schema_version": 5,
+                "schema_version": 6,
                 "routing_decision_id": decision_id,
                 "root_decision_id": root_id,
                 "parent_decision_id": parent_decision_id,
@@ -621,25 +639,39 @@ class RoutingDecisionService:
                 "quota_buckets": tuple(quota_facts[bucket_id] for bucket_id in sorted(quota_facts)),
                 "ranking": ranking,
                 "no_route_reason": reason,
+                "feature_context": view.feature_context,
+                "shadow": shadow if ranking else None,
+                "shadow_omission_reason": shadow_omission_reason,
             }
             try:
                 decision = RoutingDecision(**decision_fields)
-            except ValidationError as error:
-                if not any(
-                    str(item.get("ctx", {}).get("error", ""))
-                    == "routing_decision_payload_too_large"
-                    for item in error.errors()
-                ):
-                    raise
-                # Preserve the existing byte bound and persist an explicit
-                # no-route outcome rather than truncating replay facts.
-                decision_fields.update(
-                    candidates=(),
-                    quota_buckets=(),
-                    ranking=(),
-                    no_route_reason="routing-decision-overflow",
-                )
-                decision = RoutingDecision(**decision_fields)
+            except ValidationError as caught_error:
+                error = caught_error
+                if shadow is not None:
+                    # Diagnostic failure/overflow cannot alter the visible route.
+                    decision_fields.update(shadow=None, shadow_omission_reason="routing-shadow-invalid-or-overflow")
+                    try:
+                        decision = RoutingDecision(**decision_fields)
+                        error = None
+                    except ValidationError as without_shadow:
+                        error = without_shadow
+                if error is not None:
+                    if not any(
+                        str(item.get("ctx", {}).get("error", ""))
+                        == "routing_decision_payload_too_large"
+                        for item in error.errors()
+                    ):
+                        raise error
+                    # Preserve the existing byte bound and persist an explicit
+                    # no-route outcome rather than truncating replay facts.
+                    decision_fields.update(
+                        candidates=(),
+                        quota_buckets=(),
+                        ranking=(),
+                        no_route_reason="routing-decision-overflow",
+                        shadow=None,
+                    )
+                    decision = RoutingDecision(**decision_fields)
             # Nested begin would acquire a second connection. Use this exact transaction.
             self.observations.begin_in_transaction(
                 c, owner_id=owner_id, scope=scope, decision=decision

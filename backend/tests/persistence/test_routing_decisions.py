@@ -972,3 +972,71 @@ def test_staged_migration_preserves_legacy_audit_and_transfers_quota(database):
         assert upgraded["schema_version"] == "endpoint-registry-v2"
         assert upgraded["profiles"][0]["profile_version"] == 2
         c.execute(f"DROP SCHEMA {schema} CASCADE")
+
+
+def test_phase35_shadow_roundtrip_retention_scope_and_idempotency(database):
+    """P35 nested metadata remains in the canonical transactional decision JSON."""
+    from personal_ai.routing.adaptive import (
+        AdaptiveArtifact,
+        BoundedCapacityStrategy,
+        ShadowRoutingStrategy,
+        rule_implementation_sha256,
+    )
+    from personal_ai.routing.features import coverage_identity
+
+    owner, service, baseline, _prep, repo, _usage, _auth = setup(database)
+    view = baseline.strategy_view()
+    artifact = AdaptiveArtifact(
+        dataset_sha256="a"*64,
+        baseline_implementation_sha256=QuotaAwareDeterministicStrategy().implementation_sha256,
+        strategy_implementation_sha256=rule_implementation_sha256(),
+        coverage_sha256s=(coverage_identity(view),),
+        measured_at=baseline.created_at-timedelta(seconds=1),
+        fresh_until=baseline.created_at+timedelta(days=1),
+    )
+    service.strategy = ShadowRoutingStrategy(BoundedCapacityStrategy(artifact))
+    facts = baseline.request.model_copy(update={"request_id": f"shadow-{uuid4()}"})
+    decision = service.route(owner_id=owner, scope=SCOPE, task=baseline.task, request=facts)
+    retained = repo.get(owner_id=owner, scope=SCOPE, decision_id=decision.routing_decision_id)
+    assert retained.decision == decision and decision.shadow is not None
+    assert decision.ranking == baseline.ranking
+    assert service.route(owner_id=owner, scope=SCOPE, task=baseline.task, request=facts) == decision
+    assert replay_deterministic_decision(decision, QuotaAwareDeterministicStrategy(), now=decision.created_at) == baseline.ranking
+    with pytest.raises(LookupError):
+        repo.get(owner_id=owner+"other", scope=SCOPE, decision_id=decision.routing_decision_id)
+    with pytest.raises(LookupError):
+        repo.get(owner_id=owner, scope=ApplicationScope(workspace_id="other"), decision_id=decision.routing_decision_id)
+    page, cursor, complete = repo.observation_page(
+        owner_id=owner, scope=SCOPE, start=baseline.created_at-timedelta(seconds=1),
+        end=decision.created_at+timedelta(seconds=1), limit=1,
+    )
+    assert len(page) == 1 and not complete and cursor is not None
+    tail, _, complete = repo.observation_page(
+        owner_id=owner, scope=SCOPE, start=baseline.created_at-timedelta(seconds=1),
+        end=decision.created_at+timedelta(seconds=1), after=cursor, limit=1,
+    )
+    assert len(tail) == 1 and complete
+
+
+def test_phase35_resource_projection_uses_claims_and_preserves_unknown(database):
+    """Real P19 read projection; reservations never masquerade as sends/usage."""
+    owner, service, decision, prep, _repo, usage, _auth = setup(database)
+    query = {"owner_id": owner, "scope": SCOPE, "request_id": decision.request.request_id,
+             "run_id": decision.request.run_id}
+    empty = usage.request_observation(**query)
+    assert not empty["complete"] and not empty["settled"]
+    permit = service.finalize(owner_id=owner, scope=SCOPE,
+        decision_id=decision.routing_decision_id, preparation=prep, operation="bounded_generation")
+    reserved = usage.request_observation(**query)
+    assert reserved["reserved_attempts"] == 1 and reserved["physical_attempts"] == 0
+    _profile, invocation, attempt = service.claim(owner_id=owner, scope=SCOPE,
+                                                permit=permit, operation="bounded_generation")
+    pending = usage.request_observation(**query)
+    assert pending["physical_attempts"] == 1 and pending["input_tokens"] is None
+    assert not pending["settled"] and not pending["lineage_complete"]
+    usage.settle_attempt(invocation, attempt, AttemptResult(outcome="unknown",
+        completed_at=datetime.now(UTC), latency_ms=1))
+    uncertain = usage.request_observation(**query)
+    assert uncertain["physical_attempts"] == 1 and not uncertain["settled"]
+    other = usage.request_observation(**{**query, "owner_id": owner+"other"})
+    assert other["physical_attempts"] == 0 and not other["complete"]

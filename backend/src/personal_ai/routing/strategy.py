@@ -212,7 +212,7 @@ def replay_deterministic_decision(
         raise RoutingReplayUnavailable("historical_strategy_unavailable")
     if decision.no_route_reason in {"quota-snapshot-overflow", "routing-decision-overflow"}:
         raise RoutingReplayUnavailable("routing_replay_facts_unavailable")
-    if decision.schema_version == 5:
+    if decision.schema_version in (5, 6):
         dependencies = strategy_dependencies(strategy)
         if dependencies != decision.strategy_dependencies:
             raise RoutingReplayUnavailable("historical_strategy_dependency_unavailable")

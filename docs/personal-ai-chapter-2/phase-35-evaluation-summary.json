@@ -1,0 +1,29 @@
+{
+  "dataset_sha256": "558236f36030575795decb7a2f5fd3c07f94282f21a8d5fc9b39e5b44ca66447",
+  "rows": 80,
+  "route_agreement": 80,
+  "abstentions": 80,
+  "strategy_latency_us_range": [
+    3211,
+    3535
+  ],
+  "strategy_cpu_us_total": 262049,
+  "physical_attempts": 80,
+  "promoted_coverage": [],
+  "thresholds": {
+    "version": "routing-promotion-v1",
+    "minimum_groups_per_holdout": 30,
+    "minimum_quality_delta": 0,
+    "minimum_resource_saving": 0.05,
+    "maximum_pipeline_latency_increase_us": 0,
+    "maximum_strategy_latency_us": 5000,
+    "maximum_abstention_rate": 0.25
+  },
+  "evidence_kind": "synthetic-offline",
+  "tested_base_revision": "16f74f4005b83527e7fd6589a439182d4caa7513",
+  "strategy": {
+    "strategy_id": "bounded-capacity-rule",
+    "semantic_version": "1",
+    "artifact_id": "sha256:e6e179f252084a4e9b2e35bac4aef4ed4e4c14a431428bfb8d7bb4e18edb1f86"
+  }
+}

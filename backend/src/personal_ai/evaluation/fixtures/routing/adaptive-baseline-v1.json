@@ -1,0 +1,538 @@
+{
+  "schema_version": "adaptive-routing-baseline-v1",
+  "frozen_at": "2026-10-12",
+  "source_revision": "16f74f4005b83527e7fd6589a439182d4caa7513",
+  "quota_baseline": {
+    "schema_version": "quota-scarcity-evaluation-v1",
+    "suite_sha256": "2565503b75bc0174f92a3d8cc8d0c65950fe4e8dbe72758a1aa72b0430ca2ff0",
+    "baseline_strategy_id": "deterministic-scoring",
+    "scarcity_strategy_id": "quota-scarcity",
+    "baseline_strategy": {
+      "strategy_id": "deterministic-scoring",
+      "semantic_version": "1",
+      "artifact_id": "priority-complete-signals-lexical-v1"
+    },
+    "scarcity_strategy": {
+      "strategy_id": "quota-scarcity",
+      "semantic_version": "1",
+      "artifact_id": "remaining-sends-reset-relief-health-v1"
+    },
+    "baseline_implementation_sha256": "5e8484f3ef27c67acf901abbe8d8580c5428657a28cc4e39b2404f4c14bd1be5",
+    "scarcity_implementation_sha256": "74c79cd885959c37cb65a715edb4bb58e5d7aaba14ce52b04e99f41d8020ffc8",
+    "baseline_tie_break_version": "score-then-endpoint-id-version-ascending-v1",
+    "scarcity_tie_break_version": "score-then-endpoint-id-version-ascending-v1",
+    "thresholds": {
+      "minimum_quality_delta": -0.05,
+      "minimum_scenario_quality_delta": -0.05,
+      "maximum_unavailable_increase": 0,
+      "maximum_latency_increase_per_demand_ms": 150,
+      "minimum_protected_send_equivalents_saved": 1,
+      "maximum_uncertain_dispatches": 0
+    },
+    "scenarios": [
+      {
+        "scenario_id": "scarcity-before-reset",
+        "baseline": {
+          "dispatched": 4,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.93,
+          "mean_quality_when_dispatched": 0.93,
+          "latency_per_demand_ms": 110.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "strong-route": 2,
+            "substitute-route": 2
+          },
+          "buckets": [
+            {
+              "bucket_id": "strong-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 2,
+              "reserved_units": 2,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 2,
+              "remaining_units": 0,
+              "conserved": true
+            },
+            {
+              "bucket_id": "substitute-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 10,
+              "reserved_units": 2,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 2,
+              "remaining_units": 8,
+              "conserved": true
+            }
+          ]
+        },
+        "scarcity": {
+          "dispatched": 4,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.915,
+          "mean_quality_when_dispatched": 0.915,
+          "latency_per_demand_ms": 115.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "strong-route": 1,
+            "substitute-route": 3
+          },
+          "buckets": [
+            {
+              "bucket_id": "strong-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 2,
+              "reserved_units": 1,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 1,
+              "remaining_units": 1,
+              "conserved": true
+            },
+            {
+              "bucket_id": "substitute-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 10,
+              "reserved_units": 3,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 3,
+              "remaining_units": 7,
+              "conserved": true
+            }
+          ]
+        },
+        "quality_delta": -0.015,
+        "unavailable_delta": 0,
+        "latency_delta_per_demand_ms": 5.0,
+        "protected_send_equivalents_saved": 1,
+        "policy_configuration_sha256": "43f2297cef955ea01896e96ff4b6d682b95ead839bfdf28c658af04a907a7a8e",
+        "gate_results": {
+          "availability": true,
+          "quality": true,
+          "latency": true,
+          "quality_floor": true,
+          "hard_eligibility": true,
+          "quota_conservation": true
+        }
+      },
+      {
+        "scenario_id": "scarcity-near-reset",
+        "baseline": {
+          "dispatched": 2,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.96,
+          "mean_quality_when_dispatched": 0.96,
+          "latency_per_demand_ms": 100.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "resetting-route": 2
+          },
+          "buckets": [
+            {
+              "bucket_id": "resetting-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 1,
+              "reserved_units": 2,
+              "reset_capacity_added_units": 1,
+              "send_equivalents": 2,
+              "remaining_units": 0,
+              "conserved": true
+            },
+            {
+              "bucket_id": "resetting-alternative-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 20,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 20,
+              "conserved": true
+            }
+          ]
+        },
+        "scarcity": {
+          "dispatched": 2,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.93,
+          "mean_quality_when_dispatched": 0.93,
+          "latency_per_demand_ms": 110.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "resetting-route": 1,
+            "resetting-substitute": 1
+          },
+          "buckets": [
+            {
+              "bucket_id": "resetting-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 1,
+              "reserved_units": 1,
+              "reset_capacity_added_units": 1,
+              "send_equivalents": 1,
+              "remaining_units": 1,
+              "conserved": true
+            },
+            {
+              "bucket_id": "resetting-alternative-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 20,
+              "reserved_units": 1,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 1,
+              "remaining_units": 19,
+              "conserved": true
+            }
+          ]
+        },
+        "quality_delta": -0.03,
+        "unavailable_delta": 0,
+        "latency_delta_per_demand_ms": 10.0,
+        "protected_send_equivalents_saved": 0,
+        "policy_configuration_sha256": "43f2297cef955ea01896e96ff4b6d682b95ead839bfdf28c658af04a907a7a8e",
+        "gate_results": {
+          "availability": true,
+          "quality": true,
+          "latency": true,
+          "quality_floor": true,
+          "hard_eligibility": true,
+          "quota_conservation": true
+        }
+      },
+      {
+        "scenario_id": "unknown-capacity",
+        "baseline": {
+          "dispatched": 2,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.95,
+          "mean_quality_when_dispatched": 0.95,
+          "latency_per_demand_ms": 100.0,
+          "uncertain_dispatches": 2,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "uncertain-route": 2
+          },
+          "buckets": [
+            {
+              "bucket_id": "unknown-capacity-bucket",
+              "unit": "neurons",
+              "initial_remaining_units": null,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": null,
+              "conserved": true
+            },
+            {
+              "bucket_id": "known-capacity-bucket",
+              "unit": "requests",
+              "initial_remaining_units": 10,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 10,
+              "conserved": true
+            }
+          ]
+        },
+        "scarcity": {
+          "dispatched": 2,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.9,
+          "mean_quality_when_dispatched": 0.9,
+          "latency_per_demand_ms": 120.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "known-route": 2
+          },
+          "buckets": [
+            {
+              "bucket_id": "unknown-capacity-bucket",
+              "unit": "neurons",
+              "initial_remaining_units": null,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": null,
+              "conserved": true
+            },
+            {
+              "bucket_id": "known-capacity-bucket",
+              "unit": "requests",
+              "initial_remaining_units": 10,
+              "reserved_units": 2,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 2,
+              "remaining_units": 8,
+              "conserved": true
+            }
+          ]
+        },
+        "quality_delta": -0.05,
+        "unavailable_delta": 0,
+        "latency_delta_per_demand_ms": 20.0,
+        "protected_send_equivalents_saved": 0,
+        "policy_configuration_sha256": "43f2297cef955ea01896e96ff4b6d682b95ead839bfdf28c658af04a907a7a8e",
+        "gate_results": {
+          "availability": true,
+          "quality": true,
+          "latency": true,
+          "quality_floor": true,
+          "hard_eligibility": true,
+          "quota_conservation": true
+        }
+      },
+      {
+        "scenario_id": "free-exhaustion-no-overflow",
+        "baseline": {
+          "dispatched": 0,
+          "unavailable": 2,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.0,
+          "mean_quality_when_dispatched": null,
+          "latency_per_demand_ms": 0.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {},
+          "buckets": [
+            {
+              "bucket_id": "exhausted-a",
+              "unit": "requests",
+              "initial_remaining_units": 0,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 0,
+              "conserved": true
+            },
+            {
+              "bucket_id": "exhausted-b",
+              "unit": "requests",
+              "initial_remaining_units": 0,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 0,
+              "conserved": true
+            },
+            {
+              "bucket_id": "byok-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 100,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 100,
+              "conserved": true
+            }
+          ]
+        },
+        "scarcity": {
+          "dispatched": 0,
+          "unavailable": 2,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.0,
+          "mean_quality_when_dispatched": null,
+          "latency_per_demand_ms": 0.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {},
+          "buckets": [
+            {
+              "bucket_id": "exhausted-a",
+              "unit": "requests",
+              "initial_remaining_units": 0,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 0,
+              "conserved": true
+            },
+            {
+              "bucket_id": "exhausted-b",
+              "unit": "requests",
+              "initial_remaining_units": 0,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 0,
+              "conserved": true
+            },
+            {
+              "bucket_id": "byok-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 100,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 100,
+              "conserved": true
+            }
+          ]
+        },
+        "quality_delta": 0.0,
+        "unavailable_delta": 0,
+        "latency_delta_per_demand_ms": 0.0,
+        "protected_send_equivalents_saved": 0,
+        "policy_configuration_sha256": "43f2297cef955ea01896e96ff4b6d682b95ead839bfdf28c658af04a907a7a8e",
+        "gate_results": {
+          "availability": true,
+          "quality": true,
+          "latency": true,
+          "quality_floor": true,
+          "hard_eligibility": true,
+          "quota_conservation": true
+        }
+      },
+      {
+        "scenario_id": "freshness-boundary",
+        "baseline": {
+          "dispatched": 2,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.95,
+          "mean_quality_when_dispatched": 0.95,
+          "latency_per_demand_ms": 100.0,
+          "uncertain_dispatches": 1,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "stale-route": 2
+          },
+          "buckets": [
+            {
+              "bucket_id": "stale-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 100,
+              "reserved_units": 1,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 1,
+              "remaining_units": null,
+              "conserved": true
+            },
+            {
+              "bucket_id": "fresh-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 20,
+              "reserved_units": 0,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 0,
+              "remaining_units": 20,
+              "conserved": true
+            }
+          ]
+        },
+        "scarcity": {
+          "dispatched": 2,
+          "unavailable": 0,
+          "quality_floor_violations": 0,
+          "quality_per_demand": 0.925,
+          "mean_quality_when_dispatched": 0.925,
+          "latency_per_demand_ms": 110.0,
+          "uncertain_dispatches": 0,
+          "hard_filter_violations": 0,
+          "endpoint_dispatch_counts": {
+            "stale-route": 1,
+            "fresh-route": 1
+          },
+          "buckets": [
+            {
+              "bucket_id": "stale-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 100,
+              "reserved_units": 1,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 1,
+              "remaining_units": null,
+              "conserved": true
+            },
+            {
+              "bucket_id": "fresh-capacity",
+              "unit": "requests",
+              "initial_remaining_units": 20,
+              "reserved_units": 1,
+              "reset_capacity_added_units": 0,
+              "send_equivalents": 1,
+              "remaining_units": 19,
+              "conserved": true
+            }
+          ]
+        },
+        "quality_delta": -0.025,
+        "unavailable_delta": 0,
+        "latency_delta_per_demand_ms": 10.0,
+        "protected_send_equivalents_saved": 0,
+        "policy_configuration_sha256": "43f2297cef955ea01896e96ff4b6d682b95ead839bfdf28c658af04a907a7a8e",
+        "gate_results": {
+          "availability": true,
+          "quality": true,
+          "latency": true,
+          "quality_floor": true,
+          "hard_eligibility": true,
+          "quota_conservation": true
+        }
+      }
+    ],
+    "aggregate_quality_delta": -0.0225,
+    "aggregate_unavailable_delta": 0,
+    "aggregate_latency_delta_per_demand_ms": 8.333,
+    "protected_send_equivalents_saved": 1,
+    "uncertain_dispatches": 0,
+    "promoted": true,
+    "selected_strategy_id": "quota-scarcity",
+    "rollback_strategy_id": "deterministic-scoring",
+    "gate_results": {
+      "task_quality_floor": true,
+      "quality_threshold": true,
+      "quota_conservation": true,
+      "availability": true,
+      "latency": true,
+      "uncertainty": true,
+      "hard_eligibility": true,
+      "scenario_protection": true
+    }
+  },
+  "cascade_totals": {
+    "cascade": {
+      "accepted": 20,
+      "auxiliary_calls": 27,
+      "input_tokens": 23171,
+      "latency_ms": 405,
+      "output_tokens": 432,
+      "physical_attempts": 54,
+      "quality": 1.0,
+      "quota_units": {
+        "shared": 54
+      },
+      "rejected": 7
+    },
+    "direct": {
+      "accepted": 20,
+      "auxiliary_calls": 20,
+      "input_tokens": 17188,
+      "latency_ms": 300,
+      "output_tokens": 320,
+      "physical_attempts": 40,
+      "quality": 1.0,
+      "quota_units": {
+        "shared": 40
+      },
+      "rejected": 0
+    }
+  },
+  "cascade_default": "direct",
+  "evidence": "synthetic-offline; no provider promotion",
+  "cascade_source_sha256": {
+    "backend/src/personal_ai/routing/cascade.py": "bf950299fcd53bf8c402cc23ee1ca4505defe63d91ad39933cddb3fb45b17fc7",
+    "backend/src/personal_ai/context/cascade.py": "afaf5aefafbe949b478483460e9a04afba64218f3861d1a27056aa8d74fa5d2b",
+    "backend/src/personal_ai/validation/tasks.py": "9183e689a460a1c059a0764862c94bb2406897280a934ad74afd1d73a75b059e"
+  }
+}
