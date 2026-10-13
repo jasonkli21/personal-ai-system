@@ -90,6 +90,7 @@ Bounded buffered tasks and validator/cascade integration: read the [Phase 24 gui
 User-local ChatGPT execution: read the [Phase 25.1 architecture](personal-ai-chapter-2/phase-25-1-architecture.md), [guide](personal-ai-chapter-2/phase-25-1-implementation-guide.md), and [evidence](personal-ai-chapter-2/phase-25-1-implementation-evidence.md). Local implementation does not establish plan-only billing, hosted distribution approval, native browser transport, or cloud issuance acceptance.
 
 Adaptive routing experiments: read the [Phase 35 report](personal-ai-chapter-2/phase-35-implementation-report.md),
+[independent-review remediation evidence](personal-ai-chapter-2/phase-35-independent-review-remediation-evidence-2026-10-12.md),
 [experiment contract](../experiments/ranking/README.md), and
 [written plan](personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/plans/phase-35-implementation-plan.md).
 The rule runs behind `RoutingStrategy` in non-dispatching shadow only; no adaptive

@@ -1,6 +1,6 @@
 {
   "schema_version": "adaptive-routing-synthetic-snapshot-v1",
-  "dataset_sha256": "558236f36030575795decb7a2f5fd3c07f94282f21a8d5fc9b39e5b44ca66447",
+  "dataset_sha256": "0cbe5bffb03df5577d6ca015e3baf07dac2043a277617d273636cb7de27e248e",
   "manifest": {
     "schema_version": "routing-dataset-v1",
     "feature_schema": "routing-features-v1",
@@ -114,7 +114,7 @@
         1
       ]
     ],
-    "strategy_policy_profile_config_facts_sha256": "f05ee5e41fc2fd095a962036b4e20a59dbcff2088b1e8eed853f4aefe620a24c",
+    "strategy_policy_profile_config_facts_sha256": "09e0878e67d47b61903abe343154d55164a55a23e447d2fc3f9f8d5b89663431",
     "excluded_fields": [
       "prompts",
       "context",
@@ -123,7 +123,8 @@
       "domain-records",
       "owner-workspace-request-identifiers"
     ],
-    "historical_aggregates": "disabled; optional projection uses known_at < decision_time"
+    "historical_aggregates": "disabled; optional projection uses known_at < decision_time",
+    "source_observation_corpus_sha256": "0b07653415bc57274d2ef61e3dc7e908014d30c3e867b17d679d8b5ded54fcbc"
   },
   "rows": [
     {
@@ -9412,14 +9413,14 @@
     "strategy_id": "bounded-capacity-rule",
     "strategy_version": "1",
     "feature_schema": "routing-features-v1",
-    "dataset_sha256": "558236f36030575795decb7a2f5fd3c07f94282f21a8d5fc9b39e5b44ca66447",
+    "dataset_sha256": "0cbe5bffb03df5577d6ca015e3baf07dac2043a277617d273636cb7de27e248e",
     "baseline": {
       "strategy_id": "quota-scarcity",
       "semantic_version": "1",
       "artifact_id": "remaining-sends-reset-relief-health-v1"
     },
     "baseline_implementation_sha256": "74c79cd885959c37cb65a715edb4bb58e5d7aaba14ce52b04e99f41d8020ffc8",
-    "strategy_implementation_sha256": "002c590386f97edcdd2dafb91a911126436bd616d7c918f832e6d1388ceb7072",
+    "strategy_implementation_sha256": "b9bd1e6b5acfb94ce2d47a2a05d6f86b1372c466b18fb8b9aa4013370e06b3c6",
     "coverage_sha256s": [
       "02fcb1934b46546e91cc9e25aeeffe8a079aa9ccbd52ab9b97c60ec50b5863dc",
       "0bcfe963780ad596e00bf7ac5b81fcc700554e8240b4d9ed35f071da787b3e83",

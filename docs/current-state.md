@@ -174,15 +174,22 @@ Chapter 2 Phases 0–2 are completed history; Phase 10 persistence, Phase 11 con
 ## Phase 35 adaptive routing experiments
 
 The internal P21 strategy seam now supports a default-off, non-dispatching bounded
-capacity rule shadow. The canonical persistence factory composes the registered
-strategy with the existing endpoint registry, explicit authorization and P19
-accounting. Hard admission precedes every strategy input; the visible ranking and
-producer identity remain quota-aware deterministic. Feature/implementation/config
-incompatibility, missing signals, stale coverage and excessive overhead abstain.
-Invalid/oversized optional diagnostics are omitted without changing routing.
-Schema 6 stores exact endpoint configuration digests, bounded feature context and
-shadow metadata in the existing Postgres decision JSON; older deterministic replay
-remains supported. Retention, export and deletion retain their existing owners.
+capacity rule shadow. The canonical persistence factory and FastAPI
+`get_routing_decision_service` dependency compose the registered strategy with the
+existing endpoint registry and P19 accounting. The dependency requires an
+application-installed current routing authorization authority and fails closed if
+it is absent. No user workflow consumes this dependency yet: Phase 15
+membership/revocation acceptance and provider-neutral dispatch integration remain
+open, so Phase 35 shadow is not reachable from production chat. Hard admission
+precedes every strategy input; the visible ranking and producer identity remain
+quota-aware deterministic. A code-reviewed registry accepts only bounded, pure,
+in-process synchronous strategies; its 5 ms threshold is a post-hoc observation
+threshold, not an execution timeout. Feature/implementation/config incompatibility,
+missing signals, stale coverage and excessive overhead abstain. Invalid/oversized
+optional diagnostics are omitted without changing routing. Schema 6 stores exact
+endpoint configuration digests, bounded feature context and shadow metadata in the
+existing Postgres decision JSON; older deterministic replay remains supported.
+Retention, export and deletion retain their existing owners.
 
 The privacy-safe dataset joins canonical P21/P22 facts, preserves missing labels,
 and groups runs, scoped requests, root/retry/cascade lineage and fixture families.
@@ -190,9 +197,12 @@ Missing fixture-family classification merges the suite; ordinary traffic is
 excluded until canonical session grouping exists. A retained P19 projection counts
 claimed sends, auxiliary calls/retries, unknown consumption and conservative
 reservations separately; complete root lineage and end-to-end timing remain
-unmeasured. The frozen synthetic snapshot has 80 executed cases, one independent
-conservative family group and no live labels. No adaptive coverage is promoted.
-Strategy 2 and bandits are deferred on data/reward grounds. The context planner
-has a v7 runtime freeze for the changed backend composition; its corpus and
-non-promotion decision are unchanged. Existing workflow, identity, privacy and
-external-store gates remain open. See the [Phase 35 report](personal-ai-chapter-2/phase-35-implementation-report.md).
+unmeasured. The dataset now has separate normalized configuration-facts and source
+observation-corpus digests. Promotion output reports pass, fail, and unverified
+gates per exact coverage. The frozen synthetic snapshot has 80 executed cases, one
+independent conservative family group and no live paired pipeline comparisons; its
+80 route agreements are all abstentions and are not quality evidence. No adaptive
+coverage is promoted. Strategy 2 and bandits are deferred on data/reward grounds.
+The context planner has a v8 runtime freeze for the remediation source tree; its
+corpus and non-promotion decision are unchanged. Existing workflow, identity,
+privacy and external-store gates remain open. See the [Phase 35 report](personal-ai-chapter-2/phase-35-implementation-report.md) and [independent-review remediation evidence](personal-ai-chapter-2/phase-35-independent-review-remediation-evidence-2026-10-12.md).

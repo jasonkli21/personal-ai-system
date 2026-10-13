@@ -1,13 +1,28 @@
 {
-  "dataset_sha256": "558236f36030575795decb7a2f5fd3c07f94282f21a8d5fc9b39e5b44ca66447",
+  "dataset_sha256": "0cbe5bffb03df5577d6ca015e3baf07dac2043a277617d273636cb7de27e248e",
+  "source_observation_corpus_sha256": "0b07653415bc57274d2ef61e3dc7e908014d30c3e867b17d679d8b5ded54fcbc",
+  "strategy_policy_profile_config_facts_sha256": "09e0878e67d47b61903abe343154d55164a55a23e447d2fc3f9f8d5b89663431",
   "rows": 80,
   "route_agreement": 80,
+  "route_agreement_semantics": "visible deterministic-route agreement, including shadow abstentions; not quality evidence",
+  "non_abstaining_proposals": 0,
+  "supported_alternate_quality_comparisons": 0,
+  "quality_comparison_status": "unverified",
+  "independent_live_groups": {
+    "grouped_holdout": 0,
+    "temporal_holdout": 0,
+    "configuration_holdout": 0
+  },
+  "pipeline_complete_groups": 0,
   "abstentions": 80,
+  "abstention_reason_counts": {
+    "supported-signals-missing": 80
+  },
   "strategy_latency_us_range": [
-    3211,
-    3535
+    41,
+    151
   ],
-  "strategy_cpu_us_total": 262049,
+  "strategy_cpu_us_total": 3650,
   "physical_attempts": 80,
   "promoted_coverage": [],
   "thresholds": {
@@ -20,10 +35,10 @@
     "maximum_abstention_rate": 0.25
   },
   "evidence_kind": "synthetic-offline",
-  "tested_base_revision": "16f74f4005b83527e7fd6589a439182d4caa7513",
+  "tested_base_revision": "f4a248a266317cc9f74a1c8466685612d9a5cb15",
   "strategy": {
     "strategy_id": "bounded-capacity-rule",
     "semantic_version": "1",
-    "artifact_id": "sha256:e6e179f252084a4e9b2e35bac4aef4ed4e4c14a431428bfb8d7bb4e18edb1f86"
+    "artifact_id": "sha256:8b78dcccc35f76f08d026b5b7da2e25175cdc9a4d8c55c0a0377991e81cbb3af"
   }
 }

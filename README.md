@@ -328,8 +328,10 @@ freshness, Phase 19 admission, and context budgets still apply. See the
 
 Phase 35 adds a default-off adaptive routing shadow behind the existing strategy
 seam. It records preferences over admitted strict-free candidates and preserves
-the deterministic visible route. The synthetic corpus does not support promotion;
-learned ranking and online adaptation are deferred. Run
+the deterministic visible route. The canonical API dependency is available but no
+user workflow consumes it while Phase 15 authorization/revocation and transport
+acceptance remain open. The synthetic corpus does not support promotion; learned
+ranking and online adaptation are deferred. Run
 `make adaptive-routing-eval`; see the [Phase 35 report](docs/personal-ai-chapter-2/phase-35-implementation-report.md)
 and [experiment contract](experiments/ranking/README.md).
 

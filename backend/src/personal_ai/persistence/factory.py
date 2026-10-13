@@ -54,7 +54,10 @@ class PersistenceFactory(Protocol):
     def provider_usage_accounting(self, settings): ...
     def endpoint_profile_resolver(self, settings): ...
     def routing_decision_repository(self): ...
-    def routing_service(self, settings, *, authorization, evaluation_quality_authority=None): ...
+    def routing_service(
+        self, settings, *, authorization, evaluation_quality_authority=None,
+        adaptive_strategy_registry=None,
+    ): ...
     def provider_matrix_evaluation_repository(self): ...
     def research_experiment_repository(self): ...
     def artifact_service(self, settings): ...
@@ -271,7 +274,10 @@ class PostgresDynamoPersistenceFactory:
 
         return PostgresProviderMatrixRepository(self.database)
 
-    def routing_service(self, settings, *, authorization, evaluation_quality_authority=None):
+    def routing_service(
+        self, settings, *, authorization, evaluation_quality_authority=None,
+        adaptive_strategy_registry=None,
+    ):
         """Canonical internal P21 runtime; no permissive default authorization."""
         from personal_ai.routing.adaptive import configured_routing_strategy
         from personal_ai.routing.service import RoutingDecisionService
@@ -279,7 +285,9 @@ class PostgresDynamoPersistenceFactory:
         return RoutingDecisionService(
             self.endpoint_profile_resolver(settings).endpoint_registry,
             self.routing_decision_repository(),
-            strategy=configured_routing_strategy(settings),
+            strategy=configured_routing_strategy(
+                settings, registry=adaptive_strategy_registry
+            ),
             usage=self.provider_usage_accounting(settings),
             authorization=authorization,
             evaluation_quality_authority=evaluation_quality_authority,

@@ -3,6 +3,7 @@
 import hashlib
 import inspect
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Protocol
 
 from personal_ai.routing.decision_models import (
@@ -41,7 +42,7 @@ class DeterministicScoringStrategy:
 
     @property
     def implementation_sha256(self) -> str:
-        return _implementation_sha256(self.select)
+        return _implementation_sha256(type(self).select)
 
     def select(self, view: StrategyView) -> tuple[RankedCandidate, ...]:
         preferences = view.preferences
@@ -110,7 +111,7 @@ class QuotaAwareDeterministicStrategy:
     def implementation_sha256(self) -> str:
         return _implementation_sha256(
             DeterministicScoringStrategy.select,
-            self.select,
+            type(self).select,
             _quota_scarcity_penalty,
         )
 
@@ -230,6 +231,7 @@ def replay_deterministic_decision(
     return result
 
 
+@lru_cache(maxsize=128)
 def _implementation_sha256(*callables) -> str:
     source = "\n\n".join(inspect.getsource(function) for function in callables)
     return hashlib.sha256(source.encode("utf-8")).hexdigest()

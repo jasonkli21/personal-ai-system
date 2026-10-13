@@ -1,6 +1,8 @@
 """Pure bounded preference experiment behind RoutingStrategy; shadow-only rollout."""
 
+import re
 from datetime import datetime, timedelta
+from functools import lru_cache
 from time import perf_counter_ns, thread_time_ns
 from typing import Literal
 
@@ -18,8 +20,8 @@ from personal_ai.routing.strategy import QuotaAwareDeterministicStrategy, implem
 
 class AdaptiveArtifact(_FrozenModel):
     schema_version: Literal[1] = 1
-    strategy_id: Literal["bounded-capacity-rule"] = "bounded-capacity-rule"
-    strategy_version: Literal["1"] = "1"
+    strategy_id: str = Field(default="bounded-capacity-rule", pattern=r"^[A-Za-z0-9@][A-Za-z0-9._:/@+_-]{0,199}$")
+    strategy_version: str = Field(default="1", pattern=r"^[A-Za-z0-9@][A-Za-z0-9._:/@+_-]{0,199}$")
     feature_schema: str = Field(default=FEATURE_SCHEMA, max_length=100)
     dataset_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     baseline: StrategyRef = QuotaAwareDeterministicStrategy.ref
@@ -30,6 +32,8 @@ class AdaptiveArtifact(_FrozenModel):
     fresh_until: datetime
     maximum_quality_drop: float = Field(default=0.02, ge=0, le=0.02)
     maximum_input_bucket: int = Field(default=11, ge=0, le=21)
+    # Post-hoc observation threshold. Synchronous execution safety comes from
+    # the trusted registry's bounded, pure in-process strategy contract.
     maximum_latency_us: int = Field(default=5000, ge=1, le=5000)
     # This is a transparent rule, not a calibrated probability model.
     calibration: Literal["unavailable-rule-margin-only"] = "unavailable-rule-margin-only"
@@ -70,9 +74,15 @@ class BoundedCapacityStrategy:
     Unknown capacity/quality and ties abstain. Policy remains with the router.
     """
 
+    execution_contract = "bounded-pure-in-process-v1"
+
     def __init__(self, artifact: AdaptiveArtifact):
         self.artifact = AdaptiveArtifact.model_validate(artifact.model_dump())
         self.ref = self.artifact.ref
+
+    @property
+    def implementation_sha256(self):
+        return rule_implementation_sha256()
 
     def propose(self, view):
         baseline = QuotaAwareDeterministicStrategy().select(view)
@@ -92,7 +102,7 @@ class BoundedCapacityStrategy:
             != implementation_sha256_for(QuotaAwareDeterministicStrategy())
         ):
             reason = "baseline-incompatible"
-        elif artifact.strategy_implementation_sha256 != rule_implementation_sha256():
+        elif artifact.strategy_implementation_sha256 != self.implementation_sha256:
             reason = "strategy-implementation-incompatible"
         elif any(c.endpoint_configuration_sha256 is None for c in view.candidates):
             reason = "endpoint-configuration-unavailable"
@@ -188,17 +198,83 @@ class ShadowRoutingStrategy:
         )
 
 
-def configured_routing_strategy(settings):
-    """Default-off rollback and explicit registration; unknown implementations fail closed."""
+class AdaptiveStrategyUnavailable(LookupError):
+    """A configured adaptive implementation is unknown or incompatible."""
+
+
+class AdaptiveStrategyRegistry:
+    """Immutable resolver for code-reviewed, bounded synchronous strategies."""
+
+    def __init__(self, registrations=None):
+        self._registrations = dict(registrations or {})
+
+    def register(
+        self,
+        strategy_id,
+        strategy_version,
+        implementation,
+        *,
+        implementation_sha256,
+        execution_contract,
+    ):
+        """Return a registry with one additional reviewed implementation.
+
+        Runtime shadow execution is synchronous. Only local, deterministic
+        implementations with a code-reviewed bounded-pure contract may enter
+        this registry; network, filesystem, blocking I/O, and unbounded loops
+        are outside the supported contract.
+        """
+        StrategyRef(
+            strategy_id=strategy_id,
+            semantic_version=strategy_version,
+            artifact_id="registry-entry",
+        )
+        if execution_contract != "bounded-pure-in-process-v1":
+            raise ValueError("adaptive_strategy_execution_contract_unsupported")
+        if (
+            not callable(implementation)
+            or getattr(implementation, "execution_contract", None) != execution_contract
+            or not re.fullmatch(r"[0-9a-f]{64}", implementation_sha256)
+        ):
+            raise ValueError("adaptive_strategy_registration_invalid")
+        key = (strategy_id, strategy_version)
+        if key in self._registrations:
+            raise ValueError("adaptive_strategy_already_registered")
+        registrations = dict(self._registrations)
+        registrations[key] = (implementation, implementation_sha256, execution_contract)
+        return AdaptiveStrategyRegistry(registrations)
+
+    def create(self, artifact):
+        registration = self._registrations.get((artifact.strategy_id, artifact.strategy_version))
+        if registration is None:
+            raise AdaptiveStrategyUnavailable("adaptive_strategy_unavailable")
+        implementation, implementation_sha256, _execution_contract = registration
+        if artifact.strategy_implementation_sha256 != implementation_sha256:
+            raise AdaptiveStrategyUnavailable("adaptive_strategy_incompatible")
+        try:
+            strategy = implementation(artifact)
+        except Exception as error:
+            raise AdaptiveStrategyUnavailable("adaptive_strategy_unavailable") from error
+        if not callable(getattr(strategy, "propose", None)) or not isinstance(
+            getattr(strategy, "ref", None), StrategyRef
+        ):
+            raise AdaptiveStrategyUnavailable("adaptive_strategy_contract_invalid")
+        return strategy
+
+
+def configured_routing_strategy(settings, registry=None):
+    """Default-off; invalid, unknown, or unavailable shadow config uses baseline."""
     if not settings.routing_shadow_enabled:
         return QuotaAwareDeterministicStrategy()
-    artifact = AdaptiveArtifact.model_validate(settings.routing_shadow_artifact)
-    return ShadowRoutingStrategy(ADAPTIVE_STRATEGIES[artifact.strategy_id](artifact))
+    registry = registry or DEFAULT_ADAPTIVE_STRATEGY_REGISTRY
+    try:
+        artifact = AdaptiveArtifact.model_validate(settings.routing_shadow_artifact)
+        return ShadowRoutingStrategy(registry.create(artifact))
+    except Exception:  # noqa: BLE001 - shadow is optional and must fail to baseline
+        return QuotaAwareDeterministicStrategy()
 
 
-ADAPTIVE_STRATEGIES = {"bounded-capacity-rule": BoundedCapacityStrategy}
-
-
+@lru_cache(maxsize=1)
 def rule_implementation_sha256():
     from personal_ai.routing.features import token_bucket
     from personal_ai.routing.strategy import _implementation_sha256
@@ -207,3 +283,12 @@ def rule_implementation_sha256():
         BoundedCapacityStrategy.propose, BoundedCapacityStrategy.select,
         extract_features, coverage_identity, digest, token_bucket
     )
+
+
+DEFAULT_ADAPTIVE_STRATEGY_REGISTRY = AdaptiveStrategyRegistry().register(
+    "bounded-capacity-rule",
+    "1",
+    BoundedCapacityStrategy,
+    implementation_sha256=rule_implementation_sha256(),
+    execution_contract="bounded-pure-in-process-v1",
+)

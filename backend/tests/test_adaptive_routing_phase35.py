@@ -11,17 +11,20 @@ from pydantic import ValidationError
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.evaluation.adaptive_routing import (
     DatasetRow,
+    ObservationDataset,
     OutcomeLabel,
+    PromotionComparison,
     SplitPolicy,
     build_dataset,
     collect_dataset,
     evaluate_strategy,
     historical_quality,
+    normalized_configuration_facts,
 )
 from personal_ai.persistence.factory import PostgresDynamoPersistenceFactory
 from personal_ai.routing import EndpointRegistry, RoutingPreferences, StrategyView
 from personal_ai.routing.adaptive import (
-    ADAPTIVE_STRATEGIES,
+    DEFAULT_ADAPTIVE_STRATEGY_REGISTRY,
     AdaptiveArtifact,
     BoundedCapacityStrategy,
     ShadowRoutingStrategy,
@@ -32,6 +35,7 @@ from personal_ai.routing.decision_models import RoutingFeatureContext
 from personal_ai.routing.features import coverage_identity, digest, extract_features
 from personal_ai.routing.strategy import (
     QuotaAwareDeterministicStrategy,
+    _implementation_sha256,
     replay_deterministic_decision,
 )
 from personal_ai.settings import Settings
@@ -92,9 +96,9 @@ def artifact(v, **changes):
 def factory(monkeypatch, profiles=None):
     # Only stores/current authority are substituted; inherited production
     # routing_service owns registry/strategy/accounting composition.
-    f = object.__new__(PostgresDynamoPersistenceFactory)
+    f = PostgresDynamoPersistenceFactory(object(), object())
     repo = MemoryRepository()
-    repo.now = NOW
+    repo.now = datetime.now(UTC)
     registry = EndpointRegistry(profiles or (_profile("allowed"),))
     usage = Usage(repo)
     monkeypatch.setattr(
@@ -124,6 +128,66 @@ def test_rule_first_shadow_changes_no_route_and_has_no_dispatch_capability(monke
     assert not any(
         hasattr(shadow, name) for name in ("dispatch", "provider", "usage", "authorization")
     )
+
+
+def test_distinct_adaptive_strategy_id_registers_without_generic_router_changes():
+    v = view()
+
+    class SecondStrategy:
+        execution_contract = "bounded-pure-in-process-v1"
+
+        def __init__(self, adaptive_artifact):
+            self.artifact = adaptive_artifact
+            self.ref = adaptive_artifact.ref
+
+        def propose(self, strategy_view):
+            return QuotaAwareDeterministicStrategy().select(strategy_view), "test-abstention"
+
+    strategy_sha = _implementation_sha256(SecondStrategy.propose)
+    registry = DEFAULT_ADAPTIVE_STRATEGY_REGISTRY.register(
+        "test-second-strategy",
+        "1",
+        SecondStrategy,
+        implementation_sha256=strategy_sha,
+        execution_contract="bounded-pure-in-process-v1",
+    )
+    configured = settings(
+        routing_shadow_enabled=True,
+        routing_shadow_artifact=artifact(
+            v,
+            strategy_id="test-second-strategy",
+            strategy_implementation_sha256=strategy_sha,
+        ).model_dump(mode="json"),
+    )
+    shadow = configured_routing_strategy(configured, registry=registry)
+    assert isinstance(shadow, ShadowRoutingStrategy)
+    assert shadow.adaptive.ref.strategy_id == "test-second-strategy"
+    assert shadow.observe(v, shadow.select(v)).abstention_reason == "test-abstention"
+
+    with pytest.raises(ValueError, match="execution_contract_unsupported"):
+        DEFAULT_ADAPTIVE_STRATEGY_REGISTRY.register(
+            "unbounded-test-strategy",
+            "1",
+            SecondStrategy,
+            implementation_sha256=strategy_sha,
+            execution_contract="unbounded",
+        )
+
+
+def test_implementation_source_digests_are_cached_off_the_request_path(monkeypatch):
+    import personal_ai.routing.strategy as strategy_module
+
+    strategy_module._implementation_sha256.cache_clear()
+    rule_implementation_sha256.cache_clear()
+    rule_hash = rule_implementation_sha256()
+    baseline_hash = QuotaAwareDeterministicStrategy().implementation_sha256
+
+    def unexpected_source_read(_function):
+        raise AssertionError("inspect.getsource ran after implementation registration")
+
+    monkeypatch.setattr(strategy_module.inspect, "getsource", unexpected_source_read)
+    assert rule_implementation_sha256() == rule_hash
+    assert QuotaAwareDeterministicStrategy().implementation_sha256 == baseline_hash
 
 
 @pytest.mark.parametrize(
@@ -261,21 +325,27 @@ def test_production_factory_hard_filter_input_no_extra_sends_removal_and_replay(
     )
     f, repo, usage = factory(monkeypatch, profiles)
     auth = Authorization()
-    baseline = f.routing_service(settings(), authorization=auth)
+    from personal_ai.api.dependencies import get_routing_decision_service
+
+    monkeypatch.setattr(
+        "personal_ai.api.dependencies.persistence_factory", lambda _settings: f
+    )
+    baseline = get_routing_decision_service(settings(), auth)
     d = baseline.route(owner_id="owner", scope=SCOPE, task=task(), request=request())
     a = artifact(d.strategy_view())
     seen = []
 
-    class Extension(BoundedCapacityStrategy):
-        def propose(self, v):
-            seen.append(v)
-            return super().propose(v)
+    original_propose = BoundedCapacityStrategy.propose
 
-    monkeypatch.setitem(ADAPTIVE_STRATEGIES, "bounded-capacity-rule", Extension)
+    def capture_propose(self, v):
+        seen.append(v)
+        return original_propose(self, v)
+
+    monkeypatch.setattr(BoundedCapacityStrategy, "propose", capture_propose)
     configured = settings(
         routing_shadow_enabled=True, routing_shadow_artifact=a.model_dump(mode="json")
     )
-    routed = f.routing_service(configured, authorization=auth)
+    routed = get_routing_decision_service(configured, auth)
     facts = request().model_copy(update={"request_id": "request:shadow"})
     decision = routed.route(owner_id="owner", scope=SCOPE, task=task(), request=facts)
     assert {c.endpoint.endpoint_profile_id for c in seen[0].candidates} == {"allowed"}
@@ -289,7 +359,6 @@ def test_production_factory_hard_filter_input_no_extra_sends_removal_and_replay(
     assert routed.route(owner_id="owner", scope=SCOPE, task=task(), request=facts) == decision
     assert len(seen) == before
     # Kill switch/implementation removal requires no orchestration or transport edit.
-    monkeypatch.delitem(ADAPTIVE_STRATEGIES, "bounded-capacity-rule")
     rollback = f.routing_service(settings(), authorization=auth)
     d2 = rollback.route(
         owner_id="owner",
@@ -298,8 +367,25 @@ def test_production_factory_hard_filter_input_no_extra_sends_removal_and_replay(
         request=facts.model_copy(update={"request_id": "request:rollback"}),
     )
     assert d2.ranking == d.ranking and d2.shadow is None
-    with pytest.raises(KeyError):
-        configured_routing_strategy(configured)
+    unknown = settings(
+        routing_shadow_enabled=True,
+        routing_shadow_artifact={**a.model_dump(mode="json"), "strategy_id": "missing-strategy"},
+    )
+    assert isinstance(configured_routing_strategy(unknown), QuotaAwareDeterministicStrategy)
+
+
+def test_routing_authorization_dependency_fails_closed_without_phase15_authority():
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from personal_ai.api.dependencies import get_routing_authorization_authority
+
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+    with pytest.raises(HTTPException) as error:
+        get_routing_authorization_authority(request)
+    assert error.value.status_code == 503
+    assert error.value.detail == "routing_authorization_unavailable"
 
 
 @pytest.mark.parametrize("failure", ["authorization", "quota", "quality", "fit", "privacy"])
@@ -356,8 +442,11 @@ def test_adaptive_never_sees_deterministically_rejected_candidates(monkeypatch, 
 
 def matrix_dataset(monkeypatch, *, split_policy=None):
     runner, evaluations, repo, _executor, _profiles, fixtures, t = _matrix(include_blocked=False)
+    # Dispatch permit expiry is checked against wall time, so keep the
+    # repository clock aligned with the runner instead of freezing it at the
+    # historical temporal holdout cutoff below.
     repo.now = datetime.now(UTC)
-    f = object.__new__(PostgresDynamoPersistenceFactory)
+    f = PostgresDynamoPersistenceFactory(object(), object())
     monkeypatch.setattr(
         f,
         "endpoint_profile_resolver",
@@ -416,6 +505,82 @@ def matrix_dataset(monkeypatch, *, split_policy=None):
 
 def test_dataset_reproducible_groups_missing_labels_and_no_prompt(monkeypatch):
     dataset, records, states = matrix_dataset(monkeypatch)
+    split_policy = SplitPolicy(temporal_cutoff=NOW)
+    first_decision = records[0].decision
+    normalized = normalized_configuration_facts(first_decision, split_policy=split_policy)
+    operational_variant = first_decision.model_copy(
+        update={
+            "owner_id": "different-owner",
+            "workspace_id": "different-workspace",
+            "routing_decision_id": UUID("00000000-0000-0000-0000-000000000999"),
+            "root_decision_id": UUID("00000000-0000-0000-0000-000000000999"),
+            "created_at": first_decision.created_at + timedelta(minutes=1),
+            "request": first_decision.request.model_copy(
+                update={"request_id": "different-request", "run_id": "different-run"}
+            ),
+        }
+    )
+    assert normalized_configuration_facts(
+        operational_variant, split_policy=split_policy
+    ) == normalized
+    profile_index = next(i for i, candidate in enumerate(first_decision.candidates) if candidate.eligible)
+    changed_candidates = list(first_decision.candidates)
+    changed_profile = changed_candidates[profile_index].model_copy(
+        update={"endpoint_configuration_sha256": "0" * 64}
+    )
+    changed_candidates[profile_index] = changed_profile
+    assert normalized_configuration_facts(
+        first_decision.model_copy(update={"candidates": tuple(changed_candidates)}),
+        split_policy=split_policy,
+    ) != normalized
+    changed_feature = first_decision.feature_context.model_copy(
+        update={"policy_sha256": "0" * 64}
+    )
+    assert normalized_configuration_facts(
+        first_decision.model_copy(update={"feature_context": changed_feature}),
+        split_policy=split_policy,
+    ) != normalized
+    changed_schema = first_decision.feature_context.model_copy(
+        update={"schema_version": "routing-features-v99"}
+    )
+    assert normalized_configuration_facts(
+        first_decision.model_copy(update={"feature_context": changed_schema}),
+        split_policy=split_policy,
+    ) != normalized
+
+    observed_candidate = first_decision.candidates[0].model_copy(
+        update={
+            "health_failure_streak": first_decision.candidates[0].health_failure_streak + 1
+        }
+    )
+    candidate_facts = (observed_candidate, *first_decision.candidates[1:])
+    changed_decision = first_decision.model_copy(
+        update={"candidates": candidate_facts}
+    )
+    changed_record = records[0].model_copy(update={"decision": changed_decision})
+    changed_corpus = build_dataset(
+        (changed_record, *records[1:]),
+        run_states=states,
+        split_policy=split_policy,
+        complete=True,
+        pipeline_by_decision={
+            record.decision.routing_decision_id: next(
+                row.pipeline_metrics
+                for row in dataset.rows
+                if row.observation_sha256 == digest(original)
+            )
+            for record, original in zip((changed_record, *records[1:]), records)
+        },
+    )
+    assert (
+        changed_corpus.manifest["strategy_policy_profile_config_facts_sha256"]
+        == dataset.manifest["strategy_policy_profile_config_facts_sha256"]
+    )
+    assert (
+        changed_corpus.manifest["source_observation_corpus_sha256"]
+        != dataset.manifest["source_observation_corpus_sha256"]
+    )
+    assert changed_corpus.sha256 != dataset.sha256
     repeated = build_dataset(
         tuple(reversed(records)),
         run_states=states,
@@ -568,11 +733,22 @@ def test_phase35_offline_evaluation_no_promotion_from_synthetic_agreement(monkey
     report = evaluate_strategy(dataset, BoundedCapacityStrategy(a))
     assert not report["promoted_coverage"]
     assert len(report["measurements"]) == 80
+    assert report["non_abstaining_proposals"] == 0
+    assert report["supported_alternate_quality_comparisons"] == 0
+    assert report["pipeline_complete_groups"] == 0
+    assert report["quality_comparison_status"] == "unverified"
+    assert sum(report["abstention_reason_counts"].values()) == 80
     assert all(m["strategy_latency_us"] >= 0 for m in report["measurements"])
     assert all(
         m["single_case_latency_plus_strategy_us"] is not None for m in report["measurements"]
     )
     assert all(c["reasons"] for c in report["coverage"])
+    assert all(
+        coverage["gates"]["quality"]["status"] == "unverified"
+        and coverage["gates"]["resource_saving"]["status"] == "unverified"
+        and coverage["gates"]["pipeline_latency"]["status"] == "unverified"
+        for coverage in report["coverage"]
+    )
     assert report["strategy2"].startswith("deferred") and report["strategy3"].startswith("deferred")
     evidence = {"manifest": dataset.manifest, "report": report}
     (tmp_path / "phase35-evaluation.json").write_text(json.dumps(evidence, indent=2))
@@ -605,6 +781,70 @@ def test_phase35_offline_evaluation_no_promotion_from_synthetic_agreement(monkey
             sort_keys=True,
         )
     )
+
+
+def test_promotion_gate_matrix_consumes_supported_live_comparisons(monkeypatch):
+    monkeypatch.setattr(
+        "personal_ai.routing.adaptive.perf_counter_ns",
+        iter(range(0, 1_000_000, 1000)).__next__,
+    )
+    v = view()
+    coverage = coverage_identity(v)
+    splits = ("grouped_holdout", "temporal_holdout", "configuration_holdout")
+    rows = []
+    comparisons = []
+    for i, split in enumerate(splits):
+        for offset in range(30):
+            index = i * 30 + offset + 1
+            group_sha = f"{index:064x}"
+            rows.append(
+                DatasetRow(
+                    observation_sha256=f"{index + 1000:064x}",
+                    group_sha256=group_sha,
+                    coverage_sha256=coverage,
+                    observed_at=NOW,
+                    split=split,
+                    view=v,
+                    selected=QuotaAwareDeterministicStrategy().select(v)[0].endpoint,
+                    labels=(None, None),
+                )
+            )
+            comparisons.append(
+                PromotionComparison(
+                    coverage_sha256=coverage,
+                    group_sha256=group_sha,
+                    split=split,
+                    evidence_identity_sha256=f"{index + 2000:064x}",
+                    quality_delta=0.1,
+                    resource_saving=0.1,
+                    pipeline_latency_increase_us=0,
+                    pipeline_complete=True,
+                    calibration_supported=True,
+                )
+            )
+    dataset = ObservationDataset(tuple(rows), {"coverage": [coverage], "complete": True})
+    adaptive_artifact = artifact(
+        v, dataset_sha256=dataset.sha256, coverage_sha256s=(coverage,)
+    )
+    passed = evaluate_strategy(
+        dataset,
+        BoundedCapacityStrategy(adaptive_artifact),
+        promotion_evidence=comparisons,
+    )
+    assert passed["promoted_coverage"] == [coverage]
+    assert all(gate["status"] == "pass" for gate in passed["coverage"][0]["gates"].values())
+
+    failed = evaluate_strategy(
+        dataset,
+        BoundedCapacityStrategy(adaptive_artifact),
+        promotion_evidence=[
+            item.model_copy(update={"quality_delta": -0.1, "resource_saving": 0.01})
+            for item in comparisons
+        ],
+    )
+    assert not failed["promoted_coverage"]
+    assert failed["coverage"][0]["gates"]["quality"]["status"] == "fail"
+    assert failed["coverage"][0]["gates"]["resource_saving"]["status"] == "fail"
 
 
 def test_unobserved_alternative_is_missing_even_when_shadow_prefers_it(monkeypatch):
@@ -719,7 +959,8 @@ def test_frozen_synthetic_replay_digest_and_scoped_no_promotion():
     report = evaluate_strategy(dataset, BoundedCapacityStrategy(a))
     assert report["dataset_sha256"] == a.dataset_sha256 and not report["promoted_coverage"]
     assert all(
-        "insufficient-temporal_holdout-live-coverage" in c["reasons"] for c in report["coverage"]
+        "independent_live_groups:unverified" in c["reasons"]
+        for c in report["coverage"]
     )
     frozen = json.loads((path.parent / "adaptive-baseline-v1.json").read_text())
     assert run_quota_scarcity_evaluation().model_dump(mode="json") == frozen["quota_baseline"]

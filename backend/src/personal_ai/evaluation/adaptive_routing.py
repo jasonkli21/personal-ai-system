@@ -4,6 +4,7 @@ This module does not dispatch, train on prompt text, invent missing labels, or
 publish runtime policy. P19 and P22 remain authoritative for measured outcomes.
 """
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -96,6 +97,43 @@ class ObservationDataset:
         )
 
 
+def normalized_configuration_facts(decision, *, split_policy):
+    """Return reusable routing configuration without operational instance data."""
+    return normalized_configuration_facts_for_view(
+        decision.strategy_view(), split_policy=split_policy
+    )
+
+
+def normalized_configuration_facts_for_view(view, *, split_policy):
+    """Build the same configuration identity from an already-safe projected view."""
+    context = view.feature_context
+    return {
+        "feature_schema": context.schema_version,
+        "application_id": context.application_id,
+        "task_id": context.task_id,
+        "task_profile_id": context.task_profile_id,
+        "task_profile_version": context.task_profile_version,
+        "task_configuration_sha256": context.task_configuration_sha256,
+        "requirements_sha256": context.requirements_sha256,
+        "policy_sha256": context.policy_sha256,
+        "baseline_strategy": QuotaAwareDeterministicStrategy.ref.model_dump(mode="json"),
+        "baseline_implementation_sha256": QuotaAwareDeterministicStrategy().implementation_sha256,
+        "candidate_composition": sorted(
+            [
+                (
+                    candidate.endpoint.model_dump(mode="json"),
+                    candidate.endpoint_configuration_sha256,
+                    candidate.quality_identity_sha256,
+                    candidate.configured_priority,
+                )
+                for candidate in view.candidates
+            ],
+            key=lambda item: json.dumps(item[0], sort_keys=True, separators=(",", ":")),
+        ),
+        "split_policy": split_policy.model_dump(mode="json"),
+    }
+
+
 def _join_selected_label(record, run_states):
     """Canonical joins only. Selected outcome never labels an unexecuted candidate."""
     decision = record.decision
@@ -127,42 +165,56 @@ def _join_selected_label(record, run_states):
         ),
         None,
     )
-    if gate is None or (
-        case.endpoint != decision.selected
-        or case.endpoint_configuration_sha256 != candidate.endpoint_configuration_sha256
-        or case.policy_version != decision.request.policy_version
-        or case.task_profile_id != decision.task.profile_id
-        or case.task_profile_version != decision.task.profile_version
-        or case.fixture_id != gate.fixture_id
-        or case.evaluation_run_id != start.evaluation_run_id
-        or case.measured_at < decision.created_at
-        or case.metrics is None
-        or case.status not in {"measured", "synthetic_baseline"}
-        or start.source != ("live" if case.status == "measured" else "synthetic")
-        or (
-            case.evaluation_suite_id,
-            case.evaluation_suite_version,
-            case.scoring_policy_id,
-            case.scoring_policy_version,
-            case.output_tokens,
-        )
-        != (
-            start.evaluation_suite_id,
-            start.evaluation_suite_version,
-            start.scoring_policy_id,
-            start.scoring_policy_version,
-            start.output_tokens,
-        )
-        or gate.endpoint_configuration_sha256 != candidate.endpoint_configuration_sha256
-        or (start.task_profile_id, start.task_profile_version, start.policy_version)
-        != (
-            decision.task.profile_id,
-            decision.task.profile_version,
-            decision.request.policy_version,
-        )
-        or gate.prepared_input_sha256 != case.prepared_input_sha256
+    mismatches = []
+    if gate is None:
+        mismatches.append("evaluation_gate_missing")
+    else:
+        if gate.fixture_id != case.fixture_id:
+            mismatches.append("fixture")
+        if gate.endpoint_configuration_sha256 != candidate.endpoint_configuration_sha256:
+            mismatches.append("gate_endpoint_configuration")
+        if gate.prepared_input_sha256 != case.prepared_input_sha256:
+            mismatches.append("prepared_input")
+    if case.endpoint != decision.selected:
+        mismatches.append("endpoint")
+    if case.endpoint_configuration_sha256 != candidate.endpoint_configuration_sha256:
+        mismatches.append("case_endpoint_configuration")
+    if case.policy_version != decision.request.policy_version:
+        mismatches.append("policy")
+    if case.task_profile_id != decision.task.profile_id or case.task_profile_version != decision.task.profile_version:
+        mismatches.append("task_profile")
+    if case.evaluation_run_id != start.evaluation_run_id:
+        mismatches.append("run")
+    if case.measured_at < decision.created_at:
+        mismatches.append("measurement_precedes_decision")
+    if case.metrics is None:
+        mismatches.append("metrics_missing")
+    if case.status not in {"measured", "synthetic_baseline"}:
+        mismatches.append("case_status")
+    if start.source != ("live" if case.status == "measured" else "synthetic"):
+        mismatches.append("source")
+    if (
+        case.evaluation_suite_id,
+        case.evaluation_suite_version,
+        case.scoring_policy_id,
+        case.scoring_policy_version,
+        case.output_tokens,
+    ) != (
+        start.evaluation_suite_id,
+        start.evaluation_suite_version,
+        start.scoring_policy_id,
+        start.scoring_policy_version,
+        start.output_tokens,
     ):
-        raise ValueError("routing_label_identity_mismatch")
+        mismatches.append("suite_scoring_output")
+    if (start.task_profile_id, start.task_profile_version, start.policy_version) != (
+        decision.task.profile_id,
+        decision.task.profile_version,
+        decision.request.policy_version,
+    ):
+        mismatches.append("run_task_policy")
+    if mismatches:
+        raise ValueError("routing_label_identity_mismatch:" + ",".join(mismatches))
     # Live quality requires the producing terminal receipt, not caller-supplied IDs.
     if not (
         any(e.attempt_id == case.attempt_id and e.kind == "closed" for e in record.events)
@@ -379,7 +431,19 @@ def build_dataset(
             }
         ),
         "strategy_policy_profile_config_facts_sha256": digest(
-            [r.decision.model_dump(mode="json") for r in admitted]
+            sorted(
+                {
+                    json.dumps(
+                        normalized_configuration_facts(r.decision, split_policy=split_policy),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    for r in admitted
+                }
+            )
+        ),
+        "source_observation_corpus_sha256": digest(
+            sorted(digest(record) for record in admitted)
         ),
         "excluded_fields": [
             "prompts",
@@ -417,7 +481,22 @@ class PromotionThresholds(_FrozenModel):
     maximum_abstention_rate: float = Field(default=0.25, ge=0, le=0.25)
 
 
-def evaluate_strategy(dataset, strategy, *, thresholds=None):
+class PromotionComparison(_FrozenModel):
+    """Exact-coverage live comparison supplied only by a supported paired join."""
+
+    coverage_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    group_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    split: Literal["grouped_holdout", "temporal_holdout", "configuration_holdout"]
+    evidence_identity_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source: Literal["live"] = "live"
+    quality_delta: float | None = Field(default=None, ge=-1, le=1)
+    resource_saving: float | None = Field(default=None, ge=-1, le=1)
+    pipeline_latency_increase_us: int | None = None
+    pipeline_complete: bool = False
+    calibration_supported: bool = False
+
+
+def evaluate_strategy(dataset, strategy, *, thresholds=None, promotion_evidence=()):
     """Route agreement and supported answer quality remain separate measurements.
 
     Historical selected-route success is insufficient for comparing alternatives.
@@ -458,21 +537,173 @@ def evaluate_strategy(dataset, strategy, *, thresholds=None):
                 ),
             }
         )
+    comparison_rows = tuple(
+        PromotionComparison.model_validate(item.model_dump() if hasattr(item, "model_dump") else item)
+        for item in promotion_evidence
+    )
+    rows_by_group = {
+        (row.coverage_sha256, row.group_sha256): row.split for row in dataset.rows
+    }
+    if any(
+        item.coverage_sha256 not in dataset.manifest["coverage"]
+        or rows_by_group.get((item.coverage_sha256, item.group_sha256)) != item.split
+        for item in comparison_rows
+    ):
+        raise ValueError("routing_promotion_evidence_identity_mismatch")
+    if len(
+        {
+            (item.coverage_sha256, item.group_sha256)
+            for item in comparison_rows
+        }
+    ) != len(comparison_rows):
+        raise ValueError("routing_promotion_evidence_duplicate_group")
+
     coverage = []
+    independent_live_groups = {}
+    pipeline_complete_groups = 0
+    supported_quality_comparisons = 0
     for identity in dataset.manifest["coverage"]:
         subset = [m for m in measurements if m["coverage"] == identity]
-        reasons = ["paired-pipeline-outcomes-unavailable"]
+        comparisons = [item for item in comparison_rows if item.coverage_sha256 == identity]
+        full_pipeline = [
+            item for item in comparisons
+            if item.pipeline_complete
+            and item.quality_delta is not None
+            and item.resource_saving is not None
+            and item.pipeline_latency_increase_us is not None
+        ]
+        independent_live_groups[identity] = {
+            split: len({item.group_sha256 for item in full_pipeline if item.split == split})
+            for split in ("grouped_holdout", "temporal_holdout", "configuration_holdout")
+        }
+        pipeline_complete_groups += len({item.group_sha256 for item in full_pipeline})
+        supported_quality_comparisons += sum(item.quality_delta is not None for item in comparisons)
+
+        def gate(status, observed=None, threshold=None, reason=None):
+            return {
+                "status": status,
+                "observed": observed,
+                "threshold": threshold,
+                "reason": reason,
+            }
+
+        enough_groups = all(
+            independent_live_groups[identity][split] >= thresholds.minimum_groups_per_holdout
+            for split in independent_live_groups[identity]
+        )
+        gates = {}
         if not dataset.manifest["complete"]:
-            reasons.append("incomplete-dataset")
-        for split in ("grouped_holdout", "temporal_holdout", "configuration_holdout"):
-            if (
-                len({m["group"] for m in subset if m["split"] == split and m["source"] == "live"})
-                < thresholds.minimum_groups_per_holdout
-            ):
-                reasons.append(f"insufficient-{split}-live-coverage")
-        if any(m["strategy_latency_us"] > thresholds.maximum_strategy_latency_us for m in subset):
-            reasons.append("strategy-overhead-exceeded")
-        coverage.append({"coverage_sha256": identity, "promoted": False, "reasons": reasons})
+            gates["dataset_completeness"] = gate("fail", False, True, "incomplete-dataset")
+        else:
+            gates["dataset_completeness"] = gate("pass", True, True)
+
+        def metric_gate(
+            values,
+            threshold,
+            *,
+            compare,
+            enough_groups=enough_groups,
+            full_pipeline=full_pipeline,
+        ):
+            supported = [value for value in values if value is not None]
+            if not enough_groups or len(supported) != len(full_pipeline) or not full_pipeline:
+                return gate("unverified", None, threshold, "insufficient-live-pipeline-evidence")
+            observed = sum(supported) / len(supported)
+            return gate("pass" if compare(observed, threshold) else "fail", observed, threshold)
+
+        gates["quality"] = metric_gate(
+            [item.quality_delta for item in full_pipeline],
+            thresholds.minimum_quality_delta,
+            compare=lambda observed, threshold: observed >= threshold,
+        )
+        gates["resource_saving"] = metric_gate(
+            [item.resource_saving for item in full_pipeline],
+            thresholds.minimum_resource_saving,
+            compare=lambda observed, threshold: observed >= threshold,
+        )
+        latency_values = [item.pipeline_latency_increase_us for item in full_pipeline]
+        if not enough_groups or not full_pipeline or any(value is None for value in latency_values):
+            gates["pipeline_latency"] = gate(
+                "unverified", None, thresholds.maximum_pipeline_latency_increase_us,
+                "incomplete-end-to-end-latency-evidence",
+            )
+        else:
+            worst_latency = max(latency_values)
+            gates["pipeline_latency"] = gate(
+                "pass" if worst_latency <= thresholds.maximum_pipeline_latency_increase_us else "fail",
+                worst_latency,
+                thresholds.maximum_pipeline_latency_increase_us,
+            )
+
+        overhead = [m["strategy_latency_us"] for m in subset]
+        if not overhead:
+            gates["strategy_overhead"] = gate("unverified", None, thresholds.maximum_strategy_latency_us)
+        else:
+            worst_overhead = max(overhead)
+            gates["strategy_overhead"] = gate(
+                "pass" if worst_overhead <= thresholds.maximum_strategy_latency_us else "fail",
+                worst_overhead,
+                thresholds.maximum_strategy_latency_us,
+            )
+        abstentions = sum(m["abstention"] is not None for m in subset)
+        abstention_rate = abstentions / len(subset) if subset else None
+        gates["abstention"] = (
+            gate(
+                "pass" if abstention_rate <= thresholds.maximum_abstention_rate else "fail",
+                abstention_rate,
+                thresholds.maximum_abstention_rate,
+            )
+            if abstention_rate is not None
+            else gate("unverified", None, thresholds.maximum_abstention_rate)
+        )
+        calibrated_groups = {
+            item.group_sha256 for item in full_pipeline if item.calibration_supported
+        }
+        gates["calibration"] = (
+            gate("pass", len(calibrated_groups), thresholds.minimum_groups_per_holdout)
+            if enough_groups and len(calibrated_groups) >= thresholds.minimum_groups_per_holdout
+            else gate("unverified", len(calibrated_groups), thresholds.minimum_groups_per_holdout,
+                      "calibration-evidence-unavailable")
+        )
+        incompatible = {
+            "feature-schema-incompatible",
+            "artifact-stale",
+            "baseline-incompatible",
+            "strategy-implementation-incompatible",
+            "endpoint-configuration-unavailable",
+            "out-of-coverage",
+        }
+        compatibility_failures = [m["abstention"] for m in subset if m["abstention"] in incompatible]
+        gates["configuration_freshness"] = (
+            gate("fail", sorted(set(compatibility_failures)), "no incompatibility")
+            if compatibility_failures
+            else gate("pass" if subset else "unverified", 0 if subset else None, 0)
+        )
+        gates["independent_live_groups"] = (
+            gate("pass", independent_live_groups[identity], thresholds.minimum_groups_per_holdout)
+            if enough_groups
+            else gate(
+                "unverified",
+                independent_live_groups[identity],
+                thresholds.minimum_groups_per_holdout,
+                "insufficient-independent-live-groups",
+            )
+        )
+        promoted = all(result["status"] == "pass" for result in gates.values())
+        reasons = [
+            f"{name}:{result['status']}"
+            for name, result in gates.items()
+            if result["status"] != "pass"
+        ]
+        coverage.append(
+            {"coverage_sha256": identity, "promoted": promoted, "gates": gates, "reasons": reasons}
+        )
+    promoted_coverage = [item["coverage_sha256"] for item in coverage if item["promoted"]]
+    abstention_reason_counts = {}
+    for measurement in measurements:
+        reason = measurement["abstention"]
+        if reason is not None:
+            abstention_reason_counts[reason] = abstention_reason_counts.get(reason, 0) + 1
     return {
         "schema_version": "adaptive-routing-evaluation-v1",
         "dataset_sha256": dataset.sha256,
@@ -480,7 +711,17 @@ def evaluate_strategy(dataset, strategy, *, thresholds=None):
         "thresholds": thresholds.model_dump(),
         "measurements": measurements,
         "coverage": coverage,
-        "promoted_coverage": [],
+        "promoted_coverage": promoted_coverage,
+        "non_abstaining_proposals": sum(m["abstention"] is None for m in measurements),
+        "supported_alternate_quality_comparisons": supported_quality_comparisons,
+        "independent_live_groups": independent_live_groups,
+        "pipeline_complete_groups": pipeline_complete_groups,
+        "abstention_reason_counts": abstention_reason_counts,
+        "quality_comparison_status": (
+            "supported"
+            if any(item["gates"]["quality"]["status"] in {"pass", "fail"} for item in coverage)
+            else "unverified"
+        ),
         "strategy2": "deferred: insufficient supported paired labels; compare Strategy 1 first",
         "strategy3": "deferred: reward attribution, safe traffic and exploration evidence absent",
         "rollback": QuotaAwareDeterministicStrategy.ref.model_dump(mode="json"),

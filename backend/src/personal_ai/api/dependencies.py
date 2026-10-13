@@ -48,6 +48,7 @@ from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, PubSub
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.routing.registry import EndpointRegistry
+from personal_ai.routing.service import RoutingAuthorizationAuthority, RoutingDecisionService
 from personal_ai.search.authority import ResearchSourceRightsRevalidator
 from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.services.external_turns import ExternalTurnService
@@ -421,6 +422,41 @@ def get_endpoint_registry(settings: Annotated[Settings, Depends(get_settings)]) 
         raise HTTPException(
             status_code=503, detail="external_endpoint_registry_unavailable"
         ) from None
+
+
+def get_routing_authorization_authority(request: Request) -> RoutingAuthorizationAuthority:
+    """Read the app-installed current routing authority; absence fails closed.
+
+    Phase 15 source membership/revocation acceptance is still open, so the API
+    does not synthesize routing permission from the local owner identity or an
+    endpoint profile. A deployment must install an accepted authority before a
+    routed workflow can request this dependency.
+    """
+    authority = getattr(request.app.state, "routing_authorization_authority", None)
+    if authority is None:
+        raise HTTPException(status_code=503, detail="routing_authorization_unavailable")
+    return authority
+
+
+def get_routing_decision_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization: Annotated[
+        RoutingAuthorizationAuthority, Depends(get_routing_authorization_authority)
+    ],
+) -> RoutingDecisionService:
+    """Canonical FastAPI composition for internal Phase 21 routed workflows.
+
+    The shared factory remains the owner of endpoint registry, P19 accounting,
+    durable observations, and default-off Phase 35 shadow composition. This
+    dependency is intentionally not attached to user workflows until their
+    Phase 15 membership/revocation acceptance gate closes.
+    """
+    try:
+        return persistence_factory(settings).routing_service(
+            settings, authorization=authorization
+        )
+    except Exception:  # noqa: BLE001 - routing dependencies fail closed
+        raise HTTPException(status_code=503, detail="routing_service_unavailable") from None
 
 
 def get_external_turn_service(
