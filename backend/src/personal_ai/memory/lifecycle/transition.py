@@ -18,14 +18,15 @@ def transition(state: MemoryLifecycleState, event: MemoryLifecycleEvent) -> Memo
     }
     if event.event_type in ("superseded", "forgotten", "reactivated", "review_required"):
         changes["validity_epoch"] = state.validity_epoch + 1
-    if event.event_type == "consolidated":
-        changes["consolidated_into_memory_ids"] = tuple(
-            sorted(set(state.consolidated_into_memory_ids) | set(event.related_memory_ids), key=str)
-        )
-    elif event.event_type == "retrieved":
+    if event.event_type == "retrieved":
         changes["retrieval_count"] = state.retrieval_count + 1
         changes["last_retrieved_at"] = event.occurred_at
         changes["effective_status_at"] = state.effective_status_at
+    elif event.event_type == "consolidated":
+        # The canonical derived_memory_sources relation owns the reverse edge.
+        # The lifecycle event advances the projection version without caching an
+        # unbounded set of derived IDs in this record.
+        pass
     elif event.event_type == "superseded":
         if (
             state.retrieval_status != "active"

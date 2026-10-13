@@ -2,6 +2,7 @@
 
 import logging
 import math
+from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from time import monotonic
@@ -437,10 +438,10 @@ class MemoryRetriever:
             )
             from personal_ai.auth.scope import RequestScope, current_application_scope
             from personal_ai.memory.dependencies import (
-                freshness,
                 original_reason,
                 record_dependencies,
             )
+            from personal_ai.memory.freshness import freshness
 
             scope = (
                 application_context.scope
@@ -696,6 +697,35 @@ class MemoryRetriever:
                         compact.append(item)
                 valid = compact
 
+            # Present exact repeated originals as one retrieval assertion while
+            # retaining their canonical records. In the consolidated experiment,
+            # the derived view sorts ahead of its one original fallback so the
+            # shared builder can omit the view if its complete support will not fit.
+            support_groups = {}
+            for item in valid:
+                if isinstance(item.memory, Memory):
+                    key = (item.memory.memory_type, item.memory.normalized_content)
+                    support_groups.setdefault(key, []).append(item)
+            exact_representatives = {}
+            exact_representative_ids = set()
+            for group in support_groups.values():
+                representative = group[0]
+                support_ids = tuple(sorted((item.memory.id for item in group), key=str))
+                exact_representatives[representative.memory.id] = replace(
+                    representative, support_memory_ids=support_ids
+                )
+                exact_representative_ids.add(representative.memory.id)
+                for item in group[1:]:
+                    excluded.append((item.memory.id, "exact_duplicate_support"))
+            valid = [
+                exact_representatives.get(item.memory.id, item)
+                if isinstance(item.memory, Memory)
+                else item
+                for item in valid
+                if not isinstance(item.memory, Memory)
+                or item.memory.id in exact_representative_ids
+            ]
+
             # Keep bounded backup sources available if a derived record cannot fit.
             selected = (
                 valid
@@ -719,6 +749,11 @@ class MemoryRetriever:
             selected_ids = {item.memory.id for item in selected}
             reasons = dict(excluded)
             trace_candidates = []
+            support_ids_by_id = {
+                item.memory.id: item.support_memory_ids
+                for item in selected
+                if item.support_memory_ids
+            }
             for record, similarity, origins in [
                 (item.memory, item.similarity, item.origins) for item in candidates
             ] + [(record, None, ("exact_vector",)) for record, _ in preexcluded]:
@@ -728,7 +763,7 @@ class MemoryRetriever:
                         original_ids=(
                             record.source_memory_ids
                             if isinstance(record, DerivedMemory)
-                            else (record.id,)
+                            else support_ids_by_id.get(record.id, (record.id,))
                         ),
                         origins=origins,
                         similarity=similarity,

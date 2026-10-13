@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from time import monotonic
 from typing import Literal
 from uuid import UUID
@@ -146,6 +147,28 @@ class MemoryLifecycleCoordinator:
                     logger.info(
                         "Memory candidate discovery failed error_class=%s", type(error).__name__
                     )
+            if self.settings.memory_consolidation_enabled:
+                try:
+                    seeds = self.lifecycle.discover_consolidation_seeds(
+                        owner_id=completed.owner_id,
+                        limit=self.settings.memory_consolidation_max_sources,
+                        after_id=completed.id,
+                        eligible=eligible,
+                    )
+                    for memory_id in seeds:
+                        related = self.lifecycle.discover_related(
+                            owner_id=completed.owner_id,
+                            memory_id=memory_id,
+                            limit=self.settings.memory_consolidation_max_sources,
+                            eligible=eligible,
+                        )
+                        candidates = tuple(sorted(set(related), key=str))
+                        if len(candidates) >= 2:
+                            queued.add(("consolidation", candidates))
+                except Exception as error:  # noqa: BLE001 - bounded corpus sweep is optional
+                    logger.info(
+                        "Memory maintenance sweep failed error_class=%s", type(error).__name__
+                    )
             maintenance_candidates = []
             if self.settings.memory_contradiction_automation_enabled:
                 try:
@@ -214,7 +237,23 @@ class MemoryLifecycleCoordinator:
         candidate_ids = tuple(sorted(set(candidate_ids), key=str))[:4]
         if not candidate_ids:
             return
-        key = f"{job_type}:{completed.owner_id}:{completed.id}:" + ",".join(map(str, candidate_ids))
+        if job_type == "consolidation":
+            from personal_ai.memory.dependencies import dependency_version
+
+            dependencies = []
+            for memory_id in candidate_ids:
+                record = self.memories.get(owner_id=completed.owner_id, memory_id=memory_id)
+                state = self.lifecycle.get_state(owner_id=completed.owner_id, memory_id=memory_id)
+                dependencies.append(f"{memory_id}:{dependency_version(record, state)}")
+            intent = sha256(
+                "\0".join(
+                    [completed.owner_id, completed.application_id, completed.workspace_id or ""]
+                    + dependencies
+                ).encode()
+            ).hexdigest()
+            key = f"consolidation:{completed.owner_id}:{intent}"
+        else:
+            key = f"{job_type}:{completed.owner_id}:{completed.id}:" + ",".join(map(str, candidate_ids))
         policy = self._policy_snapshot()
         job = MemoryJob(
             id=job_idempotency_id(key),

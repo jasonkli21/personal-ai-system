@@ -31,7 +31,7 @@ from personal_ai.memory.policy import candidate_reason, content_reason
 from personal_ai.memory.services import source_messages
 from personal_ai.storage.errors import ResourceNotFoundError
 
-DERIVATION_POLICY_VERSION = "extractive-v2"
+DERIVATION_POLICY_VERSION = "support-v1"
 FORGETTING_POLICY_VERSION = "forget-v1"
 CONTRADICTION_POLICY_VERSION = "contradiction-v2"
 SUBJECT_SUFFIX = re.compile(r"\bfor\s+([^.!?]{1,100})[.!?]*$", re.IGNORECASE)
@@ -148,13 +148,24 @@ class DeterministicMemoryConsolidator:
             return ConsolidationPlan("no_plan", "mixed_types")
         if len({embedding_space_for(record) for record in records}) != 1:
             return ConsolidationPlan("rejected", "incompatible_embedding")
-        if len({normalize(record.content) for record in records}) != 1:
-            return ConsolidationPlan("no_plan", "different_assertions")
+        exact_support = len({normalize(record.content) for record in records}) == 1
+        from personal_ai.memory.semantic import preference_support_fingerprint
+
+        support_fingerprints = tuple(
+            preference_support_fingerprint(record.content) for record in records
+        )
+        semantic_support = (
+            records[0].memory_type == "preference"
+            and support_fingerprints[0] is not None
+            and len(set(support_fingerprints)) == 1
+        )
+        if not exact_support and not semantic_support:
+            return ConsolidationPlan("no_plan", "unsupported_assertion_difference")
         source_type = records[0].memory_type
         if source_type == "preference":
             target_type = "preference"
             rationale = "repeated_explicit_preference"
-            if not all(
+            if not semantic_support and not all(
                 normalize(record.content).startswith(
                     ("i prefer", "i like", "i dislike", "i always choose")
                 )
@@ -175,6 +186,8 @@ class DeterministicMemoryConsolidator:
             return ConsolidationPlan("no_plan", "unsupported_source_type")
         # The shared builder supplies historical/derived authority labels.
         content = records[0].content
+        derivation_policy = "support-v1" if semantic_support else "extractive-v2"
+        support_fingerprint = support_fingerprints[0] if semantic_support else None
         if len(content) > 1000 or content_reason(content, settings):
             return ConsolidationPlan("rejected", "derived_content_rejected")
         source_set = tuple(
@@ -205,7 +218,7 @@ class DeterministicMemoryConsolidator:
         )
         identity = hashlib.sha256(
             "\0".join(
-                [owner_id, *namespace, DERIVATION_POLICY_VERSION]
+                [owner_id, *namespace, derivation_policy]
                 + [
                     f"{item.memory_id}:{item.source_fingerprint}:{item.dependency_version}"
                     for item in source_set
@@ -268,7 +281,8 @@ class DeterministicMemoryConsolidator:
             source_memory_ids=tuple(item.memory_id for item in source_set),
             sources=source_set,
             source_set_identity=identity,
-            derivation_policy_version=DERIVATION_POLICY_VERSION,
+            derivation_policy_version=derivation_policy,
+            support_fingerprint=support_fingerprint,
             rationale_code=rationale,
         )
         return ConsolidationPlan("ready", "extractive_exact_repeat", derived)

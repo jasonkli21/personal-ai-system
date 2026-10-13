@@ -15,7 +15,13 @@ DENIED = re.compile(
     re.IGNORECASE,
 )
 TYPE_MARKERS = {
-    "preference": ("i prefer", "i like", "i dislike", "i always choose"),
+    "preference": (
+        "i prefer",
+        "i like",
+        "i dislike",
+        "i always choose",
+        "my preference for",
+    ),
     "episodic_observation": ("i visited", "i tried", "i attended", "i experienced"),
     "semantic_summary": ("i usually", "i tend to", "in general, i"),
     "explicit_correction": ("correction:", "actually, i", "i no longer", "i now prefer"),

@@ -6,10 +6,11 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from personal_ai.memory.contracts import DerivedMemory, ScoredMemory
+from personal_ai.memory.freshness import freshness_recency
 from personal_ai.memory.lifecycle.contracts import MemoryLifecycleState
 
 
@@ -110,9 +111,9 @@ def score_memory(
         importance = IMPORTANCE_BY_TYPE.get(memory.memory_type)
     if isinstance(memory, DerivedMemory):
         importance = min(importance or 0, memory.importance)
-    effective = memory.effective_at
-    age_days = max(0.0, (now.astimezone(UTC) - effective.astimezone(UTC)).total_seconds() / 86400)
-    recency = 2 ** (-age_days / policy.half_life_days)
+    recency = freshness_recency(
+        memory, now=now, default_half_life_days=policy.half_life_days
+    )
     frequency = min(state.retrieval_count / 10, 1.0)
     confidence = memory.confidence
     inputs = (similarity, importance, recency, frequency, confidence)

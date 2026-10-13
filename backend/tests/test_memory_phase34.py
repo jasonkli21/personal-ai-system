@@ -15,8 +15,8 @@ from personal_ai.evaluation.memory_lifecycle import NOW, apply_fixture, build_fi
 from personal_ai.memory.dependencies import (
     MemoryPermissionRevalidator,
     dependency_version,
-    freshness,
 )
+from personal_ai.memory.freshness import freshness
 from personal_ai.memory.lifecycle.policy import make_event
 from personal_ai.memory.services import MemoryRetriever
 
@@ -106,8 +106,77 @@ def test_compact_trace_and_original_rollback_preserve_provenance():
     originals = dict(env["memories"].records)
     env["settings"].memory_experiment_variant = "fixed"
     baseline = retriever(env).retrieve("local", "query", [])
-    assert len(baseline.selected) == 2
+    assert len(baseline.selected) == 1
+    assert len(baseline.selected[0].support_memory_ids) == 2
     assert env["memories"].records == originals
+
+
+def test_completed_turn_sweep_discovers_preexisting_duplicates_and_deduplicates_intent():
+    env = environment()
+    assert not env["memories"].derived_records
+    env["coordinator"].after_completed(env["completed"])
+    jobs = [job for job in env["lifecycle"].jobs.values() if job.job_type == "consolidation"]
+    assert len(jobs) == 1
+    assert env["worker"].process(jobs[0].id) == "completed"
+    assert len(env["memories"].derived_records) == 1
+
+    before = {job.id for job in jobs}
+    env["coordinator"].after_completed(
+        env["completed"].model_copy(update={"id": env["pending"].id})
+    )
+    after = [job for job in env["lifecycle"].jobs.values() if job.job_type == "consolidation"]
+    assert {job.id for job in after} == before
+
+
+def test_freshness_classes_drive_distinct_recency_scores_without_expiring_records():
+    from personal_ai.memory.contracts import ScoredMemory
+    from personal_ai.memory.lifecycle import MemoryLifecycleState, ScorePolicy, score_memory
+
+    env = environment()
+    original = next(iter(env["records"].values()))
+    old_preference = original.model_copy(update={"effective_at": NOW - timedelta(days=365)})
+    old_episode = old_preference.model_copy(update={"memory_type": "episodic_observation"})
+    old_correction = old_preference.model_copy(update={"memory_type": "explicit_correction"})
+    policy = ScorePolicy()
+    scores = [
+        score_memory(
+            ScoredMemory(record, 0.8),
+            MemoryLifecycleState(owner_id="local", memory_id=record.id),
+            policy,
+            now=NOW,
+        )
+        for record in (old_preference, old_episode, old_correction)
+    ]
+    assert scores[0].recency == 1.0
+    assert scores[1].recency < 1.0
+    assert scores[2].recency < scores[1].recency
+
+
+def test_derived_validity_and_reverse_links_are_not_persisted_as_duplicate_truth():
+    from personal_ai.memory.contracts import DerivedMemory
+    from personal_ai.memory.lifecycle.contracts import MemoryLifecycleState
+
+    env = environment("consolidated")
+    apply_fixture(env)
+    derived = next(iter(env["memories"].derived_records.values()))
+    legacy_payload = {**derived.model_dump(), "refresh_state": "active"}
+    decoded = DerivedMemory.model_validate(legacy_payload)
+    assert "refresh_state" not in decoded.model_dump()
+
+    state = MemoryLifecycleState.model_validate({
+        "memory_id": str(derived.source_memory_ids[0]),
+        "owner_id": "local",
+        "consolidated_into_memory_ids": [str(derived.id)],
+    })
+    assert "consolidated_into_memory_ids" not in state.model_dump()
+
+
+def test_memory_query_does_not_claim_unused_task_conditioning():
+    from personal_ai.memory.contracts import MemoryQuery
+
+    assert not {"task_id", "requirements", "entity_refs", "temporal_mode", "observed_after"} & set(
+        MemoryQuery.model_fields
+    )
 
 
 @pytest.mark.parametrize("fault", ["delete", "branch", "forget", "source_epoch"])
@@ -196,12 +265,14 @@ def test_forget_reactivate_retires_old_binding_and_refreshes_under_new_identity(
     assert dependency_version(original, state) != old_version
     result = retriever(env).retrieve("local", "query", [])
     assert old_view.id not in [item.memory.id for item in result.selected]
-    env["coordinator"]._enqueue(
-        env["completed"].model_copy(update={"id": env["pending"].id}),
-        "consolidation",
-        old_view.source_memory_ids,
+    prior_jobs = set(env["lifecycle"].jobs)
+    env["coordinator"].after_completed(
+        env["completed"].model_copy(update={"id": env["pending"].id})
     )
-    new_job = list(env["lifecycle"].jobs.values())[-1]
+    new_job = next(
+        job for job_id, job in env["lifecycle"].jobs.items()
+        if job_id not in prior_jobs and job.job_type == "consolidation"
+    )
     assert env["worker"].process(new_job.id) == "completed"
     assert len(env["memories"].derived_records) == 2
     assert all(
@@ -209,14 +280,15 @@ def test_forget_reactivate_retires_old_binding_and_refreshes_under_new_identity(
     )
 
 
-def test_similarity_proposes_bounded_paraphrases_without_merge():
+def test_similarity_merges_only_deterministically_support_equivalent_preferences():
     env = environment()
     second = list(env["records"].values())[1]
-    # A new exact user excerpt with compatible embeddings is still a different assertion.
+    # A different sentence form can consolidate only when its complete parsed
+    # preference value and context clause match the other original.
     from personal_ai.memory.contracts import identity, normalize
 
     user = env["messages"]._messages[second.source_message_ids[0]]
-    text = "I like calm cabins for overnight stays."
+    text = "My preference for overnight stays is quiet rooms."
     user = user.model_copy(update={"content": text})
     env["messages"]._messages[user.id] = user
     from personal_ai.context.contracts import fingerprint
@@ -235,10 +307,12 @@ def test_similarity_proposes_bounded_paraphrases_without_merge():
     assert len(cluster) <= 2
     env["coordinator"]._enqueue(env["completed"], "consolidation", (anchor.id, second.id))
     job = list(env["lifecycle"].jobs.values())[-1]
-    calls = len(env["embedder"].calls)
     assert env["worker"].process(job.id) == "completed"
-    assert not env["memories"].derived_records
-    assert len(env["embedder"].calls) == calls
+    assert len(env["memories"].derived_records) == 1
+    derived = next(iter(env["memories"].derived_records.values()))
+    assert derived.derivation_policy_version == "support-v1"
+    assert len({source.excerpt for source in derived.sources}) == 2
+    assert derived.embedding == (1.0, 0.0, 0.0)
 
 
 def test_conflicts_remain_explicit_and_cannot_be_consolidated():

@@ -14,16 +14,6 @@ from personal_ai.memory.lifecycle.contracts import MemoryLifecycleState
 from personal_ai.memory.policy import candidate_reason, content_reason
 
 
-def freshness(record):
-    # Existing types express enduring preference, dated experience, and current correction.
-    return {
-        "preference": "stable",
-        "episodic_observation": "episodic",
-        "semantic_summary": "episodic",
-        "explicit_correction": "volatile",
-    }[record.memory_type]
-
-
 def dependency_version(record, state):
     # Retrieval frequency and consolidation links are advisory, not source revisions.
     binding = record.model_dump_json() + repr(

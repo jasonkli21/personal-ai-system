@@ -131,6 +131,19 @@ def test_source_derived_artifact_path_binds_snapshot_dependencies(tier):
         )
 
 
+def test_memory_bearing_artifact_writes_are_rejected_before_reservation(tier):
+    service, repo, store, _ = tier
+    dependency = ContextPermissionDependency(
+        permission_id="ai_memory_source",
+        version="a" * 64,
+        purpose="revalidate retained personal memory",
+        owner_id="owner",
+    )
+    with pytest.raises(ArtifactUnavailable, match="artifact_memory_dependencies_unsupported"):
+        write(service, permission_dependencies=(dependency,))
+    assert not repo.records and not store.objects and repo.operations == 0
+
+
 def test_scope_key_and_ready_reference_are_validated(tier):
     ref = write(tier[0])
     for changes in (

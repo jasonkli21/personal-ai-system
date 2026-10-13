@@ -2207,12 +2207,13 @@ class _PackingPermissions:
         return dependency.permission_id == "packing_fixture" and dependency.version == "v1"
 
 
-def _packing_retrieval(*, selected):
+def _packing_retrieval(*, selected, variant=None):
     dependency = ContextPermissionDependency(
         permission_id="packing_fixture", version="v1", purpose="synthetic builder fitting"
     )
     return RetrievalResult(
         selected=selected,
+        applied_variant=variant,
         permission_dependencies=tuple((item.memory.id, (dependency,)) for item in selected),
     )
 
@@ -2403,7 +2404,10 @@ def test_memory_limit_applies_after_derived_fit_and_backup_fallback():
     )
     fitting = ContextAssembler(
         fitting_settings, FakeTokenCounter(), permission_revalidator=_PackingPermissions()
-    ).assemble((), pending, refresh=False, retrieval=_packing_retrieval(selected=scores))
+    ).assemble(
+        (), pending, refresh=False,
+        retrieval=_packing_retrieval(selected=scores, variant="consolidated"),
+    )
     assert fitting.selected_memory_ids == (derived.id,)
     assert (first_backup.id, "represented_by_derived_memory") in fitting.excluded_memories
     assert (second_backup.id, "represented_by_derived_memory") in fitting.excluded_memories
@@ -2418,7 +2422,10 @@ def test_memory_limit_applies_after_derived_fit_and_backup_fallback():
     fallback_settings = fitting_settings.model_copy(update={"memory_max_context_tokens": 80})
     fallback = ContextAssembler(
         fallback_settings, FakeTokenCounter(), permission_revalidator=_PackingPermissions()
-    ).assemble((), pending, refresh=False, retrieval=_packing_retrieval(selected=fallback_scores))
+    ).assemble(
+        (), pending, refresh=False,
+        retrieval=_packing_retrieval(selected=fallback_scores, variant="consolidated"),
+    )
     assert fallback.selected_memory_ids == (first_backup.id,)
     assert (oversized.id, "budget") in fallback.excluded_memories
     assert (second_backup.id, "retrieval_limit") in fallback.excluded_memories

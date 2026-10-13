@@ -400,6 +400,7 @@ class ContextAssembler:
         entries: list[ContextBuildItem] = []
         excluded_memories = list(retrieval.excluded) if retrieval is not None else []
         diagnostics = list(result.diagnostics)
+        memory_fallback_enabled = False
         planned_memory = any(
             selection.provider_id == "ai_memory" and selection.operation == "search"
             for selection in context_selections
@@ -411,9 +412,14 @@ class ContextAssembler:
                     (item.memory.id, "disabled") for item in retrieval.selected
                 )
             elif context_plan is None and not planned_memory:
-                memory_entries, memory_exclusions = self._memory_entries(retrieval, pending)
+                memory_entries, memory_exclusions = self._memory_entries(
+                    retrieval,
+                    pending,
+                    prefer_derived=retrieval.applied_variant == "consolidated",
+                )
                 entries.extend(memory_entries)
                 excluded_memories.extend(memory_exclusions)
+                memory_fallback_enabled = retrieval.applied_variant == "consolidated"
             elif not planned_memory:
                 excluded_memories.extend(
                     (item.memory.id, "not_selected_by_plan") for item in retrieval.selected
@@ -504,24 +510,100 @@ class ContextAssembler:
             for source_class, planned_tokens in context_plan.source_token_budgets:
                 limits[source_class] = min(limits[source_class], planned_tokens)
             policy = policy.model_copy(update={"source_max_tokens": limits})
-        built = ContextBuilder(
-            self.counter,
-            permission_revalidator=self.permission_revalidator,
-            clock=clock,
-        ).build(
-            result.messages,
-            entries,
-            policy,
-            base_sensitivity=base_sensitivity,
-            source_counters=source_counters,
-            source_item_limits={"ai_memory": self.settings.memory_retrieval_limit},
-            selection_token_budgets={
-                (selection.provider_id, selection.operation): selection.max_tokens
-                for selection in context_selections
-                if selection.max_tokens is not None
-            },
-            base_token_count=TokenCount(result.budget.selected_total, result.budget.counter_kind),
-        )
+        def build(entries_to_build):
+            return ContextBuilder(
+                self.counter,
+                permission_revalidator=self.permission_revalidator,
+                clock=clock,
+            ).build(
+                result.messages,
+                entries_to_build,
+                policy,
+                base_sensitivity=base_sensitivity,
+                source_counters=source_counters,
+                source_item_limits={"ai_memory": self.settings.memory_retrieval_limit},
+                selection_token_budgets={
+                    (selection.provider_id, selection.operation): selection.max_tokens
+                    for selection in context_selections
+                    if selection.max_tokens is not None
+                },
+                base_token_count=TokenCount(
+                    result.budget.selected_total, result.budget.counter_kind
+                ),
+            )
+
+        built = build(entries)
+        if memory_fallback_enabled and retrieval is not None:
+            injected_ids = {
+                item.item_id
+                for item in built.manifest.items
+                if item.injected
+                and item.source_class == "ai_memory"
+                and item.provider_id in {"memory.retrieval", "ai_memory"}
+            }
+            omitted_views = [
+                scored.memory
+                for scored in retrieval.selected
+                if hasattr(scored.memory, "source_memory_ids")
+                and str(scored.memory.id) not in injected_ids
+            ]
+            injected_view_sources = {
+                source_id
+                for scored in retrieval.selected
+                if hasattr(scored.memory, "source_memory_ids")
+                and str(scored.memory.id) in injected_ids
+                for source_id in scored.memory.source_memory_ids
+            }
+            fallback_ids = {
+                source_id
+                for view in omitted_views
+                for source_id in view.source_memory_ids
+                if source_id not in injected_view_sources
+            }
+            if fallback_ids:
+                initial_build = built
+                fallback_entries, _ = self._memory_entries(
+                    retrieval,
+                    pending,
+                    include_only_ids=fallback_ids,
+                )
+                if fallback_entries:
+                    fallback_id_strings = {str(item.item_id) for item in fallback_entries}
+                    excluded_memories = [
+                        (memory_id, reason)
+                        for memory_id, reason in excluded_memories
+                        if not (
+                            str(memory_id) in fallback_id_strings
+                            and reason == "represented_by_derived_memory"
+                        )
+                    ]
+                    omitted_view_ids = {str(view.id) for view in omitted_views}
+                    entries = [
+                        item
+                        for item in entries
+                        if not (
+                            item.source_class == "ai_memory"
+                            and item.provider_id in {"memory.retrieval", "ai_memory"}
+                            and item.item_id in omitted_view_ids
+                        )
+                    ] + list(fallback_entries)
+                    built = build(entries)
+                    omitted_view_ids = {str(view.id) for view in omitted_views}
+                    for item in initial_build.manifest.items:
+                        if item.item_id not in omitted_view_ids or item.injected:
+                            continue
+                        try:
+                            memory_id = UUID(item.item_id)
+                        except ValueError:
+                            continue
+                        excluded_memories.append(
+                            (
+                                memory_id,
+                                "budget"
+                                if item.omission_reason in {"budget", "source_budget"}
+                                else item.omission_reason or "excluded",
+                            )
+                        )
         if application_context is not None:
             built = built.model_copy(
                 update={
@@ -613,14 +695,30 @@ class ContextAssembler:
             logger.debug("Context input build manifest=%s", manifest.model_dump(mode="json"))
         return assembled
 
-    def _memory_entries(self, retrieval, pending):
+    def _memory_entries(self, retrieval, pending, *, prefer_derived=False, include_only_ids=None):
         from personal_ai.context.builder import ContextBuildItem
         from personal_ai.memory.dependencies import injection_dependencies
         from personal_ai.memory.policy import content_reason
 
         entries, excluded = [], []
+        covered_ids = {
+            source_id
+            for scored in retrieval.selected
+            if hasattr(scored.memory, "source_memory_ids")
+            for source_id in scored.memory.source_memory_ids
+        }
         for index, scored in enumerate(retrieval.selected):
             memory = scored.memory
+            if include_only_ids is not None and memory.id not in include_only_ids:
+                continue
+            if (
+                include_only_ids is None
+                and prefer_derived
+                and not hasattr(memory, "source_memory_ids")
+                and memory.id in covered_ids
+            ):
+                excluded.append((memory.id, "represented_by_derived_memory"))
+                continue
             if (
                 memory.owner_id != pending.owner_id
                 or getattr(memory, "status", "active") != "active"

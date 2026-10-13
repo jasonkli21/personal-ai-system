@@ -284,15 +284,22 @@ def evaluate_fixture(fixture, variant):
     }
     forbidden = set(fixture.get("forbidden_labels", []))
     events = [event for items in lifecycle.events.values() for event in items]
+    stable_tie_support = False
+    if fixture.get("stable_tie") and len(retrieval.selected) == 1:
+        selected_memory = retrieval.selected[0].memory
+        selected_support = (
+            selected_memory.source_memory_ids
+            if hasattr(selected_memory, "source_memory_ids")
+            else retrieval.selected[0].support_memory_ids or (selected_memory.id,)
+        )
+        stable_tie_support = tuple(sorted(selected_support, key=str)) == tuple(
+            sorted((record.id for record in records.values()), key=str)
+        )
     passed = (
         not forbidden.intersection(injected)
         and all(statuses[key] == value for key, value in fixture.get("statuses", {}).items())
         and (expected is None or selected == expected)
-        and (
-            not fixture.get("stable_tie")
-            or [item.memory.id for item in retrieval.selected]
-            == sorted((record.id for record in records.values()), key=str)
-        )
+        and (not fixture.get("stable_tie") or stable_tie_support)
         and ("derived" not in injected or variant == "consolidated")
         and (not fixture.get("lifecycle_failure") or not injected)
         and (not fixture.get("query_failure") or not injected)

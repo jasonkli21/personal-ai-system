@@ -113,6 +113,14 @@ class ArtifactService:
         required=False,
         **links,
     ):
+        if any(
+            dependency.permission_id in ("ai_memory_source", "ai_memory_view")
+            for dependency in permission_dependencies
+        ):
+            # Artifact reuse has no explicit owner/actor revalidation context yet.
+            # Reject before reserving metadata or writing a body, rather than
+            # creating an object that this service can never safely reuse.
+            raise ArtifactUnavailable("artifact_memory_dependencies_unsupported")
         try:
             return self._write(
                 value,

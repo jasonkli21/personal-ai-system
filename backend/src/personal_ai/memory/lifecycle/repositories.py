@@ -66,12 +66,28 @@ def _compatible_derivation(derived, sources):
         state.importance if state.importance is not None else IMPORTANCE_BY_TYPE[record.memory_type]
         for record, state in sources
     )
+    exact_support = len({record.normalized_content for record in records}) == 1
+    semantic_support = False
+    if (
+        derived.derivation_policy_version == "support-v1"
+        and source_type == "preference"
+        and derived.rationale_code == "repeated_explicit_preference"
+    ):
+        from personal_ai.memory.semantic import preference_support_fingerprint
+
+        fingerprints = tuple(preference_support_fingerprint(record.content) for record in records)
+        semantic_support = (
+            fingerprints[0] is not None
+            and len(set(fingerprints)) == 1
+            and derived.support_fingerprint == fingerprints[0]
+            and derived.content == records[0].content
+        )
     return (
         all(record.memory_type == source_type for record in records)
         and all(not state.unresolved_conflict for _, state in sources)
         and len({embedding_space_for(record) for record in records}) == 1
         and embedding_space_for(derived) == embedding_space_for(records[0])
-        and len({record.normalized_content for record in records}) == 1
+        and (exact_support or semantic_support)
         and derived.memory_type == target_type
         and derived.importance <= importance
         and derived.confidence <= min(record.confidence for record in records)
@@ -484,6 +500,30 @@ class InMemoryMemoryLifecycleRepository:
             )
             self.jobs[job_id] = updated
             return updated
+
+    def discover_consolidation_seeds(
+        self, *, owner_id: str, limit: int = 4, after_id: UUID | None = None, eligible=None
+    ):
+        if not 1 <= limit <= 4:
+            raise ValueError("candidate_limit_invalid")
+        with self._lock:
+            records = [
+                record
+                for record in self.memories.records.values()
+                if record.owner_id == owner_id
+                and scope_matches(record)
+                and record.status == "active"
+                and record.memory_type in ("preference", "episodic_observation")
+                and self.get_state(owner_id=owner_id, memory_id=record.id).retrieval_status
+                == "active"
+                and self._valid_source(record)
+                and (eligible is None or eligible(record))
+            ]
+            records.sort(key=lambda record: str(record.id))
+            if after_id is not None:
+                cursor = str(after_id)
+                records.sort(key=lambda record: (str(record.id) <= cursor, str(record.id)))
+            return tuple(record.id for record in records[:limit])
 
     def discover_related(self, *, owner_id: str, memory_id: UUID, limit: int = 4, eligible=None):
         if not 1 <= limit <= 4:

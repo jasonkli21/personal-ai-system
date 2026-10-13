@@ -73,7 +73,7 @@ def test_score_policy_is_versioned_bounded_and_monotonic():
     result = score_memory(base, state, policy, now=now)
     assert result.policy_version == "score-v1"
     assert result.score is not None and 0 <= result.score <= 1
-    assert result.recency == pytest.approx(0.5)
+    assert result.recency == pytest.approx(1.0)
     higher_similarity = score_memory(ScoredMemory(memory, 0.9), state, policy, now=now)
     assert higher_similarity.score > result.score
     assert ScorePolicy(similarity_weight=0.4, importance_weight=0.2).identity != policy.identity
@@ -105,6 +105,27 @@ def test_event_replay_transition_table_and_source_preservation():
     with pytest.raises(ValueError, match="transition_invalid"):
         transition(superseded, event(memory, kind="reactivated", key="reactivate-1", version=3))
     assert memories.get(owner_id=memory.owner_id, memory_id=memory.id) == original
+
+
+def test_consolidation_projection_accepts_more_than_eight_legal_views():
+    from personal_ai.memory.lifecycle import MemoryLifecycleState
+
+    _, _, _, records = seeded()
+    memory = records[0]
+    state = MemoryLifecycleState(memory_id=memory.id, owner_id=memory.owner_id)
+    for version in range(12):
+        state = transition(
+            state,
+            event(
+                memory,
+                kind="consolidated",
+                key=f"consolidation-{version}",
+                version=version,
+                related=(UUID(int=100 + version),),
+            ),
+        )
+    assert state.state_version == 12
+    assert "consolidated_into_memory_ids" not in state.model_dump()
 
 
 def test_missing_state_means_initial_active_but_unavailable_source_means_conflict():

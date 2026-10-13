@@ -150,12 +150,22 @@ class DerivedMemory(ApplicationScopedRecord):
     sources: tuple[DerivedMemorySource, ...] = Field(min_length=2, max_length=4)
     source_set_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
     derivation_policy_version: str = Field(min_length=1, max_length=100)
+    support_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     rationale_code: Literal["repeated_explicit_preference", "compatible_episode_history"]
     sensitivity: Literal["personal"] = "personal"
     authority: Literal["derived"] = "derived"
     unresolved_conflict: Literal[False] = False
-    refresh_state: Literal["active"] = "active"
     schema_version: Literal[2] = 2
+
+    @model_validator(mode="before")
+    @classmethod
+    def drop_legacy_refresh_projection(cls, value):
+        # Older persisted payloads carried a creation-time "active" label that
+        # was never the authority for current dependency validity.
+        if isinstance(value, dict) and "refresh_state" in value:
+            value = dict(value)
+            value.pop("refresh_state", None)
+        return value
 
     @field_validator("embedding", mode="before")
     @classmethod
@@ -179,7 +189,9 @@ class DerivedMemory(ApplicationScopedRecord):
             raise ValueError("source_invalid")
         if len(set(self.source_memory_ids)) != len(self.source_memory_ids):
             raise ValueError("source_invalid")
-        if any(normalize(source.excerpt) not in normalize(self.content) for source in self.sources):
+        if self.derivation_policy_version != "support-v1" and any(
+            normalize(source.excerpt) not in normalize(self.content) for source in self.sources
+        ):
             raise ValueError("source_coverage_invalid")
         if self.source_memory_ids != tuple(sorted(self.source_memory_ids, key=str)):
             raise ValueError("source_order_invalid")
@@ -194,7 +206,7 @@ class DerivedMemory(ApplicationScopedRecord):
                 + [
                     (
                         f"{item.memory_id}:{item.source_fingerprint}:{item.dependency_version}"
-                        if self.derivation_policy_version == "extractive-v2"
+                        if self.derivation_policy_version in ("extractive-v2", "support-v1")
                         else f"{item.memory_id}:{item.source_fingerprint}"
                     )
                     for item in self.sources
@@ -213,9 +225,32 @@ class DerivedMemory(ApplicationScopedRecord):
             ):
                 raise ValueError("source_coverage_invalid")
             expected_content = self.sources[0].excerpt
+        elif self.derivation_policy_version == "support-v1":
+            if any(item.dependency_version is None for item in self.sources):
+                raise ValueError("source_coverage_invalid")
+            expected_content = self.sources[0].excerpt
+            if self.rationale_code == "repeated_explicit_preference":
+                from personal_ai.memory.semantic import preference_support_fingerprint
+
+                fingerprints = tuple(
+                    preference_support_fingerprint(item.excerpt) for item in self.sources
+                )
+                if (
+                    fingerprints[0] is None
+                    or len(set(fingerprints)) != 1
+                    or self.support_fingerprint != fingerprints[0]
+                ):
+                    raise ValueError("support_equivalence_invalid")
+            elif (
+                self.rationale_code != "compatible_episode_history"
+                or len({normalize(item.excerpt) for item in self.sources}) != 1
+                or self.support_fingerprint is not None
+            ):
+                raise ValueError("support_equivalence_invalid")
         if self.content != expected_content or self.derivation_policy_version not in (
             "extractive-v1",
             "extractive-v2",
+            "support-v1",
         ):
             raise ValueError("unsupported_derivation")
         vector(self.embedding, self.embedding_dimensions)
@@ -269,6 +304,7 @@ class ScoredMemory:
     memory: Memory | DerivedMemory
     similarity: float
     origins: tuple[str, ...] = ("exact_vector",)
+    support_memory_ids: tuple[UUID, ...] = ()
 
 
 class MemoryQuery(BaseModel):
@@ -276,9 +312,6 @@ class MemoryQuery(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     scope: RequestScope
-    task_id: str = Field(default="chat", min_length=1, max_length=100)
-    requirements: tuple[str, ...] = Field(default=(), max_length=16)
-    entity_refs: tuple[str, ...] = Field(default=(), max_length=16)
     source_classes: tuple[MemoryType, ...] = (
         "preference",
         "episodic_observation",
@@ -287,8 +320,6 @@ class MemoryQuery(BaseModel):
     )
     lifecycle_classes: tuple[Literal["active"], ...] = ("active",)
     sensitivity_ceiling: Literal["public", "personal"] = "personal"
-    temporal_mode: Literal["current", "history"] = "current"
-    observed_after: datetime | None = None
     max_items: int = Field(ge=1, le=100)
     max_tokens: int = Field(ge=1)
     candidate_limit: int = Field(ge=1, le=100)

@@ -75,26 +75,34 @@ and [review remediation evidence](personal-ai-chapter-2/phase-32-review-remediat
 
 Phase 34 extends the existing memory read and lifecycle paths locally. Scoped,
 source/lifecycle/permission and complete embedding-space eligibility now precede
-exact pgvector scoring and top-K. Original arrays remain lossless. The opt-in
-`compact` variant removes exact redundant context and uses the shared builder's
-bounded task budget. `extractive-v2` derived views retain every original source
-and lifecycle epoch while packing one repeated assertion. Contradiction review
-marks both sides, and equal-time corrections cannot silently supersede.
+exact pgvector scoring and top-K. Original arrays remain lossless. All variants
+collapse exact repeated originals to one retrieval assertion while retaining every
+source record; the opt-in `compact` variant also removes facts already present in
+the conversation. A bounded rotating sweep schedules existing-corpus consolidation
+and refresh after completed turns when the gate is enabled. `support-v1` views retain
+all original source excerpts and lifecycle epochs; semantic consolidation is limited
+to a positive preference grammar with identical value and context clauses.
+Contradiction review marks both sides, and equal-time corrections cannot silently
+supersede.
 
 Canonical memory/view dependencies are rechecked at injection and through later
-assistant history, summaries and dependency-aware artifacts. Historical flag-only
-memory proofs fail closed. Migration 027 reconstructs old lifecycle epochs;
-application against native stores is deferred. Fixed original retrieval remains
-the default and rollback; memory/lifecycle gates remain off by default.
+assistant history and summaries. Artifact writes carrying memory dependencies are
+rejected until artifact reuse has explicit scope-aware memory revalidation. Historical
+flag-only memory proofs fail closed. Migration 027 reconstructs old lifecycle epochs;
+application against native stores is deferred. Exact search remains the default;
+memory/lifecycle gates remain off by default. Stable preferences do not decay with
+age, episodic age affects relevance scoring, and corrections use a shorter relevance
+half-life. Task-conditioned ranking remains deferred.
 
 The original 14 memory and 60 lifecycle baseline observations are frozen at
-`0e766e6`. The current 60-row paired synthetic run totals 1,050 fixed, 1,004 compact
-and 1,022 consolidated packed tokens, with 25 logical embedding calls per strategy.
+`0e766e6`. The current 60-row paired synthetic run totals 1,004 fixed, 1,004 compact
+and 1,012 consolidated packed tokens, with 25 logical embedding calls per strategy.
 Neither variant reaches the declared 5% aggregate saving threshold. Downstream
 quality, native query/storage/free-tier and live identity/provider evidence are
-missing, so no coverage or ANN index is promoted. The context planner has a v5
+missing, so no ranking coverage or ANN index is promoted. The context planner has a v6
 runtime freeze for the changed canonical memory fixture/source path; its corpus
-and promotion restrictions remain unchanged. See the [Phase 34 report](personal-ai-chapter-2/phase-34-implementation-report.md).
+and promotion restrictions remain unchanged. See the [Phase 34 report](personal-ai-chapter-2/phase-34-implementation-report.md)
+and [independent-review remediation evidence](personal-ai-chapter-2/phase-34-independent-review-remediation-evidence-2026-10-12.md).
 
 ## Persistence
 

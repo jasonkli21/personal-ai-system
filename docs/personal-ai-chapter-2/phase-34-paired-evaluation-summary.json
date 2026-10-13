@@ -1,7 +1,7 @@
 {
   "evaluation_version": "memory-paired-v1",
   "evidence_kind": "synthetic_offline",
-  "source_digest": "cb4ee8b2bc368acc75b081ede88a6e2a5cf5b27e1a01956f8398cae48702adf3",
+  "source_digest": "c0a6f42aa11a33ce33990daca257bb1703b437ab2e87845b89d2898272fe2e15",
   "criteria": {
     "source_dependency_coverage": 1.0,
     "invalidated_leakage": 0,
@@ -18,18 +18,18 @@
   "ann_decision": "retain_exact_no_measured_bottleneck",
   "postgres_metrics": null,
   "tested_at": "2026-10-12",
-  "tested_base_revision": "0e766e623ff1b74a206747d2e4c8b898d20f99b3",
+  "tested_base_revision": "95de11c84065bb6ea2695f2e9f9309268f5841ea",
   "variants": {
     "fixed": {
       "cases": 20,
-      "packed_tokens": 1050,
+      "packed_tokens": 1004,
       "logical_embedding_calls": 25,
       "maintenance_jobs": 14,
       "false_memory": 0,
       "scope_leakage": 0,
       "minimum_source_dependency_coverage": 1.0,
       "model_maintenance_calls": 0,
-      "source_digest": "cb4ee8b2bc368acc75b081ede88a6e2a5cf5b27e1a01956f8398cae48702adf3"
+      "source_digest": "c0a6f42aa11a33ce33990daca257bb1703b437ab2e87845b89d2898272fe2e15"
     },
     "compact": {
       "cases": 20,
@@ -40,18 +40,18 @@
       "scope_leakage": 0,
       "minimum_source_dependency_coverage": 1.0,
       "model_maintenance_calls": 0,
-      "source_digest": "cb4ee8b2bc368acc75b081ede88a6e2a5cf5b27e1a01956f8398cae48702adf3"
+      "source_digest": "c0a6f42aa11a33ce33990daca257bb1703b437ab2e87845b89d2898272fe2e15"
     },
     "consolidated": {
       "cases": 20,
-      "packed_tokens": 1022,
+      "packed_tokens": 1012,
       "logical_embedding_calls": 25,
       "maintenance_jobs": 14,
       "false_memory": 0,
       "scope_leakage": 0,
       "minimum_source_dependency_coverage": 1.0,
       "model_maintenance_calls": 0,
-      "source_digest": "cb4ee8b2bc368acc75b081ede88a6e2a5cf5b27e1a01956f8398cae48702adf3"
+      "source_digest": "c0a6f42aa11a33ce33990daca257bb1703b437ab2e87845b89d2898272fe2e15"
     }
   }
 }

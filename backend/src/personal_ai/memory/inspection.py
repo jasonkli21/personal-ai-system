@@ -2,8 +2,13 @@
 
 from datetime import UTC, datetime
 
-from personal_ai.memory.contracts import DerivedMemory, RetrievalResult, ScoredMemory
-from personal_ai.memory.dependencies import dependency_version, original_reason, record_dependencies
+from personal_ai.memory.contracts import DerivedMemory, Memory, RetrievalResult, ScoredMemory
+from personal_ai.memory.dependencies import (
+    dependency_version,
+    original_reason,
+    record_dependencies,
+)
+from personal_ai.memory.freshness import freshness_recency
 from personal_ai.memory.lifecycle import (
     IMPORTANCE_BY_TYPE,
     MemoryLifecycleState,
@@ -21,8 +26,9 @@ def _score_metadata(record, state, policy, now):
         importance = IMPORTANCE_BY_TYPE[record.memory_type]
     if isinstance(record, DerivedMemory):
         importance = min(importance, record.importance)
-    age = max(0, (now - record.effective_at).total_seconds()) / 86400
-    recency = 2 ** (-age / policy.half_life_days)
+    recency = freshness_recency(
+        record, now=now, default_half_life_days=policy.half_life_days
+    )
     frequency = min(state.retrieval_count / 10, 1)
     score = MemoryScore(
         memory_id=record.id,
@@ -175,6 +181,13 @@ def inspect_records(
             else ()
         )
         event_ids.extend(event.id for event in events)
+        derived_view_ids = (
+            lifecycle_repository.dependencies(
+                owner_id=owner_id, memory_id=memory_id, limit=100
+            )
+            if lifecycle_repository is not None and isinstance(memory, Memory)
+            else ()
+        )
         metadata.append(
             (
                 memory.id,
@@ -193,9 +206,8 @@ def inspect_records(
                             if state.superseded_by_memory_id
                             else None
                         ),
-                        "consolidated_into_memory_ids": [
-                            str(item) for item in state.consolidated_into_memory_ids
-                        ],
+                        "derived_view_ids": [str(item) for item in derived_view_ids[:100]],
+                        "derived_view_ids_truncated": len(derived_view_ids) > 100,
                         "retrieval_count": state.retrieval_count,
                         "last_retrieved_at": (
                             state.last_retrieved_at.isoformat() if state.last_retrieved_at else None

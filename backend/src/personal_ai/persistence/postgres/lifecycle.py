@@ -476,6 +476,55 @@ class PostgresMemoryLifecycleRepository:
             ).fetchall()
         return tuple(UUID(row[0]) for row in rows)
 
+    def discover_consolidation_seeds(self, *, owner_id, limit=4, after_id=None, eligible=None):
+        """Return a bounded rotating slice for existing-corpus maintenance."""
+        if not 1 <= limit <= 4:
+            raise ValueError("candidate_limit_invalid")
+        scope = current_application_scope()
+        scope_id = PostgresPayloadRepository.scope_id(owner_id, scope)
+        params = [
+            scope_id,
+            owner_id,
+            scope.application_id,
+            scope.workspace_id,
+            ["preference", "episodic_observation"],
+        ]
+        cursor_clause = ""
+        if after_id is not None:
+            cursor_clause = " AND record_id>%s"
+            params.append(str(after_id))
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                "SELECT record_id FROM memories WHERE scope_id=%s AND owner_id=%s "
+                "AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s "
+                "AND status='active' AND memory_type=ANY(%s)" + cursor_clause
+                + " ORDER BY record_id LIMIT %s",
+                [*params, limit * 4],
+            ).fetchall()
+            if after_id is not None and len(rows) < limit * 4:
+                wrapped = connection.execute(
+                    "SELECT record_id FROM memories WHERE scope_id=%s AND owner_id=%s "
+                    "AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s "
+                    "AND status='active' AND memory_type=ANY(%s) AND record_id<=%s "
+                    "ORDER BY record_id LIMIT %s",
+                    [scope_id, owner_id, scope.application_id, scope.workspace_id,
+                     ["preference", "episodic_observation"], str(after_id), limit * 4 - len(rows)],
+                ).fetchall()
+                rows.extend(wrapped)
+        seeds = []
+        for (record_id,) in rows:
+            memory = self.memories.get(owner_id=owner_id, memory_id=UUID(record_id))
+            state = self.get_state(owner_id=owner_id, memory_id=memory.id)
+            if (
+                state.retrieval_status == "active"
+                and self._source_is_valid(owner_id, memory)
+                and (eligible is None or eligible(memory))
+            ):
+                seeds.append(memory.id)
+            if len(seeds) >= limit:
+                break
+        return tuple(seeds)
+
     def discover_related(self, *, owner_id, memory_id, limit=4, eligible=None):
         if not 1 <= limit <= 4:
             raise ValueError("candidate_limit_invalid")

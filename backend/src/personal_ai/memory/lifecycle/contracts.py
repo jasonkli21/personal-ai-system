@@ -52,12 +52,21 @@ class MemoryLifecycleState(ApplicationScopedRecord):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def drop_legacy_reverse_view_cache(cls, value):
+        # Complete reverse membership is owned by derived_memory_sources. Older
+        # payloads duplicated that unbounded relation in a capped projection.
+        if isinstance(value, dict) and "consolidated_into_memory_ids" in value:
+            value = dict(value)
+            value.pop("consolidated_into_memory_ids", None)
+        return value
+
     memory_id: UUID
     owner_id: str = Field(min_length=1, max_length=200)
     retrieval_status: RetrievalStatus = "active"
     effective_status_at: datetime | None = None
     superseded_by_memory_id: UUID | None = None
-    consolidated_into_memory_ids: tuple[UUID, ...] = Field(default_factory=tuple, max_length=8)
     last_retrieved_at: datetime | None = None
     retrieval_count: int = Field(default=0, ge=0)
     state_version: int = Field(default=0, ge=0)
