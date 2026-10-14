@@ -50,7 +50,11 @@ pytestmark = pytest.mark.persistence_integration
 class _PostgresSyntheticExecutor:
     evidence_source = "synthetic"
 
+    def __init__(self):
+        self.prepared = []
+
     def prepare(self, endpoint, _operation):
+        self.prepared.append(endpoint.ref)
         return _PostgresSyntheticGenerator(endpoint)
 
 
@@ -303,6 +307,7 @@ def test_unresolved_unknown_attempt_blocks_same_case_under_new_run_id(database):
     usage = PostgresProviderUsageAccounting(
         database,
         endpoint_profile_resolver=EndpointProfileResolver(registry, catalog),
+        default_cooldown_seconds=300,
     )
     evaluation_repository = PostgresProviderMatrixRepository(database)
     routing = RoutingDecisionService(
@@ -325,8 +330,10 @@ def test_unresolved_unknown_attempt_blocks_same_case_under_new_run_id(database):
         task=task,
         policy_version=fixtures[0].policy_version,
     )
-    assert first_summary.status == "failed"
-    assert all(case.status == "failed" for case in first_cases)
+    assert first_summary.status == "partial"
+    failed_cases = [case for case in first_cases if case.status == "failed"]
+    assert len(failed_cases) == 1
+    assert all(case.status in {"failed", "not_run"} for case in first_cases)
 
     retry_executor = _PostgresSyntheticExecutor()
     retry_runner = ProviderMatrixRunner(
@@ -341,15 +348,51 @@ def test_unresolved_unknown_attempt_blocks_same_case_under_new_run_id(database):
         policy_version=fixtures[0].policy_version,
     )
     assert retry_summary.status == "partial"
-    assert all(case.status == "not_run" for case in retry_cases)
-    assert not retry_executor.prepared
+    blocked = next(case for case in retry_cases if case.fixture_id == failed_cases[0].fixture_id)
+    # The existing report contract calls internal finalization denial a failed
+    # case, even though no physical send was authorized. P19 remains the effect
+    # authority; client preparation alone is not evidence of a provider send.
+    assert blocked.status == "failed"
+    assert blocked.reason == "routing_evaluation_quality_gate_denied"
+    assert blocked.attempt_id is None and blocked.invocation_id is None
+    assert all(case.status == "not_run" for case in retry_cases if case is not blocked)
     with database.connection() as connection:
         attempts = connection.execute(
             "SELECT count(*),count(*) FILTER(WHERE status='unknown') FROM provider_attempts a "
             "JOIN provider_invocations i USING(invocation_id) WHERE i.run_id IN (%s,%s)",
             (str(first_run_id), str(retry_run_id)),
         ).fetchone()
-    assert attempts == (len(fixtures), len(fixtures))
+    assert attempts == (1, 1)
+
+    # Prove the case-level fence independently of the endpoint cooldown. Keep
+    # the full approved suite and its bindings; do not weaken suite approval.
+    old_start, _, _ = evaluation_repository.get_run_state(retry_run_id)
+    probe_id = uuid4()
+    probe_gates = tuple(gate.model_copy(update={
+        "evaluation_run_id": probe_id, "request_id": f"matrix-case:{probe_id.hex}:{index}",
+    }) for index, gate in enumerate(old_start.gate_bindings))
+    probe = old_start.model_copy(update={
+        "evaluation_run_id": probe_id, "gate_bindings": probe_gates,
+        "created_at": datetime.now(UTC),
+    })
+    evaluation_repository.begin_run(probe)
+    for gate in probe_gates:
+        request = RoutingRequestFacts(
+            request_id=gate.request_id, run_id=str(probe_id),
+            requirements=EndpointCandidateRequirements(
+                execution_mode="STRICT_FREE", sensitivity="public",
+                required_capabilities=task.required_capabilities, input_tokens=64,
+                output_tokens=256, automatic=True,
+            ), policy_version=gate.policy_version, prepared_context_tokens=64,
+            count_source="synthetic-test:v1", count_confidence="estimated",
+        )
+        with evaluation_repository.transaction(owner_id=old_start.owner_id) as connection:
+            allowed = evaluation_repository.authorize(
+                connection=connection, owner_id=old_start.owner_id,
+                scope=ApplicationScope(application_id=old_start.application_id),
+                gate=gate, task=task, request=request, now=datetime.now(UTC),
+            )
+        assert allowed is (gate.fixture_id != failed_cases[0].fixture_id)
 
 
 def test_concurrent_same_case_gate_authorization_has_one_oldest_run_winner(database):
@@ -379,11 +422,6 @@ def test_concurrent_same_case_gate_authorization_has_one_oldest_run_winner(datab
             endpoint=endpoint.ref,
             endpoint_configuration_sha256=endpoint_configuration_sha256(endpoint),
             task_configuration_sha256=task_configuration_sha256(task),
-            evaluation_suite_id=fixture.evaluation_suite_id,
-            evaluation_suite_version=fixture.evaluation_suite_version,
-            scoring_policy_id=fixture.scoring_policy_id,
-            scoring_policy_version=fixture.scoring_policy_version,
-            output_tokens=256,
             task_profile_id=task.profile_id,
             task_profile_version=task.profile_version,
             quality_profile_id=task.quality.quality_profile_id,
@@ -405,6 +443,11 @@ def test_concurrent_same_case_gate_authorization_has_one_oldest_run_winner(datab
                 task_profile_id=task.profile_id,
                 task_profile_version=task.profile_version,
                 task_configuration_sha256=task_configuration_sha256(task),
+                evaluation_suite_id=fixture.evaluation_suite_id,
+                evaluation_suite_version=fixture.evaluation_suite_version,
+                scoring_policy_id=fixture.scoring_policy_id,
+                scoring_policy_version=fixture.scoring_policy_version,
+                output_tokens=256,
                 source="synthetic",
                 expected_cases=1,
                 created_at=created_at,

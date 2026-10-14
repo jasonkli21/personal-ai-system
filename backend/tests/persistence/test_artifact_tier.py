@@ -1,6 +1,5 @@
 """Opt-in real Postgres artifact metadata/CAS/fence checks; bodies stay fake."""
 
-import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from threading import Barrier, Event
@@ -19,10 +18,8 @@ pytestmark = pytest.mark.persistence_integration
 
 
 @pytest.fixture
-def database():
-    dsn = os.environ.get("PERSISTENCE_TEST_POSTGRES_DSN")
-    if not dsn:
-        pytest.skip("set PERSISTENCE_TEST_POSTGRES_DSN for isolated local Postgres")
+def database(isolated_postgres_dsn):
+    dsn = isolated_postgres_dsn
     database = PostgresDatabase(dsn, environment="test", min_size=1, max_size=4)
     database.migrate()
     try:

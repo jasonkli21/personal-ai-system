@@ -59,6 +59,12 @@ async def lifespan(application: FastAPI):
     application.state.application_registry = reconcile_federation_runtime_metadata(
         application.state.application_registry, application.state.context_runtime_registry
     )
+    from personal_ai.mutations.deployment import install_task_metadata
+
+    application.state.application_registry = install_task_metadata(
+        application.state.application_registry, settings_provider(),
+        application.state.context_runtime_registry,
+    )
     # Old confirmation/effect bindings remain inspectable until their owning
     # proposal metadata is purged. Refuse a deployment that drops their resolver.
     from personal_ai.mutations.compatibility import require_reconciliation_compatibility

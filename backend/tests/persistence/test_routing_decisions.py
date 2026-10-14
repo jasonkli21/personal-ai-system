@@ -1,6 +1,5 @@
 """Real-engine routing authority/migration/atomicity/race tests; opt-in DSN."""
 
-import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier, Event, get_ident
@@ -46,10 +45,8 @@ SCOPE = ApplicationScope()
 
 
 @pytest.fixture
-def database():
-    dsn = os.environ.get("PERSISTENCE_TEST_POSTGRES_DSN")
-    if not dsn:
-        pytest.skip("set isolated PERSISTENCE_TEST_POSTGRES_DSN")
+def database(isolated_postgres_dsn):
+    dsn = isolated_postgres_dsn
     db = PostgresDatabase(dsn, environment="test", min_size=1, max_size=8)
     db.migrate()
     try:
@@ -299,7 +296,7 @@ def test_shared_bucket_candidate_costs_score_and_reserve_independently(database)
 
     preparation = PreparationIdentity(
         endpoint=decision.selected,
-        serializer_id=registry.historical(decision.selected).serializer_id,
+        serializer_id=registry.historical(decision.selected).payload["serializer_id"],
         input_tokens=32,
         count_source="test-estimate",
         count_confidence="estimated",
@@ -373,7 +370,7 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
     assert seed.selected.endpoint_profile_id == second_id
     prep = PreparationIdentity(
         endpoint=seed.selected,
-        serializer_id=registry.historical(seed.selected).serializer_id,
+        serializer_id=registry.historical(seed.selected).payload["serializer_id"],
         input_tokens=32,
         count_source="test-estimate",
         count_confidence="estimated",
@@ -461,10 +458,13 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
         policy_version="policy:v1",
         requirements=_requirements(input_tokens=64, output_tokens=16),
     )
+    # Use another owner so owner-fence locking does not serialize the two
+    # transactions before they contend on the shared quota windows.
+    final_route_owner = f"overlapping-route-other-owner-{suffix}"
     usage.routing_snapshots = original_snapshots
     final_preparation = PreparationIdentity(
         endpoint=next_decision.selected,
-        serializer_id=registry.historical(next_decision.selected).serializer_id,
+        serializer_id=registry.historical(next_decision.selected).payload["serializer_id"],
         input_tokens=32,
         count_source="test-estimate",
         count_confidence="estimated",
@@ -501,7 +501,7 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
     def make_final_route():
         route_thread_id.append(get_ident())
         return service.route(
-            owner_id=owner,
+            owner_id=final_route_owner,
             scope=SCOPE,
             task=routing_task,
             request=final_request,
@@ -522,11 +522,12 @@ def test_batch_route_snapshot_orders_overlapping_buckets_before_settlement_and_f
         try:
             assert route_buckets_locked.wait(timeout=10)
             reserve_future = pool.submit(finalize_next_decision)
-            assert finalizer_bucket_attempt.wait(timeout=10)
+            finalizer_reached_bucket = finalizer_bucket_attempt.wait(timeout=10)
         finally:
             release_route.set()
         final_decision = route_future.result(timeout=15)
         final_permit = reserve_future.result(timeout=15)
+    assert finalizer_reached_bucket
     assert final_decision.selected is not None
     with database.connection() as connection:
         rows = connection.execute(
@@ -701,7 +702,10 @@ def test_auxiliary_root_budget_concurrent_single_winner_and_idempotency(database
 
 def test_maximum_attempt_and_auxiliary_budgets_fit_postgres_event_sequence(database):
     system = setup(database, max_physical_attempts=32, max_auxiliary_calls=16)
-    owner, service, decision, _prep, repo, _usage, _auth = system
+    owner, service, decision, _prep, repo, usage, _auth = system
+    # Exercise the maximum persisted event sequence without wall-clock sleeps.
+    # Health/cooldown admission is covered separately.
+    usage.default_cooldown_seconds = 0
     for _ in range(16):
         service.consume_auxiliary_call(
             owner_id=owner,
@@ -962,12 +966,17 @@ def test_staged_migration_preserves_legacy_audit_and_transfers_quota(database):
             "SELECT profile_version,payload FROM endpoint_profile_definitions ORDER BY profile_version"
         ).fetchall()
         assert [row[0] for row in definitions] == [1, 2]
-        assert definitions[0][1]["quota_buckets"][0]["remaining"] == 0
+        # Migration 022 separates dynamic quota observations from both immutable
+        # definition versions; the untouched legacy audit retains the original.
+        assert "remaining" not in definitions[0][1]["quota_buckets"][0]
+        assert facts["candidates"][0]["profile"]["quota_buckets"][0]["remaining"] == 0
         assert "remaining" not in definitions[1][1]["quota_buckets"][0]
-        assert (
-            c.execute("SELECT reported_remaining FROM provider_quota_bucket_windows").fetchone()[0]
-            == 0
-        )
+        quota_state = c.execute(
+            "SELECT limit_units,reported_remaining FROM provider_quota_bucket_windows"
+        ).fetchone()
+        # The legacy zero remaining observation becomes a conservative zero
+        # capacity; post-migration runtime facts do not claim it was freshly reported.
+        assert quota_state == (0, None)
         upgraded = c.execute("SELECT payload FROM endpoint_registry_snapshots").fetchone()[0]
         assert upgraded["schema_version"] == "endpoint-registry-v2"
         assert upgraded["profiles"][0]["profile_version"] == 2

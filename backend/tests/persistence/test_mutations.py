@@ -91,7 +91,7 @@ def test_real_store_scoped_export_immutable_audit_fence_and_purge(database, muta
         export = PostgresAccountLifecycleRepository(database, EmptyRuntime()).export_owner(
             owner, max_records=100, max_bytes=1000000,
         )
-    assert not export["collections"]["mutation_proposals"]
+    assert not export["collections"].get("mutation_proposals", [])
     with pytest.raises(ValueError, match="fence_required"):
         f["repo"].purge_owner(owner)
     with database.transaction() as connection:

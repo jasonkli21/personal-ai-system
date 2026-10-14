@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 from time import monotonic
 from typing import Literal
@@ -96,9 +96,7 @@ class FinanceContextReadRequest(BaseModel):
     application_id: Literal["finance"] = "finance"
     workspace_id: None = None
     operation: Literal["current", "verify"]
-    purpose: Literal["personal_ai_context", "shopping_discretionary_budget"] = (
-        "personal_ai_context"
-    )
+    purpose: Literal["personal_ai_context", "shopping_discretionary_budget"] = "personal_ai_context"
     destination_application_id: Literal["shopping"] | None = None
     entity_refs: tuple[FinanceContextEntityReference, ...] = Field(min_length=1, max_length=16)
     fields: tuple[str, ...] = Field(min_length=1, max_length=16)
@@ -146,10 +144,7 @@ class FinanceContextReadRequest(BaseModel):
                 or self.include_broader_context
             ):
                 raise ValueError("finance_context_budget_export_scope_invalid")
-        elif (
-            self.purpose != "personal_ai_context"
-            or self.destination_application_id is not None
-        ):
+        elif self.purpose != "personal_ai_context" or self.destination_application_id is not None:
             raise ValueError("finance_context_destination_scope_invalid")
         if self.include_broader_context != bool(portfolio_refs):
             raise ValueError("finance_context_broader_scope_requires_explicit_selection")
@@ -227,7 +222,7 @@ class FinanceContextRecord(BaseModel):
     source_class: Literal["domain_current", "external_research"]
     authority: Literal["authoritative", "user_asserted", "derived", "external"]
     observed_at: datetime | None = None
-    effective_at: datetime | None = None
+    effective_at: datetime | date | None = None
     sensitivity: Literal["personal", "sensitive", "restricted"]
     payload: dict[str, dict[str, FinanceContextSemanticValue]] = Field(
         default_factory=dict, max_length=16
@@ -261,6 +256,7 @@ class FinanceContextHTTPClient:
         timeout_seconds: float = 3.0,
         service_token_fetcher: Callable[..., str] | None = None,
         transport: httpx.BaseTransport | None = None,
+        delegated_client=None,
     ) -> None:
         parsed = urlsplit(base_url)
         if (
@@ -279,6 +275,7 @@ class FinanceContextHTTPClient:
         self.timeout_seconds = min(max(timeout_seconds, 0.1), 10.0)
         self.service_token_fetcher = service_token_fetcher
         self.transport = transport
+        self.delegated_client = delegated_client
 
     def read(
         self, request: FinanceContextReadRequest, *, deadline: float
@@ -287,6 +284,25 @@ class FinanceContextHTTPClient:
         if remaining <= 0:
             raise TimeoutError
         user_token = current_verified_user_identity_token()
+        if (
+            not user_token
+            and self.delegated_client is not None
+            and request.purpose == "shopping_discretionary_budget"
+            and request.destination_application_id == "shopping"
+        ):
+            try:
+                raw = self.delegated_client.post(
+                    FINANCE_CONTEXT_PATH,
+                    request.model_dump(mode="json"),
+                    maximum_bytes=request.max_bytes,
+                    deadline=deadline,
+                )
+                result = FinanceContextReadResponse.model_validate_json(raw)
+                if result.application_id != "finance" or result.workspace_id is not None:
+                    raise ContextProviderError("finance_context_scope_invalid")
+                return result
+            except Exception as error:
+                raise ContextProviderError("finance_context_unavailable") from error
         if not user_token or len(user_token) > 8192:
             raise ContextProviderError("finance_context_user_identity_unavailable")
         fetcher = self.service_token_fetcher
@@ -513,7 +529,9 @@ class FinanceContextProvider:
             identity = f"{record.entity_type}\0{record.entity_id}"
             opaque = sha256(identity.encode()).hexdigest()
             observed_at = record.observed_at
-            effective_at = record.effective_at
+            effective_at = (
+                record.effective_at if isinstance(record.effective_at, datetime) else None
+            )
             if observed_at is not None and observed_at.tzinfo is None:
                 observed_at = observed_at.replace(tzinfo=UTC)
             if effective_at is not None and effective_at.tzinfo is None:
@@ -609,9 +627,7 @@ class FinanceBudgetFederationAdapter:
         owner_id: str,
         acting_user_id: str,
     ) -> ContextPermissionDependency:
-        expected_permission_id = (
-            f"finance_context_read:discretionary_budget:{entity.entity_id}"
-        )
+        expected_permission_id = f"finance_context_read:discretionary_budget:{entity.entity_id}"
         expected_source_id = f"finance:monthly_discretionary_budget:{entity.entity_id}"
         if (
             record.entity_type != "discretionary_budget"
@@ -755,9 +771,7 @@ class FinanceBudgetFederationAdapter:
                 for reference in record.source_refs
             )
             field_sensitivity = tuple(
-                ContextFieldSensitivity(
-                    field=field.field, sensitivity=field.sensitivity
-                )
+                ContextFieldSensitivity(field=field.field, sensitivity=field.sensitivity)
                 for field in record.field_sensitivity
             )
         except (KeyError, ValueError, TypeError) as error:
@@ -774,7 +788,11 @@ class FinanceBudgetFederationAdapter:
             entity_refs=(entity,),
             authority="user_asserted",
             observed_at=record.observed_at,
-            effective_at=record.effective_at,
+            # A calendar month/day remains exact in semantic as_of/period fields;
+            # it cannot establish a timezone-aware effective instant.
+            effective_at=(
+                record.effective_at if isinstance(record.effective_at, datetime) else None
+            ),
             expires_at=min(grant.expires_at, datetime.now(UTC) + timedelta(minutes=5)),
             sensitivity="restricted",
             source_refs=source_refs,
@@ -975,6 +993,7 @@ def configured_finance_context_contribution(settings) -> ContextRuntimeContribut
     if not settings.finance_context_enabled:
         return ContextRuntimeContribution(provider_factories={})
     from personal_ai.auth.service_tokens import fetch_google_service_token
+    from personal_ai.mutations.deployment import domain_client
 
     client = FinanceContextHTTPClient(
         base_url=str(settings.finance_context_base_url),
@@ -983,6 +1002,15 @@ def configured_finance_context_contribution(settings) -> ContextRuntimeContribut
         service_account=settings.finance_context_service_account,
         timeout_seconds=settings.finance_context_timeout_seconds,
         service_token_fetcher=fetch_google_service_token,
+        delegated_client=(
+            domain_client(
+                settings,
+                str(settings.finance_context_base_url),
+                settings.finance_context_service_audience,
+            )
+            if settings.task_delegation_enabled and settings.task_domain_service_account
+            else None
+        ),
     )
     return ContextRuntimeContribution(
         provider_factories={

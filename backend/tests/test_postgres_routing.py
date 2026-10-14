@@ -2,6 +2,9 @@
 
 import json
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import ValidationError
@@ -21,6 +24,23 @@ from personal_ai.routing import (
     StrictFreeEligibilityAttestation,
 )
 from personal_ai.routing.definitions import encode_current_endpoint_profile
+
+
+@pytest.mark.parametrize("month,day", [(3, 7), (10, 31)])
+def test_database_clock_keeps_elapsed_deadlines_across_dst(month, day):
+    from personal_ai.persistence.postgres.routing_observations import database_time
+
+    local = datetime(2026, month, day, 12, tzinfo=ZoneInfo("America/Los_Angeles"))
+
+    class Connection:
+        def execute(self, query):
+            assert query == "SELECT clock_timestamp()"
+            return SimpleNamespace(fetchone=lambda: (local,))
+
+    now = database_time(Connection())
+    expires = now + timedelta(days=2)
+    assert now == local.astimezone(UTC)
+    assert expires.timestamp() - local.timestamp() == 2 * 86400
 
 
 def _profile(

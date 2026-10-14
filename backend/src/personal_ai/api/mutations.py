@@ -19,12 +19,14 @@ from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry, ContextRuntimeRegistry
 from personal_ai.mutations.contracts import (
+    AuthenticatedCommandRequest,
     MutationAdapterContractError,
     MutationCandidateRequest,
     MutationError,
     MutationUnavailableError,
     ProposalView,
 )
+from personal_ai.mutations.deployment import configured_command_resolver
 from personal_ai.mutations.outputs import CanonicalOutputResolver
 from personal_ai.mutations.service import MutationService
 from personal_ai.persistence.factory import persistence_factory
@@ -42,9 +44,12 @@ def get_mutation_service(
     messages: Annotated[object, Depends(get_message_repository)],
 ):
     return MutationService(
-        persistence_factory(settings).mutation_repository(), registry, runtime,
+        persistence_factory(settings).mutation_repository(),
+        registry,
+        runtime,
         ContextPermissionRevalidatorRegistry(runtime.permission_revalidators),
         output_resolver=CanonicalOutputResolver(conversations, messages),
+        command_resolver=configured_command_resolver(settings, runtime),
     )
 
 
@@ -59,6 +64,53 @@ class ExactConfirmation(BaseModel):
     binding: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+@router.get("/contracts")
+def contracts(
+    principal: Principal,
+    scope: Scope,
+    registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
+):
+    from personal_ai.contracts.delegated_tasks import task_manifest
+
+    return {
+        **task_manifest(),
+        "application_id": scope.application_id,
+        "operations": [
+            operation.model_dump(mode="json")
+            for operation in registry.get(scope.application_id).mutation_operations
+        ],
+    }
+
+
+@router.post("/commands", response_model=ProposalView, status_code=201)
+def create_command(
+    command: AuthenticatedCommandRequest, principal: Principal, scope: Scope, service: Service
+):
+    return invoke(service, principal, scope, "create_from_command", command)
+
+
+class TaskAuthorityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    task: dict
+    effect: bool = Field(strict=True)
+
+
+@router.post("/task-authority")
+def task_authority(
+    request: TaskAuthorityRequest, principal: Principal, scope: Scope, service: Service
+):
+    from personal_ai.contracts.delegated_tasks import DelegatedTaskRequest
+
+    try:
+        task = DelegatedTaskRequest.model_validate(request.task)
+        allowed = service.check_task_authority(principal, scope, task, effect=request.effect)
+        return {"allowed": allowed}
+    except MutationUnavailableError as error:
+        raise HTTPException(503, error.code) from error
+    except (MutationError, ValueError):
+        return {"allowed": False}
+
+
 def invoke(service, principal, scope, method, *args, **kwargs):
     try:
         proposal = getattr(service, method)(principal, scope, *args, **kwargs)
@@ -68,11 +120,16 @@ def invoke(service, principal, scope, method, *args, **kwargs):
     except MutationAdapterContractError as error:
         raise HTTPException(500, error.code) from error
     except MutationError as error:
-        status = 422 if error.code in {
-            "mutation_candidate_not_applicable", "mutation_candidate_invalid"
-        } else 404 if error.code in {
-            "mutation_not_found", "mutation_output_not_found", "mutation_output_not_active"
-        } else 403 if "denied" in error.code else 409
+        status = (
+            422
+            if error.code in {"mutation_candidate_not_applicable", "mutation_candidate_invalid"}
+            else 404
+            if error.code
+            in {"mutation_not_found", "mutation_output_not_found", "mutation_output_not_active"}
+            else 403
+            if "denied" in error.code
+            else 409
+        )
         raise HTTPException(status, error.code) from error
     except PersistenceConflict as error:
         raise HTTPException(409, "mutation_revision_conflict") from error
@@ -97,8 +154,8 @@ def read(proposal_id: UUID, principal: Principal, scope: Scope, service: Service
     except MutationUnavailableError as error:
         raise HTTPException(503, error.code) from error
     except MutationError as error:
-        status = 404 if error.code == "mutation_not_found" else (
-            403 if "denied" in error.code else 409
+        status = (
+            404 if error.code == "mutation_not_found" else (403 if "denied" in error.code else 409)
         )
         raise HTTPException(status, error.code) from error
 
@@ -109,14 +166,24 @@ def validate(proposal_id: UUID, principal: Principal, scope: Scope, service: Ser
 
 
 @router.post("/{proposal_id}/confirm", response_model=ProposalView)
-def confirm(proposal_id: UUID, choice: ExactConfirmation, principal: Principal,
-            scope: Scope, service: Service):
+def confirm(
+    proposal_id: UUID,
+    choice: ExactConfirmation,
+    principal: Principal,
+    scope: Scope,
+    service: Service,
+):
     return invoke(service, principal, scope, "confirm", proposal_id, **choice.model_dump())
 
 
 @router.post("/{proposal_id}/apply", response_model=ProposalView)
-def apply(proposal_id: UUID, choice: ExactConfirmation, principal: Principal,
-          scope: Scope, service: Service):
+def apply(
+    proposal_id: UUID,
+    choice: ExactConfirmation,
+    principal: Principal,
+    scope: Scope,
+    service: Service,
+):
     return invoke(service, principal, scope, "apply", proposal_id, **choice.model_dump())
 
 

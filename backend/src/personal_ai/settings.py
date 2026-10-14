@@ -9,6 +9,8 @@ from typing import Literal
 from pydantic import AliasChoices, AnyHttpUrl, Field, SecretStr, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from personal_ai.contracts.delegated_tasks import DelegatedOriginTrust
+
 SensitivityCeiling = Literal["public", "personal", "sensitive", "restricted"]
 
 
@@ -28,6 +30,26 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        hide_input_in_errors=True,
+    )
+
+    task_delegation_enabled: bool = False
+    task_delegation_audience: str = Field(default="", max_length=500)
+    task_delegation_issuer: str = Field(default="", max_length=200)
+    task_delegation_key_id: str = Field(default="", max_length=100)
+    task_delegation_private_key: SecretStr = Field(default=SecretStr(""))
+    task_origin_trusts: dict[str, DelegatedOriginTrust] = Field(default_factory=dict, max_length=4)
+    task_callback_accounts: dict[str, str] = Field(default_factory=dict, max_length=4)
+    task_callback_audiences: dict[str, str] = Field(default_factory=dict, max_length=4)
+    task_domain_service_account: str = Field(default="", max_length=200)
+    task_source_endpoints: dict[str, str] = Field(default_factory=dict, max_length=3)
+    task_shopping_enabled: bool = False
+    task_shopping_base_url: str = Field(default="", max_length=500)
+    task_shopping_audience: str = Field(default="", max_length=500)
+    task_shopping_operation_fingerprint: str = Field(default="", max_length=64)
+    task_shopping_note_operation_fingerprint: str = Field(default="", max_length=64)
+    task_shopping_retained_operation_fingerprints: dict[str, tuple[str, ...]] = Field(
+        default_factory=dict, max_length=2
     )
 
     # Artifact storage remains opt-in; cloud preflight is separate from offline tests.
@@ -371,6 +393,111 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_context_budget(self) -> "Settings":
+        if (
+            self.task_shopping_enabled
+            or self.task_source_endpoints
+            or self.task_shopping_retained_operation_fingerprints
+        ):
+            import re
+            from urllib.parse import urlsplit
+
+            if not self.task_delegation_enabled or not re.fullmatch(
+                r"[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com", self.task_domain_service_account
+            ):
+                raise ValueError("task_domain_identity_configuration_required")
+            for (
+                operation,
+                fingerprints,
+            ) in self.task_shopping_retained_operation_fingerprints.items():
+                if (
+                    operation not in {"project.set_budget", "project.append_context_note"}
+                    or not 1 <= len(fingerprints) <= 8
+                    or len(set(fingerprints)) != len(fingerprints)
+                    or any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in fingerprints)
+                ):
+                    raise ValueError("task_retained_operation_configuration_invalid")
+            for app, endpoint in self.task_source_endpoints.items():
+                parsed = urlsplit(endpoint)
+                if (
+                    app not in {"finance", "travel", "health"}
+                    or parsed.scheme != "https"
+                    or not parsed.hostname
+                    or parsed.username
+                    or parsed.password
+                    or parsed.query
+                    or parsed.fragment
+                    or parsed.path not in {"", "/"}
+                ):
+                    raise ValueError("task_source_endpoint_invalid")
+        if self.task_shopping_enabled:
+            import re
+            from urllib.parse import urlsplit
+
+            parsed = urlsplit(self.task_shopping_base_url)
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+                or parsed.path not in {"", "/"}
+                or not self.task_shopping_audience.startswith("https://")
+                or not re.fullmatch(r"[0-9a-f]{64}", self.task_shopping_operation_fingerprint)
+                or (
+                    self.task_shopping_note_operation_fingerprint
+                    and not re.fullmatch(
+                        r"[0-9a-f]{64}", self.task_shopping_note_operation_fingerprint
+                    )
+                )
+                or "shopping" not in self.task_callback_accounts
+            ):
+                raise ValueError("task_shopping_configuration_required")
+        if self.task_delegation_enabled:
+            import base64
+            import re
+
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+            if (
+                self.auth_mode != "google_oidc"
+                or not self.auth_required
+                or not self.task_delegation_audience.startswith("https://")
+                or not self.task_delegation_issuer
+                or not self.task_delegation_key_id
+            ):
+                raise ValueError("task_delegation_identity_configuration_required")
+            try:
+                private = self.task_delegation_private_key.get_secret_value()
+                Ed25519PrivateKey.from_private_bytes(
+                    base64.b64decode(
+                        private + "=" * (-len(private) % 4), altchars=b"-_", validate=True
+                    )
+                )
+            except (ValueError, TypeError) as error:
+                raise ValueError("task_delegation_key_invalid") from error
+            if any(
+                app not in {"finance", "travel", "health", "shopping"}
+                for app in self.task_origin_trusts
+            ):
+                raise ValueError("task_delegation_source_invalid")
+            if any(
+                app not in {"shopping", "finance", "travel", "health"}
+                or not re.fullmatch(r"[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com", account)
+                for app, account in self.task_callback_accounts.items()
+            ):
+                raise ValueError("task_callback_identity_invalid")
+            if any(
+                app not in self.task_callback_accounts or not audience.startswith("https://")
+                for app, audience in self.task_callback_audiences.items()
+            ):
+                raise ValueError("task_callback_audience_invalid")
+            if (
+                self.task_shopping_enabled
+                and "shopping" in self.task_callback_audiences
+                and self.task_callback_audiences["shopping"] != self.task_shopping_audience
+            ):
+                raise ValueError("task_callback_audience_mismatch")
         if (
             self.travel_federation_enabled
             or self.health_federation_enabled

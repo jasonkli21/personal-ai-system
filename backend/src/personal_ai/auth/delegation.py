@@ -38,7 +38,7 @@ def delegated_user_assertion(
         or not audience
         or not key_id
         or lifetime_seconds < 1
-        or lifetime_seconds > 120
+        or lifetime_seconds > 60
         or principal.issued_at > current + 30
         or current - principal.issued_at > 300
         or principal.authenticated_at is None
@@ -52,6 +52,7 @@ def delegated_user_assertion(
 
     encoded_body = json.dumps(
         request_body,
+        allow_nan=False,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,

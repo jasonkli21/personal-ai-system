@@ -1199,10 +1199,20 @@ class ProviderMatrixRunner:
 
     def _strategy_baseline(self, task, decisions):
         candidates = []
+        buckets = {}
+        observed_at = None
         for decision, _ in decisions:
-            candidates.extend(
-                candidate.strategy_view() for candidate in decision.candidates if candidate.eligible
-            )
+            view = decision.strategy_view()
+            candidates.extend(view.candidates)
+            # Endpoint-specific admission decisions retain their actual quota
+            # observations. Preserve every referenced bucket; for shared buckets
+            # use the latest decision observation, never fabricated capacity.
+            for bucket in view.quota_buckets:
+                prior = buckets.get(bucket.bucket_id)
+                if prior is None or decision.created_at > prior[0]:
+                    buckets[bucket.bucket_id] = (decision.created_at, bucket)
+            if observed_at is None or decision.created_at > observed_at:
+                observed_at = decision.created_at
         if not candidates:
             return ()
         by_endpoint = {candidate.endpoint: candidate for candidate in candidates}
@@ -1210,7 +1220,9 @@ class ProviderMatrixRunner:
             raise ValueError("evaluation_strategy_candidate_duplicate")
         result = tuple(
             self.deterministic_baseline_strategy.select(
-                StrategyView(preferences=task.preferences, candidates=tuple(by_endpoint.values()))
+                StrategyView(preferences=task.preferences, candidates=tuple(by_endpoint.values()),
+                             quota_buckets=tuple(buckets[key][1] for key in sorted(buckets)),
+                             observed_at=observed_at)
             )
         )
         if not result or {row.endpoint for row in result} != set(by_endpoint):

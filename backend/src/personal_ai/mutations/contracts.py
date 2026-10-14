@@ -78,6 +78,37 @@ class CanonicalOutputHandle(StrictModel):
     message_id: UUID
 
 
+class AuthenticatedCommandRequest(StrictModel):
+    """Opaque source selectors; source authority and payload are resolved server-side."""
+
+    source_application_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,40}$")
+    command_id: UUID
+
+
+class UserCommandProvenance(StrictModel):
+    """A verified deterministic command, never a claim of model-generated output."""
+
+    execution_origin: Literal["authenticated_user_command"] = "authenticated_user_command"
+    fact_source: Literal["server_observed"] = "server_observed"
+    source_application_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,40}$")
+    command_id: UUID
+    acting_user_id: str = Field(min_length=1, max_length=512)
+    command_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+MutationProvenance = ProducerProvenance | UserCommandProvenance
+
+
+class PublicUserCommandProvenance(StrictModel):
+    """Disclosure-safe command attribution without the private acting-user binding."""
+
+    execution_origin: Literal["authenticated_user_command"]
+    fact_source: Literal["server_observed"]
+    source_application_id: str
+    command_id: UUID
+    command_fingerprint: str
+
+
 class MutationCandidateRequest(StrictModel):
     """Selectors only; a registered domain adapter derives the typed candidate."""
 
@@ -104,7 +135,7 @@ class ProposalIntent(StrictModel):
     payload: dict[str, JsonValue]
     expected_domain_version: str = Field(min_length=1, max_length=100)
     rationale: str = Field(min_length=1, max_length=2000)
-    producer: ProducerProvenance
+    producer: MutationProvenance
     sources: tuple[ContextSourceSnapshot, ...] = Field(min_length=1, max_length=16)
     operation_contract_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     expires_at: AwareDatetime
@@ -270,7 +301,7 @@ class PublicIntent(StrictModel):
     payload: dict[str, JsonValue] | None
     expected_domain_version: str
     rationale: str | None
-    producer: ProducerProvenance
+    producer: ProducerProvenance | PublicUserCommandProvenance
     source_refs: tuple[ContextAuthorityReference, ...]
     expires_at: AwareDatetime
 

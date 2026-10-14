@@ -37,7 +37,7 @@ from personal_ai.evaluation.planning_quality import (
 from personal_ai.settings import Settings
 
 CORPUS_PATH = Path(__file__).parent / "fixtures/context/planning-heldout-v2.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v10.json"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v12.json"
 PLANNING_EVALUATOR_VERSION = "planning-evaluator-v6"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -120,7 +120,7 @@ def baseline_planner():
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v10",
+        "baseline_lock_version": "planning-baseline-lock-v12",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

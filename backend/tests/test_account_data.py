@@ -35,6 +35,10 @@ def test_account_export_inventory_covers_private_families_and_control_records():
     assert "account_lifecycle_requests" in EXPORT_COLLECTIONS
     assert "global_profiles" in OWNER_DATA_COLLECTIONS
     assert "global_profiles" in EXPORT_COLLECTIONS
+    # Module registration is deployment-wide configuration keyed by module,
+    # version and policy. It has no owner/scope or record_id columns.
+    assert "domain_registrations" not in OWNER_DATA_COLLECTIONS
+    assert "domain_registrations" not in EXPORT_IMPLEMENTATION_PATHS
 
 
 def test_canonical_export_read_paths_cover_every_owner_data_family_once():

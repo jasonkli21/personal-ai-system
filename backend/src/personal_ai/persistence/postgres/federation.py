@@ -84,7 +84,7 @@ class PostgresFederationGrantRepository:
                 "AND destination_workspace_id IS NOT DISTINCT FROM %s "
                 "AND state='active' AND expires_at>%s "
                 "AND NOT EXISTS (SELECT 1 FROM owner_lifecycle_fences WHERE owner_id=%s) "
-                "ORDER BY updated_at DESC LIMIT 100",
+                "ORDER BY (payload->>'updated_at')::timestamptz DESC, grant_id DESC LIMIT 100",
                 (
                     owner_id,
                     destination.application_id,

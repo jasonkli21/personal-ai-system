@@ -1069,7 +1069,7 @@ class PostgresProviderUsageAccounting:
         return retention.reconcile_operational_events(self, limit=limit)
 
     def _publish_event(self, attempt_id: UUID, event: dict) -> None:
-        return retention._publish_event(self, event)
+        return retention._publish_event(self, attempt_id, event)
 
     def _mark_event(self, attempt_id: UUID, status: str) -> None:
-        return retention._mark_event(self, attempt_id)
+        return retention._mark_event(self, attempt_id, status)

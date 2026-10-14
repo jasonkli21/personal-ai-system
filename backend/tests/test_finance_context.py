@@ -188,9 +188,7 @@ def _budget_record(entity_id: str) -> FinanceContextRecord:
         sensitivity="restricted",
         payload={"discretionary_budget": values},
         source_refs=(
-            ContextSourceReference(
-                kind="record", reference_id=entity_id, fingerprint="c" * 64
-            ),
+            ContextSourceReference(kind="record", reference_id=entity_id, fingerprint="c" * 64),
         ),
         permission_dependencies=(
             ContextPermissionDependency(
@@ -617,9 +615,7 @@ def test_monthly_budget_federation_adapter_preserves_exact_fields_and_dependency
         max_tokens=512,
     )
 
-    assert adapter.authorize_export(
-        grant, selection, scope, deadline=monotonic() + 1
-    )
+    assert adapter.authorize_export(grant, selection, scope, deadline=monotonic() + 1)
     result = adapter.fetch(grant, selection, scope, deadline=monotonic() + 1)
 
     assert result.complete is True
@@ -728,7 +724,9 @@ def test_monthly_budget_federation_rejects_mismatched_source_binding(mismatch) -
             update={
                 "permission_dependencies": (
                     record.permission_dependencies[0].model_copy(
-                        update={"permission_id": f"finance_context_read:discretionary_budget:{other_id}"}
+                        update={
+                            "permission_id": f"finance_context_read:discretionary_budget:{other_id}"
+                        }
                     ),
                 )
             }
@@ -759,7 +757,9 @@ def test_monthly_budget_federation_rejects_mismatched_source_binding(mismatch) -
                 "permission_dependencies": (
                     *record.permission_dependencies,
                     record.permission_dependencies[0].model_copy(
-                        update={"permission_id": f"finance_context_read:discretionary_budget:{other_id}"}
+                        update={
+                            "permission_id": f"finance_context_read:discretionary_budget:{other_id}"
+                        }
                     ),
                 )
             }
@@ -786,3 +786,24 @@ def test_monthly_budget_federation_rejects_mismatched_source_binding(mismatch) -
         adapter.authorize_export(grant, selection, scope, deadline=monotonic() + 1)
     with pytest.raises(ContextPreparationError):
         adapter.fetch(grant, selection, scope, deadline=monotonic() + 1)
+
+
+def test_calendar_effective_date_preserves_precision_without_inventing_an_instant():
+    """Finance's date-only records remain dates at the wire boundary."""
+    from datetime import date
+
+    from personal_ai.context.finance import FinanceContextRecord
+
+    record = FinanceContextRecord.model_validate_json("""{
+        "entity_type":"discretionary_budget","entity_id":"synthetic-budget",
+        "source_id":"finance:monthly_discretionary_budget:synthetic-budget",
+        "source_version":"1","source_class":"domain_current","authority":"user_asserted",
+        "observed_at":"2026-10-14T08:10:00Z","effective_at":"2026-10-01",
+        "sensitivity":"restricted","payload":{},
+        "source_refs":[{"kind":"record","reference_id":"synthetic-budget"}],
+        "permission_dependencies":[{"permission_id":"finance_context_read:discretionary_budget:synthetic-budget",
+            "version":"1","purpose":"shopping_discretionary_budget"}],
+        "field_sensitivity":[]
+    }""")
+    assert record.effective_at == date(2026, 10, 1)
+    assert not isinstance(record.effective_at, datetime)

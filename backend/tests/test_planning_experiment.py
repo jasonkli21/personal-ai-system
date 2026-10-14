@@ -27,6 +27,23 @@ from tests.test_federation import prepare
 broker_case = federation_fixture
 
 
+@pytest.fixture
+def runtime_bound_planning_lock(tmp_path, monkeypatch):
+    """Give conformance tests a temporary lock for this exact runtime and tree."""
+    head, _parent = planning._git_revision_pair()
+    lock = {
+        **planning.freeze_identity(),
+        "evidence_kind": "test_only_runtime_conformance",
+        "frozen_at": "test-only",
+        "source_revision": head,
+        "source_revision_binding": "test-only current source tree",
+    }
+    path = tmp_path / "planning-baseline-test-only.json"
+    path.write_text(json.dumps(lock))
+    monkeypatch.setattr(planning, "FREEZE_PATH", path)
+    return path
+
+
 def _experiment_app(*, body_mutator=None, authority_mutator=None):
     reference = ContextEntityReference(
         entity_type="record",
@@ -331,8 +348,9 @@ def test_timeout_and_malformed_output_are_traced_control(broker_case):
         )
 
 
-def test_frozen_baseline_and_no_promotion_without_measurements():
+def test_frozen_baseline_and_no_promotion_without_measurements(runtime_bound_planning_lock):
     result = planning.evaluate()
+    assert result["identity"]["evidence_kind"] == "test_only_runtime_conformance"
     assert result["decision"] == "non_promotion"
     assert result["model_answer_quality"] is None
     assert result["proposal_validation_metrics"] == {
@@ -377,7 +395,36 @@ def test_frozen_baseline_and_no_promotion_without_measurements():
     assert all(row["independent_family_count"] < 100 for row in result["coverage_slices"])
 
 
-def test_evaluator_records_bound_validation_trace_metrics():
+def test_v11_freeze_preserves_v10_corpus_and_non_promotion():
+    v11 = json.loads(planning.FREEZE_PATH.with_name("planning-baseline-v11.json").read_text())
+    v10 = json.loads(planning.FREEZE_PATH.with_name("planning-baseline-v10.json").read_text())
+
+    for key in (
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+    ):
+        assert v11[key] == v10[key]
+    assert v11["source_identity_digest"] != v10["source_identity_digest"]
+    assert v11["supersedes"] == v10["baseline_lock_version"]
+    assert len(v11["source_change_summary"]) == 2
+    assert v11["promotion_decision"].startswith("non_promotion")
+
+
+def test_v12_freeze_preserves_v11_semantics_and_requires_current_source_identity():
+    v12 = json.loads(planning.FREEZE_PATH.read_text())
+    v11 = json.loads(planning.FREEZE_PATH.with_name("planning-baseline-v11.json").read_text())
+    for key in ("baseline_version", "configuration_digest", "corpus_digest", "fixture_dependency_digest"):
+        assert v12[key] == v11[key]
+    assert v12["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert v12["source_identity_digest"] != v11["source_identity_digest"]
+    assert v12["supersedes"] == v11["baseline_lock_version"]
+    assert v12["source_change_summary"]
+    assert v12["promotion_decision"].startswith("non_promotion")
+
+
+def test_evaluator_records_bound_validation_trace_metrics(runtime_bound_planning_lock):
     from personal_ai.context.planner import PlanningChoiceResult, PlanningTrace
 
     baseline = planning.evaluate()
@@ -424,6 +471,27 @@ def test_baseline_refuses_an_unrelated_git_revision(tmp_path, monkeypatch):
     monkeypatch.setattr(planning, "FREEZE_PATH", path)
     monkeypatch.setattr(planning, "_git_revision_pair", lambda: ("2" * 40, "3" * 40))
     with pytest.raises(ValueError, match="source_revision_mismatch"):
+        planning.evaluate()
+
+
+@pytest.mark.parametrize(
+    "field, incompatible_value",
+    [
+        ("python_runtime", "0.0.0"),
+        ("source_identity_digest", "0" * 64),
+        ("baseline_lock_version", "planning-baseline-lock-v10"),
+    ],
+)
+def test_strict_replay_rejects_incompatible_runtime_source_and_version(
+    field, incompatible_value, tmp_path, monkeypatch
+):
+    lock = {**planning.freeze_identity(), field: incompatible_value}
+    lock["source_revision"] = planning._git_revision_pair()[0]
+    path = tmp_path / "incompatible-planning-baseline.json"
+    path.write_text(json.dumps(lock))
+    monkeypatch.setattr(planning, "FREEZE_PATH", path)
+
+    with pytest.raises(ValueError, match="planning_baseline_changed_requires_new_version"):
         planning.evaluate()
 
 

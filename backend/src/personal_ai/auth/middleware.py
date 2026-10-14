@@ -297,9 +297,26 @@ async def authenticate_request(request: Request) -> Response | None:
                     correlation_id=correlation_id,
                 )
             try:
-                principal = await anyio.to_thread.run_sync(
-                    principal_from_google_token, token, settings
-                )
+                if request.headers.get("x-user-delegation"):
+                    # Consume only a bounded task-control body and replay it to
+                    # the router below. No assertion or token is persisted.
+                    from personal_ai.auth.task_identity import task_principal
+                    raw = bytearray()
+                    try:
+                        with anyio.fail_after(3):
+                            async for chunk in request.stream():
+                                raw.extend(chunk)
+                                if len(raw) > 32768:
+                                    raise InvalidIdentityToken
+                        payload = json.loads(raw) if raw else None
+                    except (ValueError, TypeError, TimeoutError, RecursionError) as error:
+                        raise InvalidIdentityToken from error
+                    request.state.task_auth_body = bytes(raw)
+                    principal = await anyio.to_thread.run_sync(task_principal, request, settings, payload)
+                else:
+                    principal = await anyio.to_thread.run_sync(
+                        principal_from_google_token, token, settings
+                    )
             except InvalidIdentityToken:
                 logger.info("request_rejected reason=invalid_identity")
                 return _error(
@@ -355,7 +372,8 @@ async def authenticate_request(request: Request) -> Response | None:
                     correlation_id=correlation_id,
                 )
             request.state.principal = principal
-            verified_user_token = token
+            if not request.headers.get("x-user-delegation"):
+                verified_user_token = token
     request.state.verified_user_identity_token = verified_user_token
 
     if request.url.path not in PUBLIC_PATHS:
@@ -530,6 +548,19 @@ class AuthenticationMiddleware:
         correlation_id = getattr(request.state, "correlation_id", str(uuid4()))
         status_code = 500
         app_receive = receive
+
+        if response is None and hasattr(request.state, "task_auth_body"):
+            task_payload = request.state.task_auth_body
+            task_first = True
+
+            async def replay_task_body():
+                nonlocal task_first
+                if task_first:
+                    task_first = False
+                    return {"type": "http.request", "body": task_payload, "more_body": False}
+                return await receive()
+
+            app_receive = replay_task_body
 
         if (
             response is None

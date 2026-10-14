@@ -6,6 +6,7 @@ from hashlib import sha256
 from uuid import uuid4, uuid5
 
 from personal_ai.mutations.contracts import (
+    AuthenticatedCommandRequest,
     Confirmation,
     DomainOutcome,
     DomainValidation,
@@ -20,6 +21,7 @@ from personal_ai.mutations.contracts import (
     ProposalIntent,
     ProposalView,
     TypedMutationCandidate,
+    UserCommandProvenance,
     proposal_identity,
 )
 from personal_ai.mutations.registration import operation_adapter
@@ -29,12 +31,14 @@ TERMINAL = {"applied", "rejected", "expired"}
 
 
 class MutationService:
-    def __init__(self, repository, registry, runtime, permissions, *, output_resolver=None, clock=None):
+    def __init__(self, repository, registry, runtime, permissions, *, output_resolver=None,
+                 command_resolver=None, clock=None):
         self.repository = repository
         self.registry = registry
         self.runtime = runtime
         self.permissions = permissions
         self.output_resolver = output_resolver
+        self.command_resolver = command_resolver
         self.clock = clock or (lambda: datetime.now(UTC))
 
     @staticmethod
@@ -149,7 +153,8 @@ class MutationService:
             "owner_id": True, "acting_user_id": True,
             "domain_operation_key": True, "execution_attempt_id": True,
             "reconciliation_id": True, "lease_until": True,
-            "intent": {"sources": True, "operation_contract_fingerprint": True},
+            "intent": {"sources": True, "operation_contract_fingerprint": True,
+                       "producer": {"acting_user_id": True}},
             "validation": {"permission_dependencies": True},
             "confirmation": {"acting_user_id": True},
             "outcome": {"domain_operation_key": True},
@@ -289,8 +294,79 @@ class MutationService:
         )
         return self._create_resolved(principal, scope, intent)
 
+    def create_from_command(self, principal, scope, command: AuthenticatedCommandRequest):
+        """Resolve a canonical source command through an explicitly installed authority.
+
+        Browser input cannot supply payload, identity, grants or source snapshots.
+        The resolver checks current source consent/revision and returns stable
+        persisted intent; validation/confirmation/apply reuse the existing lifecycle.
+        """
+        self._identity(principal, scope)
+        command = AuthenticatedCommandRequest.model_validate_json(command.model_dump_json())
+        proposal_id = proposal_identity(scope.owner_id, scope.acting_user_id, scope.application_id,
+                                        scope.workspace_id, command.command_id)
+        existing = self.repository.get(scope, proposal_id)
+        if existing is not None:
+            provenance = existing.intent.producer
+            if (not isinstance(provenance, UserCommandProvenance)
+                or provenance.source_application_id != command.source_application_id
+                or provenance.command_id != command.command_id):
+                raise MutationError("mutation_idempotency_conflict")
+            return self.load_control_record(principal, scope, proposal_id)
+        if self.command_resolver is None:
+            raise MutationUnavailableError("mutation_command_resolver_unavailable")
+        intent = self.command_resolver.resolve(principal, scope, command)
+        if not isinstance(intent, ProposalIntent):
+            raise MutationAdapterContractError("mutation_command_resolver_contract_invalid")
+        intent = ProposalIntent.model_validate_json(intent.model_dump_json())
+        provenance = intent.producer
+        if (not isinstance(provenance, UserCommandProvenance)
+            or provenance.source_application_id != command.source_application_id
+            or provenance.command_id != command.command_id
+            or provenance.acting_user_id != scope.acting_user_id
+            or intent.idempotency_key != command.command_id):
+            raise MutationError("mutation_command_provenance_denied")
+        return self._create_resolved(principal, scope, intent)
+
+    def check_task_authority(self, principal, scope, request, *, effect: bool) -> bool:
+        """Destination callback over canonical control state; never dispatch recursively.
+
+        Verified identity and repository owner fences remain mandatory. Current
+        grants/consent are checked for new effects; observation after a possible
+        effect does not redisclose expired or revoked source context.
+        """
+        from personal_ai.mutations.task_transport import task_for_proposal
+
+        self._identity(principal, scope)
+        proposal = self.repository.get(scope, request.proposal_id)
+        if proposal is None or proposal.acting_user_id != scope.acting_user_id:
+            return False
+        if request != task_for_proposal(proposal, request.action):
+            return False
+        if not effect:
+            return True
+        now = self.clock()
+        if request.expires_at <= now:
+            return False
+        if request.action == "validate":
+            if proposal.state != "proposed":
+                return False
+        elif request.action == "execute":
+            if (proposal.state != "executing" or proposal.execution_attempt_id is None
+                or proposal.validation is None or not proposal.validation.valid
+                or proposal.confirmation is None
+                or proposal.confirmation.binding != proposal.binding()):
+                return False
+        else:
+            return False
+        # Check the current installed operation/policy without asking the
+        # destination again. The receiver owns its local domain authorization.
+        self._adapter(scope, proposal.intent)
+        self._dependencies(scope, proposal)
+        return True
+
     def _create_resolved(self, principal, scope, intent: ProposalIntent):
-        """Create only after a trusted caller has resolved the persisted attribution."""
+        """Create only after trusted canonical output or command resolution."""
         self._identity(principal, scope)
         # Reparse to detach mutable dictionaries from callers.
         intent = ProposalIntent.model_validate_json(intent.model_dump_json())

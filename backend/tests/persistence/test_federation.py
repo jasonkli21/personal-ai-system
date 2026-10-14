@@ -2,6 +2,7 @@
 
 import os
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from threading import Barrier, Lock
 from uuid import uuid4
 
@@ -119,9 +120,7 @@ def test_concurrent_identical_create_and_revoke_converge_in_postgres(database, f
             return self.wrapped.record_access(selection, scope, result)
 
     synchronized_repo = ReadBarrierRepository(repo)
-    authority = FederationPermissionAuthority(
-        synchronized_repo, federation["source_policy"]
-    )
+    authority = FederationPermissionAuthority(synchronized_repo, federation["source_policy"])
     adapter = federation["adapter"]
     from personal_ai.federation.broker import federation_contribution
 
@@ -130,15 +129,11 @@ def test_concurrent_identical_create_and_revoke_converge_in_postgres(database, f
         authority,
         {federation["case"].export.provider_id: adapter},
     )
-    intent = federation["intent"].model_copy(
-        update={"grant_id": uuid4(), "owner_id": owner}
-    )
+    intent = federation["intent"].model_copy(update={"grant_id": uuid4(), "owner_id": owner})
     principal = AuthenticatedPrincipal("issuer", "user", owner, None, 1, True)
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
-            created = tuple(
-                executor.map(lambda _: authority.create(principal, intent), range(2))
-            )
+            created = tuple(executor.map(lambda _: authority.create(principal, intent), range(2)))
         assert created[0] == created[1]
         assert created[0].revision == 1
 
@@ -163,3 +158,37 @@ def test_concurrent_identical_create_and_revoke_converge_in_postgres(database, f
         with database.transaction() as connection:
             lock_owner(connection, owner)
             connection.execute("DELETE FROM federation_grants WHERE owner_id=%s", (owner,))
+
+
+def test_destination_choices_use_persisted_time_and_exact_owner_scope(database, federation):
+    """The canonical update time lives in JSON, not a physical updated_at column."""
+    now = datetime.now(UTC)
+    original = federation["grant"]
+    owner = f"choice-test-{uuid4()}"
+    source_policy = original.source_policy.model_copy(update={"owner_id": owner})
+    grant = original.model_copy(
+        update={
+            "owner_id": owner,
+            "source_policy": source_policy,
+            "created_at": now,
+            "updated_at": now,
+            "expires_at": now + timedelta(minutes=10),
+        }
+    )
+    repository = PostgresFederationGrantRepository(database)
+    repository.save(grant, expected_revision=0)
+    assert repository.list_destination(owner, grant.destination) == (grant,)
+    assert repository.list_destination("another-owner", grant.destination) == ()
+    wrong = grant.destination.model_copy(update={"workspace_id": "wrong"})
+    assert repository.list_destination(owner, wrong) == ()
+    revoked = grant.model_copy(
+        update={
+            "revision": 2,
+            "epoch": 2,
+            "state": "revoked",
+            "revocation_id": uuid4(),
+            "updated_at": now + timedelta(seconds=1),
+        }
+    )
+    repository.save(revoked, expected_revision=1)
+    assert repository.list_destination(owner, grant.destination) == ()

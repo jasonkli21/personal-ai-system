@@ -45,7 +45,6 @@ _EXPORT_PATH_GROUPS = {
         "decision_snapshots",
         "decision_evidence_snapshots",
         "candidate_evaluations",
-        "domain_registrations",
         "domain_claim_extensions",
         "provider_observations",
         "domain_comparison_views",

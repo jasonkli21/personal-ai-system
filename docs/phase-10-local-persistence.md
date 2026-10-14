@@ -48,6 +48,12 @@ The persistence tests also support explicit `PERSISTENCE_TEST_POSTGRES_DSN` and
 `PERSISTENCE_TEST_DYNAMODB_ENDPOINT` values for an equivalent isolated local
 setup. They do not discover cloud credentials or fall back to AWS.
 
+The provider-accounting, artifact-tier, and routing-decision suites create a
+randomly named Postgres database for each test and drop that database at teardown
+to isolate shared quota, health, and artifact-store state. The configured test
+role therefore needs `CREATEDB`; the DSN must address the local server directly.
+These tests only drop databases they created.
+
 ## Environment safety
 
 Postgres and DynamoDB Local endpoints are accepted only in `local` and `test`

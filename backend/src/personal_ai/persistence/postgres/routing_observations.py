@@ -2,6 +2,7 @@
 
 import json
 from contextlib import contextmanager
+from datetime import UTC
 from uuid import uuid5
 
 from personal_ai.persistence.postgres import (
@@ -24,7 +25,9 @@ class RoutingDecisionUnavailable(LookupError):
 
 
 def database_time(connection):
-    return connection.execute("SELECT clock_timestamp()").fetchone()[0]
+    # Retention/deadline durations are elapsed seconds, independent of the
+    # database session timezone and daylight-saving transitions.
+    return connection.execute("SELECT clock_timestamp()").fetchone()[0].astimezone(UTC)
 
 
 class PostgresRoutingDecisionRepository:

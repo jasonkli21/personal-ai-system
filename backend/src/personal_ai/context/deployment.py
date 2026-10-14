@@ -38,6 +38,8 @@ def configured_context_runtime(
     from personal_ai.federation.deployment import configured_federation_contribution
 
     federation = configured_federation_contribution(settings, source_runtime)
+    from personal_ai.mutations.deployment import configured_task_contribution
+
     return compose_context_runtime(
         ContextRuntimeContribution(
             source_runtime.provider_factories, source_runtime.planning_rules,
@@ -48,4 +50,5 @@ def configured_context_runtime(
             source_runtime.mutation_reconciliation_adapters,
         ),
         federation,
+        configured_task_contribution(settings),
     )

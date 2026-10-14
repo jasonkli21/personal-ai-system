@@ -193,11 +193,7 @@ class TravelTripFederationExportAdapter:
             purpose=TravelTripFederationExportAdapter.purpose,
             destination_application_id="shopping",
             entity_refs=(entity,),
-            fields=(
-                ("trip_revision",)
-                if operation == "verify"
-                else TRAVEL_TRIP_EXPORT_FIELDS
-            ),
+            fields=(("trip_revision",) if operation == "verify" else TRAVEL_TRIP_EXPORT_FIELDS),
             max_results=1,
             max_bytes=4096,
         )
@@ -281,7 +277,9 @@ class TravelTripFederationExportAdapter:
 
     def fetch(self, grant, selection, scope, *, deadline: float) -> FederationExportResult:
         entity = self._single_trip(selection.federation.entities)
-        response = self.client.read(self._request(entity, operation="federation"), deadline=deadline)
+        response = self.client.read(
+            self._request(entity, operation="federation"), deadline=deadline
+        )
         if not response.complete or response.continuation is not None:
             raise ContextPreparationError("travel_trip_export_incomplete")
         if not response.items:
@@ -355,6 +353,7 @@ class TravelContextHTTPClient:
         timeout_seconds: float = 3.0,
         service_token_fetcher=None,
         transport: httpx.BaseTransport | None = None,
+        delegated_client=None,
     ) -> None:
         parsed = urlsplit(base_url)
         if (
@@ -373,6 +372,7 @@ class TravelContextHTTPClient:
         self.timeout_seconds = min(max(timeout_seconds, 0.1), 10.0)
         self.service_token_fetcher = service_token_fetcher
         self.transport = transport
+        self.delegated_client = delegated_client
 
     def read(
         self, request: TravelContextReadRequest, *, deadline: float
@@ -383,6 +383,22 @@ class TravelContextHTTPClient:
         headers = {"X-Application-ID": "travel"}
         if self.auth_mode == "google_oidc":
             user_token = current_verified_user_identity_token()
+            if (
+                not user_token
+                and self.delegated_client is not None
+                and request.purpose == "shopping_trip_context"
+                and request.destination_application_id == "shopping"
+            ):
+                try:
+                    raw = self.delegated_client.post(
+                        TRAVEL_CONTEXT_PATH,
+                        request.model_dump(mode="json"),
+                        maximum_bytes=request.max_bytes,
+                        deadline=deadline,
+                    )
+                    return TravelContextReadResponse.model_validate_json(raw)
+                except Exception as error:
+                    raise ContextProviderError("travel_context_unavailable") from error
             if not user_token or len(user_token) > 8192:
                 raise ContextProviderError("travel_user_identity_unavailable")
             fetcher = self.service_token_fetcher
@@ -589,9 +605,7 @@ class TravelContextPermissionRevalidator:
             response = self.client.read(
                 TravelContextReadRequest(
                     operation="verify",
-                    purpose=(
-                        "shopping_trip_context" if is_federation else "personal_ai_context"
-                    ),
+                    purpose=("shopping_trip_context" if is_federation else "personal_ai_context"),
                     destination_application_id="shopping" if is_federation else None,
                     entity_refs=(
                         ContextEntityReference(
@@ -725,6 +739,7 @@ def configured_travel_context_contribution(settings) -> ContextRuntimeContributi
     planning_rules = travel_context_planning_rules()
     if settings.travel_context_enabled or settings.travel_federation_enabled:
         from personal_ai.auth.service_tokens import fetch_google_service_token
+        from personal_ai.mutations.deployment import domain_client
 
         client = TravelContextHTTPClient(
             base_url=str(settings.travel_context_base_url),
@@ -735,12 +750,21 @@ def configured_travel_context_contribution(settings) -> ContextRuntimeContributi
             service_token_fetcher=(
                 fetch_google_service_token if settings.auth_mode == "google_oidc" else None
             ),
+            delegated_client=(
+                domain_client(
+                    settings,
+                    str(settings.travel_context_base_url),
+                    settings.travel_context_service_audience,
+                )
+                if settings.task_delegation_enabled and settings.task_domain_service_account
+                else None
+            ),
         )
         if settings.travel_context_enabled:
             providers[TRAVEL_CONTEXT_PROVIDER_ID] = TravelContextProviderFactory(client)
         if settings.travel_federation_enabled:
-            export_adapters[TRAVEL_TRIP_EXPORT_PROVIDER_ID] = (
-                TravelTripFederationExportAdapter(client)
+            export_adapters[TRAVEL_TRIP_EXPORT_PROVIDER_ID] = TravelTripFederationExportAdapter(
+                client
             )
         revalidators = (TravelContextPermissionRevalidator(client),)
     if not settings.travel_context_enabled:

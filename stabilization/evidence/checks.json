@@ -1,0 +1,993 @@
+{
+  "schema_version": "suite-local-verification-v1",
+  "recorded_at": "2026-10-14T19:41:10.522870+00:00",
+  "tested_revisions": "Checks ran on baseline HEAD plus recorded worktree patches; publication records map the unchanged source contents to final commits. Source digest is stronger than an uncommitted HEAD label.",
+  "sources": {
+    "health-app": {
+      "baseline": "7fb84c76217c772b2bce6715744b8294afafa771",
+      "source_tree_sha256": "dc6d56f21aa31a850eed19a4a99728d41b107775b77de396a44749fd76ee75c0"
+    },
+    "personal-ai-system": {
+      "baseline": "c029194156c570ec55f8173af969702f0265e57b",
+      "source_tree_sha256": "25cb9df6f16785b2ad5879d4f4c9e042cfd90e2a13e02c859ec7e0a9fd30c354"
+    },
+    "personal-finance": {
+      "baseline": "495c21186b68215bf110ab6ab3115cd67190cc67",
+      "source_tree_sha256": "782b86933be2a2c4559269f5a94d54c72bb23ada430a371e5d505c298a800e6e"
+    },
+    "personal-travel-app": {
+      "baseline": "09584976d46c67c97a19c72d173b2ee88dbcb31c",
+      "source_tree_sha256": "50910a6eb7ef522c7eca67d5a56a546dc3338e2a7823ed49810fb89e9258b2ae"
+    },
+    "shopping-assistant": {
+      "baseline": "2268b944ffa8fe5c2e6f2787c88dea616160e398",
+      "source_tree_sha256": "1645e7debdfb39d8a4b754e5f904fe420e881b064d105ebf8aabce493b135459"
+    }
+  },
+  "runtime": {
+    "pai_python": "3.11.15",
+    "integration_python": "3.12.13",
+    "node": "24.19.0",
+    "postgresql": "17.11 + pgvector",
+    "ruff_ci_locked": "0.16.10",
+    "age": "1.3.2",
+    "terraform": "1.13.3",
+    "node_bin": "/Users/jasonkli/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin",
+    "finance_pnpm": "/tmp/finance-stabilization-pnpm-store/v11/links/@/pnpm/11.19.0/3e4e3a80f5af985fa51d6bfdf0d29390962c457cbbeba150e49b822e2e3bed8d/node_modules/pnpm/bin/pnpm.cjs",
+    "travel_pnpm": "/Users/jasonkli/Library/pnpm/store/v11/links/@/pnpm/10.17.1/6d8f0ea8518e683968cf79e61c6f56c72ac14ffa3d255d1e8819ba315d16f5c7/node_modules/pnpm/bin/pnpm.cjs",
+    "health_pnpm_bin": "/tmp/health-pnpm9/bin"
+  },
+  "checks": [
+    {
+      "id": "pai-offline",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-test-offline"
+      ],
+      "result": {
+        "passed": 1747,
+        "deselected": 90
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-offline-stabilization-final.log",
+          "sha256": "6b294c8b72545fed47dc3a7689fb3362195dd712a9ea5e16318fd534ef411c69",
+          "bytes": 10313,
+          "modified_at": "2026-10-14T16:02:17.143521+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "native-personal-ai",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From personal-ai-system: backend/.venv/bin/python stabilization/scripts/run_native_tests.py personal-ai --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/pai-native-stabilization-final.log"
+      ],
+      "result": {
+        "passed": 75,
+        "skipped": 14,
+        "deselected": 1750
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-native-stabilization-final.log",
+          "sha256": "6f4c562df575ff1693b9ba28863ed280d4e9246443301b8b4121a226be4bcd55",
+          "bytes": 729,
+          "modified_at": "2026-10-14T15:59:35.823838+00:00"
+        }
+      ],
+      "limitations": "PAI skips unavailable DynamoDB; Finance skips account/provider-dependent checks. Synthetic PG17, not cloud acceptance.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "native-finance",
+      "repository": "personal-finance",
+      "cwd": "/Users/jasonkli/projects/personal-finance",
+      "commands": [
+        "From personal-ai-system: backend/.venv/bin/python stabilization/scripts/run_native_tests.py finance --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/finance-native-release.log"
+      ],
+      "result": {
+        "passed": 294,
+        "skipped": 11,
+        "deselected": 0
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/finance-native-release.log",
+          "sha256": "f865ac2f0b729148a77ad8573bffda6f21dfe76fa19d6049af8cf3cbde0c1419",
+          "bytes": 443,
+          "modified_at": "2026-10-14T16:31:25.239008+00:00"
+        }
+      ],
+      "limitations": "PAI skips unavailable DynamoDB; Finance skips account/provider-dependent checks. Synthetic PG17, not cloud acceptance.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "native-shopping",
+      "repository": "shopping-assistant",
+      "cwd": "/Users/jasonkli/projects/shopping-assistant",
+      "commands": [
+        "From personal-ai-system: backend/.venv/bin/python stabilization/scripts/run_native_tests.py shopping --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/shopping-native-release.log"
+      ],
+      "result": {
+        "passed": 139,
+        "skipped": 0,
+        "deselected": 198
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/shopping-native-release.log",
+          "sha256": "3260c898f5a7ffa003884abafcc2a64cb02038e6a0232e0ce4957d504549ed92",
+          "bytes": 728,
+          "modified_at": "2026-10-14T16:14:18.265438+00:00"
+        }
+      ],
+      "limitations": "Owned synthetic PostgreSQL17 only.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "native-travel",
+      "repository": "personal-travel-app",
+      "cwd": "/Users/jasonkli/projects/personal-travel-app",
+      "commands": [
+        "From personal-ai-system: backend/.venv/bin/python stabilization/scripts/run_native_tests.py travel --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/travel-native-release.log"
+      ],
+      "result": {
+        "passed": 344,
+        "skipped": 0,
+        "deselected": 0
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-native-release.log",
+          "sha256": "4ff65224c667d6f1723761e63801924a1d098d56248d2fdf9a5f4f8af19f03f0",
+          "bytes": 1337,
+          "modified_at": "2026-10-14T16:42:58.707134+00:00"
+        }
+      ],
+      "limitations": "Owned synthetic PostgreSQL17 only.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "native-health",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "From personal-ai-system: backend/.venv/bin/python stabilization/scripts/run_native_tests.py health --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/health-native-release-final.log"
+      ],
+      "result": {
+        "passed": 281,
+        "skipped": 0,
+        "deselected": 0
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-native-release-final.log",
+          "sha256": "ea754d3c821c83495066e391c8ec8405e8cc5e00b873756640ee8cc3187b6709",
+          "bytes": 858,
+          "modified_at": "2026-10-14T19:32:31.848573+00:00"
+        }
+      ],
+      "limitations": "Owned synthetic PostgreSQL17 only.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "cross-app-tasks",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "backend/.venv/bin/python stabilization/scripts/run_native_tests.py tasks --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/suite-task-matrix-release-clock-final.log"
+      ],
+      "result": {
+        "passed": 32
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-task-matrix-release-clock-final.log",
+          "sha256": "838ff4179eefa60ea3e56a77a94fc3fb1afebdfc6e9eeea5cb083b3672b59f41",
+          "bytes": 100,
+          "modified_at": "2026-10-14T19:32:57.894204+00:00"
+        }
+      ],
+      "limitations": "Real migrated state, signatures and five verified TLS listeners; external IAM/Firebase lookups are fake. Focused production composition, not all application supervisors or deployed crashes.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "pai-static",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: .venv/bin/ruff check .",
+        ".venv/bin/ruff format --check --line-length 88 src/personal_ai/contracts/delegated_tasks.py src/personal_ai/contracts/task_control.py",
+        "backend/.venv/bin/ruff check --target-version py312 stabilization/scripts stabilization/tests backend/scripts/sync_task_contracts.py"
+      ],
+      "result": {
+        "lint": "pass",
+        "canonical_format": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "pai-web",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From frontend with bundled Node: pnpm lint; pnpm typecheck; pnpm test; pnpm build"
+      ],
+      "result": {
+        "tests": 123,
+        "test_files": 23,
+        "lint": "pass",
+        "types": "pass",
+        "build": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-frontend-build-final.log",
+          "sha256": "dd3c64032e1a4791abb640b59abc8ff27166c5e2d147aa32447b7c9d49a09d3d",
+          "bytes": 4762,
+          "modified_at": "2026-10-14T16:08:23.361936+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "finance-package",
+      "repository": "personal-finance",
+      "cwd": "/Users/jasonkli/projects/personal-finance",
+      "commands": [
+        "PATH=/Users/jasonkli/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH PRIVATE_FILE_DIR=/private/tmp/finance-stabilization-release node /tmp/finance-stabilization-pnpm-store/v11/links/@/pnpm/11.19.0/3e4e3a80f5af985fa51d6bfdf0d29390962c457cbbeba150e49b822e2e3bed8d/node_modules/pnpm/bin/pnpm.cjs check"
+      ],
+      "result": {
+        "api_generation": "current",
+        "lint": "pass",
+        "format": "pass",
+        "mypy_source_files": 125,
+        "web_tests": 22,
+        "infra_tests": 6,
+        "api_tests_passed": 250,
+        "api_tests_skipped": 55,
+        "build": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/finance-package-release.log",
+          "sha256": "55d5918e1fba21c5ff1ed852bd831e203a904bcf7a1350278a27bbb5e1d275b4",
+          "bytes": 3042,
+          "modified_at": "2026-10-14T16:43:14.378735+00:00"
+        }
+      ],
+      "limitations": "Existing main bundle size warning remains.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "shopping-offline",
+      "repository": "shopping-assistant",
+      "cwd": "/Users/jasonkli/projects/shopping-assistant",
+      "commands": [
+        "From apps/api: .venv/bin/ruff check src tests migrations; .venv/bin/ruff format --check src tests migrations; .venv/bin/python ../../scripts/generate_api_types.py --check; .venv/bin/python -m pytest -q -m 'not db and not live'"
+      ],
+      "result": {
+        "passed": 197,
+        "deselected": 140,
+        "lint": "pass",
+        "format": "pass",
+        "api_generation": "current"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/shopping-offline-release-final.log",
+          "sha256": "3d05e2f83a22129e44d8e4666ffbe6aabc787796469efcaa7cd349001e244ef2",
+          "bytes": 797,
+          "modified_at": "2026-10-14T19:24:25.040542+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "shopping-web",
+      "repository": "shopping-assistant",
+      "cwd": "/Users/jasonkli/projects/shopping-assistant",
+      "commands": [
+        "From apps/web with bundled Node: node_modules/.bin/eslint .; node_modules/.bin/vitest run; node_modules/.bin/tsc -b; node_modules/.bin/vite build"
+      ],
+      "result": {
+        "tests": 69,
+        "test_files": 9,
+        "lint": "pass",
+        "types": "pass",
+        "build": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [],
+      "limitations": "Existing bundle size warning remains; new rendered task flows not accepted.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "travel-web",
+      "repository": "personal-travel-app",
+      "cwd": "/Users/jasonkli/projects/personal-travel-app",
+      "commands": [
+        "From frontend with bundled Node: node /Users/jasonkli/Library/pnpm/store/v11/links/@/pnpm/10.17.1/6d8f0ea8518e683968cf79e61c6f56c72ac14ffa3d255d1e8819ba315d16f5c7/node_modules/pnpm/bin/pnpm.cjs lint; node /Users/jasonkli/Library/pnpm/store/v11/links/@/pnpm/10.17.1/6d8f0ea8518e683968cf79e61c6f56c72ac14ffa3d255d1e8819ba315d16f5c7/node_modules/pnpm/bin/pnpm.cjs typecheck; node /Users/jasonkli/Library/pnpm/store/v11/links/@/pnpm/10.17.1/6d8f0ea8518e683968cf79e61c6f56c72ac14ffa3d255d1e8819ba315d16f5c7/node_modules/pnpm/bin/pnpm.cjs test; node /Users/jasonkli/Library/pnpm/store/v11/links/@/pnpm/10.17.1/6d8f0ea8518e683968cf79e61c6f56c72ac14ffa3d255d1e8819ba315d16f5c7/node_modules/pnpm/bin/pnpm.cjs build"
+      ],
+      "result": {
+        "tests": 60,
+        "lint": "pass",
+        "types": "pass",
+        "build": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-web-build-final.log",
+          "sha256": "d36bd074dcfb48db2806a71b8ff04c556305612619fc5eb4bc8c46e6a3480df4",
+          "bytes": 724,
+          "modified_at": "2026-10-14T16:04:51.738586+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "travel-recovery",
+      "repository": "personal-travel-app",
+      "cwd": "/Users/jasonkli/projects/personal-travel-app",
+      "commands": [
+        "From personal-ai-system: PATH=/tmp/travel-age-v1.3.2/bin:/opt/homebrew/opt/postgresql@17/bin:$PATH backend/.venv/bin/python stabilization/scripts/run_travel_recovery.py --admin-dsn postgresql://suite_stabilization@127.0.0.1:55439/postgres --log /tmp/travel-encrypted-recovery-final.log"
+      ],
+      "result": {
+        "encrypted_restore": "pass",
+        "revision": "0020",
+        "erased_owners_completed": 1,
+        "pending_owners": 0,
+        "retained_owner_export": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-encrypted-recovery-final.log",
+          "sha256": "6f00dc0fa4e0937b7bddebb366939a0a117a682e15121cb40dbc16d62f2863d4",
+          "bytes": 3030,
+          "modified_at": "2026-10-14T15:56:14.954765+00:00"
+        }
+      ],
+      "limitations": "age1.3.2 + real isolated SQL/private bytes. Independent cloud backup/retention/RPO/RTO unaccepted.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "health-static",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "PATH=/Users/jasonkli/projects/personal-ai-system/backend/.venv/bin:$PATH ruff check --config services/api/pyproject.toml services/api/src services/api/tests services/api/scripts scripts",
+        "ruff format --check --config services/api/pyproject.toml services/api/src services/api/tests services/api/scripts scripts",
+        "services/api/.venv/bin/mypy --config-file services/api/pyproject.toml services/api/src services/api/scripts scripts",
+        "python3 scripts/verify_scaffold.py"
+      ],
+      "result": {
+        "lint": "pass",
+        "format": "pass",
+        "formatted_files": 115,
+        "mypy_source_files": 78,
+        "scaffold": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-static-release-final.log",
+          "sha256": "815a4dbf7a74146b7c44d774347862938f348f8d0e229782d000146737e39f56",
+          "bytes": 175,
+          "modified_at": "2026-10-14T19:32:00.333982+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "health-mobile",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "With pnpm9 and bundled Node: pnpm api-client:typecheck; pnpm mobile:typecheck; pnpm mobile:lint; pnpm mobile:test; pnpm format:check"
+      ],
+      "result": {
+        "tests": 155,
+        "test_files": 32,
+        "lint": "pass with 6 existing test warnings",
+        "types": "pass",
+        "format": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-mobile-tests-final.log",
+          "sha256": "327df5a55b5a1ebc83186ab5e4d28bb4aa9d195a2c1d67d68e34604cda743fce",
+          "bytes": 2187,
+          "modified_at": "2026-10-14T16:08:09.253596+00:00"
+        },
+        {
+          "path": "/tmp/health-prettier-release-final.log",
+          "sha256": "988173cf6467738b8da33b400ba074e57dcc49d62c076f6caed3cb15e41e868d",
+          "bytes": 157,
+          "modified_at": "2026-10-14T19:35:10.805890+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "health-ios-js",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "With pnpm9: pnpm --filter @personal-health/mobile exec expo export --platform ios --output-dir /tmp/health-stabilization-ios-bundle-final"
+      ],
+      "result": {
+        "export": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-ios-bundle-final.log",
+          "sha256": "83b20e9b7101fa901e1c7fcbce1b8e70900d952e7d1231718e6b5b81c9b2cd51",
+          "bytes": 2423,
+          "modified_at": "2026-10-14T16:25:12.676399+00:00"
+        }
+      ],
+      "limitations": "JS bundle only; native device/HealthKit unaccepted.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "health-terraform-format",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "/tmp/health-app-gate1-terraform-1.13.3/terraform fmt -check -recursive infra/gcp"
+      ],
+      "result": {
+        "format": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [],
+      "limitations": "Provider init/validate/deployment not established locally.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "shared-contracts",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "backend/.venv/bin/python backend/scripts/sync_task_contracts.py --check",
+        "backend/.venv/bin/python stabilization/scripts/check_isolated_contracts.py"
+      ],
+      "result": {
+        "generated_consumers": 8,
+        "matching_isolated_runtime_manifests": 5
+      },
+      "exit_code": 0,
+      "evidence": [],
+      "limitations": "Manifest equality is local compatibility evidence, not deployed identity acceptance.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-context",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.context"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 5
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-context.json",
+          "sha256": "8027fcb98c0eb44043646bcb779f8ee92d8a200d02d95157e971cea671a3153e",
+          "bytes": 11776,
+          "modified_at": "2026-10-14T16:26:49.347202+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-context.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:48.811119+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-memory",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.memory"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 14
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-memory.json",
+          "sha256": "e5c0e601342e5eee84f73ab38b4de7b9eb88e679d25c52bff72f6f41a6680bbc",
+          "bytes": 14780,
+          "modified_at": "2026-10-14T16:26:50.237373+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-memory.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:49.412858+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-memory_lifecycle",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.memory_lifecycle"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 60
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-memory_lifecycle.json",
+          "sha256": "851b905f6d8ed4aec98cf88f54f07969c23cfafca17413f19afe170283178438",
+          "bytes": 79821,
+          "modified_at": "2026-10-14T16:26:51.722071+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-memory_lifecycle.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:50.345449+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-research",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.research"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 13
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-research.json",
+          "sha256": "ff57347c181d7be64a240c8fe3fd46b108b836302d857452791b01b5e7238088",
+          "bytes": 6630,
+          "modified_at": "2026-10-14T16:26:52.764714+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-research.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:51.858660+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-decision",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.decision"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 15
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-decision.json",
+          "sha256": "1202efac5ff38f87f969f6c70d72572fb8b8476417a7755cd23fd20e528b3f74",
+          "bytes": 11899,
+          "modified_at": "2026-10-14T16:26:53.549609+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-decision.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:52.856918+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-domain",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.domain"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 10
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-domain.json",
+          "sha256": "155b3062c1e16ca98e02d5adb543fdab875eda9075b3fc3a8d7de2ebda51e28c",
+          "bytes": 8682,
+          "modified_at": "2026-10-14T16:26:54.333795+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-domain.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:53.618918+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-iterative_research",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.iterative_research"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 18
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-iterative_research.json",
+          "sha256": "a716cb6a073d8cb7a0b2e05dce4147d036114aef1f86c4897d82bbb258b80460",
+          "bytes": 29286,
+          "modified_at": "2026-10-14T16:26:56.338462+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-iterative_research.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:54.426398+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-context_planner",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.context_planner"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 9
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-context_planner.json",
+          "sha256": "9160442952fe976dc1e9d814d6b24996f44f636dc2ab489c5d1399d1acf6790f",
+          "bytes": 54883,
+          "modified_at": "2026-10-14T16:26:57.411169+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-context_planner.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:56.429230+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline evaluator; no live provider claim.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "eval-planning",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false .venv/bin/python -m personal_ai.evaluation.planning"
+      ],
+      "result": {
+        "cli": "pass",
+        "rows": 30
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-eval-planning.json",
+          "sha256": "375a4cf536b8bc48e290c2c262ea17a2dc88037f361ef11586a43e0d03c22fae",
+          "bytes": 185724,
+          "modified_at": "2026-10-14T16:26:59.897043+00:00"
+        },
+        {
+          "path": "/tmp/suite-eval-planning.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "modified_at": "2026-10-14T16:26:57.664922+00:00"
+        }
+      ],
+      "limitations": "Synthetic offline; strict v12 preserves30 held-out planning rows, source/runtime/Git guards and non-promotion. No model-answer quality measured.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "pai-package",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "From backend: uv build --no-build-isolation --out-dir /tmp/pai-stabilization-package-final"
+      ],
+      "result": {
+        "wheel": "built",
+        "sdist": "built"
+      },
+      "exit_code": 0,
+      "evidence": [],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "travel-secrets",
+      "repository": "personal-travel-app",
+      "cwd": "/Users/jasonkli/projects/personal-travel-app",
+      "commands": [
+        "backend/.venv/bin/detect-secrets-hook --no-verify --baseline /tmp/travel-final-secret-scan-reviewed.baseline <358 tracked/task paths excluding canonical baseline and unrelated user files>"
+      ],
+      "result": {
+        "scanned_source_files": 358,
+        "new_unreviewed_findings": 0
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-secret-scan-final-reviewed-pass.log",
+          "sha256": "c595c0e09d872a457427663d116f5cb6d758ecff92a9c486f6c31056c3d99fbf",
+          "bytes": 25,
+          "modified_at": "2026-10-14T19:36:02.361494+00:00"
+        }
+      ],
+      "limitations": "Baseline entries reviewed explicitly; public base64url alphabet is a false positive. No network secret verification.",
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "docs-diff",
+      "repository": "personal-ai-system",
+      "cwd": "/Users/jasonkli/projects/personal-ai-system",
+      "commands": [
+        "Modified task Markdown relative-link validation; git diff --check in all five repos"
+      ],
+      "result": {
+        "checked_task_markdown_files": 69,
+        "broken_local_links": 0,
+        "diff_check": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/suite-doc-links-final.json",
+          "sha256": "40afaa4f0594ae9274b26cf820e04442ece801ae5b848f2a021cc447ecada45f",
+          "bytes": 106,
+          "modified_at": "2026-10-14T19:33:39.301691+00:00"
+        }
+      ],
+      "limitations": null,
+      "command_record": "Executed during this session; commands without saved logs are evidenced in tool output. Environment/path prerequisites are recorded separately."
+    },
+    {
+      "id": "travel-linux-types",
+      "repository": "personal-travel-app",
+      "cwd": "/Users/jasonkli/projects/personal-travel-app",
+      "commands": [
+        "backend/.venv/bin/mypy --config-file backend/pyproject.toml --platform linux backend/src"
+      ],
+      "result": {
+        "typecheck": "pass",
+        "source_files": 111
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-linux-mypy-final.log",
+          "sha256": "fdac9028099af3d1af03b385379d26b4edebadf935fa7565d4d0fd38310e6db6",
+          "bytes": 45
+        }
+      ],
+      "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    },
+    {
+      "id": "travel-doc-links",
+      "repository": "personal-travel-app",
+      "cwd": "/Users/jasonkli/projects/personal-travel-app",
+      "commands": [
+        "python3 scripts/check_markdown_links.py"
+      ],
+      "result": {
+        "local_links": 232,
+        "files": 75
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-links-ci-final.log",
+          "sha256": "e63a9abe445e9bc23e7765813974cb3f401597f07dd6a4ea20daaed64d9b6d9c",
+          "bytes": 49
+        }
+      ],
+      "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    },
+    {
+      "id": "health-mobile-utc",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "TZ=UTC pnpm mobile:test"
+      ],
+      "result": {
+        "passed": 155,
+        "files": 32
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-mobile-utc-final.log",
+          "sha256": "221ef492b7d74ad100751829e4c816a34293f33dc609601aca3a6344e7d4cd37",
+          "bytes": 2314
+        }
+      ],
+      "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    },
+    {
+      "id": "health-mobile-la",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "TZ=America/Los_Angeles pnpm mobile:test"
+      ],
+      "result": {
+        "passed": 155,
+        "files": 32
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-mobile-la-final.log",
+          "sha256": "5f00768ca0a39a04e0129bb94f96ebbc5bb92bc863dcd01ca677ce1a074dce0e",
+          "bytes": 2439
+        }
+      ],
+      "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    },
+    {
+      "id": "health-final-format",
+      "repository": "health-app",
+      "cwd": "/Users/jasonkli/projects/health-app",
+      "commands": [
+        "pnpm format:check"
+      ],
+      "result": {
+        "format": "pass"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/health-format-ci-followup.log",
+          "sha256": "988173cf6467738b8da33b400ba074e57dcc49d62c076f6caed3cb15e41e868d",
+          "bytes": 157
+        }
+      ],
+      "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    },
+    {
+      "id": "shopping-cli-packaged-cwd",
+      "repository": "shopping-assistant",
+      "cwd": "/Users/jasonkli/projects/shopping-assistant",
+      "commands": [
+        "From /tmp: ENVIRONMENT=local AUTH_MODE=local DATABASE_URL=postgresql+psycopg://synthetic:synthetic@127.0.0.1:1/synthetic /Users/jasonkli/projects/shopping-assistant/apps/api/.venv/bin/python -m alembic --config /Users/jasonkli/projects/shopping-assistant/apps/api/alembic.ini upgrade head --sql"
+      ],
+      "result": {
+        "sql_generation": "pass",
+        "head": "p9_delegated_task_receipts"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/shopping-alternate-cwd-sql-final.log",
+          "sha256": "39654addcc164a629cdbd8e5126c092d51124930cb55ff902c792809c5d17aac",
+          "bytes": 75452
+        }
+      ],
+      "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    }
+  ],
+  "owned_cluster_cleanup": {
+    "data": "/tmp/suite-stabilization-pg17.TLKzM7/data",
+    "stopped": true,
+    "stop_log_sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+    "leftover_runner_uuid_databases": 0
+  },
+  "automation": {
+    "id": "resume-five-repo-stabilization",
+    "one_shot_fired_at": "2026-10-14T08:10:07Z",
+    "status": "PAUSED",
+    "model_or_reasoning_changed": false
+  },
+  "unaccepted": [
+    "independent review",
+    "real cloud/IAM/Firebase linked identity",
+    "live provider",
+    "native HealthKit/device",
+    "unavailable emulator",
+    "complete fresh rendered source journeys",
+    "cloud restore/deletion/retention/RPO/RTO",
+    "deployed process crash/mixed versions"
+  ],
+  "secret_scan_manual_classification": {
+    "raw_report_path": "/tmp/suite-secrets-changes-final.json",
+    "raw_report_sha256": "15d75ebc30b81d463da1b4f6d116247000bb1f06307709569b4e4acdf7b051e7",
+    "result": "All findings reviewed as synthetic fixtures/local development DSNs, public alphabets and Git/content hashes; no live credential accepted. Generated evidence contains hashes, not private data.",
+    "scope": "Changed and task-untracked files; unrelated user/private/ignored files excluded."
+  },
+  "primary_qa_source_identities": {
+    "health-app": {
+      "baseline": "7fb84c76217c772b2bce6715744b8294afafa771",
+      "source_tree_sha256": "269e9b2d5a953d98b5d51071c77d597731d931b601496fb937693d554bc21d5f"
+    },
+    "personal-ai-system": {
+      "baseline": "c029194156c570ec55f8173af969702f0265e57b",
+      "source_tree_sha256": "25cb9df6f16785b2ad5879d4f4c9e042cfd90e2a13e02c859ec7e0a9fd30c354"
+    },
+    "personal-finance": {
+      "baseline": "495c21186b68215bf110ab6ab3115cd67190cc67",
+      "source_tree_sha256": "782b86933be2a2c4559269f5a94d54c72bb23ada430a371e5d505c298a800e6e"
+    },
+    "personal-travel-app": {
+      "baseline": "09584976d46c67c97a19c72d173b2ee88dbcb31c",
+      "source_tree_sha256": "83cb068a0d8fe25cf869545aba080dbfe3dde6cdad7a2aa1c09d9719cdb81d2f"
+    },
+    "shopping-assistant": {
+      "baseline": "2268b944ffa8fe5c2e6f2787c88dea616160e398",
+      "source_tree_sha256": "1645e7debdfb39d8a4b754e5f904fe420e881b064d105ebf8aabce493b135459"
+    }
+  },
+  "final_delta_after_primary_qa": "Only Linux tuple annotations, mobile fixture timezone and docs/CI smoke environment changed after full native/matrix QA. Affected checks are recorded below; production security/behavior is preserved.",
+  "staged_diff_check": "Required at publication; untracked worker Markdown whitespace was corrected before the final successful index check."
+}

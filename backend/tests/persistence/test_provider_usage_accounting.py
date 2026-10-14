@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier
@@ -24,15 +23,14 @@ from personal_ai.usage.contracts import (
     UsageAdmissionDenied,
 )
 from personal_ai.usage.quota import QuotaObservation as QuotaBucket
+from tests.test_research_provider import operation as search_operation
 
 pytestmark = pytest.mark.persistence_integration
 
 
 @pytest.fixture
-def postgres_database():
-    dsn = os.environ.get("PERSISTENCE_TEST_POSTGRES_DSN")
-    if not dsn:
-        pytest.skip("set PERSISTENCE_TEST_POSTGRES_DSN to an isolated local pgvector database")
+def postgres_database(isolated_postgres_dsn):
+    dsn = isolated_postgres_dsn
     database = PostgresDatabase(dsn, environment="test", min_size=1, max_size=4)
     try:
         database.migrate()
@@ -469,7 +467,7 @@ def test_brave_unknown_membership_does_not_reach_http_transport(postgres_databas
     brave._NEXT_REQUEST = 0
 
     with pytest.raises(SearchError):
-        anyio.run(adapter.search, "synthetic query", 1)
+        anyio.run(adapter.search, search_operation("synthetic query"))
 
     assert send_count == 0
     with postgres_database.connection(snapshot=True) as connection:
@@ -579,7 +577,8 @@ def test_retry_lineage_and_timeout_fence_are_persisted(postgres_database):
         invocation_id=uuid4(),
         task_id="web_research_search",
     )
-    accounting = PostgresProviderUsageAccounting(postgres_database)
+    # This test measures persisted lineage, not elapsed cooldown waiting.
+    accounting = PostgresProviderUsageAccounting(postgres_database, default_cooldown_seconds=0)
     first = _attempt()
     second = _attempt(
         send_number=2,

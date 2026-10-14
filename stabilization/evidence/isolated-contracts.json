@@ -1,0 +1,77 @@
+{
+  "health-app": {
+    "manifest": {
+      "command_read_contract_fingerprint": "086207f5d5813e94fcc3751ad305d6197c571526dd9184ee12cc9ab285511b51",
+      "delegation_version": "suite-delegation-v1",
+      "maximum_assertion_lifetime_seconds": 60,
+      "source_command_contract_fingerprint": "55f70f1a6bccf4f0ff58409e149e86367b869175e41a3127bd6a579468889805",
+      "source_command_version": "suite-source-command-v1",
+      "target_authority_contract_fingerprint": "a1377598a782a81976b2599d28d38f89726dd197b6777688e89c7fe0bddc6ddd",
+      "target_authority_version": "suite-task-target-v1",
+      "task_contract_fingerprint": "ae15647013855b811c3c27c97d91a7efd6c33b38bd3963d74d82d85054b4981e",
+      "task_result_version": "suite-task-result-v1",
+      "task_version": "suite-task-v1"
+    },
+    "pydantic": "2.14.1"
+  },
+  "personal-ai-system": {
+    "manifest": {
+      "command_read_contract_fingerprint": "086207f5d5813e94fcc3751ad305d6197c571526dd9184ee12cc9ab285511b51",
+      "delegation_version": "suite-delegation-v1",
+      "maximum_assertion_lifetime_seconds": 60,
+      "source_command_contract_fingerprint": "55f70f1a6bccf4f0ff58409e149e86367b869175e41a3127bd6a579468889805",
+      "source_command_version": "suite-source-command-v1",
+      "target_authority_contract_fingerprint": "a1377598a782a81976b2599d28d38f89726dd197b6777688e89c7fe0bddc6ddd",
+      "target_authority_version": "suite-task-target-v1",
+      "task_contract_fingerprint": "ae15647013855b811c3c27c97d91a7efd6c33b38bd3963d74d82d85054b4981e",
+      "task_result_version": "suite-task-result-v1",
+      "task_version": "suite-task-v1"
+    },
+    "pydantic": "2.13.5"
+  },
+  "personal-finance": {
+    "manifest": {
+      "command_read_contract_fingerprint": "086207f5d5813e94fcc3751ad305d6197c571526dd9184ee12cc9ab285511b51",
+      "delegation_version": "suite-delegation-v1",
+      "maximum_assertion_lifetime_seconds": 60,
+      "source_command_contract_fingerprint": "55f70f1a6bccf4f0ff58409e149e86367b869175e41a3127bd6a579468889805",
+      "source_command_version": "suite-source-command-v1",
+      "target_authority_contract_fingerprint": "a1377598a782a81976b2599d28d38f89726dd197b6777688e89c7fe0bddc6ddd",
+      "target_authority_version": "suite-task-target-v1",
+      "task_contract_fingerprint": "ae15647013855b811c3c27c97d91a7efd6c33b38bd3963d74d82d85054b4981e",
+      "task_result_version": "suite-task-result-v1",
+      "task_version": "suite-task-v1"
+    },
+    "pydantic": "2.13.5"
+  },
+  "personal-travel-app": {
+    "manifest": {
+      "command_read_contract_fingerprint": "086207f5d5813e94fcc3751ad305d6197c571526dd9184ee12cc9ab285511b51",
+      "delegation_version": "suite-delegation-v1",
+      "maximum_assertion_lifetime_seconds": 60,
+      "source_command_contract_fingerprint": "55f70f1a6bccf4f0ff58409e149e86367b869175e41a3127bd6a579468889805",
+      "source_command_version": "suite-source-command-v1",
+      "target_authority_contract_fingerprint": "a1377598a782a81976b2599d28d38f89726dd197b6777688e89c7fe0bddc6ddd",
+      "target_authority_version": "suite-task-target-v1",
+      "task_contract_fingerprint": "ae15647013855b811c3c27c97d91a7efd6c33b38bd3963d74d82d85054b4981e",
+      "task_result_version": "suite-task-result-v1",
+      "task_version": "suite-task-v1"
+    },
+    "pydantic": "2.13.5"
+  },
+  "shopping-assistant": {
+    "manifest": {
+      "command_read_contract_fingerprint": "086207f5d5813e94fcc3751ad305d6197c571526dd9184ee12cc9ab285511b51",
+      "delegation_version": "suite-delegation-v1",
+      "maximum_assertion_lifetime_seconds": 60,
+      "source_command_contract_fingerprint": "55f70f1a6bccf4f0ff58409e149e86367b869175e41a3127bd6a579468889805",
+      "source_command_version": "suite-source-command-v1",
+      "target_authority_contract_fingerprint": "a1377598a782a81976b2599d28d38f89726dd197b6777688e89c7fe0bddc6ddd",
+      "target_authority_version": "suite-task-target-v1",
+      "task_contract_fingerprint": "ae15647013855b811c3c27c97d91a7efd6c33b38bd3963d74d82d85054b4981e",
+      "task_result_version": "suite-task-result-v1",
+      "task_version": "suite-task-v1"
+    },
+    "pydantic": "2.13.5"
+  }
+}
