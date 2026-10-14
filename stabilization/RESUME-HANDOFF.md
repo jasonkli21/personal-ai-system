@@ -18,8 +18,9 @@ results and gaps. The final all-five native/HTTPS matrix passes 32 cases. Health
 passes 281 native tests after its event-loop clock regression fix. Other complete
 native/offline/web/mobile/recovery and contract results are recorded there.
 
-Keep Root’s single stabilization commit a direct child of baseline c029194 to
-preserve the reviewed strict v12 Git/source/runtime guard. Resolve the final Root
+Root’s final publication follow-up must be a direct child of 4413b0a, the reviewed
+v13 revision anchor. Preserve v10/v11/v12 history; v13 changes only the selector
+and revision metadata with unchanged corpus/config/runtime and strict guards. Resolve the final Root
 revision from git log -1 --format=%H -- stabilization/REVIEW-HANDOFF.md. Domain
 commit identities are in evidence/publication.json. GitHub CI must be inspected
 at these actual revisions, not inferred from local results.

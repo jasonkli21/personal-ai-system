@@ -28,10 +28,10 @@ so its refusal to test against the configured runtime DB remains enforced.
 
 | Scope | Final local result | Evidence |
 | --- | --- | --- |
-| PAI offline backend |1747 passed,90 deselected | `/tmp/pai-offline-stabilization-final.log` |
-| PAI native PostgreSQL |75 passed,14 skipped,1750 deselected | `/tmp/pai-native-stabilization-final.log`; unavailable DynamoDB checks remain skipped |
+| PAI offline backend |1748 passed,90 deselected | `/tmp/pai-offline-publication-final.log` |
+| PAI native PostgreSQL |75 passed,14 skipped,1751 deselected | `/tmp/pai-scram-native-final.log`; unavailable DynamoDB checks remain skipped |
 | PAI web |123 tests/23 files; lint/types/build pass | local tool output and `/tmp/pai-frontend-build-final.log` |
-| PAI evaluations/package |9 offline evaluator CLIs passed; strict v12 non-promotion; wheel/sdist built | `/tmp/suite-eval-*.json`, `/tmp/pai-stabilization-package-final` |
+| PAI evaluations/package |9 offline evaluator CLIs passed; strict v13 non-promotion; wheel/sdist built | `/tmp/suite-eval-*.json`, `/tmp/pai-stabilization-package-publication-final` |
 | Finance package gate |API generation, lint/format/types,22 web tests,6 infra-contract tests,250 API tests/55 skips, production build pass | `/tmp/finance-package-release.log` |
 | Finance native |294 passed,11 skipped, including actual encrypted SQL/private-file restore | `/tmp/finance-native-release.log` |
 | Shopping offline |197 passed,140 deselected; lint/format/API generation pass | `/tmp/shopping-offline-release-final.log` |
@@ -90,8 +90,8 @@ with `ruff format --check --line-length88`. Run evaluator modules context, memor
 memory_lifecycle, research, decision, domain, iterative_research, context_planner,
 planning with `AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development
 APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false`; build with
-`uv build --no-build-isolation --out-dir /tmp/pai-stabilization-package-final`.
-Strict planning requires the recorded exact runtime/source and enough Git history
+`uv build --no-build-isolation --out-dir /tmp/pai-stabilization-package-publication-final`.
+Strict v13 planning requires the recorded exact runtime/source and enough Git history
 to resolve the frozen baseline/direct parent; a shallow incompatible checkout is
 not accepted by replacing its lock.
 
@@ -150,12 +150,12 @@ The four domain commits were pushed normally and their remote main SHAs verified
 | Repo | Published commit |
 | --- | --- |
 | Shopping |197849e545ae74f1860a58054c8a741ccb39d9e5 |
-| Finance |58c4d4bc6a41bb7799d17a6e900fc76e22fc31da |
-| Travel |664d9df7c1c406577ad16724eeee32cdee9acfb8 |
+| Finance |8097060f7734525f2c8294bc77f2325d47f2c7d4 |
+| Travel |4836fb82d45a66ed2fab726eff4e31e09f9ae8fa |
 | Health |c3020b9c6926fd6454e5fe95b0d7fa5fa13ebb00 |
 
 PAI’s exact containing commit is resolved by `git log -1 --format=%H --
-stabilization/REVIEW-HANDOFF.md`; its parent is c029194. Verify remote main with
+stabilization/REVIEW-HANDOFF.md`; its direct parent is 4413b0a, the reviewed v13 anchor. Verify remote main with
 `git ls-remote origin refs/heads/main`. Final publication/CI completion output is
 also preserved in `/tmp/suite-ci-latest.json` and the per-repo stabilization-commit
 JSON records. CI in publication.json is the dated preparation snapshot, not an
@@ -167,3 +167,17 @@ these paths are temporary and should be copied to a private evidence location
 if long-term retention is needed. No personal/deployed resources were removed.
 The consumed one-shot restart is PAUSED. No session model or reasoning setting
 was changed. Only pre-existing unrelated user files remain outside the commits.
+
+Final supplemental checks: Travel’s actual SCRAM pool regression passes; all
+seven Finance browser journeys pass using a UUID DB/private store and explicit
+historical valuation. Root’s v13 focused/source/documentation guards and full
+offline/native checks are rerun after restoring the Phase36 offline phrase.
+v13 preserves v12’s 30-case corpus/config/runtime and strict guards while recording
+the final revision anchor; v10/v11/v12 are unchanged.
+
+Final password-authenticated supplemental cluster:
+`/tmp/suite-scram-release.A7UZVA/data`, loopback 55449, synthetic role
+suite_ci_fixture. Incorrect passwords were explicitly rejected. Travel pool
+recovery, PAI’s 75 native tests and all seven Finance browser journeys passed;
+the runners dropped their owned UUID DBs and the cluster is now stopped.
+No private/deployed storage was touched.

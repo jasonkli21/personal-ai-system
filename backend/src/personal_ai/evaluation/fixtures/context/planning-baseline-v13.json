@@ -1,0 +1,28 @@
+{
+  "baseline_lock_version": "planning-baseline-lock-v13",
+  "baseline_version": "deterministic-context-planner-v1",
+  "configuration_digest": "d5a21dbc1568ec8b5704139f2e908a17c1b9e4289ed3f25b6c105b9378a768a9",
+  "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+  "counter_identity": "phase13-envelope-byte-estimate-v1",
+  "evaluator_version": "planning-evaluator-v6",
+  "evidence_kind": "synthetic_offline",
+  "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+  "frozen_at": "2026-10-14T19:58:14.064062+00:00",
+  "platform_runtime": "macOS-27.0.1-arm64-arm-64bit",
+  "preserved_corpus": "planning-heldout-v2.json; all 30 cases and deterministic baseline unchanged",
+  "promotion_decision": "non_promotion; no model-answer quality evidence or promoted coverage",
+  "pydantic_runtime": "2.13.5",
+  "python_abi": "cpython-311",
+  "python_implementation": "CPython",
+  "python_runtime": "3.11.15",
+  "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
+  "runtime_distribution_count": 94,
+  "source_change_summary": [
+    "Publication follow-up retains all production behavior and strict runtime/source/current-or-direct-child guards. Only the evaluator freeze selector advances from v12 to v13.",
+    "Final documentation restores the Phase36 offline terminology invariant and records fresh hosted-CI portability corrections and final domain publications."
+  ],
+  "source_identity_digest": "1f31fa02adbb8446288dd563e81551532e65603965976020f1a86c4f5f05f0b2",
+  "source_revision": "4413b0a7098538b05ad05e311dec9b50a92b1000",
+  "source_revision_binding": "current-or-direct-child-with-identical-source-identity",
+  "supersedes": "planning-baseline-lock-v12"
+}

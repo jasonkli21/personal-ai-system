@@ -54,11 +54,15 @@ real migrations, PostgreSQL state, signatures and HTTP listeners; Google/Firebas
 lookups remain synthetic. Exact final commands, source identities, revisions,
 counts and limitations are in [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10/v11 remain historical. v12 binds the reviewed source and exact
+Planner locks v10/v11/v12 remain historical. v13 binds the reviewed source and exact
 runtime while preserving all 30 held-out cases, the deterministic planner and its
 configuration. Production replay still rejects source, runtime and unrelated
 revision changes. Portable tests use an explicitly test-only lock. Nothing is
 promoted from this freeze.
+
+Phase36 retains its earlier **24 passed offline rows**; its exact soak counts
+remain in the generated evidence. These rows do not establish cloud, provider
+or production acceptance.
 
 Keep task, context, connected inference, private ingress and experimental gates
 off until their owning acceptance evidence is complete. Provider SDK mocks,

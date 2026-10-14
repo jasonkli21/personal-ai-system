@@ -1,6 +1,6 @@
 {
   "schema_version": "suite-publication-v1",
-  "recorded_at": "2026-10-14T19:47:15.263547+00:00",
+  "recorded_at": "2026-10-14T20:05:37.683113+00:00",
   "authorization": "User explicitly requested per-repo commits and pushes to each remote main. All pushes are normal fast-forwards; no deployment.",
   "repositories": {
     "shopping-assistant": {
@@ -31,11 +31,11 @@
       "source_tree_sha256": "1645e7debdfb39d8a4b754e5f904fe420e881b064d105ebf8aabce493b135459",
       "ci_at_handoff_preparation": [
         {
-          "conclusion": "",
+          "conclusion": "success",
           "databaseId": 38626339366,
           "headSha": "197849e545ae74f1860a58054c8a741ccb39d9e5",
           "name": "CI",
-          "status": "in_progress",
+          "status": "completed",
           "url": "https://github.com/jasonkli21/shopping-assistant/actions/runs/38626339366"
         }
       ]
@@ -43,12 +43,12 @@
     "personal-finance": {
       "repository": "personal-finance",
       "baseline": "495c21186b68215bf110ab6ab3115cd67190cc67",
-      "commit": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
-      "parent": "491de3280dc30e0760e1d392f6083b3d40d07c34",
+      "commit": "8097060f7734525f2c8294bc77f2325d47f2c7d4",
+      "parent": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
       "branch": "main",
       "remaining_status": "",
-      "remote_before": "491de3280dc30e0760e1d392f6083b3d40d07c34",
-      "remote_main": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
+      "remote_before": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
+      "remote_main": "8097060f7734525f2c8294bc77f2325d47f2c7d4",
       "push_command": [
         "git",
         "push",
@@ -62,30 +62,36 @@
           "parent": "495c21186b68215bf110ab6ab3115cd67190cc67",
           "remote_main": "491de3280dc30e0760e1d392f6083b3d40d07c34",
           "push_verified": true
+        },
+        {
+          "commit": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
+          "parent": "491de3280dc30e0760e1d392f6083b3d40d07c34",
+          "remote_main": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
+          "push_verified": true
         }
       ],
-      "expected_remote_before": "491de3280dc30e0760e1d392f6083b3d40d07c34",
-      "source_tree_sha256": "782b86933be2a2c4559269f5a94d54c72bb23ada430a371e5d505c298a800e6e",
+      "expected_remote_before": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
+      "source_tree_sha256": "44bf66d4ef24808370a9dd75c8d91b3af58c0489e81fbf90e60e6a57c90e0025",
       "ci_at_handoff_preparation": [
         {
-          "conclusion": "",
-          "databaseId": 38626350898,
-          "headSha": "58c4d4bc6a41bb7799d17a6e900fc76e22fc31da",
+          "conclusion": "success",
+          "databaseId": 38627991484,
+          "headSha": "8097060f7734525f2c8294bc77f2325d47f2c7d4",
           "name": "Quality",
-          "status": "in_progress",
-          "url": "https://github.com/jasonkli21/personal-finance-and-investments/actions/runs/38626350898"
+          "status": "completed",
+          "url": "https://github.com/jasonkli21/personal-finance-and-investments/actions/runs/38627991484"
         }
       ]
     },
     "personal-travel-app": {
       "repository": "personal-travel-app",
       "baseline": "09584976d46c67c97a19c72d173b2ee88dbcb31c",
-      "commit": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
-      "parent": "f1c477e6b3cd468c3607a0777697afbb9b468d20",
+      "commit": "4836fb82d45a66ed2fab726eff4e31e09f9ae8fa",
+      "parent": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
       "branch": "main",
       "remaining_status": "?? docs/reviews/phase-9-independent-review.md\n?? frontend/pnpm-workspace.yaml",
-      "remote_before": "f1c477e6b3cd468c3607a0777697afbb9b468d20",
-      "remote_main": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
+      "remote_before": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
+      "remote_main": "4836fb82d45a66ed2fab726eff4e31e09f9ae8fa",
       "push_command": [
         "git",
         "push",
@@ -99,18 +105,24 @@
           "parent": "09584976d46c67c97a19c72d173b2ee88dbcb31c",
           "remote_main": "f1c477e6b3cd468c3607a0777697afbb9b468d20",
           "push_verified": true
+        },
+        {
+          "commit": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
+          "parent": "f1c477e6b3cd468c3607a0777697afbb9b468d20",
+          "remote_main": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
+          "push_verified": true
         }
       ],
-      "expected_remote_before": "f1c477e6b3cd468c3607a0777697afbb9b468d20",
-      "source_tree_sha256": "50910a6eb7ef522c7eca67d5a56a546dc3338e2a7823ed49810fb89e9258b2ae",
+      "expected_remote_before": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
+      "source_tree_sha256": "baeb28ab74e80e62d39689c60948a1a99f612884f9c4b9d535cac81056675a9d",
       "ci_at_handoff_preparation": [
         {
-          "conclusion": "",
-          "databaseId": 38626351275,
-          "headSha": "664d9df7c1c406577ad16724eeee32cdee9acfb8",
+          "conclusion": "success",
+          "databaseId": 38627977919,
+          "headSha": "4836fb82d45a66ed2fab726eff4e31e09f9ae8fa",
           "name": "CI",
-          "status": "in_progress",
-          "url": "https://github.com/jasonkli21/travel-app/actions/runs/38626351275"
+          "status": "completed",
+          "url": "https://github.com/jasonkli21/travel-app/actions/runs/38627977919"
         }
       ]
     },
@@ -142,11 +154,11 @@
       "source_tree_sha256": "dc6d56f21aa31a850eed19a4a99728d41b107775b77de396a44749fd76ee75c0",
       "ci_at_handoff_preparation": [
         {
-          "conclusion": "",
+          "conclusion": "success",
           "databaseId": 38626358898,
           "headSha": "c3020b9c6926fd6454e5fe95b0d7fa5fa13ebb00",
           "name": "CI",
-          "status": "in_progress",
+          "status": "completed",
           "url": "https://github.com/jasonkli21/health-app/actions/runs/38626358898"
         }
       ]
@@ -154,13 +166,15 @@
     "personal-ai-system": {
       "baseline": "c029194156c570ec55f8173af969702f0265e57b",
       "branch": "main",
-      "source_tree_sha256": "25cb9df6f16785b2ad5879d4f4c9e042cfd90e2a13e02c859ec7e0a9fd30c354",
+      "source_tree_sha256": "ba756fddefd78a1517fd11545ea50b7fa435ab8a35cdce04c0c63a345ca9528f",
       "commit_identity": {
         "kind": "commit-containing-this-handoff",
         "resolve": "git log -1 --format=%H -- stabilization/REVIEW-HANDOFF.md",
-        "expected_parent": "c029194156c570ec55f8173af969702f0265e57b"
+        "expected_parent": "4413b0a7098538b05ad05e311dec9b50a92b1000"
       },
-      "publication_completion_witness": "Final session output and /tmp/personal-ai-system-stabilization-commit.json; verify remote main with git ls-remote origin refs/heads/main. This commit cannot contain its own hash."
+      "publication_completion_witness": "Final session output and /tmp/personal-ai-system-stabilization-commit.json; verify remote main with git ls-remote origin refs/heads/main. This commit cannot contain its own hash.",
+      "reviewed_freeze": "v13",
+      "initial_ci_failure_corrected": "Condensed current status omitted the required Phase36 offline phrase; restored without weakening its assertion."
     }
   }
 }

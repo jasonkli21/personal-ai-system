@@ -8,7 +8,7 @@ Separate independent review remains required; this is implementation QA.
 
 | Earlier work | Direct reconciliation and polish | Strongest local evidence |
 | --- | --- | --- |
-| PAI portable planner unit lock | Verified tests use only a temporary runtime-bound lock; production source/runtime/unrelated-revision guards remain strict. Preserve v10/v11; justified v12 covers current source without changing corpus/configuration or promoting experiments | Focused planner guard tests, full offline suite, strict v12 replay |
+| PAI portable planner unit lock | Verified tests use only a temporary runtime-bound lock; production source/runtime/unrelated-revision guards remain strict. Preserve v10/v11; justified v12 covers the initial implementation; v13 anchors the final publication follow-up without changing corpus/configuration or promoting experiments | Focused planner guard tests, full offline suite, strict v12/v13 replay |
 | PAI retention helper forwarding | Inspected required physical attempt ID and publication status forwarded intact; no silent event/status loss | Native P19 accounting, operational event and retention tests |
 | PAI database-clock UTC | Inspected timezone normalization before elapsed deadline arithmetic; added/retained native DST/cooldown assertions | Native routing/retention suite and offline routing tests |
 | PAI native fixtures and assertions | UUID schemas replace reused names; current contract fields retained; authoritative unknown capacity is not fabricated | Full native suite;14 unavailable DynamoDB cases explicitly skipped |
@@ -74,6 +74,13 @@ Fresh hosted CI additionally exposed the container migration’s missing explici
 local-auth environment, Linux-only parser tuple inference, sibling-only document
 links and a timezone-dependent mobile fixture. These were corrected with the
 production guards/semantics retained, then checked locally and republished.
+
+Additional exact-revision CI exposed the Travel pool test’s masked URL password,
+Finance’s fixed browser quotes valued after their freshness window, and a missing
+Phase36 offline phrase in Root’s shorter status. Pass the URL object; choose the
+explicit historical fixture valuation; restore the truthful offline phrase.
+SCRAM recovery, all seven browser journeys and final full backend checks cover
+these corrections without changing product/security semantics.
 
 No earlier worker change was discarded merely because execution switched models.
 The inventory records changed files/content identities and structurally identical

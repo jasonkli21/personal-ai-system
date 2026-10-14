@@ -45,7 +45,8 @@ remote main matched its baseline when checked before publication.
 Final published commit identities and source-tree hashes are recorded in
 [verification](VERIFICATION.md) and `evidence/publication.json`. For PAI's handoff
 commit, resolve the revision containing this file with `git log -1 --format=%H --
-stabilization/REVIEW-HANDOFF.md`; its parent is the baseline above. Its canonical
+stabilization/REVIEW-HANDOFF.md`; its direct parent is the first stabilization commit 4413b0a. The full review
+diff still starts at the original baseline above. Its canonical
 planner source digest provides an additional executable content identity. A
 commit cannot include its own SHA. Publication evidence also retains the final
 Git command results outside the self-referential commit where necessary.
@@ -214,18 +215,21 @@ the newly added source task panels. Local builds do not certify containers,
 private Cloud Run invocation, real linked identity, provider semantics or cloud
 infrastructure. Keep all related gates off until owning evidence is accepted.
 
-Planner v10/v11 are preserved. v12 binds reviewed current source/runtime, preserves
+Planner v10/v11/v12 are preserved. v13 binds reviewed current source/runtime, preserves
 all 30 held-out cases and deterministic configuration, and keeps strict source,
 runtime and unrelated-revision rejection. Portable evaluator tests use a test-only
 lock; no adaptive/search/memory/model-quality coverage is promoted. Changing source
-after this freeze requires a reviewed new lock. PAI's one stabilization commit is
-a direct child of the frozen baseline; do not blindly amend/rebase across unrelated
-revisions without updating strict evidence correctly.
+after this freeze requires a reviewed new lock. PAI’s publication follow-up is a direct child of the reviewed v13 revision
+anchor 4413b0a. v13 advances only the freeze selector/revision metadata after the
+final CI/documentation corrections, retaining the v12 corpus/config/runtime and
+all strict guards. Do not blindly amend/rebase unrelated revisions or overwrite
+older frozen artifacts.
 
 The first hosted runs found CI portability gaps: explicit local container
 migration identity, Linux parser tuple typing, standalone documentation links and
 a date-only mobile fixture’s implicit timezone. Follow-up commits preserve runtime
-security/behavior; affected checks and final CI identities are in verification.
+security/behavior; actual SCRAM pool checks and all seven Finance browser journeys
+pass. Root’s condensed status restores the Phase36 offline terminology invariant; affected checks and final CI identities are in verification.
 
 ## Quality and transition review priorities
 

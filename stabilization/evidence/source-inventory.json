@@ -2316,7 +2316,7 @@
       "docs/phase-15-independent-review-2026-10-07.md",
       "docs/phase-17r-independent-review-2026-10-08.md"
     ],
-    "source_tree_sha256": "25cb9df6f16785b2ad5879d4f4c9e042cfd90e2a13e02c859ec7e0a9fd30c354",
+    "source_tree_sha256": "ba756fddefd78a1517fd11545ea50b7fa435ab8a35cdce04c0c63a345ca9528f",
     "tracked_python_comparison": {
       "ast_identical": [],
       "changed": [
@@ -3436,7 +3436,7 @@
       ]
     },
     "preserved_user_files": [],
-    "source_tree_sha256": "782b86933be2a2c4559269f5a94d54c72bb23ada430a371e5d505c298a800e6e",
+    "source_tree_sha256": "44bf66d4ef24808370a9dd75c8d91b3af58c0489e81fbf90e60e6a57c90e0025",
     "tracked_python_comparison": {
       "ast_identical": [],
       "changed": [
@@ -4462,7 +4462,7 @@
       "docs/reviews/phase-9-independent-review.md",
       "frontend/pnpm-workspace.yaml"
     ],
-    "source_tree_sha256": "50910a6eb7ef522c7eca67d5a56a546dc3338e2a7823ed49810fb89e9258b2ae",
+    "source_tree_sha256": "baeb28ab74e80e62d39689c60948a1a99f612884f9c4b9d535cac81056675a9d",
     "tracked_python_comparison": {
       "ast_identical": [
         "backend/tests/test_configuration_environment.py",
@@ -4485,6 +4485,7 @@
         "backend/tests/fixtures/synthetic_identity_server.py",
         "backend/tests/test_auth_sessions_postgres.py",
         "backend/tests/test_google_oidc_verification.py",
+        "backend/tests/test_pool_reliability_postgres.py",
         "backend/tests/test_review_migrations.py"
       ]
     }

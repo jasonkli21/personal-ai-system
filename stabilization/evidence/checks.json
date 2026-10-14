@@ -1,7 +1,7 @@
 {
   "schema_version": "suite-local-verification-v1",
   "recorded_at": "2026-10-14T19:41:10.522870+00:00",
-  "tested_revisions": "Checks ran on baseline HEAD plus recorded worktree patches; publication records map the unchanged source contents to final commits. Source digest is stronger than an uncommitted HEAD label.",
+  "tested_revisions": "Primary QA ran on baseline worktree patches; final publication QA ran on 4413b0a plus the reviewed v13/status follow-up. Named supplemental records identify exact sources and logs; published commits preserve those checked contents.",
   "sources": {
     "health-app": {
       "baseline": "7fb84c76217c772b2bce6715744b8294afafa771",
@@ -9,15 +9,15 @@
     },
     "personal-ai-system": {
       "baseline": "c029194156c570ec55f8173af969702f0265e57b",
-      "source_tree_sha256": "25cb9df6f16785b2ad5879d4f4c9e042cfd90e2a13e02c859ec7e0a9fd30c354"
+      "source_tree_sha256": "ba756fddefd78a1517fd11545ea50b7fa435ab8a35cdce04c0c63a345ca9528f"
     },
     "personal-finance": {
       "baseline": "495c21186b68215bf110ab6ab3115cd67190cc67",
-      "source_tree_sha256": "782b86933be2a2c4559269f5a94d54c72bb23ada430a371e5d505c298a800e6e"
+      "source_tree_sha256": "44bf66d4ef24808370a9dd75c8d91b3af58c0489e81fbf90e60e6a57c90e0025"
     },
     "personal-travel-app": {
       "baseline": "09584976d46c67c97a19c72d173b2ee88dbcb31c",
-      "source_tree_sha256": "50910a6eb7ef522c7eca67d5a56a546dc3338e2a7823ed49810fb89e9258b2ae"
+      "source_tree_sha256": "baeb28ab74e80e62d39689c60948a1a99f612884f9c4b9d535cac81056675a9d"
     },
     "shopping-assistant": {
       "baseline": "2268b944ffa8fe5c2e6f2787c88dea616160e398",
@@ -936,6 +936,150 @@
         }
       ],
       "limitations": "Synthetic/offline CI portability check; no live provider or deployed identity claim."
+    },
+    {
+      "id": "pai-publication-offline",
+      "repository": "personal-ai-system",
+      "commands": [
+        "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-test-offline"
+      ],
+      "result": {
+        "passed": 1748,
+        "deselected": 90
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-offline-publication-final.log",
+          "sha256": "7e7647382820e8cd17493baf12b51638bc711f5878a4c86f2389f1683269a3bc",
+          "bytes": 10313
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
+    },
+    {
+      "id": "pai-publication-scram-native",
+      "repository": "personal-ai-system",
+      "commands": [
+        "backend/.venv/bin/python stabilization/scripts/run_native_tests.py personal-ai --admin-dsn <explicit synthetic SCRAM URI at 55449> --log /tmp/pai-scram-native-final.log"
+      ],
+      "result": {
+        "passed": 75,
+        "skipped": 14,
+        "deselected": 1751
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-scram-native-final.log",
+          "sha256": "86d786f93bc6a9fbb74fa72a9d4dd326f04f2dcabc5c67ef1c77d485221a501c",
+          "bytes": 729
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
+    },
+    {
+      "id": "pai-publication-focus",
+      "repository": "personal-ai-system",
+      "commands": [
+        "From backend: .venv/bin/python -m pytest tests/test_planning_experiment.py tests/test_phase36_verification.py -q"
+      ],
+      "result": {
+        "passed": 63
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-publication-focus-final.log",
+          "sha256": "d6c0acfdd217ed4980de180f9d40737520de88cfeb587bb1628e9635fef4875b",
+          "bytes": 619
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
+    },
+    {
+      "id": "pai-v13-strict",
+      "repository": "personal-ai-system",
+      "commands": [
+        "From backend with AI_PROVIDER=fake AI_MODEL=synthetic AUTH_MODE=development APP_ENVIRONMENT=test ARTIFACTS_ENABLED=false: .venv/bin/python -m personal_ai.evaluation.planning"
+      ],
+      "result": {
+        "rows": 30,
+        "planner_calls": 0,
+        "planner_tokens": 0,
+        "planner_quota": 0,
+        "promotion": "none",
+        "lock": "v13"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-strict-v13-final.json",
+          "sha256": "23ec90612dd3c5b51723760ee699e118f7a3e04b048c31231f7679fba4441f16",
+          "bytes": 185463
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
+    },
+    {
+      "id": "pai-publication-package",
+      "repository": "personal-ai-system",
+      "commands": [
+        "From backend: UV_CACHE_DIR=/tmp/pai-publication-uv-cache uv build --no-build-isolation --out-dir /tmp/pai-stabilization-package-publication-final"
+      ],
+      "result": {
+        "sdist": "built",
+        "wheel": "built"
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/pai-publication-package-final.log",
+          "sha256": "4d7ee9a039cc48ad82954eefc11fbc6705ff5d2010346e20dfd9a59dab431fe4",
+          "bytes": 287
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
+    },
+    {
+      "id": "travel-scram-pool",
+      "repository": "personal-travel-app",
+      "commands": [
+        "From personal-ai-system: backend/.venv/bin/python stabilization/scripts/run_native_tests.py travel --admin-dsn <explicit synthetic SCRAM URI at 55449> --log /tmp/travel-scram-native-final.log tests/test_pool_reliability_postgres.py"
+      ],
+      "result": {
+        "passed": 1,
+        "password_enforced": true
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/travel-scram-native-final.log",
+          "sha256": "d3ed895e645d4904edfd1019ed164d8a1dace761b4d432a28c51d7a2270d7bbc",
+          "bytes": 619
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
+    },
+    {
+      "id": "finance-browser-final",
+      "repository": "personal-finance",
+      "commands": [
+        "backend/.venv/bin/python /tmp/suite_finance_browser.py; pinned Node/pnpm test:e2e with E2E_DISPOSABLE_DATABASE=1, new UUID loopback SCRAM DB and unique TMPDIR/private store"
+      ],
+      "result": {
+        "browser_journeys": 7,
+        "passed": 7
+      },
+      "exit_code": 0,
+      "evidence": [
+        {
+          "path": "/tmp/finance-browser-final.log",
+          "sha256": "b71f2d3f07da0bb6703580ab80d5faa1ebbb518051aedb3b26179640a821c888",
+          "bytes": 39059
+        }
+      ],
+      "limitations": "Synthetic fixtures only; unavailable provider/device/cloud acceptance remains separate."
     }
   ],
   "owned_cluster_cleanup": {
@@ -988,6 +1132,32 @@
       "source_tree_sha256": "1645e7debdfb39d8a4b754e5f904fe420e881b064d105ebf8aabce493b135459"
     }
   },
-  "final_delta_after_primary_qa": "Only Linux tuple annotations, mobile fixture timezone and docs/CI smoke environment changed after full native/matrix QA. Affected checks are recorded below; production security/behavior is preserved.",
-  "staged_diff_check": "Required at publication; untracked worker Markdown whitespace was corrected before the final successful index check."
+  "final_delta_after_primary_qa": "Explicit CI environment, Linux type annotations, synthetic password/time fixtures, standalone documentation, and reviewed v13 selector/revision metadata. Production task/security/financial behavior is unchanged; affected native/browser/full backend checks were repeated.",
+  "staged_diff_check": "Required at publication; untracked worker Markdown whitespace was corrected before the final successful index check.",
+  "supplemental_scram_cluster": {
+    "data": "/tmp/suite-scram-release.A7UZVA/data",
+    "port": 55449,
+    "synthetic_role": "suite_ci_fixture",
+    "synthetic_password": "synthetic-ci-only",
+    "host_auth": "scram-sha-256",
+    "incorrect_password_rejected": true,
+    "stopped": true,
+    "stop_log_sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+  },
+  "reviewed_freeze": {
+    "current": "planning-baseline-lock-v13",
+    "preserved": [
+      "v10",
+      "v11",
+      "v12"
+    ],
+    "revision_anchor": "4413b0a7098538b05ad05e311dec9b50a92b1000",
+    "unchanged": [
+      "30-case corpus",
+      "deterministic configuration",
+      "runtime",
+      "non-promotion",
+      "strict source/runtime/current-or-direct-child guards"
+    ]
+  }
 }

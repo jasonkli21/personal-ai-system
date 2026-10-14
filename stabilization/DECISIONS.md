@@ -52,3 +52,16 @@ Commit the completed stabilization changes in each repository and push its branc
 to remote main. Exclude unrelated pre-existing user files; preserve remote work,
 never force-push. This supersedes the earlier no-push boundary only for Git
 publication, not cloud deployment or live-provider/personal-data operations.
+
+## D009 — Publication correction freeze (2026-10-14)
+
+The first hosted CI runs revealed environment-dependent test/configuration gaps
+and the condensed status omitted a required Phase36 offline-evidence phrase.
+Corrections preserve production behavior and assertions. The final handoff must
+record the corrected domain publications. PAI’s follow-up therefore advances to
+a new v13 lock anchored at 4413b0a, rather than altering v12 or relaxing revision
+acceptance. Only the freeze selector/version changes in evaluation source; all
+30 cases, deterministic configuration, runtime and non-promotion remain equal
+to v12. Exact current/direct-child, runtime and source guards stay intact.
+Portable CI tests do not require ancestry from a shallow checkout; strict CLI
+replay uses full history and supplies actual revision acceptance evidence.
