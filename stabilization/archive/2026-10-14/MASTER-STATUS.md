@@ -6,10 +6,10 @@ Max; no agents were spawned/resumed after the user's direct-execution instructio
 The scheduled 01:10 PDT / 08:10 UTC continuation fired in this same chat and is
 now paused after its one-shot run. The owned synthetic PostgreSQL cluster is stopped.
 
-[Review handoff](REVIEW-HANDOFF.md) is the entry point for the separate review.
-[Verification](VERIFICATION.md) records exact evidence; [contracts](CROSS-REPO-CONTRACTS.md),
-[matrix](INTEGRATION-MATRIX.md), [operations](OPERATIONS.md), [quality](CODE-QUALITY.md)
-and [roadmap](ROADMAP.md) cover architecture and remaining acceptance.
+[Fresh re-review handoff](../../FRESH-REVIEW-HANDOFF.md) is the entry point for the current fixes.
+[Verification](VERIFICATION.md) records exact evidence; [contracts](../../CROSS-REPO-CONTRACTS.md),
+[matrix](../../INTEGRATION-MATRIX.md), [operations](../../OPERATIONS.md), [quality](../../CODE-QUALITY.md)
+and [roadmap](../../ROADMAP.md) cover architecture and remaining acceptance.
 Each repository's `docs/current-state.md` remains its single implementation status.
 
 ## Completion and acceptance
@@ -28,6 +28,6 @@ Each repository's `docs/current-state.md` remains its single implementation stat
 
 No suite gate is accepted as production-ready by this implementation session.
 Implemented local work, external blocks, deliberate deferrals and retained debt
-are distinguished in [blockers](BLOCKERS.md). The user authorized per-repository
-commits and pushes to remote main; no cloud deploy or personal-data operation is
-authorized by those Git actions.
+are distinguished in [blockers](../../BLOCKERS.md). The user authorized per-repository
+commits followed by pushes to remote `main`. No cloud deploy or personal-data
+operation is authorized by those Git actions.

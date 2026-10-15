@@ -38,3 +38,6 @@ dist/
 !backend/src/personal_ai/artifacts/*.py
 !frontend/src/app/api/artifacts/
 !frontend/src/app/api/artifacts/**
+# Reproducible stabilization evidence is generated on demand; dated snapshots
+# that must be retained live under stabilization/archive/.
+stabilization/evidence/

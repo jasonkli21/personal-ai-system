@@ -14,7 +14,7 @@ or provider/cloud acceptance. Each repository owns one current-state page.
 
 | Task | Minimum context |
 | --- | --- |
-| Five-repo stabilization or separate review | [Master status](../stabilization/MASTER-STATUS.md), [review handoff](../stabilization/REVIEW-HANDOFF.md), [verification](../stabilization/VERIFICATION.md) |
+| Five-repo stabilization or separate review | [Current verification](../stabilization/VERIFICATION.md), [fresh re-review handoff](../stabilization/FRESH-REVIEW-HANDOFF.md), [contracts](../stabilization/CROSS-REPO-CONTRACTS.md) |
 | Delegated identity, confirmed tasks, domain receipts | [Suite contracts](../stabilization/CROSS-REPO-CONTRACTS.md), `backend/src/personal_ai/contracts/`, `mutations/`, `auth/task_identity.py`, and [integration matrix](../stabilization/INTEGRATION-MATRIX.md) |
 | Federation, grants, context identity and revocation | `backend/src/personal_ai/federation/`, [Phase30 architecture](personal-ai-chapter-2/phase-30-architecture.md), owning context adapter and domain contract |
 | Chat, branches, summaries and active model input | [API contract](api-contract.md), `backend/src/personal_ai/chat/`, `context/`, focused tests; [Phase2 guide](phase-2-implementation-guide.md) for historical intent |
@@ -44,8 +44,9 @@ route to those boundaries. Evidence freshness is distinct from durable memory.
 
 [Current verification](../stabilization/VERIFICATION.md) records this patch set.
 Chapter2 phase evidence and `docs/releases/` retain dated predecessor acceptance.
-Use the [separate review handoff](../stabilization/REVIEW-HANDOFF.md) for final
-review; implementation QA does not constitute independent sign-off.
+Use the [fresh re-review handoff](../stabilization/FRESH-REVIEW-HANDOFF.md)
+for the fixes and remaining acceptance; implementation QA does not constitute
+independent sign-off.
 
 ## Decisions
 

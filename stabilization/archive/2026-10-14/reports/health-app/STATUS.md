@@ -56,6 +56,6 @@ All six commands pass; Terraform was 1.13.3. No cloud credentials or personal he
 
 ## Navigation and evidence boundary
 
-Start with Health's [AGENTS.md](../../../health-app/AGENTS.md), [documentation router](../../../health-app/docs/README.md), and [current state](../../../health-app/docs/current-state.md). Use [FINDINGS.md](FINDINGS.md), [CODE-QUALITY.md](CODE-QUALITY.md), [QA.md](QA.md), and [CLOUD-ACCEPTANCE.md](CLOUD-ACCEPTANCE.md) for the durable handoff.
+Start with Health's [AGENTS.md](../../../../../../health-app/AGENTS.md), [documentation router](../../../../../../health-app/docs/README.md), and [current state](../../../../../../health-app/docs/current-state.md). Use [FINDINGS.md](FINDINGS.md), [CODE-QUALITY.md](CODE-QUALITY.md), [QA.md](QA.md), and [CLOUD-ACCEPTANCE.md](CLOUD-ACCEPTANCE.md) for the durable handoff.
 
 Local results use a disposable database and synthetic test rows. They establish the current working-tree behavior against PostgreSQL 17.11 and the listed offline checks only. They do not establish hosted CI, cloud/provider behavior, Firebase revocation in production, live Personal AI calls, mobile UI behavior, HealthKit permissions, restore, or release readiness. The attached audit is a starting reference; current code and this dated executable evidence take precedence where they differ.

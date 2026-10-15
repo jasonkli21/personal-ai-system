@@ -107,6 +107,7 @@ def main() -> None:
             if name
             and name not in EXCLUDED_USER_FILES
             and not name.startswith("stabilization/evidence/")
+            and not name.startswith("stabilization/archive/")
             and (root / name).is_file()
         )
         baseline_names = (
@@ -160,7 +161,8 @@ def main() -> None:
             ],
         }
     destination = (
-        PROJECTS / "personal-ai-system/stabilization/evidence/source-inventory.json"
+        PROJECTS
+        / "personal-ai-system/stabilization/evidence/source-inventory.json"
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

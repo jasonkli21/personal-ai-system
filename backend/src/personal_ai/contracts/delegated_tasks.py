@@ -155,6 +155,35 @@ class DelegatedTargetRequest(BaseModel):
     permission_action: Literal["propose", "validate", "execute", "read", "reconcile"]
 
 
+class DelegatedTargetChoicesRequest(BaseModel):
+    """Read-only request for a destination-owned target picker."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal[
+        "suite-task-target-choices-v1"
+    ] = "suite-task-target-choices-v1"
+    destination_application_id: Literal["shopping"] = "shopping"
+    workspace_id: None = None
+    purpose: Literal["task_target_choices"] = "task_target_choices"
+
+
+class ShoppingTargetChoice(BaseModel):
+    """The minimal Shopping-owned information needed to confirm a target."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    project_id: UUID
+    label: str = Field(min_length=1, max_length=200)
+    revision: int = Field(strict=True, ge=1, le=2_147_483_647)
+
+
+class DelegatedTargetChoicesResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal[
+        "suite-task-target-choices-v1"
+    ] = "suite-task-target-choices-v1"
+    choices: tuple[ShoppingTargetChoice, ...] = Field(max_length=32)
+
+
 class DelegatedOriginTrust(BaseModel):
     """Operator-pinned service, signing key and external-user tuple for one source."""
 
@@ -214,6 +243,9 @@ TASK_CONTRACT_FINGERPRINT = sha256(
 ).hexdigest()
 TARGET_CONTRACT_FINGERPRINT = sha256(
     canonical_bytes(DelegatedTargetRequest.model_json_schema())
+).hexdigest()
+TARGET_CHOICES_CONTRACT_FINGERPRINT = sha256(
+    canonical_bytes(DelegatedTargetChoicesRequest.model_json_schema())
 ).hexdigest()
 
 
@@ -384,6 +416,8 @@ def task_manifest() -> dict[str, str | int]:
         "command_read_contract_fingerprint": COMMAND_READ_FINGERPRINT,
         "target_authority_version": "suite-task-target-v1",
         "target_authority_contract_fingerprint": TARGET_CONTRACT_FINGERPRINT,
+        "target_choices_version": "suite-task-target-choices-v1",
+        "target_choices_contract_fingerprint": TARGET_CHOICES_CONTRACT_FINGERPRINT,
         "task_contract_fingerprint": TASK_CONTRACT_FINGERPRINT,
         "maximum_assertion_lifetime_seconds": 60,
     }

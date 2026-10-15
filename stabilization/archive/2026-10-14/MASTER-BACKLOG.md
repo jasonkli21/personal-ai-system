@@ -22,6 +22,6 @@ Remaining work is explicitly external acceptance or prioritized existing debt:
 6. Existing broad Health/Shopping AI-host gaps and coverage-backed large-module
    decomposition as separately authorized work.
 
-See [verification](VERIFICATION.md), [blockers](BLOCKERS.md),
-[roadmap](ROADMAP.md) and [review handoff](REVIEW-HANDOFF.md).
+See [verification](../../VERIFICATION.md), [blockers](../../BLOCKERS.md),
+[roadmap](../../ROADMAP.md) and [fresh review handoff](../../FRESH-REVIEW-HANDOFF.md).
 No production acceptance is inferred from synthetic tests.

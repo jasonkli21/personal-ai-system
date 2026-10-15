@@ -44,7 +44,8 @@ def main() -> None:
     if any(report["manifest"] != canonical for report in reports.values()):
         raise SystemExit("isolated shared contract mismatch")
     destination = (
-        PROJECTS / "personal-ai-system/stabilization/evidence/isolated-contracts.json"
+        PROJECTS
+        / "personal-ai-system/stabilization/evidence/isolated-contracts.json"
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(reports, indent=2, sort_keys=True) + "\n")

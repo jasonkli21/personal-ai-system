@@ -365,6 +365,21 @@ class MutationService:
         self._dependencies(scope, proposal)
         return True
 
+    def target_choices(self, principal, scope):
+        """Return Shopping's narrow owner-scoped target choices through its adapter."""
+        self._identity(principal, scope)
+        if scope.application_id != "shopping" or scope.workspace_id is not None:
+            raise MutationError("mutation_target_scope_denied")
+        adapters = [
+            adapter
+            for (application_id, _operation, _version), adapter
+            in self.runtime.mutation_adapters.items()
+            if application_id == "shopping" and hasattr(adapter, "target_choices")
+        ]
+        if not adapters:
+            raise MutationUnavailableError("mutation_target_choices_unavailable")
+        return adapters[0].target_choices()
+
     def _create_resolved(self, principal, scope, intent: ProposalIntent):
         """Create only after trusted canonical output or command resolution."""
         self._identity(principal, scope)

@@ -1,7 +1,7 @@
 # Code quality and context assessment — 2026-10-14
 
 This is an implementation assessment for independent review. The reproducible
-[inventory](evidence/source-inventory.json) compares fixed baseline revisions with
+[archived inventory](archive/2026-10-14/evidence/source-inventory.json) compares fixed baseline revisions with
 current tracked/task files. It excludes ignored private files and the named
 unrelated user documents. Run scripts/inventory.py with Python≥3.12. Metrics are
 bytes and nonblank physical lines, not statements or a universal quality score.
@@ -41,8 +41,25 @@ No hard constraint, owner/revision guard or unknown-value rule was relaxed to pa
 | Health | persistence models1339; analytics artifacts1226; account data test688; daily domain test685 | Cohesive schema/domain extraction and shared synthetic setup without hiding ownership, temporal identity or lifecycle semantics |
 
 Counts are a baseline comparison aid; generated files and full largest-file tables
-are in the inventory. Existing source-heavy debt is retained explicitly and does
+are in the archived inventory. Existing source-heavy debt is retained explicitly and does
 not count as completed aggressive whole-repo decomposition.
+
+## Re-review fixes — 2026-10-14
+
+This pass made only changes that support F1–F3. The execution-authority callback
+now has an explicit documented linearization point, with deterministic tests
+that revoke a grant, source consent, or source owner after the successful
+callback. Shopping also verifies that its owner lifecycle lock fences a
+concurrent purge until the authorized effect and receipt commit. A bounded
+read-only project-choice contract removes manual UUID/revision entry from
+Finance, Travel and Health while leaving Shopping as the authority.
+
+Travel and Health now keep source-command creation, submission, confirmation,
+and possible destination effect in distinct recovery phases. Travel uses
+owner-scoped session recovery; Health uses owner-scoped SecureStore records and a
+serialized storage helper. Focused UI/render and state-transition tests cover
+the specified ambiguous and definitive failures. No unrelated large module or
+test suite was split; the hotspot priorities above remain unchanged.
 
 ## Large generated/frozen artifacts
 
@@ -52,7 +69,9 @@ contracts and dependency locks remain outputs of owning generators. The inventor
 is generated diagnostic metadata, not runtime input. Do not compact or refresh
 frozen artifacts blindly: a representation/source change needs a deterministic
 generator, complete case parity and reviewed version/freeze evidence. Existing
-large JSON remains an explicit context exception routed out of normal startup.
+raw stabilization JSON now sits under `archive/2026-10-14/evidence/` and is outside
+the default documentation route; the current verification record retains the
+reproduction commands and digest summary.
 
 ## Direct answers for the separate reviewer
 

@@ -45,7 +45,7 @@ Result: both failed as expected for masked credentials; the slow-query test’s 
 | Export and account/domain erasure | Account Data → API export/deletion → DB/object cleanup | Local PostgreSQL-backed export/erasure tests pass. | Durable large exports, live GCS cleanup, encrypted backup restore, deletion-ledger replay, idempotent repeated erasure, and measured RPO/RTO remain open. |
 | Health → Personal AI / Travel / Shopping | Health context/export APIs → shared delegation and destination adapter | Local broad context and narrow export contract tests pass; both integration gates remain default-off. | Broad identity mismatch remains. Narrow export has no deployed/live identity proof, and Health → Personal AI → Shopping typed task is not accepted end to end. |
 
-Use Health’s [documentation router](../../../health-app/docs/README.md) to find the domain-specific acceptance record before running a journey. Keep fixtures synthetic. Capture command, revision, test counts, and manual/device/cloud scope explicitly; mock/fake results must not be reported as cloud or provider behavior.
+Use Health’s [documentation router](../../../../../../health-app/docs/README.md) to find the domain-specific acceptance record before running a journey. Keep fixtures synthetic. Capture command, revision, test counts, and manual/device/cloud scope explicitly; mock/fake results must not be reported as cloud or provider behavior.
 
 ## Gate 1 final local verification — 2026-10-13
 

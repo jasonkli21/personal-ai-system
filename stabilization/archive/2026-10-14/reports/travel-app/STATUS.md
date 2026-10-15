@@ -25,4 +25,4 @@ Local verification:
 
 The repository’s pre-existing untracked `docs/reviews/phase-9-independent-review.md` and `frontend/pnpm-workspace.yaml` were preserved. Docker is unavailable locally. The GitHub container job passed at the baseline revision, but local image smoke, current-HEAD GitHub CI, PG16 runner behavior, browser journeys, hosted identity, cloud deployment, and provider acceptance remain unverified. Phase 9 is not accepted; recovery objectives, owner-wide deletion, restore-time deletion fencing, hosted identity/storage, and other Phase 9 gates remain open.
 
-Start from Travel’s [documentation router](../../../personal-travel-app/docs/README.md), [current state](../../../personal-travel-app/docs/current-state.md), and [Phase 9 evidence](../../../personal-travel-app/docs/releases/phase-9-operational-hardening.md).
+Start from Travel’s [documentation router](../../../../../../personal-travel-app/docs/README.md), [current state](../../../../../../personal-travel-app/docs/current-state.md), and [Phase 9 evidence](../../../../../../personal-travel-app/docs/releases/phase-9-operational-hardening.md).

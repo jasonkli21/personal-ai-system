@@ -19,7 +19,7 @@ from personal_ai.auth.verification import IdentityProviderUnavailable, InvalidId
 from personal_ai.contracts.delegated_tasks import control_request_binding, verify_delegated_user
 
 _CONTROL_PATH = re.compile(
-    r"^(/v1/mutations/(commands|contracts|[0-9a-fA-F-]{36}(/(validate|confirm|apply|reconcile))?)"
+    r"^(/v1/mutations/(commands|contracts|target-choices|[0-9a-fA-F-]{36}(/(validate|confirm|apply|reconcile))?)"
     r"|/v1/federation/grants/choices)$"
 )
 

@@ -5,7 +5,10 @@ from datetime import timedelta
 from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.contracts.delegated_tasks import (
+    TARGET_CHOICES_CONTRACT_FINGERPRINT,
     TARGET_CONTRACT_FINGERPRINT,
+    DelegatedTargetChoicesRequest,
+    DelegatedTargetChoicesResult,
     DelegatedTargetRequest,
     DelegatedTaskResult,
 )
@@ -71,6 +74,21 @@ class ShoppingTaskAdapter:
         ):
             raise ValueError("task_authority_response_invalid")
         return result["allowed"]
+
+    def target_choices(self):
+        """Ask Shopping for a minimal owner-scoped read-only picker response."""
+        request = DelegatedTargetChoicesRequest()
+        raw = self.client.post(
+            "/v1/integrations/personal-ai/tasks/target-choices",
+            request.model_dump(mode="json"),
+            maximum_bytes=32_768,
+            contract_fingerprint=TARGET_CHOICES_CONTRACT_FINGERPRINT,
+        )
+        result = DelegatedTargetChoicesResult.model_validate_json(raw)
+        project_ids = [item.project_id for item in result.choices]
+        if len(project_ids) != len(set(project_ids)):
+            raise ValueError("task_target_choices_duplicate")
+        return result
 
     def _send(self, proposal, action):
         task = task_for_proposal(proposal, action)

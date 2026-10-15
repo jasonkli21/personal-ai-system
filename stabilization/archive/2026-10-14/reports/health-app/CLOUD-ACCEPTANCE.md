@@ -7,7 +7,7 @@
 **Status:** not staging-accepted.
 **Baseline revision:** `7fb84c76217c772b2bce6715744b8294afafa771` (`main`).
 
-The repository’s [Cloud Run runbook](../../../health-app/infra/gcp/README.md) describes reviewable infrastructure, not a deployed environment. It intentionally requires owner-supplied GCP/Firebase/Neon/GCS identifiers, secret versions, image digest, connection budget, state bucket, and billing approval. No staging inputs, Terraform apply, image push, live cloud connection, or service call was made for this baseline.
+The repository’s [Cloud Run runbook](../../../../../../health-app/infra/gcp/README.md) describes reviewable infrastructure, not a deployed environment. It intentionally requires owner-supplied GCP/Firebase/Neon/GCS identifiers, secret versions, image digest, connection budget, state bucket, and billing approval. No staging inputs, Terraform apply, image push, live cloud connection, or service call was made for this baseline.
 
 ## Current acceptance matrix
 
@@ -40,7 +40,7 @@ The repository’s [Cloud Run runbook](../../../health-app/infra/gcp/README.md) 
 - Phase 3’s Oct 4 Terraform local validation is historical. The Oct 12 GitHub run is newer and currently fails formatting before validate/build.
 - PostgreSQL 17 CI and this local disposable PostgreSQL 17.11 run do not prove Neon pooler/TLS or production concurrency.
 - Phase 9 local erasure tests do not prove that an old backup restore cannot resurrect deleted data.
-- See Health’s [current state](../../../health-app/docs/current-state.md), [Phase 3 release evidence](../../../health-app/docs/implementation/evidence/phase-3-release.md), [Phase 9 release evidence](../../../health-app/docs/implementation/evidence/phase-9-release.md), and the [infra README](../../../health-app/infra/gcp/README.md) for the canonical details.
+- See Health’s [current state](../../../../../../health-app/docs/current-state.md), [Phase 3 release evidence](../../../../../../health-app/docs/implementation/evidence/phase-3-release.md), [Phase 9 release evidence](../../../../../../health-app/docs/implementation/evidence/phase-9-release.md), and the [infra README](../../../../../../health-app/infra/gcp/README.md) for the canonical details.
 
 ## Gate 1 infrastructure check — 2026-10-13
 

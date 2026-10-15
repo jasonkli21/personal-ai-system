@@ -2,7 +2,7 @@
 
 Updated 2026-10-14. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance. The
-[suite handoff](../stabilization/REVIEW-HANDOFF.md) records this change and its
+[suite handoff](../stabilization/FRESH-REVIEW-HANDOFF.md) records this change and its
 verification. Independent final review and external acceptance remain open.
 
 ## Delivered locally
@@ -45,20 +45,36 @@ acknowledgements become uncertain; reconciliation observes the original key and
 never resends. Retained fingerprints support observation of known receipts;
 retirement does not reinterpret an old payload as a new write.
 
+For a reserved write, Shopping's successful live execution-authority callback is
+the authorization linearization point: revocation before the receiver gets an
+allow blocks the effect; revocation after the response blocks later effects but
+does not cancel the in-flight transaction. Shopping's local owner-deletion fence
+is still serialized with its write and receipt. Read-only target choices expose
+only owned active project IDs, titles and current revisions; apply rechecks the
+destination revision.
+
+The source apps now use that target-choice seam instead of asking users to paste
+project IDs and revisions. Travel and Health persist distinct create, submit,
+confirmation, and effect-uncertain phases so recovery keeps the original command
+and execution identity. These are local UI flows behind existing default-off
+gates; rendered browser/device acceptance remains open.
+
 ## Verification and rollout
 
-At base `c029194156c570ec55f8173af969702f0265e57b`, the dated stabilization patch
-passed **1,747 offline tests** and **75 native PostgreSQL tests**. The native run
-skipped 14 unavailable DynamoDB cases. The all-five loopback HTTPS matrix uses
-real migrations, PostgreSQL state, signatures and HTTP listeners; Google/Firebase
-lookups remain synthetic. Exact final commands, source identities, revisions,
-counts and limitations are in [verification](../stabilization/VERIFICATION.md).
+On the reviewed re-review base `20ef41ae6b76de691c003ae6a345fdb91b3ecd02`, the
+final fix source passed **1,749 offline tests**, **75 native PostgreSQL tests**
+(14 unavailable DynamoDB cases skipped), and the all-five loopback HTTPS matrix
+passed **40 cases**. The matrix uses real migrations, PostgreSQL state,
+signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
+fix commits, commands, source identities, counts and limitations are in
+[verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10/v11/v12 remain historical. v13 binds the reviewed source and exact
-runtime while preserving all 30 held-out cases, the deterministic planner and its
-configuration. Production replay still rejects source, runtime and unrelated
-revision changes. Portable tests use an explicitly test-only lock. Nothing is
-promoted from this freeze.
+Planner locks v10-v13 remain historical. v14 rebinds the same deterministic
+planner, configuration, runtime, fixture dependencies and 30 held-out cases to
+the reviewed source after a full offline rerun; it promotes no coverage. The
+strict current-or-direct-child source guard remains. Production replay still
+rejects source, runtime and unrelated revision changes. Portable tests use an
+explicitly test-only lock. Nothing is promoted from this freeze.
 
 Phase36 retains its earlier **24 passed offline rows**; its exact soak counts
 remain in the generated evidence. These rows do not establish cloud, provider
@@ -68,14 +84,15 @@ Keep task, context, connected inference, private ingress and experimental gates
 off until their owning acceptance evidence is complete. Provider SDK mocks,
 synthetic IAM and JS bundles do not establish deployed security, live identity,
 native device behavior or production readiness. No cloud deployment was run.
-The user authorized local commits and pushes to remote main; hosted CI outcomes
-are separate evidence and never inferred from local checks.
+The user authorized commits in all five repositories and pushes to each
+repository's remote `main` after the commits are complete. Hosted CI outcomes
+remain separate evidence and are never inferred from local checks.
 
 ## Minimum context and history
 
 Use [the router](README.md), the owning package README, its executable contract,
 and focused tests. Use [operations](../stabilization/OPERATIONS.md) for the
-synthetic suite and future staging prerequisites. Use [review handoff](../stabilization/REVIEW-HANDOFF.md)
+synthetic suite and future staging prerequisites. Use [review handoff](../stabilization/FRESH-REVIEW-HANDOFF.md)
 for cross-repository review and [roadmap](../stabilization/ROADMAP.md) for remaining
 acceptance and maintenance priorities. Plans authorize no new product work.
 

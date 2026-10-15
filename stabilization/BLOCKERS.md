@@ -1,7 +1,8 @@
 # Blocks, limitations and deliberate deferrals
 
-2026-10-14. Exact local evidence is in [verification](VERIFICATION.md); priorities
-are in the [review handoff](REVIEW-HANDOFF.md). Missing checks are never passed.
+2026-10-14. Exact local evidence is in [verification](VERIFICATION.md); remaining
+acceptance is summarized in the [fresh re-review handoff](FRESH-REVIEW-HANDOFF.md).
+Missing checks are never passed.
 
 | Item | State | Dependency |
 | --- | --- | --- |

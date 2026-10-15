@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.api.dependencies import (
@@ -18,6 +18,7 @@ from personal_ai.applications.registry import ApplicationRegistry
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry, ContextRuntimeRegistry
+from personal_ai.contracts.delegated_tasks import DelegatedTargetChoicesResult
 from personal_ai.mutations.contracts import (
     AuthenticatedCommandRequest,
     MutationAdapterContractError,
@@ -87,6 +88,23 @@ def create_command(
     command: AuthenticatedCommandRequest, principal: Principal, scope: Scope, service: Service
 ):
     return invoke(service, principal, scope, "create_from_command", command)
+
+
+@router.get("/target-choices", response_model=DelegatedTargetChoicesResult)
+def target_choices(principal: Principal, scope: Scope, service: Service, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    try:
+        result = service.target_choices(principal, scope)
+        return result.model_dump(mode="json")
+    except MutationUnavailableError as error:
+        raise HTTPException(503, error.code) from error
+    except MutationAdapterContractError as error:
+        raise HTTPException(500, error.code) from error
+    except MutationError as error:
+        raise HTTPException(403 if "denied" in error.code else 409, error.code) from error
+    except ValueError as error:
+        raise HTTPException(502, "mutation_target_choices_invalid") from error
 
 
 class TaskAuthorityRequest(BaseModel):

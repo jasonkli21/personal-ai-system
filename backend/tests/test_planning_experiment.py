@@ -423,9 +423,25 @@ def test_v12_freeze_preserves_v11_semantics_as_historical_evidence():
     assert v12["promotion_decision"].startswith("non_promotion")
 
 
-def test_v13_publication_freeze_preserves_semantics_and_binds_current_source():
+def test_v13_publication_freeze_remains_historical_evidence():
+    current = json.loads(planning.HISTORICAL_V13_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V13_FREEZE_PATH.with_name("planning-baseline-v12.json").read_text())
+    for key in (
+        "baseline_version", "configuration_digest", "corpus_digest",
+        "fixture_dependency_digest", "evaluator_version", "counter_identity",
+        "runtime_dependency_digest", "runtime_distribution_count",
+    ):
+        assert current[key] == previous[key]
+    assert current["source_identity_digest"] != previous["source_identity_digest"]
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_revision_binding"] == previous["source_revision_binding"]
+    assert current["promotion_decision"] == previous["promotion_decision"]
+    assert current["source_revision"] == "4413b0a7098538b05ad05e311dec9b50a92b1000"
+
+
+def test_v14_source_rebind_preserves_corpus_runtime_and_non_promotion():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.FREEZE_PATH.with_name("planning-baseline-v12.json").read_text())
+    previous = json.loads(planning.HISTORICAL_V13_FREEZE_PATH.read_text())
     for key in (
         "baseline_version", "configuration_digest", "corpus_digest",
         "fixture_dependency_digest", "evaluator_version", "counter_identity",
@@ -437,9 +453,9 @@ def test_v13_publication_freeze_preserves_semantics_and_binds_current_source():
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision_binding"] == previous["source_revision_binding"]
     assert current["promotion_decision"] == previous["promotion_decision"]
-    # Revision ancestry belongs to strict replay, which requires full history.
-    # Portable CI source/corpus checks also run in shallow checkouts.
-    assert current["source_revision"] == "4413b0a7098538b05ad05e311dec9b50a92b1000"
+    # The final commit is a direct child of this source anchor, preserving the
+    # strict current-or-direct-child binding without accepting unrelated code.
+    assert current["source_revision"] == "20ef41ae6b76de691c003ae6a345fdb91b3ecd02"
 
 
 def test_evaluator_records_bound_validation_trace_metrics(runtime_bound_planning_lock):

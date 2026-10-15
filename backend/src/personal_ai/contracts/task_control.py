@@ -28,7 +28,7 @@ from .delegated_tasks import (
 )
 
 _CONTROL_PATH = re.compile(
-    r"^(/v1/mutations/(commands|contracts|[0-9a-fA-F-]{36}(/(validate|confirm|apply|reconcile))?)"
+    r"^(/v1/mutations/(commands|contracts|target-choices|[0-9a-fA-F-]{36}(/(validate|confirm|apply|reconcile))?)"
     r"|/v1/federation/grants/choices)$"
 )
 

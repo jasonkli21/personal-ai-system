@@ -958,7 +958,9 @@ def test_export_with_artifacts_disabled_refuses_to_omit_live_bodies(tier):
 
     from personal_ai.api.account import export_account
 
-    ref = write(tier[0])
+    ref = write(tier[0]).model_copy(
+        update={"expires_at": datetime.now(UTC) + timedelta(days=1)}
+    )
     configured = Settings(
         ai_provider="fake", ai_model="fake", export_enabled=True, artifacts_enabled=False
     )

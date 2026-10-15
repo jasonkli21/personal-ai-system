@@ -30,7 +30,7 @@ The attached audit correctly identified the database and frontend failures, the 
 
 Local checks at this revision confirm the offline API suite passes (197 passed); Ruff reports one unformatted production file; and all 68 frontend unit tests pass locally. Thus the CI discovery failures are real CI evidence but were not reproduced in this local run.
 
-The canonical Shopping status remains: Phases 6–9 are not accepted, and hosted deployment is not verified. See [current state](../../../shopping-assistant/docs/current-state.md), [Phase 6 review](../../../shopping-assistant/docs/planning/phase-6-review.md), [runbook](../../../shopping-assistant/docs/deployment/runbook.md), and [Phase 30 destination evidence](../../../shopping-assistant/docs/planning/phase-30-federation-destination-evidence.md).
+The canonical Shopping status remains: Phases 6–9 are not accepted, and hosted deployment is not verified. See [current state](../../../../../../shopping-assistant/docs/current-state.md), [Phase 6 review](../../../../../../shopping-assistant/docs/planning/phase-6-review.md), [runbook](../../../../../../shopping-assistant/docs/deployment/runbook.md), and [Phase 30 destination evidence](../../../../../../shopping-assistant/docs/planning/phase-30-federation-destination-evidence.md).
 
 ## Gate 1 local repair evidence
 

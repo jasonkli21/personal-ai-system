@@ -107,6 +107,17 @@ receipts and observation endpoints until uncertainty is reconciled. Never retry
 a mutation send or replace its execution key. Populated recovery tables/erasure
 markers refuse downgrade; prefer a compatible roll-forward fix.
 
+The successful Shopping live execution-authority callback is the authorization
+linearization point for one already-reserved execution key. A source consent,
+grant or linked-account revocation that reaches PAI before Shopping receives
+`allowed=true` blocks that write. A revocation after the successful response
+blocks later writes but may not cancel the in-flight transaction; the committed
+receipt remains observable under current destination read authority. This does
+not make the two databases globally serializable. Shopping's owner deletion
+fence is local and is locked in the same transaction as the project write and
+receipt, so operators must preserve that lock ordering and must not treat source
+revocation as a substitute for destination erasure.
+
 ## Observability
 
 Use bounded request IDs, proposal/execution identifiers, transition/error codes,

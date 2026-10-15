@@ -292,6 +292,7 @@ def flow(request, monkeypatch, tmp_path):
     lose_ack = {"enabled": False}
     unavailable = {"enabled": False}
     before_execute = {"callback": None}
+    after_execute_authority = {"callback": None}
 
     def domain_response(request):
         app = request.url.host.split(".")[0]
@@ -523,8 +524,8 @@ def flow(request, monkeypatch, tmp_path):
             headers=dict(response.headers),
         )
 
-    shopping_app.state.task_authority_factory = lambda settings, assertion: (
-        PersonalAITaskAuthority(
+    def authority_factory(settings, assertion):
+        authority = PersonalAITaskAuthority(
             settings,
             assertion,
             transport=network.transport()
@@ -534,7 +535,18 @@ def flow(request, monkeypatch, tmp_path):
                 "synthetic:shopping@synthetic-project.iam.gserviceaccount.com"
             ),
         )
-    )
+
+        def check(task, effect):
+            allowed = authority(task, effect)
+            callback = after_execute_authority["callback"]
+            if allowed and effect and task.action == "execute" and callback:
+                after_execute_authority["callback"] = None
+                callback()
+            return allowed
+
+        return check
+
+    shopping_app.state.task_authority_factory = authority_factory
     if source_name == "finance":
         source.app.state.task_control_client = TaskControlClient(
             finance_task,
@@ -668,6 +680,7 @@ def flow(request, monkeypatch, tmp_path):
             lose_ack=lose_ack,
             unavailable=unavailable,
             before_execute=before_execute,
+            after_execute_authority=after_execute_authority,
             authority=authority,
             grant=grant,
             principal=principal,

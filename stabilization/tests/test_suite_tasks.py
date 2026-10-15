@@ -211,6 +211,127 @@ def test_grant_revoked_after_reservation_is_rejected_by_destination_callback(flo
         assert session.get(flow.ShoppingProject, flow.project_id).revision == 1
 
 
+@pytest.mark.parametrize("revocation", ["grant", "consent", "source_owner"])
+def test_revocation_after_successful_destination_callback_keeps_reserved_effect(
+    flow, revocation
+):
+    """A post-callback revocation blocks later tasks but cannot cancel this send."""
+    from app.db.models import AuthPrincipal
+
+    base, confirmation, headers = start(flow)
+
+    def revoke():
+        if revocation == "grant":
+            flow.authority.revoke(
+                flow.principal,
+                flow.grant.grant_id,
+                expected_revision=flow.grant.revision,
+                expected_issuance_id=flow.grant.issuance_id,
+            )
+        elif revocation == "consent":
+            response = flow.source.put(
+                "/v1/finance/discretionary-budgets/2026-10",
+                headers=headers,
+                json={
+                    "expected_revision": 1,
+                    "amount": "50.00",
+                    "currency": "USD",
+                    "share_with_shopping": False,
+                },
+            )
+            assert response.status_code == 200, response.text
+        else:
+            with Session(flow.engines["finance"]) as session, session.begin():
+                principal = session.scalar(
+                    select(AuthPrincipal).where(
+                        AuthPrincipal.issuer == flow.principal.issuer,
+                        AuthPrincipal.subject == flow.principal.subject,
+                    )
+                )
+                assert principal is not None
+                principal.active = False
+
+    flow.after_execute_authority["callback"] = revoke
+    applied = flow.source.post(base + "/apply", json=confirmation, headers=headers)
+    assert applied.status_code == 200 and applied.json()["state"] == "applied", (
+        applied.text
+    )
+    if revocation != "source_owner":
+        observed = flow.source.get(base, headers=headers)
+        assert observed.status_code == 200 and observed.json()["state"] == "applied", (
+            observed.text
+        )
+    assert sum(action == "execute" for _, _, action in flow.sent) == 1
+    with Session(flow.engines["shopping"]) as session:
+        assert session.get(flow.ShoppingProject, flow.project_id).revision == 2
+        assert session.scalar(select(func.count()).select_from(flow.Receipt)) == 1
+
+
+@pytest.mark.parametrize("flow", ["finance", "travel", "health"], indirect=True)
+def test_shopping_target_choices_are_minimal_and_owner_scoped(flow):
+    response = flow.source.get(
+        flow.prefix + "/projects", headers={"Origin": "https://testserver"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
+    body = response.json()
+    assert body["schema_version"] == "suite-task-target-choices-v1"
+    assert body["choices"] == [
+        {
+            "project_id": str(flow.project_id),
+            "label": "Synthetic suite project",
+            "revision": 1,
+        }
+    ]
+    assert "goal" not in json.dumps(body)
+    assert "notes" not in json.dumps(body)
+
+
+def test_unlinked_owner_cannot_enumerate_shopping_target_choices(flow, monkeypatch):
+    from firebase_admin import auth
+
+    monkeypatch.setattr(
+        auth,
+        "get_user",
+        lambda uid, **kw: SimpleNamespace(
+            uid=uid,
+            disabled=False,
+            tokens_valid_after_timestamp=0,
+            provider_data=[
+                SimpleNamespace(provider_id="google.com", uid="different-user")
+            ],
+        ),
+    )
+    response = flow.source.get(
+        flow.prefix + "/projects", headers={"Origin": "https://testserver"}
+    )
+    assert response.status_code == 403, response.text
+
+
+def test_disabled_linked_owner_cannot_enumerate_shopping_target_choices(
+    flow, monkeypatch
+):
+    from firebase_admin import auth
+
+    monkeypatch.setattr(
+        auth,
+        "get_user",
+        lambda uid, **kw: SimpleNamespace(
+            uid=uid,
+            disabled=True,
+            tokens_valid_after_timestamp=0,
+            provider_data=[
+                SimpleNamespace(provider_id="google.com", uid="synthetic-user")
+            ],
+        ),
+    )
+    response = flow.source.get(
+        flow.prefix + "/projects", headers={"Origin": "https://testserver"}
+    )
+    assert response.status_code == 403, response.text
+
+
 def test_source_revision_change_requires_new_user_choice(flow):
     base, confirmation, headers = start(flow)
     result = flow.source.put(
