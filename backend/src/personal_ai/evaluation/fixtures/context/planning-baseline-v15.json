@@ -1,0 +1,27 @@
+{
+  "baseline_lock_version": "planning-baseline-lock-v15",
+  "baseline_version": "deterministic-context-planner-v1",
+  "configuration_digest": "d5a21dbc1568ec8b5704139f2e908a17c1b9e4289ed3f25b6c105b9378a768a9",
+  "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+  "counter_identity": "phase13-envelope-byte-estimate-v1",
+  "evaluator_version": "planning-evaluator-v6",
+  "evidence_kind": "synthetic_offline",
+  "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+  "frozen_at": "2026-10-29T07:30:03.446014+00:00",
+  "platform_runtime": "macOS-27.0.1-arm64-arm-64bit",
+  "preserved_corpus": "planning-heldout-v2.json; all 30 cases and deterministic baseline unchanged",
+  "promotion_decision": "non_promotion; no model-answer quality evidence or promoted coverage",
+  "pydantic_runtime": "2.13.5",
+  "python_abi": "cpython-311",
+  "python_implementation": "CPython",
+  "python_runtime": "3.11.15",
+  "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
+  "runtime_distribution_count": 94,
+  "source_change_summary": [
+    "MEM-0 adds an offline memory task benchmark. Planner behavior, configuration, runtime, frozen corpus and fixture dependencies are unchanged. v14 remains historical and the strict current-or-direct-child source guard is preserved. No coverage is promoted."
+  ],
+  "source_identity_digest": "59189122b5ead57a8995843dbf7d7896a97b5304edd9a27d89d025edc1999787",
+  "source_revision": "ad7c5004294b34df6acffd154509a402e2626659",
+  "source_revision_binding": "current-or-direct-child-with-identical-source-identity",
+  "supersedes": "planning-baseline-lock-v14"
+}

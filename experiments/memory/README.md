@@ -25,3 +25,20 @@ compact view fits at the previous 58-token cap. Historical pre-change observatio
 remain intact in the original baseline and Git revision.
 
 See [Phase 34 implementation report](../../docs/personal-ai-chapter-2/phase-34-implementation-report.md).
+
+## MEM-0 task baseline
+
+Run `make memory-task-eval` with `backend/.venv/bin` on PATH. The hermetic CLI
+`python -m personal_ai.evaluation.memory_task_baseline` accepts `--fixtures PATH`
+and `--output PATH` (within root `artifacts/mem0/`). It runs 30 public synthetic
+cases across `none`, `fixed`, `full_eligible_history`, and `gold_authorized`.
+There is no live/paid dispatch option. The original evaluators are unchanged.
+
+Results distinguish selected, packed and consumed sources; current canonical
+task evidence is shared by every arm. Procedures are unsupported by current v1
+memory; diagnostic gold cannot grant permissions. Task outcomes are a finite
+`synthetic_scripted_task_proxy`, not LLM task quality. Native bytes/quota and real
+model quality remain null/unverified. See
+[MEM-0 contract](../../docs/personal-ai-chapter-2/memory/mem-0-benchmark-contract.md),
+[ADR](../../docs/personal-ai-chapter-2/memory/mem-0-architecture-adr.md) and
+[results](../../docs/personal-ai-chapter-2/memory/mem-0-baseline-report.md).

@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-10-14. This is the living implementation boundary. Code, contracts,
+Updated 2026-10-29. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance. The
 [suite handoff](../stabilization/FRESH-REVIEW-HANDOFF.md) records this change and its
 verification. Independent final review and external acceptance remain open.
@@ -27,6 +27,24 @@ consented destination/dates → Shopping note, and Health consented ergonomic
 constraint → Shopping note. Domain apps retain canonical data, UI, revisions,
 validation and consent. Personal AI persists only orchestration intent and
 outcomes. Tasks do not invoke model providers or automate purchases.
+
+## MEM-0 research baseline
+
+MEM-0 adds an opt-in offline benchmark, architecture ADR and 30 reviewed synthetic
+cases across six families. `make memory-task-eval` runs four arms twice through
+shared context packing, with real fixed retrieval/revalidation for legal v1
+assertions. Scripted task proxy results are none 20/30, fixed 23/23 with seven
+unsupported cases, full eligible history 29/29 with one truncated case, and gold
+30/30. These denominators differ; paired intersections are recorded explicitly.
+The final MEM-0 source passed 1,821 offline tests (90 environment-dependent cases
+deselected), all three existing memory evaluations, planner replay and backend
+lint. No model-mediated quality, native resource or production evidence is established.
+
+The [MEM-0 report](personal-ai-chapter-2/memory/mem-0-baseline-report.md) binds the
+tested base `ad7c5004294b34df6acffd154509a402e2626659` plus source digest, commands,
+results and remaining gaps. Independent review determines readiness for MEM-1
+planning. Existing memory types, migrations, production flags and source-policy
+boundaries remain unchanged; this work implements no MEM-1 feature.
 
 ## Identity and effect boundaries
 
@@ -69,9 +87,9 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v13 remain historical. v14 rebinds the same deterministic
-planner, configuration, runtime, fixture dependencies and 30 held-out cases to
-the reviewed source after a full offline rerun; it promotes no coverage. The
+Planner locks v10-v14 remain historical. v15 rebinds the same deterministic
+planner, configuration, runtime, fixture dependencies and 30 held-out cases after
+the MEM-0 evaluation additions; it promotes no coverage. The
 strict current-or-direct-child source guard remains. Production replay still
 rejects source, runtime and unrelated revision changes. Portable tests use an
 explicitly test-only lock. Nothing is promoted from this freeze.
