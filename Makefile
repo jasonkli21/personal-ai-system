@@ -140,3 +140,7 @@ persistence-test:
 
 cascade-eval:
 	cd backend && python -m pytest tests/test_cascade_evaluation.py -q -s
+
+.PHONY: memory-control-eval
+memory-control-eval:
+	cd backend && python -m personal_ai.evaluation.memory_control

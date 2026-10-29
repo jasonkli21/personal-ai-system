@@ -212,6 +212,7 @@ class PostgresMemoryLifecycleRepository:
         completed_assistant_id=None,
         completed_assistant_conversation_id=None,
         job: MemoryJob | None = None,
+        verified_control=False,
     ):
         scope = ApplicationScope(
             application_id=event.application_id, workspace_id=event.workspace_id
@@ -243,7 +244,7 @@ class PostgresMemoryLifecycleRepository:
 
         knowledge = isinstance(record, KnowledgeRecord)
         if knowledge:
-            if event.actor != "developer_test" or event.event_type not in ("forgotten", "superseded", "retrieved", "review_required"):
+            if not ((event.actor == "developer_test" and event.event_type in ("forgotten", "superseded", "retrieved", "review_required")) or (verified_control and event.actor == "verified_user" and event.event_type == "forgotten")):
                 return {"status": "conflict", "reason": "knowledge_operation_unsupported"}
         elif not isinstance(record, DerivedMemory):
             if record.status != "active":
@@ -379,6 +380,8 @@ class PostgresMemoryLifecycleRepository:
         job: MemoryJob | None = None,
         lease_token: UUID | None = None,
     ):
+        if event.actor == "verified_user":
+            return scoped_record(MemoryLifecycleOutcome(status="conflict", reason="control_transaction_required"))
         event = scoped_record(event)
         if event.id != event_idempotency_id(
             event.idempotency_key, event.application_id, event.workspace_id

@@ -21,6 +21,7 @@ external evidence retain different authority and freshness semantics.
 | External and domain context | Typed Travel, Shopping and Finance reads; separate broad Health read and narrow signed Health exports; owner-scoped grants and opaque choices | Broad Health still requires a Firebase user token; native linked identity, cloud IAM, domain/browser and grant UX acceptance |
 | Delegated Shopping tasks | Canonical closed wire, signed source ingress, domain capability metadata, existing confirmation/reservation/reconciliation lifecycle; budget and append-note adapters | Default-off, deployment-managed single-owner origin trust; actual cloud identity and browser/device acceptance |
 | Application hosts | Shared sidecar and user-local external-turn composition behind their existing gates | Shopping sidecar, general Shopping AI generation/research transport and connected workflow routing remain incomplete |
+| MEM-2 controls | Default-off bounded schema-3 search/fetch/topics, proposal-only host tools, authenticated pending review/reject and atomic user forget with operation receipts; opt-in API/UI; no live tool registration | Narrowed phase: no evidenced revision issuer/atomic replacement, no production host, independent review and inherited gates open; receipt capacity and physical-send fencing unresolved |
 | MEM-1 project knowledge | Default-off schema-3 procedures/confirmed decisions; actor-bound source fences in migration 029; final context and model-send permission checks; preserved 20-case stateful proxy plus a 16-pair deterministic packed-content consumer | No-go for acceptance: permanent tombstone capacity blocker, independent fixture review, production issuer/lease and app-grant policy, deployed identity/source deletion, real-model utility and cloud acceptance |
 
 The new source paths are Finance monthly budget → Shopping budget, Travel
@@ -103,6 +104,33 @@ the [separate review handoff](memory/mem-1-independent-review-handoff.md) makes 
 review verdict. Native PostgreSQL results do not establish DynamoDB, deployed
 source revocation/physical deletion, cloud recovery, provider or production safety.
 
+## MEM-2 authorized memory controls
+
+The [MEM-2 control ADR](memory/mem-2-control-adr.md) records the preflight gates and
+trust/transaction decisions. The implementation intentionally stops at unsupported
+revision because no production confirmation issuer and recoverable source lease
+are installed. Review never admits a proposal. All new flags default false and
+require schema-3 selection; API composition additionally requires an explicit
+host resolver and project mapping. The host tools are exercised hermetically,
+with no generic provider execution loop or automatic registration.
+
+Search/fetch/topic results require exact owner/app/workspace/actor and current
+project/source/lifecycle authorization. User forget requires verified recent
+identity, explicit intent and expected version; its lifecycle event, validity epoch
+and content-free operation receipt commit atomically. Exact-key retries reconcile
+actual durable outcome; uncertain commit remains unknown. Pending proposals expire
+at 24 hours; permanent receipt keys cap each actor namespace at 256 operations.
+Source tombstones retain their independent 1,024 namespace cap. Export inventory
+and fenced local operator purge include both new control tables. No automatic
+physical account eraser or production source/identity/provider acceptance is added.
+
+See the [implementation report](memory/mem-2-implementation-report.md) for exact
+local tests, resource measurements and blockers, and the
+[independent review handoff](memory/mem-2-independent-review-handoff.md) for separate
+review. Implementation of this narrowed slice is not full phase completion or
+production promotion. Historical MEM-0/MEM-1 reports, fixtures and acceptance gates
+remain unchanged. Planner v18 is a source-only non-promoting rebind of v17.
+
 ## Identity and effect boundaries
 
 Deployed requests require independently verified service IAM plus a bounded,
@@ -144,8 +172,8 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v16 remain historical. MEM-1 adds active non-promoting v17,
-preserving v16's deterministic planner, configuration, runtime, fixture dependencies
+Planner locks v10-v17 remain historical. MEM-2 adds active non-promoting v18,
+preserving v17's deterministic planner, configuration, runtime, fixture dependencies
 and 30 held-out cases while rebinding the changed backend source identity.
 The strict current-or-direct-child source guard remains.
 Production replay still rejects source, runtime and unrelated revision changes.

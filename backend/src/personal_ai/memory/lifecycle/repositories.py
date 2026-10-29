@@ -257,6 +257,8 @@ class InMemoryMemoryLifecycleRepository:
         job: MemoryJob | None = None,
         lease_token: UUID | None = None,
     ) -> MemoryLifecycleOutcome:
+        if event.actor == "verified_user":
+            return MemoryLifecycleOutcome(status="conflict", reason="control_transaction_required")
         with self._lock_sources(), self._lock:
             event = scoped_record(event)
             event_key = (event.application_id, event.workspace_id, event.idempotency_key)

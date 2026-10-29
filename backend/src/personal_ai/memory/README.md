@@ -120,3 +120,34 @@ Run `make memory-eval memory-lifecycle-eval memory-optimization-eval`.
 The original baseline and paired evaluator are synthetic evidence. Native pgvector
 precision/resource tests remain in the intentionally deferred persistence suite.
 No experiment coverage is promoted; see the Phase 34 implementation report.
+
+## MEM-2 default-off controls
+
+`control_contracts.py`, `control_service.py`, `control_repository.py` and
+`control_tools.py` add exact actor/project-scoped lexical search, fetch, kind
+topics and untrusted pending suggestions. Explicit hosts may register four tools;
+no chat/provider dispatcher registers them automatically. `memory_agent_tools_enabled`,
+`memory_user_management_enabled` and `memory_user_mutations_enabled` default false,
+require memory/schema-3 selection, and do not require admission because proposals
+and review never admit knowledge. HTTP control composition additionally requires
+an installed `memory_control_host` with a source resolver/lease and project mapping;
+none is installed by default. The `/memory` UI uses the existing authenticated proxy
+and a separate `MEMORY_USER_MANAGEMENT_ENABLED=false` server gate.
+
+Authenticated recent-user forget uses canonical lifecycle CAS/validity epochs and
+one atomic receipt transaction. Model tools cannot forget. Review/reject changes
+only pending status. Revision always returns `unsupported_evidence_source` until
+an actual confirmation issuer and atomic replacement design are supplied. There
+is no in-place claim edit, lineage mutation, scheduler or new embedding index.
+
+Pending content expires after 24 hours (erased by subsequent bounded writes);
+32 proposals and 256 non-prunable receipt keys per exact actor namespace enforce
+bounded storage. Retired keys never execute again. Owner inventory/export includes
+both tables; `PostgresControlRepository.erase_owner` requires the existing owner
+fence for operator erasure. No automatic physical account eraser is introduced.
+See the [control ADR](../../../../docs/memory/mem-2-control-adr.md),
+[report](../../../../docs/memory/mem-2-implementation-report.md) and
+[independent review handoff](../../../../docs/memory/mem-2-independent-review-handoff.md).
+Run `make memory-control-eval`, `test_memory_control*.py` and opt-in native
+`tests/persistence/test_memory_control_postgres.py`. Synthetic checks do not close
+issuer/identity, physical-send, deletion, replay-capacity or live-model gates.

@@ -1,0 +1,730 @@
+{
+  "date": "2026-10-29",
+  "classification": "implementation QA, synthetic/offline and local native PG; independent acceptance pending",
+  "entry_revision": "7c8f2671ffc163f803e781b9b34d6c81d466e8fa",
+  "backend_source_identity": "4c03c9668ed2fb02345fa3a4d60cfb1ded05ac7306f50b420a3ec1536ec43588",
+  "control_evaluation": {
+    "version": "mem2-control-v1",
+    "classification": "synthetic/offline; no model utility evidence",
+    "checksum": "7d2e93b33904ddb81bef6e4f8f3ffff89a51b7d63b85b5e88c21877c4b6c2a9d",
+    "cases": 36,
+    "safety": {
+      "unauthorized_reads": 0,
+      "unauthorized_writes": 0,
+      "false_successes": 0
+    },
+    "unsupported_revision_abstentions": 1,
+    "passed": 36,
+    "splits": {
+      "development": 30,
+      "holdout": 6
+    },
+    "latency_ms": {
+      "p50": 5.332187007297762,
+      "p95": 6.616750004468486,
+      "max": 8.878082997398451
+    },
+    "results": [
+      {
+        "id": "authorization-01",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "authorization-02",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "authorization-03",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "authorization-04",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "authorization-05",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "authorization-06",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "authorization-07",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-01",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-02",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-03",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-04",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-05",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-06",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-07",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "proposal_injection-08",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "cas_conflicts-01",
+        "passed": true,
+        "observed": {
+          "status": "conflict",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 1,
+          "replayed": false
+        }
+      },
+      {
+        "id": "cas_conflicts-02",
+        "passed": true,
+        "observed": {
+          "status": "conflict",
+          "state_version": 1,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 2,
+          "replayed": false
+        }
+      },
+      {
+        "id": "cas_conflicts-03",
+        "passed": true,
+        "observed": {
+          "status": "unsupported_evidence_source",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "cas_conflicts-04",
+        "passed": true,
+        "observed": {
+          "status": "reviewed",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 1,
+          "receipts": 2,
+          "replayed": false
+        }
+      },
+      {
+        "id": "cas_conflicts-05",
+        "passed": true,
+        "observed": {
+          "status": "rejected",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 1,
+          "receipts": 2,
+          "replayed": false
+        }
+      },
+      {
+        "id": "idempotency_partial_commit-01",
+        "passed": true,
+        "observed": {
+          "status": "applied",
+          "state_version": 1,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 1,
+          "replayed": true
+        }
+      },
+      {
+        "id": "idempotency_partial_commit-02",
+        "passed": true,
+        "observed": {
+          "status": "conflict",
+          "state_version": 1,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 1,
+          "replayed": false
+        }
+      },
+      {
+        "id": "idempotency_partial_commit-03",
+        "passed": true,
+        "observed": {
+          "status": "applied",
+          "state_version": 1,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 1,
+          "replayed": true
+        }
+      },
+      {
+        "id": "idempotency_partial_commit-04",
+        "passed": true,
+        "observed": {
+          "status": "unknown_commit",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "idempotency_partial_commit-05",
+        "passed": true,
+        "observed": {
+          "status": "unknown_commit",
+          "state_version": 1,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 1,
+          "replayed": false
+        }
+      },
+      {
+        "id": "forget_revocation-01",
+        "passed": true,
+        "observed": {
+          "status": "applied",
+          "state_version": 1,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 1,
+          "replayed": false
+        }
+      },
+      {
+        "id": "forget_revocation-02",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "forget_revocation-03",
+        "passed": true,
+        "observed": {
+          "status": "forbidden_or_not_found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "forget_revocation-04",
+        "passed": true,
+        "observed": {
+          "status": "found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 1,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "forget_revocation-05",
+        "passed": true,
+        "observed": {
+          "status": "found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "quota_deletion-01",
+        "passed": true,
+        "observed": {
+          "status": "temporarily_unavailable",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "quota_deletion-02",
+        "passed": true,
+        "observed": {
+          "status": "limit_exceeded",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 32,
+          "receipts": 32,
+          "replayed": false
+        }
+      },
+      {
+        "id": "quota_deletion-03",
+        "passed": true,
+        "observed": {
+          "status": "found",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 1,
+          "receipts": 1,
+          "replayed": false
+        }
+      },
+      {
+        "id": "quota_deletion-04",
+        "passed": true,
+        "observed": {
+          "status": "limit_exceeded",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "quota_deletion-05",
+        "passed": true,
+        "observed": {
+          "status": "cancelled",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      },
+      {
+        "id": "quota_deletion-06",
+        "passed": true,
+        "observed": {
+          "status": "disabled",
+          "state_version": 0,
+          "knowledge_count": 1,
+          "disclosed": 0,
+          "pending_count": 0,
+          "receipts": 0,
+          "replayed": false
+        }
+      }
+    ]
+  },
+  "native_resources": {
+    "classification": "synthetic native local PG",
+    "reads": [
+      {
+        "n": 0,
+        "status": "found",
+        "returned": 0,
+        "sql_calls": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "p50_ms": 2.3592920042574406,
+        "max_ms": 2.9976670048199594,
+        "p95_ms_nearest_rank_5_samples": 2.9976670048199594
+      },
+      {
+        "n": 1,
+        "status": "found",
+        "returned": 1,
+        "sql_calls": [
+          29,
+          29,
+          29,
+          29,
+          29
+        ],
+        "p50_ms": 16.520709003088996,
+        "max_ms": 22.717833024216816,
+        "p95_ms_nearest_rank_5_samples": 22.717833024216816
+      },
+      {
+        "n": 32,
+        "status": "found",
+        "returned": 8,
+        "sql_calls": [
+          605,
+          605,
+          605,
+          605,
+          605
+        ],
+        "p50_ms": 151.12587498151697,
+        "max_ms": 175.4792499996256,
+        "p95_ms_nearest_rank_5_samples": 175.4792499996256
+      },
+      {
+        "n": 128,
+        "status": "limit_exceeded",
+        "returned": 0,
+        "sql_calls": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "p50_ms": 5.955375003395602,
+        "max_ms": 7.197041995823383,
+        "p95_ms_nearest_rank_5_samples": 7.197041995823383
+      }
+    ],
+    "postgres_version": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+    "pgvector_version": "0.8.7",
+    "memory_control_proposals": [
+      1,
+      437,
+      470
+    ],
+    "memory_control_operations": [
+      1,
+      562,
+      594
+    ]
+  },
+  "preserved_fixtures": [
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v1.json",
+      "sha256": "4edac61d22f595aa0918435f60ef1daaa20dd5c1bfcd2491eacfb224ff6292c5"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v10.json",
+      "sha256": "a5d94d407d36bf937a589ab97d46b1c2f90b8ed1c92080fc94581146207f5ab6"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v11.json",
+      "sha256": "ec5e2d2d50f2d886d9f07cd585420dd3a6ac3d8292b4b2b511259c9f8de2efe2"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v12.json",
+      "sha256": "e29a190ccdcd794ff12e5be0e338900f17d85b13b65350a7ece65bfc3276a122"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v13.json",
+      "sha256": "1548d32f168342b8c9b25e16f27a92fe0306b7969420d2f6aa6823a9830f476e"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v14.json",
+      "sha256": "55b503c348227508da9920fc12cbb6fc4671a5a3b00e4f1dca38c7cb11d942bc"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v15.json",
+      "sha256": "52138c17596772daa7cfebaacf7097625fd8ce1323838054e59961492a189683"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v16.json",
+      "sha256": "328c44acc253cbf42547e0f671223117a75e9264ad1117f56154d1a68b408249"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v17.json",
+      "sha256": "1779b35420c9080e2c45417d0a91e9f7c35af2ed3c3cd7967bc00bc446a6e068"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v2.json",
+      "sha256": "7c2b18adc6a44081d5c1ac110f6d714c129c9a7821fbdbd84522bfa7b9e29963"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v3.json",
+      "sha256": "a1cd94e59027595a724c9733778c822b363fdc694f6f5a06c0da0394cb938919"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v4.json",
+      "sha256": "0ccc073e5751451d3c551a2f289a1798fc81b6259cb1dc27d7d7b67d00787750"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v5.json",
+      "sha256": "bc90a287f1d1e8b6f4261ac9f8548a1a072effd6da6b57cb7a132244131b688e"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v6.json",
+      "sha256": "4069f0e21c442a3f140b99c86e13bf5b9a1a08485c3044b68156e1e6d2edfe34"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v7.json",
+      "sha256": "4ce4068a94b42d4dbdce166d4ec6b2426af858815f49ecaa821deaf8ebff0ee5"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v8.json",
+      "sha256": "c8d3cd09f233de65eed9ea47498a8b1c2e32182f45c94f93728b1c56a9719b98"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v9.json",
+      "sha256": "549002529e05c9a0250dc62d7874145c094a21cd23fb7a7c8cbdf1e2a073dd78"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/mem0-cases-v1.json",
+      "sha256": "043edaae3461286b49bcb4fda4f73bdc5059e528361bad3fa670a3b1c4e58b18"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/mem0-cases-v2.json",
+      "sha256": "592a0e3799aeafc32ebf7cba0c7e162ff0af98d0049af2cf683de653e5fc02e1"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/mem1-consumer-v1.json",
+      "sha256": "ff94f67f8889f13887128003d21e5f1b89078e806c12a1d148c4ac7d1d347066"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/mem1-paired-v1.json",
+      "sha256": "587e87f11422719e8ad2f512ede7020c0bae937cb555b1035cd8eb386866756e"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/memory-baseline-v1.json",
+      "sha256": "ff6d04416592acc7bc4b3b63ff073112534d045fe231e3d48a0aa638361608c3"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/memory-fixtures.json",
+      "sha256": "bd2f7a0c3ee8ab6cc4dd728364be091ebddbf8af3daa9ae49ec19e22b974471a"
+    },
+    {
+      "path": "backend/src/personal_ai/evaluation/fixtures/memory/memory-lifecycle-fixtures.json",
+      "sha256": "b8863d06cdb4c6d5bf0cd2753fbb64ebffbbb19945870abd096a691d0d152f06"
+    }
+  ],
+  "verification": {
+    "focused_control_and_planner": "114 passed before dependency-only contract addition; final full suite supersedes",
+    "native_expanded": "44 passed, 8 DynamoDB skips on prior snapshot",
+    "native_final_source": "12 passed; migrations, sessions/processes, rollback, reconciliation, export/erase and resource probe",
+    "frontend_final": "129 passed; lint and typecheck passed",
+    "memory_evaluation_targets": "all eight targets exited 0, including final-source MEM-0/1 digests and non-promoting planning v18",
+    "offline_final": "1987 passed, 111 deselected, 4 warnings; 199.85s; make backend-test-offline, final source, serial",
+    "backend_lint": "All checks passed",
+    "diff_check": "git diff --check and git diff --cached --check passed",
+    "frontend_build": "Passed, Next.js 15.5.23; new /memory page and API route compiled; existing ESLint Next-plugin warning"
+  },
+  "changed_paths": [
+    "Makefile",
+    "backend/.env.example",
+    "backend/src/personal_ai/api/memory_control.py",
+    "backend/src/personal_ai/auth/owner_data.py",
+    "backend/src/personal_ai/evaluation/README.md",
+    "backend/src/personal_ai/evaluation/control_runtime.py",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v18.json",
+    "backend/src/personal_ai/evaluation/fixtures/memory/mem2-control-v1.json",
+    "backend/src/personal_ai/evaluation/memory_control.py",
+    "backend/src/personal_ai/evaluation/planning.py",
+    "backend/src/personal_ai/main.py",
+    "backend/src/personal_ai/memory/README.md",
+    "backend/src/personal_ai/memory/control_contracts.py",
+    "backend/src/personal_ai/memory/control_repository.py",
+    "backend/src/personal_ai/memory/control_service.py",
+    "backend/src/personal_ai/memory/control_tools.py",
+    "backend/src/personal_ai/memory/lifecycle/contracts.py",
+    "backend/src/personal_ai/memory/lifecycle/repositories.py",
+    "backend/src/personal_ai/persistence/README.md",
+    "backend/src/personal_ai/persistence/migrations/030_memory_control.sql",
+    "backend/src/personal_ai/persistence/postgres/auth.py",
+    "backend/src/personal_ai/persistence/postgres/control.py",
+    "backend/src/personal_ai/persistence/postgres/lifecycle.py",
+    "backend/src/personal_ai/settings.py",
+    "backend/tests/persistence/test_memory_control_postgres.py",
+    "backend/tests/persistence/test_verified_knowledge_postgres.py",
+    "backend/tests/test_memory_control.py",
+    "backend/tests/test_memory_control_api.py",
+    "backend/tests/test_memory_control_context.py",
+    "backend/tests/test_planning_experiment.py",
+    "docs/README.md",
+    "docs/current-state.md",
+    "docs/memory/mem-2-blockers.json",
+    "docs/memory/mem-2-control-adr.md",
+    "docs/memory/mem-2-evaluation-contract.md",
+    "docs/memory/mem-2-evidence.json",
+    "docs/memory/mem-2-implementation-report.md",
+    "docs/memory/mem-2-independent-review-handoff.md",
+    "frontend/.env.local.example",
+    "frontend/src/app/api/memory/control/[...segments]/route.ts",
+    "frontend/src/app/memory/page.tsx",
+    "frontend/src/features/memory/memory-panel.tsx",
+    "frontend/tests/app/api/memory/route.test.ts",
+    "frontend/tests/features/memory/memory-panel.test.tsx"
+  ]
+}

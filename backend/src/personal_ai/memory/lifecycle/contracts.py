@@ -11,7 +11,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from personal_ai.auth.scope import ApplicationScopedRecord
 from personal_ai.memory.contracts import DerivedMemory, LifecycleEventType, Memory
 
-Actor = Literal["system", "developer_test"]
+Actor = Literal["system", "developer_test", "verified_user"]
 
 RetrievalStatus = Literal["active", "superseded", "forgotten"]
 

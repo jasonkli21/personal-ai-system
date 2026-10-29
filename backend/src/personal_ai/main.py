@@ -16,6 +16,7 @@ from personal_ai.api.external_turns import router as external_turns_router
 from personal_ai.api.federation import router as federation_router
 from personal_ai.api.iterative_research import router as iterative_research_router
 from personal_ai.api.itinerary_proposals import router as itinerary_proposals_router
+from personal_ai.api.memory_control import router as memory_control_router
 from personal_ai.api.mutations import router as mutations_router
 from personal_ai.api.profile import router as profile_router
 from personal_ai.api.provider_usage import router as provider_usage_router
@@ -96,6 +97,7 @@ def create_app(
     for router in (
         federation_router,
         mutations_router,
+        memory_control_router,
         external_turns_router,
         conversations_router,
         research_router,

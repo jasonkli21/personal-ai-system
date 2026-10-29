@@ -58,3 +58,10 @@ before interpreting results or adding evidence classes.
 
 `domains/fixtures.py` remains domain-owned because the API exposes those synthetic comparisons
 as a supported demo endpoint as well as using them in offline evaluation.
+
+MEM-2 adds `make memory-control-eval`: 36 synthetic control probes in
+`fixtures/memory/mem2-control-v1.json`, with 30 development and six public tagged
+holdout cases. Driver inputs exclude scoring expectations. The evaluator exercises
+real scoped service/tool contracts under a hermetic host, not a live model loop.
+Native transaction/resource and HTTP/UI checks are separate tests, not extra
+benchmark cases. Review means pending review only; correction is unsupported.

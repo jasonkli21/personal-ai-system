@@ -18,3 +18,22 @@ Backend-neutral repository protocols and storage errors remain in `personal_ai.s
 - Postgres and DynamoDB implementations are imported from their semantic packages.
 
 Repository adapters may coordinate multiple writes inside one transaction when their contract requires it. Do not move commit boundaries to match file boundaries. The tests live under `backend/tests/persistence/` and in repository-specific backend test modules.
+
+## MEM-2 migration and operator notes
+
+Migration 030 adds only actor-scoped pending proposals and content-free operation
+receipts under the existing Postgres memory owner. It follows 027–029 without
+rewriting earlier migrations, schema-3 records or lifecycle history. The control
+repository locks owner fence → existing knowledge namespace → actor namespace,
+then applies canonical lifecycle event/projection plus receipt in one transaction.
+Queue review and receipt also share a transaction. User actors are rejected by raw
+lifecycle `apply_event`; the narrow control transaction is the only user-write seam.
+
+Rollback disables the three MEM-2 flags and the frontend management gate. Do not
+roll back migration 030, undo forget, prune source fences or recycle receipt keys.
+TTL hides expired proposals; the next bounded write erases expired content. No
+background eraser is installed. An operator performing account erasure must retain
+the owner fence and invoke `PostgresControlRepository.erase_owner(owner_id)` for
+both control tables in every scope; it refuses an unfenced owner. Account inventory
+and export cover both tables. This is a local SQL erasure seam, not proof of cloud
+physical deletion, backups, recovery or a complete account-erasure workflow.

@@ -97,11 +97,11 @@ def test_actor_fence_migration_preserves_rows_and_scopes_revoke(
     try:
         with monkeypatch.context() as patch:
             patch.setattr(
-                migrations, "files", lambda _: FilteredPackage({"028_", "029_"})
+                migrations, "files", lambda _: FilteredPackage({"028_", "029_", "030_"})
             )
             assert max(database.migrate()) == 27
         with monkeypatch.context() as patch:
-            patch.setattr(migrations, "files", lambda _: FilteredPackage({"029_"}))
+            patch.setattr(migrations, "files", lambda _: FilteredPackage({"029_", "030_"}))
             assert database.migrate() == (28,)
 
         scope = RequestScope(
@@ -189,7 +189,7 @@ def test_actor_fence_migration_preserves_rows_and_scopes_revoke(
             patch.setattr(repo, "create_knowledge", legacy_create)
             _, record = admit(native, run_id="pre-actor-fence-migration")
 
-        assert database.migrate() == (29,)
+        assert database.migrate() == (29, 30)
         assert database.migrate() == ()
         with request(scope):
             assert repo.get_knowledge(owner_id=scope.owner_id, memory_id=record.id) == record

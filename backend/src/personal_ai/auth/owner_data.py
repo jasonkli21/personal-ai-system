@@ -15,6 +15,8 @@ OWNER_DATA_COLLECTIONS = (
     "memories",
     "derived_memories",
     "derived_memory_sources",
+    "memory_control_proposals",
+    "memory_control_operations",
     "memory_knowledge",
     "memory_knowledge_sources",
     "memory_knowledge_source_fences",

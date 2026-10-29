@@ -251,6 +251,9 @@ class Settings(BaseSettings):
     memory_inspection_enabled: bool = False
     memory_knowledge_admission_enabled: bool = False
     memory_knowledge_selection_enabled: bool = False
+    memory_agent_tools_enabled: bool = False
+    memory_user_management_enabled: bool = False
+    memory_user_mutations_enabled: bool = False
     memory_embedding_model: str = Field(default="gemini-embedding-001", min_length=1)
     memory_embedding_dimensions: int = Field(default=768, gt=0, le=2048)
     memory_embedding_batch_size: int = Field(default=8, gt=0, le=100)
@@ -713,6 +716,10 @@ class Settings(BaseSettings):
             self.memory_enabled or "memory_max_context_tokens" in self.model_fields_set
         ) and self.memory_max_context_tokens > available:
             raise ValueError("memory_configuration_invalid")
+        if (self.memory_agent_tools_enabled or self.memory_user_management_enabled or self.memory_user_mutations_enabled) and not self.memory_knowledge_selection_enabled:
+            raise ValueError("memory_control_requires_knowledge_selection")
+        if self.memory_user_mutations_enabled and not self.memory_user_management_enabled:
+            raise ValueError("memory_control_requires_user_management")
         gated = (
             self.memory_knowledge_admission_enabled,
             self.memory_knowledge_selection_enabled,

@@ -73,6 +73,7 @@ _EXPORT_PATH_GROUPS = {
     "postgres.derived-memory-source": ("derived_memory_sources",),
     "postgres.memory-knowledge": (
         "memory_knowledge", "memory_knowledge_sources", "memory_knowledge_source_fences",
+        "memory_control_proposals", "memory_control_operations",
     ),
     "postgres.memory-lifecycle-operation": ("memory_lifecycle_operations",),
     "dynamodb.conversation-directory": ("conversations",),
