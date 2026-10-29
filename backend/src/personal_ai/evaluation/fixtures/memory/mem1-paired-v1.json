@@ -1,0 +1,211 @@
+{
+  "suite_id": "mem1-paired-v1",
+  "evidence_class": "hermetic_stateful_task_proxy",
+  "review_status": "author_reviewed_independent_review_pending",
+  "clock": "2026-10-29T12:00:00Z",
+  "seed": 17,
+  "maximum_context_tokens": 4096,
+  "history_tokens": 1024,
+  "cases": [
+    {
+      "case_id": "MEM1-WF-01",
+      "family": "workflow",
+      "kind": "procedure",
+      "fault": "none",
+      "command": "make backend-lint",
+      "polarity": "positive",
+      "split": "development",
+      "review_rationale": "The observed lint workflow is reusable only at the same revision."
+    },
+    {
+      "case_id": "MEM1-WF-02",
+      "family": "workflow",
+      "kind": "procedure",
+      "fault": "none",
+      "command": "make backend-test-offline",
+      "polarity": "positive",
+      "split": "development",
+      "review_rationale": "A new run of the recorded offline workflow must issue its own result."
+    },
+    {
+      "case_id": "MEM1-WF-03",
+      "family": "workflow",
+      "kind": "procedure",
+      "fault": "none",
+      "command": "make memory-eval",
+      "polarity": "positive",
+      "split": "holdout",
+      "review_rationale": "A different allowlisted workflow retains command and receipt binding."
+    },
+    {
+      "case_id": "MEM1-WF-04",
+      "family": "workflow",
+      "kind": "procedure",
+      "fault": "retry",
+      "command": "make backend-lint",
+      "polarity": "positive",
+      "split": "development",
+      "review_rationale": "Repeated admissions and target effect retries must each remain singular."
+    },
+    {
+      "case_id": "MEM1-PD-01",
+      "family": "project_decision",
+      "kind": "project_decision",
+      "fault": "none",
+      "command": null,
+      "polarity": "positive",
+      "split": "development",
+      "review_rationale": "A confirmed user decision remains user asserted when reused."
+    },
+    {
+      "case_id": "MEM1-PD-02",
+      "family": "project_decision",
+      "kind": "project_decision",
+      "fault": "current_override",
+      "command": null,
+      "polarity": "positive",
+      "split": "holdout",
+      "review_rationale": "Current authoritative project settings override an older user decision."
+    },
+    {
+      "case_id": "MEM1-PD-03",
+      "family": "project_decision",
+      "kind": "project_decision",
+      "fault": "unconfirmed",
+      "command": null,
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "An unconfirmed source cannot establish a later decision."
+    },
+    {
+      "case_id": "MEM1-TC-01",
+      "family": "temporal",
+      "kind": "procedure",
+      "fault": "revision",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "A revision-only change blocks historical procedure use; rediscovery remains possible."
+    },
+    {
+      "case_id": "MEM1-TC-02",
+      "family": "temporal",
+      "kind": "procedure",
+      "fault": "branch",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "holdout",
+      "review_rationale": "A branch-only change independently blocks historical procedure use."
+    },
+    {
+      "case_id": "MEM1-TC-03",
+      "family": "temporal",
+      "kind": "procedure",
+      "fault": "expired",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "Expiry alone blocks otherwise valid historical knowledge."
+    },
+    {
+      "case_id": "MEM1-SP-01",
+      "family": "scope",
+      "kind": "procedure",
+      "fault": "owner",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "Another owner has its own current project and cannot see this source."
+    },
+    {
+      "case_id": "MEM1-SP-02",
+      "family": "scope",
+      "kind": "procedure",
+      "fault": "workspace",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "holdout",
+      "review_rationale": "Workspace-only isolation must hold with equal revision and owner."
+    },
+    {
+      "case_id": "MEM1-SP-03",
+      "family": "scope",
+      "kind": "procedure",
+      "fault": "revoke_before_pack",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "The last provenance edge is revoked after selection and before packing."
+    },
+    {
+      "case_id": "MEM1-SP-04",
+      "family": "scope",
+      "kind": "procedure",
+      "fault": "revoke_before_use",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "Packed knowledge is revoked before the final action and must not be consumed."
+    },
+    {
+      "case_id": "MEM1-SP-05",
+      "family": "scope",
+      "kind": "procedure",
+      "fault": "forget",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "holdout",
+      "review_rationale": "Forgotten canonical knowledge cannot be consumed or recreated by retry."
+    },
+    {
+      "case_id": "MEM1-SP-06",
+      "family": "scope",
+      "kind": "procedure",
+      "fault": "erase",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "Erasure traverses the complete reverse relation, including the last of three edges."
+    },
+    {
+      "case_id": "MEM1-AD-01",
+      "family": "adversarial",
+      "kind": "procedure",
+      "fault": "forged",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "An assistant claim is absent from the trusted issuer registry."
+    },
+    {
+      "case_id": "MEM1-AD-02",
+      "family": "adversarial",
+      "kind": "procedure",
+      "fault": "irrelevant",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "An unrelated arithmetic task must perform a new calculation without memory."
+    },
+    {
+      "case_id": "MEM1-AD-03",
+      "family": "adversarial",
+      "kind": "procedure",
+      "fault": "poison",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "holdout",
+      "review_rationale": "Instruction injection is rejected before storage and never authorizes actions."
+    },
+    {
+      "case_id": "MEM1-AD-04",
+      "family": "adversarial",
+      "kind": "procedure",
+      "fault": "unknown",
+      "command": "make backend-lint",
+      "polarity": "negative",
+      "split": "development",
+      "review_rationale": "Unknown historical outcome cannot become a successful procedure."
+    }
+  ]
+}

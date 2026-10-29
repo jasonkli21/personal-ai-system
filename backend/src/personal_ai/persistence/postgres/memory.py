@@ -29,6 +29,7 @@ from personal_ai.persistence.postgres import (
     PostgresPayloadRepository,
     _ensure_namespace,
 )
+from personal_ai.persistence.postgres.knowledge import PostgresKnowledgeMethods
 from personal_ai.storage.errors import (
     ConversationConflictError,
     ResourceNotFoundError,
@@ -39,7 +40,7 @@ PGVECTOR_COSINE_ERROR_BOUND = 0.0002
 MEMORY_SEARCH_SCAN_LIMIT = 5_000
 
 
-class PostgresMemoryRepository:
+class PostgresMemoryRepository(PostgresKnowledgeMethods):
     """Lossless embeddings and provenance with source-guarded P transactions."""
 
     def __init__(

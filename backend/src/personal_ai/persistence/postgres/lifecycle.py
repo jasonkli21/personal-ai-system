@@ -59,7 +59,10 @@ class PostgresMemoryLifecycleRepository:
         try:
             return self.memories.get(owner_id=owner_id, memory_id=memory_id)
         except ResourceNotFoundError:
-            return self.memories.get_derived(owner_id=owner_id, memory_id=memory_id)
+            try:
+                return self.memories.get_derived(owner_id=owner_id, memory_id=memory_id)
+            except ResourceNotFoundError:
+                return self.memories.get_knowledge(owner_id=owner_id, memory_id=memory_id)
 
     def _read_record_tx(self, connection, owner_id, memory_id, scope):
         scope_id = PostgresPayloadRepository.scope_id(owner_id, scope)
@@ -79,7 +82,15 @@ class PostgresMemoryLifecycleRepository:
             (scope_id, str(memory_id), owner_id, scope.application_id, scope.workspace_id),
         ).fetchone()
         if row is None:
-            raise ResourceNotFoundError("memory not found")
+            from personal_ai.memory.knowledge import KnowledgeRecord
+
+            row = connection.execute(
+                "SELECT payload FROM memory_knowledge WHERE scope_id=%s AND record_id=%s AND owner_id=%s AND application_id=%s AND workspace_id IS NOT DISTINCT FROM %s",
+                (scope_id, str(memory_id), owner_id, scope.application_id, scope.workspace_id),
+            ).fetchone()
+            if row is None:
+                raise ResourceNotFoundError("memory not found")
+            return KnowledgeRecord.model_validate(row[0])
         record = DerivedMemory.model_validate({**row[0], "embedding": tuple(row[1])})
         if record.owner_id != owner_id or not scope_matches(record, scope):
             raise ResourceNotFoundError("memory not found")
@@ -228,7 +239,13 @@ class PostgresMemoryLifecycleRepository:
             connection, owner_id, event.memory_id, scope, lock=True
         )
         record = self._read_record_tx(connection, owner_id, event.memory_id, scope)
-        if not isinstance(record, DerivedMemory):
+        from personal_ai.memory.knowledge import KnowledgeRecord
+
+        knowledge = isinstance(record, KnowledgeRecord)
+        if knowledge:
+            if event.actor != "developer_test" or event.event_type not in ("forgotten", "superseded", "retrieved", "review_required"):
+                return {"status": "conflict", "reason": "knowledge_operation_unsupported"}
+        elif not isinstance(record, DerivedMemory):
             if record.status != "active":
                 return {"status": "conflict", "reason": "source_inactive"}
         elif record.status != "active":
@@ -254,9 +271,9 @@ class PostgresMemoryLifecycleRepository:
                 return {"status": "conflict", "reason": "assistant_incomplete"}
         if event.job_id is not None and (job is None or job.id != event.job_id):
             return {"status": "conflict", "reason": "stale_lease"}
-        if not self._source_is_valid(owner_id, record):
+        if not knowledge and not self._source_is_valid(owner_id, record):
             return {"status": "conflict", "reason": "source_inactive"}
-        if event.event_type == "forgotten":
+        if event.event_type == "forgotten" and not knowledge:
             rows = connection.execute(
                 "SELECT derived_memory_id FROM derived_memory_sources WHERE scope_id=%s "
                 "AND source_memory_id=%s ORDER BY derived_memory_id LIMIT 101",
@@ -271,7 +288,13 @@ class PostgresMemoryLifecycleRepository:
                 dependency_lookup_complete=len(dependencies) < 101,
             ).eligible:
                 return {"status": "conflict", "reason": "protected_memory"}
-        if event.event_type == "superseded":
+        if event.event_type == "superseded" and knowledge:
+            if len(event.related_memory_ids) != 1:
+                return {"status": "conflict", "reason": "knowledge_supersession_invalid"}
+            newer = self._read_record_tx(connection, owner_id, event.related_memory_ids[0], scope)
+            if not isinstance(newer, KnowledgeRecord) or newer.project.project_id != record.project.project_id or newer.proposal.kind != record.proposal.kind:
+                return {"status": "conflict", "reason": "knowledge_supersession_invalid"}
+        if event.event_type == "superseded" and not knowledge:
             if len(event.related_memory_ids) != 1:
                 return {"status": "conflict", "reason": "ambiguous_contradiction"}
             related = self._read_record_tx(connection, owner_id, event.related_memory_ids[0], scope)
@@ -363,6 +386,23 @@ class PostgresMemoryLifecycleRepository:
             raise ValueError("event_identity_invalid")
         if event.job_id is None and (job is not None or lease_token is not None):
             raise ValueError("job_fence_unexpected")
+        from personal_ai.memory.knowledge import KnowledgeRecord
+
+        record = self._get_record(owner_id=event.owner_id, memory_id=event.memory_id)
+        if isinstance(record, KnowledgeRecord):
+            if job is not None or event.job_id is not None or completed_assistant_id is not None:
+                return scoped_record(MemoryLifecycleOutcome(status="conflict", reason="knowledge_operation_unsupported"))
+            # Knowledge source leases are not Dynamo conversation guards. These
+            # operations only suppress/record local knowledge, under the same
+            # namespace lock as admission and final consumption.
+            with self.database.connection(timeout_seconds=5) as connection:
+                self.memories._knowledge_lock(connection, PostgresPayloadRepository.scope_id(event.owner_id, current_application_scope()))
+                result = self._apply_event_tx(connection, event)
+            return scoped_record(MemoryLifecycleOutcome(
+                status=result["status"], reason=result.get("reason"),
+                event_id=event.id if result["status"] != "conflict" else None,
+                state=self.get_state(owner_id=event.owner_id, memory_id=event.memory_id),
+            ))
         if event.job_id is not None:
             if job is None or lease_token is None or job.id != event.job_id:
                 return scoped_record(

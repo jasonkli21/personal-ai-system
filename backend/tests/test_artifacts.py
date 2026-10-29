@@ -131,10 +131,11 @@ def test_source_derived_artifact_path_binds_snapshot_dependencies(tier):
         )
 
 
-def test_memory_bearing_artifact_writes_are_rejected_before_reservation(tier):
+@pytest.mark.parametrize("permission_id", ["ai_memory_source", "ai_memory_view", "ai_memory_knowledge"])
+def test_memory_bearing_artifact_writes_are_rejected_before_reservation(tier, permission_id):
     service, repo, store, _ = tier
     dependency = ContextPermissionDependency(
-        permission_id="ai_memory_source",
+        permission_id=permission_id,
         version="a" * 64,
         purpose="revalidate retained personal memory",
         owner_id="owner",

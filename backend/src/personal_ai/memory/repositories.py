@@ -16,6 +16,7 @@ from personal_ai.memory.contracts import (
     identity,
     vector,
 )
+from personal_ai.memory.knowledge_repository import InMemoryKnowledgeMethods
 from personal_ai.storage.errors import (
     ConversationConflictError,
     ResourceNotFoundError,
@@ -36,12 +37,13 @@ def validate(memory):
     return record
 
 
-class InMemoryMemoryRepository:
+class InMemoryMemoryRepository(InMemoryKnowledgeMethods):
     def __init__(self, messages):
         self.messages = messages
         self.records: dict[UUID, Memory] = {}
         self.derived_records: dict[UUID, DerivedMemory] = {}
         self._lock = RLock()
+        self._init_knowledge()
 
     def create(self, memory, *, timeout=5):
         memory = validate(scoped_record(memory))

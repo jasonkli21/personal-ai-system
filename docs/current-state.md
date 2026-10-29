@@ -21,6 +21,7 @@ external evidence retain different authority and freshness semantics.
 | External and domain context | Typed Travel, Shopping and Finance reads; separate broad Health read and narrow signed Health exports; owner-scoped grants and opaque choices | Broad Health still requires a Firebase user token; native linked identity, cloud IAM, domain/browser and grant UX acceptance |
 | Delegated Shopping tasks | Canonical closed wire, signed source ingress, domain capability metadata, existing confirmation/reservation/reconciliation lifecycle; budget and append-note adapters | Default-off, deployment-managed single-owner origin trust; actual cloud identity and browser/device acceptance |
 | Application hosts | Shared sidecar and user-local external-turn composition behind their existing gates | Shopping sidecar, general Shopping AI generation/research transport and connected workflow routing remain incomplete |
+| MEM-1 project knowledge | Default-off schema-3 procedures/confirmed decisions in existing memory ownership, normalized source fences, shared lifecycle/context revalidation and a 20-case paired-session proxy; native PostgreSQL subset exercised | Independent implementation/fixture review, production workflow issuer and recoverable source leases, deployed identity/source deletion and cloud acceptance |
 
 The new source paths are Finance monthly budget → Shopping budget, Travel
 consented destination/dates → Shopping note, and Health consented ergonomic
@@ -39,20 +40,60 @@ eligible history 29/29 with one truncated case, and gold 30/30. On the 22 paired
 fixed-versus-none cases there are three wins, 19 ties and no regressions. These
 curated denominators do not measure model quality.
 
-The focused MEM-0/memory test command passed 281 tests; the three existing memory
-evaluations, planner replay and backend lint passed. The latest full offline run
-did **not** pass: 1,833 passed, three provider-matrix tests failed, and 90 were
-deselected. All three failures passed together in an isolated retry, so the
-whole-suite failure remains unresolved and is not recorded as a pass. No
-model-mediated quality, native resource or production evidence is established.
+The earlier remediation's full offline run failed: 1,833 passed, three
+provider-matrix tests failed, and 90 were deselected; isolated retries passed.
+A fresh serial run on the MEM-1 entry base passed **1,836 tests**, with 90
+deselected. This supplies a clean rerun, not a demonstrated fix or root cause for
+the timing failures. The original focused command again passed 281 tests;
+the final expanded memory/artifact regression passed 484. See the
+[entry verification attempt](memory/mem-0-entry-reverification.md) for exact
+commands, F1–F4 probes, intermediate failures and the preserved result digest.
 
 The [MEM-0 report](personal-ai-chapter-2/memory/mem-0-baseline-report.md) binds the
 tested source on base `987bba5f6479791b54ac626d9959b1b39e23fbb3` plus source and
 fixture identities, commands, results and remaining gaps. The independent
 review and its separate remediation record are linked from the [report](personal-ai-chapter-2/memory/mem-0-baseline-report.md).
-Fresh independent verification determines readiness for MEM-1 planning. Existing
-memory types, migrations, production flags and source-policy boundaries remain
-unchanged; this work implements no MEM-1 feature.
+Fresh independent MEM-0 acceptance remains unclaimed. The user explicitly
+authorized MEM-1 continuation after attempting MEM-0 re-verification. Existing
+v1/v2 memory contracts, source-policy semantics and fixture bytes remain unchanged.
+
+## MEM-1 verified procedural and project memory
+
+The narrow source-verified Task A → durable knowledge → fresh Task B loop is
+implemented behind separate default-off admission and selection flags.
+Schema-3 `procedure` and `project_decision` records belong to the existing
+Postgres memory repository. Migration 028 adds scoped admission identity,
+normalized provenance and source-epoch tombstones; existing lifecycle state/events
+remain authoritative. Selection uses exact project/revision filters without new
+embeddings or provider calls. Shared assembly enforces query budgets and preserves
+historical authority/verification/expiry labels, references and permission
+dependencies through supported later history/summary reuse. Artifact writes with
+memory dependencies remain prohibited.
+
+The procedure recipe states only an observed historical success for three
+allowlisted Make commands. An authenticated completed-turn decision remains a
+user assertion. Production has no workflow receipt issuer or automatic intake
+path; enabling flags alone cannot supply one. Hosts need current application and
+project authorization plus source leases that fence mutations through commit and
+consumption. No public memory tools, new scheduler or default routing change.
+
+The separate 20-case hermetic proxy has six tagged holdout cases and two matching
+semantic replays. Verified knowledge and eligible history each pass 20/20 tasks;
+no-memory passes 19/20; legacy fixed has zero evaluable and 20 unsupported cases.
+Verified knowledge uses history in five cases and reduces workflow rediscovery
+from 16 to 12. This is finite scripted-tool behavior, not measured real-agent lift.
+All 20 fixtures are author-reviewed; independent fixture review remains open.
+
+The [MEM-1 report](memory/mem-1-implementation-report.md) records final offline and
+native counts, source/fixture/result identities, retry and erasure tests, commands
+and gaps. The final full offline run passed **1,911 tests**, with 99 deselected;
+the relevant native PostgreSQL run passed **32 tests**, with eight unavailable
+DynamoDB cases skipped. The earlier provider-matrix failure remains recorded;
+the clean rerun is not a claim that its intermittent clock issue was fixed.
+The [ADR](memory/mem-1-contract-adr.md) records ownership/rollback, and
+the [separate review handoff](memory/mem-1-independent-review-handoff.md) makes no
+review verdict. Native PostgreSQL results do not establish DynamoDB, deployed
+source revocation/physical deletion, cloud recovery, provider or production safety.
 
 ## Identity and effect boundaries
 
@@ -95,10 +136,10 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v15 remain historical. MEM-0 review remediation adds active
-non-promoting v16, preserving v15's deterministic planner, configuration,
-runtime, fixture dependencies and 30 held-out cases while rebinding the changed
-backend source identity. The strict current-or-direct-child source guard remains.
+Planner locks v10-v16 remain historical. MEM-1 adds active non-promoting v17,
+preserving v16's deterministic planner, configuration, runtime, fixture dependencies
+and 30 held-out cases while rebinding the changed backend source identity.
+The strict current-or-direct-child source guard remains.
 Production replay still rejects source, runtime and unrelated revision changes.
 Portable tests use an explicitly test-only lock. Nothing is promoted from this
 freeze.

@@ -3,6 +3,63 @@
 This package owns durable user-memory contracts, extraction, retrieval, disclosure policy, and
 lifecycle behavior. Memory remains a separate data class from time-sensitive external evidence.
 
+## MEM-1 verified project knowledge
+
+`knowledge.py` defines immutable schema-3 `procedure` and `project_decision`
+records. V1 `Memory` and V2 `DerivedMemory` retain their exact contracts.
+`knowledge_service.py` resolves trusted evidence, checks scope/content/currentness,
+and admits through the existing memory repository. Migration 028 atomically
+persists bounded records, complete normalized edges and source-epoch fences.
+The first reader uses exact project/revision filters, without embeddings or
+provider calls. Limits are 128 records and 1,024 source fences per namespace,
+eight edges per record, and 16 KiB per serialized record. Overflow fails closed.
+The initial procedure recipe only states historical success for one of three
+allowlisted Make commands, with fixed revision preconditions and limitations;
+source access plus a successful receipt cannot validate arbitrary claims.
+Evidence expiry is capped at 30 days from observation.
+
+`MEMORY_KNOWLEDGE_ADMISSION_ENABLED` and `MEMORY_KNOWLEDGE_SELECTION_ENABLED`
+default false and require `MEMORY_ENABLED`. `fixed` stays the legacy default.
+Hosts explicitly supply a trusted resolver and a server-built
+`MemoryQuery(knowledge=KnowledgeFilter(...))` to
+`MemoryRetriever.retrieve_knowledge`. Application composition installs no issuer:
+production procedure intake is unsupported even if flags are enabled.
+`AuthenticatedCompletedTurnDecisionResolver` additionally requires verified
+authentication, exact user and completed assistant references/fingerprints,
+registered confirmation, source policy, and a host-supplied source lease.
+It is not automatically connected to chat extraction or exposed as a mutation API.
+
+The host resolver owns current application disclosure/project grants and must
+fence all source/project/permission mutations across admission and consumption.
+Only the stateful hermetic evaluation issuer is provided for workflows; an
+in-process mutex cannot substitute for a recoverable deployed source lease.
+`KnowledgeService.consume` runs a trusted host action under final source and
+canonical DB guards. The host executor owns action authorization, current reads,
+idempotency and uncertain external outcomes; memory text never authorizes commands.
+
+Knowledge uses the existing lifecycle projections, events, CAS and `transition`
+policy. Explicit developer-test forget/supersede/review events suppress reuse;
+automatic personal-memory heuristics/jobs do not process schema 3. Every shared
+knowledge permission dependency resolves all edges and current project state at
+packing, consumption and supported later history/summary reuse. Source hosts must
+call `revoke_knowledge_source(..., erase=True)` when erasing registered sources;
+this deletes all reverse-dependent payloads and edges while retaining a tombstone.
+`erase_expired_knowledge` is a bounded existing-owner retention seam, with no new
+worker. Revoked source identities cannot be reused; a newly verified run needs a
+new immutable source identity. Account export inventories include all new families;
+deployed source deletion and account deletion orchestration remain external gates.
+
+`inspect_knowledge` requires the existing inspection flag and returns the same
+bounded selection/rejection/source metadata. Disable selection for immediate
+rollback; records remain stored and old readers ignore them. Knowledge context is
+untrusted historical advice, separately labeled by authority and historical
+verification. Memory-derived artifact writes remain prohibited.
+
+Run `make memory-knowledge-eval` and the focused `test_memory_knowledge*.py` tests.
+Native contracts live in `tests/persistence/test_verified_knowledge_postgres.py`.
+See the [ADR](../../../../docs/memory/mem-1-contract-adr.md) and
+[implementation report](../../../../docs/memory/mem-1-implementation-report.md).
+
 ## Entry points and boundaries
 
 - Root modules own memory identity, extraction, retrieval, and general policy.

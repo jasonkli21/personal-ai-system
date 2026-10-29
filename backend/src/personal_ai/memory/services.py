@@ -277,13 +277,21 @@ class MemoryRetriever:
         lifecycle_repository=None,
         *,
         permission_revalidator=None,
+        knowledge_service=None,
         clock=None,
     ):
         self.settings, self.repository, self.messages = settings, repository, messages
         self.embedder = embedder
         self.lifecycle = lifecycle_repository
         self.permission_revalidator = permission_revalidator
+        self.knowledge_service = knowledge_service
         self.clock = clock or (lambda: datetime.now(UTC))
+
+    def retrieve_knowledge(self, query: MemoryQuery):
+        """Explicit server-only schema-3 selection; legacy retrieve is unchanged."""
+        if self.knowledge_service is None:
+            return RetrievalResult(diagnostics=("knowledge_source_unsupported",))
+        return self.knowledge_service.select(query)
 
     def _state(self, owner_id, memory_id):
         from personal_ai.memory.lifecycle import MemoryLifecycleState

@@ -15,6 +15,7 @@ from personal_ai.auth.scope import (
 )
 from personal_ai.entities import MessageRole, MessageStatus
 from personal_ai.memory.contracts import DerivedMemory, Memory, embedding_space_for
+from personal_ai.memory.knowledge import KnowledgeRecord
 from personal_ai.memory.lifecycle.contracts import (
     MemoryJob,
     MemoryLifecycleEvent,
@@ -153,6 +154,8 @@ class InMemoryMemoryLifecycleRepository:
         self.derived_sources: dict[tuple[str, UUID, str, str | None], set[UUID]] = {}
         self.operations: dict[tuple[UUID, str], str] = {}
         self._lock = RLock()
+        if memories is not None:
+            memories.knowledge_lifecycle = self
 
     def _lock_sources(self):
         return getattr(self.messages, "_mutation_lock", self._lock)
@@ -161,7 +164,10 @@ class InMemoryMemoryLifecycleRepository:
         try:
             return self.memories.get(owner_id=owner_id, memory_id=memory_id)
         except ResourceNotFoundError:
-            return self.memories.get_derived(owner_id=owner_id, memory_id=memory_id)
+            try:
+                return self.memories.get_derived(owner_id=owner_id, memory_id=memory_id)
+            except ResourceNotFoundError:
+                return self.memories.get_knowledge(owner_id=owner_id, memory_id=memory_id)
 
     def _valid_source(self, memory: Memory, *, require_active: bool = True) -> bool:
         if (
@@ -186,6 +192,11 @@ class InMemoryMemoryLifecycleRepository:
 
     def _valid_target(self, owner_id: str, memory_id: UUID, *, require_active: bool = True) -> bool:
         memory = self._get_memory(owner_id, memory_id)
+        if isinstance(memory, KnowledgeRecord):
+            state = self.states.get((owner_id, memory_id))
+            return scope_matches(memory) and (
+                not require_active or state is None or state.retrieval_status == "active"
+            )
         if isinstance(memory, Memory):
             state = self.states.get((owner_id, memory_id))
             return self._valid_source(memory, require_active=require_active)
@@ -307,7 +318,11 @@ class InMemoryMemoryLifecycleRepository:
                 if any(scope_matches(e) for e in self.events.get((event.owner_id, event.memory_id), ())):
                     raise StorageUnavailableError("memory lifecycle projection unavailable")
                 current = _base_state(event.owner_id, event.memory_id)
-            if event.event_type == "forgotten":
+            target = self._get_memory(event.owner_id, event.memory_id)
+            knowledge = isinstance(target, KnowledgeRecord)
+            if knowledge and (event.actor != "developer_test" or event.event_type not in ("forgotten", "superseded", "retrieved", "review_required")):
+                return MemoryLifecycleOutcome(status="conflict", reason="knowledge_operation_unsupported")
+            if event.event_type == "forgotten" and not knowledge:
                 from personal_ai.memory.lifecycle.policy import forgetting_decision
 
                 record = self._get_memory(event.owner_id, event.memory_id)
@@ -320,7 +335,11 @@ class InMemoryMemoryLifecycleRepository:
                     dependency_lookup_complete=len(dependencies) < 100,
                 ).eligible:
                     return MemoryLifecycleOutcome(status="conflict", reason="protected_memory")
-            if event.event_type == "superseded":
+            if event.event_type == "superseded" and knowledge:
+                newer = self._get_memory(event.owner_id, event.related_memory_ids[0]) if len(event.related_memory_ids) == 1 else None
+                if not isinstance(newer, KnowledgeRecord) or newer.project.project_id != target.project.project_id or newer.proposal.kind != target.proposal.kind:
+                    return MemoryLifecycleOutcome(status="conflict", reason="knowledge_supersession_invalid")
+            if event.event_type == "superseded" and not knowledge:
                 from personal_ai.memory.lifecycle.policy import contradiction_decision
 
                 original = self._get_memory(event.owner_id, event.memory_id)

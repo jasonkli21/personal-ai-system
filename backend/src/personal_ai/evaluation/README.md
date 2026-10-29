@@ -19,6 +19,27 @@ scripted task proxy success is not measured model quality or native-store eviden
 The independent review and bounded remediation are recorded separately; fresh
 independent re-verification remains a gate for accepting the baseline.
 
+MEM-1 adds `make memory-knowledge-eval`, a separate `mem1-paired-v1` corpus
+with 20 stateful paired sessions (six tagged holdout cases). A trusted fake
+executes Task A, issues a resolver-bound receipt, persists through the canonical
+memory repository, then composes fresh Task B service/retriever/builder objects.
+Task B performs a new scoped action and observes a distinct outcome. All arms
+share Task A state, current facts, tools, clock, seed and budgets; only reuse
+policy differs. Legacy `fixed` is explicitly unsupported for both new kinds.
+No-memory can rediscover workflows; historical knowledge reduces repeated
+discovery. Historical receipts cannot count as new task success.
+
+`knowledge_runtime.py` is the hermetic issuer/tool authority, never production
+composition. `memory_knowledge.py` separates the driver input from review/rubric
+metadata and validates action ordering, receipt identity, permissions, current
+revision and duplicate effects. Safety violations fail execution and the CLI;
+lower task scores remain separate. Two semantic replays must match; source and
+fixture mutation during a run fails. Results/manifests go to ignored
+`artifacts/mem1/`. Token units and JSON sizes are estimates, and latency is the
+local fake runtime. Native resource and model-mediated metrics stay unverified.
+Cases are author-reviewed; independent review, including fixture review, is
+still required. A holdout tag does not establish a blind model study.
+
 Phase 36's `verification/` program indexes existing executable contracts and
 original acceptance obligations in a strict versioned matrix. `make
 integrated-verification` executes offline rows, captures exact parametrized case

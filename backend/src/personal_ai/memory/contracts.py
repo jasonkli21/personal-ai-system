@@ -20,6 +20,7 @@ from personal_ai.auth.scope import (
 from personal_ai.contracts.context_references import ContextPermissionDependency
 from personal_ai.entities import Message
 from personal_ai.llm.client import EmbeddingResult, EmbeddingSpace, GenerationMetadata
+from personal_ai.memory.knowledge import KnowledgeFilter, KnowledgeRecord
 
 MemoryType = Literal[
     "preference", "episodic_observation", "semantic_summary", "explicit_correction"
@@ -301,7 +302,7 @@ def identity(
 
 @dataclass(frozen=True)
 class ScoredMemory:
-    memory: Memory | DerivedMemory
+    memory: Memory | DerivedMemory | KnowledgeRecord
     similarity: float
     origins: tuple[str, ...] = ("exact_vector",)
     support_memory_ids: tuple[UUID, ...] = ()
@@ -312,6 +313,7 @@ class MemoryQuery(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     scope: RequestScope
+    knowledge: KnowledgeFilter | None = None
     source_classes: tuple[MemoryType, ...] = (
         "preference",
         "episodic_observation",
@@ -345,7 +347,7 @@ class MemoryCandidateTrace(BaseModel):
     refresh_state: Literal["active", "refresh_required"] = "active"
     source_identity: str | None = None
     freshness: Literal["stable", "volatile", "episodic"]
-    authority: Literal["user_asserted", "derived"]
+    authority: Literal["user_asserted", "derived", "tool_receipt_verified"]
     dependencies: tuple[ContextPermissionDependency, ...] = ()
     unresolved_conflict: bool = False
     estimated_tokens: int = 0

@@ -20,6 +20,13 @@ from personal_ai.memory.services import source_messages
 from personal_ai.storage.errors import ResourceNotFoundError
 
 
+def inspect_knowledge(settings, service, query):
+    """Bounded operator-only metadata, using exactly the selection authority."""
+    if not settings.memory_inspection_enabled or service is None:
+        raise ResourceNotFoundError("resource not found")
+    return service.select(query)
+
+
 def _score_metadata(record, state, policy, now):
     importance = state.importance
     if importance is None:

@@ -114,7 +114,7 @@ class ArtifactService:
         **links,
     ):
         if any(
-            dependency.permission_id in ("ai_memory_source", "ai_memory_view")
+            dependency.permission_id.startswith("ai_memory_")
             for dependency in permission_dependencies
         ):
             # Artifact reuse has no explicit owner/actor revalidation context yet.

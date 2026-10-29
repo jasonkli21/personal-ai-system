@@ -46,3 +46,25 @@ model quality remain null/unverified. See
 [MEM-0 contract](../../docs/personal-ai-chapter-2/memory/mem-0-benchmark-contract.md),
 [ADR](../../docs/personal-ai-chapter-2/memory/mem-0-architecture-adr.md) and
 [results](../../docs/personal-ai-chapter-2/memory/mem-0-baseline-report.md).
+
+## MEM-1 paired knowledge loop
+
+`make memory-knowledge-eval` freezes a separate 20-case `mem1-paired-v1` suite.
+It compares no-memory, unsupported legacy fixed, verified schema-3 knowledge,
+and full eligible history. The split is 4 workflow, 3 project-decision,
+3 currentness, 6 scope/lifecycle, and 4 adversarial/non-beneficial cases, with
+six tagged holdout cases. Source authority and final actions use a stateful fake;
+Task A and Task B have separate run/result identities. All valid workflows can
+also be rediscovered by the no-memory tool path; comparisons report repeated
+discovery, newly observed results, source use, token estimates and JSON bytes.
+This finite proxy is not measured real-agent lift. Independent fixture review
+and production issuer/identity/deletion acceptance remain separate gates.
+
+The CLI runs two semantic replays and writes ignored `artifacts/mem1/` manifests,
+per-case traces and observed fake-runtime timing. Counterfactual tests cover
+source/branch/revision/permission changes, before-pack and before-use revoke,
+forged outcomes, wrong receipt, duplicate directives and causal action order.
+The fixture SHA256 is pinned in `test_memory_knowledge_evaluation.py`; MEM-0 v1/v2
+bytes and historical acceptance records are unchanged. See the
+[MEM-1 ADR](../../docs/memory/mem-1-contract-adr.md) and
+[report](../../docs/memory/mem-1-implementation-report.md).

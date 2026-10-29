@@ -505,6 +505,14 @@ class ContextAssembler:
             if retrieval.trace is not None:
                 limits["ai_memory"] = min(limits["ai_memory"], retrieval.trace.query.max_tokens)
             policy = policy.model_copy(update={"source_max_tokens": limits})
+        if (
+            retrieval is not None
+            and retrieval.applied_variant == "mem1_verified_knowledge"
+            and retrieval.trace is not None
+        ):
+            limits = dict(policy.source_max_tokens)
+            limits["ai_memory"] = min(limits["ai_memory"], retrieval.trace.query.max_tokens)
+            policy = policy.model_copy(update={"source_max_tokens": limits})
         if context_plan is not None and context_plan.source_token_budgets:
             limits = dict(policy.source_max_tokens)
             for source_class, planned_tokens in context_plan.source_token_budgets:
@@ -698,6 +706,7 @@ class ContextAssembler:
     def _memory_entries(self, retrieval, pending, *, prefer_derived=False, include_only_ids=None):
         from personal_ai.context.builder import ContextBuildItem
         from personal_ai.memory.dependencies import injection_dependencies
+        from personal_ai.memory.knowledge import KnowledgeRecord
         from personal_ai.memory.policy import content_reason
 
         entries, excluded = [], []
@@ -709,6 +718,10 @@ class ContextAssembler:
         }
         for index, scored in enumerate(retrieval.selected):
             memory = scored.memory
+            knowledge = isinstance(memory, KnowledgeRecord)
+            if knowledge and not self.settings.memory_knowledge_selection_enabled:
+                excluded.append((memory.id, "knowledge_disabled"))
+                continue
             if include_only_ids is not None and memory.id not in include_only_ids:
                 continue
             if (
@@ -722,12 +735,16 @@ class ContextAssembler:
             if (
                 memory.owner_id != pending.owner_id
                 or getattr(memory, "status", "active") != "active"
-                or content_reason(memory.content, self.settings)
+                or (not knowledge and content_reason(memory.content, self.settings))
             ):
                 excluded.append((memory.id, "ineligible"))
                 continue
             derived = hasattr(memory, "source_memory_ids")
-            label = "derived historical summary" if derived else memory.memory_type
+            label = (
+                "historical project advice" if knowledge
+                else "derived historical summary" if derived
+                else memory.memory_type
+            )
             conflict = (
                 next(
                     (
@@ -744,6 +761,13 @@ class ContextAssembler:
                 label += "; unresolved conflict; do not treat as settled"
             content = f"[{label}; effective {memory.effective_at.isoformat()}] {memory.content}"
             references = [ContextSourceReference(kind="record", reference_id=str(memory.id))]
+            if knowledge:
+                references.extend(
+                    ContextSourceReference(
+                        kind="source", reference_id=edge.source_id, fingerprint=edge.fingerprint
+                    )
+                    for edge in memory.evidence.edges
+                )
             for source_id in getattr(memory, "source_memory_ids", ()):
                 references.append(
                     ContextSourceReference(kind="record", reference_id=str(source_id))
@@ -755,8 +779,12 @@ class ContextAssembler:
                     source_id=str(memory.id),
                     item_id=str(memory.id),
                     content=content,
-                    authority="derived" if derived else "user_asserted",
+                    authority=(
+                        "external" if knowledge and memory.proposal.kind == "procedure"
+                        else "derived" if derived else "user_asserted"
+                    ),
                     sensitivity="personal",
+                    expires_at=memory.evidence.expires_at if knowledge else None,
                     permission_dependencies=injection_dependencies(retrieval, memory),
                     source_refs=tuple(references),
                     represented_item_ids=tuple(

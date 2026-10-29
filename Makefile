@@ -1,7 +1,11 @@
 .PHONY: adaptive-routing-eval memory-optimization-eval planning-eval cascade-eval research-eval retrieval-eval decision-eval domain-eval iterative-research-eval itinerary-proposal-eval quota-scarcity-eval memory-lifecycle-eval memory-eval context-eval context-plan-eval backend-test backend-lint backend-build frontend-test frontend-lint frontend-typecheck frontend-build run-backend run-frontend persistence-up persistence-down persistence-ready persistence-bootstrap persistence-clean persistence-test-up persistence-test-down persistence-test
 .DEFAULT_GOAL := backend-test
 
-.PHONY: memory-task-eval
+.PHONY: memory-task-eval memory-knowledge-eval
+
+memory-knowledge-eval:
+
+	cd backend && python -m personal_ai.evaluation.memory_knowledge
 
 memory-task-eval:
 

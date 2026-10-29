@@ -71,6 +71,9 @@ _EXPORT_PATH_GROUPS = {
     ),
     "postgres.memory-record": ("memories", "derived_memories"),
     "postgres.derived-memory-source": ("derived_memory_sources",),
+    "postgres.memory-knowledge": (
+        "memory_knowledge", "memory_knowledge_sources", "memory_knowledge_source_fences",
+    ),
     "postgres.memory-lifecycle-operation": ("memory_lifecycle_operations",),
     "dynamodb.conversation-directory": ("conversations",),
     "dynamodb.conversation-message": ("messages",),
@@ -558,6 +561,21 @@ class PostgresAccountLifecycleRepository:
                     p_revision_coverage[family] = "identity_set_in_repeatable_read_snapshot"
                     for record_id, payload in rows:
                         add(family, record_id, payload)
+                        p_count += 1
+                for family in _export_families("postgres.memory-knowledge"):
+                    rows = connection.execute(
+                        f"SELECT to_jsonb(k) FROM {family} k JOIN scope_namespaces n USING(scope_id) "
+                        "WHERE n.owner_id=%s AND n.application_id=%s "
+                        "AND n.workspace_id IS NOT DISTINCT FROM %s ORDER BY to_jsonb(k)::text LIMIT %s",
+                        (owner_id, scope.application_id, scope.workspace_id, MAX_EXPORT_SCAN_RECORDS + 1),
+                    ).fetchall()
+                    if len(rows) > MAX_EXPORT_SCAN_RECORDS:
+                        raise ExportTooLarge
+                    p_collection_counts[family] = len(rows)
+                    p_revision_coverage[family] = "identity_set_in_repeatable_read_snapshot"
+                    for (payload,) in rows:
+                        identifier = hashlib.sha256(_json(payload).encode()).hexdigest()
+                        add(family, identifier, payload)
                         p_count += 1
                 for family in _export_families("postgres.memory-record"):
                     rows = connection.execute(

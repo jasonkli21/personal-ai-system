@@ -115,7 +115,8 @@ class MemoryPermissionRevalidator:
     """Canonical source/lifecycle reader, registered in production composition."""
 
     def __init__(
-        self, settings, memories, messages, lifecycle=None, *, clock=None, application_registry=None
+        self, settings, memories, messages, lifecycle=None, *, clock=None, application_registry=None,
+        knowledge_service=None,
     ):
         self.settings, self.memories, self.messages, self.lifecycle = (
             settings,
@@ -124,13 +125,16 @@ class MemoryPermissionRevalidator:
             lifecycle,
         )
         self.application_registry = application_registry
+        self.knowledge_service = knowledge_service
         self.clock = clock or (lambda: datetime.now(UTC))
 
     @staticmethod
     def supports(dependency):
-        return dependency.permission_id in ("ai_memory_source", "ai_memory_view")
+        return dependency.permission_id in ("ai_memory_source", "ai_memory_view", "ai_memory_knowledge")
 
     def is_current(self, dependency):
+        if dependency.permission_id == "ai_memory_knowledge":
+            return self.knowledge_service is not None and self.knowledge_service.is_current(dependency)
         scope = current_request_scope()
         if (
             not self.settings.memory_enabled
