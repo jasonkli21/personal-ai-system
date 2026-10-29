@@ -21,7 +21,7 @@ external evidence retain different authority and freshness semantics.
 | External and domain context | Typed Travel, Shopping and Finance reads; separate broad Health read and narrow signed Health exports; owner-scoped grants and opaque choices | Broad Health still requires a Firebase user token; native linked identity, cloud IAM, domain/browser and grant UX acceptance |
 | Delegated Shopping tasks | Canonical closed wire, signed source ingress, domain capability metadata, existing confirmation/reservation/reconciliation lifecycle; budget and append-note adapters | Default-off, deployment-managed single-owner origin trust; actual cloud identity and browser/device acceptance |
 | Application hosts | Shared sidecar and user-local external-turn composition behind their existing gates | Shopping sidecar, general Shopping AI generation/research transport and connected workflow routing remain incomplete |
-| MEM-1 project knowledge | Default-off schema-3 procedures/confirmed decisions in existing memory ownership, normalized source fences, shared lifecycle/context revalidation and a 20-case paired-session proxy; native PostgreSQL subset exercised | Independent implementation/fixture review, production workflow issuer and recoverable source leases, deployed identity/source deletion and cloud acceptance |
+| MEM-1 project knowledge | Default-off schema-3 procedures/confirmed decisions; actor-bound source fences in migration 029; final context and model-send permission checks; preserved 20-case stateful proxy plus a 16-pair deterministic packed-content consumer | No-go for acceptance: permanent tombstone capacity blocker, independent fixture review, production issuer/lease and app-grant policy, deployed identity/source deletion, real-model utility and cloud acceptance |
 
 The new source paths are Finance monthly budget → Shopping budget, Travel
 consented destination/dates → Shopping note, and Health consented ergonomic
@@ -63,12 +63,14 @@ The narrow source-verified Task A → durable knowledge → fresh Task B loop is
 implemented behind separate default-off admission and selection flags.
 Schema-3 `procedure` and `project_decision` records belong to the existing
 Postgres memory repository. Migration 028 adds scoped admission identity,
-normalized provenance and source-epoch tombstones; existing lifecycle state/events
-remain authoritative. Selection uses exact project/revision filters without new
+normalized provenance and source-epoch tombstones; migration 029 adds exact
+acting-user identity to source fences and reverse edges while preserving old
+knowledge rows. Existing lifecycle state/events remain authoritative. Selection uses exact project/revision filters without new
 embeddings or provider calls. Shared assembly enforces query budgets and preserves
 historical authority/verification/expiry labels, references and permission
 dependencies through supported later history/summary reuse. Artifact writes with
-memory dependencies remain prohibited.
+memory dependencies remain prohibited. The review remediation rechecks permissions
+and expiry after final token counts and at the actual model handoff.
 
 The procedure recipe states only an observed historical success for three
 allowlisted Make commands. An authenticated completed-turn decision remains a
@@ -77,19 +79,25 @@ path; enabling flags alone cannot supply one. Hosts need current application and
 project authorization plus source leases that fence mutations through commit and
 consumption. No public memory tools, new scheduler or default routing change.
 
-The separate 20-case hermetic proxy has six tagged holdout cases and two matching
-semantic replays. Verified knowledge and eligible history each pass 20/20 tasks;
-no-memory passes 19/20; legacy fixed has zero evaluable and 20 unsupported cases.
-Verified knowledge uses history in five cases and reduces workflow rediscovery
-from 16 to 12. This is finite scripted-tool behavior, not measured real-agent lift.
-All 20 fixtures are author-reviewed; independent fixture review remains open.
+The preserved `mem1-paired-v1` 20-case hermetic proxy has six tagged holdout cases
+and two matching semantic replays. It remains structural/stateful safety evidence,
+not a content-causal measure: the scripted Task B can access typed proposal data.
+The new `mem1-consumer-v1` companion uses 16 paired cases and passes only packed
+messages plus narrow read/execute handles to a deterministic parser. It scores
+16/16 for knowledge and eligible history, 0/16 for no memory, and 16 ties between
+knowledge and history; this is a content-causal synthetic consumer check, not
+model utility evidence. Fixture review remains independent-pending.
 
-The [MEM-1 report](memory/mem-1-implementation-report.md) records final offline and
-native counts, source/fixture/result identities, retry and erasure tests, commands
-and gaps. The final full offline run passed **1,911 tests**, with 99 deselected;
-the relevant native PostgreSQL run passed **32 tests**, with eight unavailable
-DynamoDB cases skipped. The earlier provider-matrix failure remains recorded;
-the clean rerun is not a claim that its intermittent clock issue was fixed.
+The [MEM-1 remediation evidence](memory/mem-1-review-remediation-evidence.md)
+records the review dispositions, final offline/native counts, new fixture identity,
+and residual blockers. The [tombstone follow-up](memory/mem-1-tombstone-capacity-follow-up.md)
+quantifies the 1,024-fence quota and holds production promotion until safe replay
+compaction is proven. The earlier provider-matrix failure remains in the
+implementation report; its clean rerun is not a claim that the clock issue was fixed.
+The remediation full offline run passed **1,923 tests**, with 99 deselected; local
+PostgreSQL/pgvector checks passed 32 with eight DynamoDB skips. Exact commands,
+fixture identities and gates are in the
+[remediation evidence](memory/mem-1-review-remediation-evidence.md).
 The [ADR](memory/mem-1-contract-adr.md) records ownership/rollback, and
 the [separate review handoff](memory/mem-1-independent-review-handoff.md) makes no
 review verdict. Native PostgreSQL results do not establish DynamoDB, deployed

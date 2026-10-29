@@ -428,6 +428,76 @@ def test_builder_revalidates_shared_source_permission_once_per_build():
     }
 
 
+@pytest.mark.parametrize("late_change", ["permission", "expiry"])
+@pytest.mark.parametrize("required", [False, True])
+def test_late_memory_revocation_or_expiry_during_marginal_count_fails_closed(
+    late_change, required
+):
+    state = {"current": True, "now": NOW}
+    dependency = ContextPermissionDependency(
+        permission_id="ai_memory_knowledge",
+        version="frozen-source-version",
+        purpose="reuse verified historical project knowledge",
+    )
+
+    class Permission:
+        def is_current(self, _dependency):
+            return state["current"]
+
+    class MarginalBarrierCounter(FakeTokenCounter):
+        def count(self, messages):
+            result = super().count(messages)
+            text = "\n".join(message.content for message in messages)
+            if (
+                "final-count-anchor" in text
+                and "Perform the new task" in text
+                and "late-memory-secret" not in text
+            ):
+                if late_change == "permission":
+                    state["current"] = False
+                else:
+                    state["now"] = NOW + timedelta(seconds=2)
+            return result
+
+    memory = item(
+        "late-memory",
+        "late-memory-secret historical advice",
+        source_class="ai_memory",
+        expires_at=NOW + timedelta(seconds=1),
+        permission_dependencies=(dependency,),
+        required=required,
+    )
+    anchor = item("anchor", "final-count-anchor", source_class="domain_current")
+    builder = ContextBuilder(
+        MarginalBarrierCounter(),
+        permission_revalidator=Permission(),
+        clock=lambda: state["now"],
+    )
+    if late_change == "permission" or required:
+        with pytest.raises(
+            ContextError,
+            match=(
+                "context_source_authority_changed"
+                if late_change == "permission"
+                else "context_source_unavailable"
+            ),
+        ):
+            builder.build(
+                (ChatMessage("user", "Perform the new task."),),
+                (memory, anchor),
+                policy(),
+            )
+    else:
+        result = builder.build(
+            (ChatMessage("user", "Perform the new task."),),
+            (memory, anchor),
+            policy(),
+        )
+        report = next(row for row in result.manifest.items if row.item_id == "late-memory")
+        assert not report.injected and report.omission_reason == "expired"
+        assert "late-memory-secret" not in "\n".join(message.content for message in result.messages)
+
+
 def test_expired_items_are_omitted_and_required_items_fail_explicitly():
     counter = FakeTokenCounter()
     base = (ChatMessage("user", "hello"),)

@@ -12,6 +12,24 @@ not an independent acceptance verdict. The [ADR](mem-1-contract-adr.md) records
 the selected ownership and the [handoff](mem-1-independent-review-handoff.md)
 identifies separate review obligations. Both new flags remain false by default.
 
+## Independent-review remediation addendum (2026-10-29)
+
+The review of baseline `2df112bf04b8d817c2cfee9c807786161d2fec4f` found
+cross-actor source mutation, a late packed-context permission window, and a
+Task B benchmark side channel. The scoped fixes and verification are recorded in
+the separate [review remediation evidence](mem-1-review-remediation-evidence.md).
+Migration 029 binds source fences and edges to acting user, context permissions
+are rechecked after final counts and immediately before model handoff, and the
+new deterministic packed-content companion benchmark has its own `mem1-consumer-v1`
+identity. The original 20-case `mem1-paired-v1` bytes and historical results are
+preserved and labeled as a structural/stateful proxy.
+
+Acceptance remains **no-go**. The 1,024 source-fence quota retains permanent
+replay tombstones; safe compaction is a production-promotion blocker with a
+separate [capacity follow-up](mem-1-tombstone-capacity-follow-up.md). Production
+issuer/lease, application-grant policy, deployed identity and deletion, cloud
+acceptance, independent fixture review, and real-model utility remain open.
+
 ## Entry-gate attempt and sequencing authorization
 
 The supplied prompt's independent MEM-0 v2 acceptance record was absent. The

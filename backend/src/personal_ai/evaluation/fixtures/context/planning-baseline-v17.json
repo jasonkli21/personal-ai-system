@@ -20,7 +20,7 @@
   "source_change_summary": [
     "MEM-1 adds default-off verified project knowledge, source-fenced schema-3 persistence, shared context revalidation and a separate paired-task benchmark. Planner behavior, configuration, runtime dependencies and the 30 held-out cases are unchanged. V16 and all earlier locks remain historical evidence; no coverage is promoted and the strict current-or-direct-child source guard remains."
   ],
-  "source_identity_digest": "5c41328e73780ed234786354dfc15fa14d56e86b34bd37d1a36b8f1e77f37375",
+  "source_identity_digest": "aa06f7e78fe85944c3dad85d6167d91f2266987b4773276af96ff76c677b2ce0",
   "source_revision": "293a5910827d9a1f70e1342ee3b98f24ab615e4d",
   "source_revision_binding": "current-or-direct-child-with-identical-source-identity",
   "supersedes": "planning-baseline-lock-v16"

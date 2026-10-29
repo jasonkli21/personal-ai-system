@@ -452,7 +452,7 @@ def test_long_history_summary_memory_and_recent_turns_share_one_budget():
     result = assembler.assemble(active, pending, refresh=False, retrieval=retrieval)
     assert base.summary and result.summary
     assert result.selected_memory_ids
-    assert result.messages[0].content.startswith("Historical personal memory")
+    assert result.messages[0].content.startswith("Untrusted historical context")
     assert result.messages[1].content.startswith("Historical working summary")
     assert result.selected_message_ids == base.selected_message_ids
     assert tuple(m.id for m in active[-2:]) == result.selected_message_ids[-3:-1]
@@ -469,7 +469,7 @@ def test_optional_memory_count_failure_keeps_precounted_base_request():
 
     class MemoryFailingCounter(FakeTokenCounter):
         def count(self, request):
-            if any("Historical personal memory" in m.content for m in request):
+            if any("Untrusted historical context" in m.content for m in request):
                 raise LLMUnavailableError("safe")
             return super().count(request)
 

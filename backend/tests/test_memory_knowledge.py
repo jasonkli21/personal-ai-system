@@ -325,6 +325,17 @@ def test_default_off_and_production_issuer_fail_closed():
         settings.memory_knowledge_admission_enabled = True
         unsupported = KnowledgeService(settings, repo, lifecycle, clock=lambda: NOW)
         assert unsupported.admit(scope, "repo-alpha", ref, p).reason == "unsupported_source"
+        default_validator = MemoryPermissionRevalidator(
+            settings, repo, repo.messages, lifecycle
+        )
+        from personal_ai.contracts.context_references import ContextPermissionDependency
+
+        knowledge_dependency = ContextPermissionDependency(
+            permission_id="ai_memory_knowledge",
+            version="synthetic-version",
+            purpose="verify production remains fail-closed without a host resolver",
+        )
+        assert not default_validator.is_current(knowledge_dependency)
     assert not Settings(
         ai_provider="gemini", ai_model="synthetic", _env_file=None
     ).memory_knowledge_admission_enabled
@@ -387,6 +398,101 @@ def test_retry_never_resurrects_forgotten_or_erased_knowledge():
         )
         assert service.admit(scope, "repo-alpha", ref, p).status == "conflict"
         assert not repo.knowledge_records
+
+
+@pytest.mark.parametrize("erase_from_other_actor", [False, True])
+def test_source_revoke_and_erasure_are_bound_to_the_exact_actor(erase_from_other_actor):
+    from personal_ai.storage.errors import ResourceNotFoundError
+
+    scope, _, repo, _, authority, service = setup_runtime()
+    with request(scope):
+        p = proposal()
+        ref = authority.complete_task_a(scope, "repo-alpha", p, run_id="shared-source-id", edges=3)
+        admitted = service.admit(scope, "repo-alpha", ref, p)
+        record = repo.get_knowledge(owner_id=scope.owner_id, memory_id=admitted.record_id)
+        dependency = service.dependency(record, scope)
+        edge = record.evidence.edges[0]
+
+    other_actor = scope.model_copy(
+        update={"acting_user_id": "other-actor", "request_id": "other-session"}
+    )
+    with request(other_actor):
+        assert not repo.revoke_knowledge_source(
+            scope=other_actor,
+            resolver_id=edge.resolver_id,
+            source_id=edge.source_id,
+            expected_epoch=edge.epoch,
+            erase=erase_from_other_actor,
+        )
+        with pytest.raises(ResourceNotFoundError):
+            repo.get_knowledge(owner_id=scope.owner_id, memory_id=record.id)
+        with pytest.raises(ValueError, match="knowledge_query_invalid"):
+            repo.list_knowledge(
+                scope=scope,
+                filters=query(scope, authority).knowledge,
+                limit=10,
+            )
+        with pytest.raises(ValueError, match="scope"):
+            repo.erase_expired_knowledge(scope=scope, as_of=NOW + timedelta(days=2))
+
+    with request(scope):
+        assert repo.get_knowledge(owner_id=scope.owner_id, memory_id=record.id) == record
+        assert repo.knowledge_sources_current(record)
+        assert service.is_current(dependency)
+        assert len(service.select(query(scope, authority)).selected) == 1
+        assert service.consume(dependency, lambda current: current.id) == record.id
+        # All reverse-dependent records are removed, while every edge is
+        # tombstoned under this actor's namespace only.
+        assert repo.revoke_knowledge_source(
+            scope=scope,
+            resolver_id=edge.resolver_id,
+            source_id=edge.source_id,
+            expected_epoch=edge.epoch,
+            erase=True,
+        )
+        assert not repo.revoke_knowledge_source(
+            scope=scope,
+            resolver_id=edge.resolver_id,
+            source_id=edge.source_id,
+            expected_epoch=edge.epoch,
+            erase=True,
+        )
+        with pytest.raises(ResourceNotFoundError):
+            repo.get_knowledge(owner_id=scope.owner_id, memory_id=record.id)
+        assert not service.is_current(dependency)
+
+
+@pytest.mark.parametrize(
+    "record_actor,request_actor",
+    [(None, "other-actor"), ("actor-a", None)],
+)
+def test_nullable_actor_source_fences_are_distinct(record_actor, request_actor):
+    scope, _, repo, _, authority, service = setup_runtime(
+        scope=RequestScope(
+            owner_id="synthetic-owner",
+            acting_user_id=record_actor,
+            request_id="nullable-actor-a",
+            workspace_id="repo-alpha",
+        )
+    )
+    with request(scope):
+        p = proposal()
+        ref = authority.complete_task_a(scope, "repo-alpha", p, run_id="nullable-source")
+        admitted = service.admit(scope, "repo-alpha", ref, p)
+        record = repo.get_knowledge(owner_id=scope.owner_id, memory_id=admitted.record_id)
+    other = scope.model_copy(update={"acting_user_id": request_actor, "request_id": "nullable-b"})
+    with request(other):
+        edge = record.evidence.edges[0]
+        assert not repo.revoke_knowledge_source(
+            scope=other,
+            resolver_id=edge.resolver_id,
+            source_id=edge.source_id,
+            expected_epoch=edge.epoch,
+            erase=True,
+        )
+    with request(scope):
+        assert repo.knowledge_sources_current(record)
+        assert len(service.select(query(scope, authority)).selected) == 1
 
 
 @pytest.mark.parametrize(
@@ -513,6 +619,41 @@ def test_payload_conflict_complete_edge_bounds_storage_and_retention():
         assert repo.erase_expired_knowledge(scope=scope, as_of=NOW + timedelta(days=2)) == 1
         assert not repo.knowledge_records
         assert service.admit(scope, "repo-alpha", ref, p).status == "conflict"
+
+
+def test_tombstones_preserve_replay_denial_and_expose_the_source_budget_gate(monkeypatch):
+    from personal_ai.memory import knowledge_repository as knowledge_repository_module
+
+    monkeypatch.setattr(knowledge_repository_module, "MAX_KNOWLEDGE_SOURCES", 2)
+    scope, _, repo, _, authority, service = setup_runtime()
+    with request(scope):
+        p = proposal()
+        first_ref = authority.complete_task_a(
+            scope, "repo-alpha", p, run_id="fence-cap-first", edges=1
+        )
+        first = service.admit(scope, "repo-alpha", first_ref, p)
+        record = repo.get_knowledge(owner_id=scope.owner_id, memory_id=first.record_id)
+        edge = record.evidence.edges[0]
+        assert repo.revoke_knowledge_source(
+            scope=scope,
+            resolver_id=edge.resolver_id,
+            source_id=edge.source_id,
+            expected_epoch=edge.epoch,
+            erase=True,
+        )
+        with pytest.raises(ValueError, match="epoch"):
+            repo.create_knowledge(record)
+
+        second_ref = authority.complete_task_a(
+            scope, "repo-alpha", p, run_id="fence-cap-second", edges=1
+        )
+        assert service.admit(scope, "repo-alpha", second_ref, p).status == "created"
+        third_ref = authority.complete_task_a(
+            scope, "repo-alpha", p, run_id="fence-cap-third", edges=1
+        )
+        full = service.admit(scope, "repo-alpha", third_ref, p)
+        assert full.status == "conflict"
+        assert full.reason == "identity_or_epoch_conflict"
 
 
 def test_cancellation_before_commit_does_not_write(monkeypatch):

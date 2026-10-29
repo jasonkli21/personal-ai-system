@@ -1,0 +1,27 @@
+{
+  "suite_id": "mem1-consumer-v1",
+  "evidence_class": "hermetic_packed_context_consumer_causal_proxy",
+  "review_status": "author_reviewed_independent_review_pending",
+  "clock": "2026-10-29T12:00:00Z",
+  "seed": 29,
+  "context_token_budget": 4096,
+  "history_token_budget": 1024,
+  "pairs": [
+    {"pair_id":"workflow-drop","kind":"procedure","command":"make backend-lint","control":"drop"},
+    {"pair_id":"workflow-redact","kind":"procedure","command":"make backend-test-offline","control":"redact"},
+    {"pair_id":"workflow-swap","kind":"procedure","command":"make memory-eval","control":"swap"},
+    {"pair_id":"workflow-poison","kind":"procedure","command":"make backend-lint","control":"misleading"},
+    {"pair_id":"workflow-source","kind":"procedure","command":"make backend-test-offline","control":"source_revoked"},
+    {"pair_id":"workflow-current","kind":"procedure","command":"make memory-eval","control":"stale_project"},
+    {"pair_id":"workflow-grant","kind":"procedure","command":"make backend-lint","control":"grant_revoked"},
+    {"pair_id":"workflow-actor","kind":"procedure","command":"make backend-test-offline","control":"actor_changed"},
+    {"pair_id":"workflow-duplicate","kind":"procedure","command":"make memory-eval","control":"duplicate_effect"},
+    {"pair_id":"workflow-forged","kind":"procedure","command":"make backend-lint","control":"forged_receipt"},
+    {"pair_id":"workflow-expired","kind":"procedure","command":"make backend-test-offline","control":"expired"},
+    {"pair_id":"workflow-reverse","kind":"procedure","command":"make memory-eval","control":"reversed_action"},
+    {"pair_id":"decision-drop","kind":"project_decision","command":null,"control":"drop"},
+    {"pair_id":"decision-grant","kind":"project_decision","command":null,"control":"grant_revoked"},
+    {"pair_id":"decision-source","kind":"project_decision","command":null,"control":"source_revoked"},
+    {"pair_id":"decision-unconfirmed","kind":"project_decision","command":null,"control":"unconfirmed_turn"}
+  ]
+}

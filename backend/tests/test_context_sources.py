@@ -2438,7 +2438,7 @@ def test_optional_memory_count_forwards_its_short_deadline_through_assembler():
 
         def count_with_timeout(self, messages, timeout_seconds):
             if len(messages) == 1 and any(
-                "Historical personal memory" in message.content
+                "Untrusted historical context" in message.content
                 and "MEMORY_MARKER" in message.content
                 for message in messages
             ):

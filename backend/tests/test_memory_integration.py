@@ -150,7 +150,7 @@ def test_retrieval_injection_and_sse_order(environment):
         "response.delta",
         "response.completed",
     ]
-    assert "Historical personal memory" in llm.requests[0][0].content
+    assert "Untrusted historical context" in llm.requests[0][0].content
     assert "I prefer quiet mountain cabins." in llm.requests[0][0].content
     active = messages.list_active(owner_id="local", conversation_id=pending.conversation_id)
     assert active[-1].status == MessageStatus.COMPLETED
@@ -177,7 +177,7 @@ def test_shared_memory_capability_tracks_feature_gate_and_injection(environment)
         json={"content": pending.content},
     )
     assert disabled.status_code == 200
-    assert "Historical personal memory" not in llm.requests[-1][0].content
+    assert "Untrusted historical context" not in llm.requests[-1][0].content
 
     settings.memory_enabled = True
     service._memory_retriever = MemoryRetriever(
@@ -193,7 +193,7 @@ def test_shared_memory_capability_tracks_feature_gate_and_injection(environment)
         json={"content": pending.content},
     )
     assert enabled.status_code == 200
-    assert "Historical personal memory" in llm.requests[-1][0].content
+    assert "Untrusted historical context" in llm.requests[-1][0].content
 
 
 @pytest.mark.parametrize("mode", ["disabled", "no_match", "failed", "budget"])
@@ -389,7 +389,7 @@ def test_read_only_inspection_never_embeds_or_writes_and_reports_exclusion(envir
     response = client.get(path, params={"memory_ids": str(memory.id)})
     assert response.status_code == 200
     report = response.json()["memory"]
-    assert report["records"][0]["selected"]
+    assert report["records"][0]["selected"], report["records"][0]["reason"]
     assert report["records"][0]["similarity"] is None
     assert "content" not in report["records"][0]
     assert memory.content not in json.dumps(report)

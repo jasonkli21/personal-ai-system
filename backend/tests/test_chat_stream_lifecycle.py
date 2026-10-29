@@ -7,7 +7,9 @@ import json
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from threading import Barrier, Lock
+from time import monotonic
 from uuid import uuid4
 
 import httpx
@@ -28,8 +30,13 @@ from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.tokens import EstimatedTokenCounter
+from personal_ai.contracts.context_references import (
+    ContextPermissionDependency,
+    ContextSourceSnapshot,
+)
 from personal_ai.entities import Conversation, Message, MessageRole, MessageStatus
 from personal_ai.llm import (
+    ChatMessage,
     GenerationEvent,
     GenerationMetadata,
     LLMTimeoutError,
@@ -552,6 +559,102 @@ def test_streaming_body_has_no_provider_exception_detail() -> None:
         app.dependency_overrides = previous
 
 
+def test_context_permission_is_rechecked_at_the_actual_model_send_boundary() -> None:
+    from personal_ai.services.chat.service import _PreparedTurn
+
+    conversations = InMemoryConversationRepository()
+    conversation = Conversation(
+        id=uuid4(),
+        owner_id="local",
+        title="Revocation boundary",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    conversations.create(conversation)
+    messages = InMemoryMessageRepository(conversations)
+    now = datetime.now(UTC)
+    user = Message(
+        id=uuid4(),
+        conversation_id=conversation.id,
+        owner_id="local",
+        role=MessageRole.USER,
+        content="Run the current check.",
+        status=MessageStatus.COMPLETED,
+        created_at=now,
+    )
+    assistant = Message(
+        id=uuid4(),
+        conversation_id=conversation.id,
+        owner_id="local",
+        role=MessageRole.ASSISTANT,
+        content="",
+        status=MessageStatus.STREAMING,
+        created_at=now + timedelta(microseconds=1),
+        parent_message_id=user.id,
+    )
+    messages.create(user)
+    messages.create(assistant)
+    dependency = ContextPermissionDependency(
+        permission_id="ai_memory_knowledge",
+        version="revoked-after-pack",
+        purpose="reuse verified historical project knowledge",
+    )
+
+    class Revoked:
+        def is_current(self, _dependency):
+            return False
+
+    snapshot = ContextSourceSnapshot(
+        provider_id="memory.retrieval",
+        source_id="knowledge-record",
+        source_version="v3",
+        item_id="knowledge-record",
+        source_classes=("ai_memory",),
+        owner_id="local",
+        application_id="personal_ai",
+        content_fingerprint=sha256(b"packed historical memory").hexdigest(),
+        permission_dependencies=(dependency,),
+    )
+    llm = ControlledLLM()
+    service = ChatTurnService(
+        conversations,
+        messages,
+        llm,
+        owner_id="local",
+        model="test-model",
+        context_assembler=ContextAssembler(
+            Settings(ai_provider="fake", ai_model="test"),
+            EstimatedTokenCounter(),
+            permission_revalidator=Revoked(),
+        ),
+    )
+    turn = _PreparedTurn(
+        created=(user, assistant),
+        assistant=assistant,
+        history=(
+            # Text was packed successfully; revocation occurs before provider
+            # handoff when the prepared stream is first consumed.
+            ChatMessage("system", "Untrusted historical context: packed historical memory"),
+        ),
+        request_id="late-revocation",
+        deadline=monotonic() + 5,
+        source_snapshots=(snapshot,),
+    )
+
+    async def drain():
+        return [event async for event in service._stream_events(turn, [])]
+
+    events = asyncio.run(drain())
+    assert events[-1].code == "context_source_authority_changed"
+    assert not llm.started
+    assert (
+        messages.get(
+            owner_id="local", conversation_id=conversation.id, message_id=assistant.id
+        ).status
+        is MessageStatus.FAILED
+    )
+
+
 def test_gemini_timeout_after_first_delta_finalizes_partial_turn() -> None:
     """Pinned SDK streaming timeout finalizes a partial application turn."""
     from personal_ai.llm import GeminiLLMClient
@@ -568,10 +671,12 @@ def test_gemini_timeout_after_first_delta_finalizes_partial_turn() -> None:
             try:
                 payload = {
                     "modelVersion": "gemini-2.5-flash",
-                    "candidates": [{
-                        "content": {"role": "model", "parts": [{"text": "partial"}]},
-                        "finishReason": None,
-                    }],
+                    "candidates": [
+                        {
+                            "content": {"role": "model", "parts": [{"text": "partial"}]},
+                            "finishReason": None,
+                        }
+                    ],
                 }
                 yield b"data: " + json.dumps(payload).encode() + b"\n\n"
                 await asyncio.Event().wait()
@@ -666,7 +771,9 @@ def test_gemini_timeout_after_first_delta_finalizes_partial_turn() -> None:
     assert finalized
 
 
-@pytest.mark.parametrize("violation", ["trailing_delta", "duplicate_terminal", "exception", "stalled"])
+@pytest.mark.parametrize(
+    "violation", ["trailing_delta", "duplicate_terminal", "exception", "stalled"]
+)
 def test_chat_rejects_data_or_errors_after_terminal_without_persisting_success(violation):
     class MalformedLLM:
         requires_inference_context = False
@@ -718,9 +825,7 @@ def test_chat_rejects_data_or_errors_after_terminal_without_persisting_success(v
         return [
             frame
             async for frame in sse_frames(
-                service.send(
-                    conversation.id, "hello", request_id=f"protocol-{violation}"
-                )
+                service.send(conversation.id, "hello", request_id=f"protocol-{violation}")
             )
         ]
 

@@ -417,6 +417,14 @@ def test_production_composition_installs_shared_memory_dependency_authority(monk
         assert result.selected
         dependencies = dict(result.permission_dependencies)[result.selected[0].memory.id]
         assert all(assembler.permission_revalidator.is_current(dep) for dep in dependencies)
+        from personal_ai.contracts.context_references import ContextPermissionDependency
+
+        knowledge_dependency = ContextPermissionDependency(
+            permission_id="ai_memory_knowledge",
+            version="synthetic-version",
+            purpose="production registration has no trusted MEM-1 resolver or source lease",
+        )
+        assert not assembler.permission_revalidator.is_current(knowledge_dependency)
         change(env, result.selected[0].memory, "forgotten")
         assert not all(assembler.permission_revalidator.is_current(dep) for dep in dependencies)
 

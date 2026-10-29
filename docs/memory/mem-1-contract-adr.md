@@ -114,3 +114,40 @@ The new paired benchmark issues a Task A result, persists knowledge, destroys
 session state, then checks a distinct Task B effect/outcome. Safety-invalid traces
 fail execution; low task quality is reported separately. Synthetic observations
 establish neither model lift nor deployed identity, cloud, retention or recovery.
+
+## 2026-10-29 independent-review remediation addendum
+
+The review of `2df112bf04b8d817c2cfee9c807786161d2fec4f` led to a forward-only
+actor binding for source identities. Migration 029 maps retained schema-3 edges
+to the record's exact actor, clones each referenced pre-migration fence for
+that actor, and retains orphan legacy fences under a non-authorizing `L` key as
+global replay denies. New actor-specific fences use lossless `N`/`V<actor>` keys,
+and lookup, CAS revocation, reverse deletion, retention, listing and consumption
+require the bound owner/application/workspace/actor request. Account deletion
+remains owner-wide through its existing inventory family. Shared actor access is
+not inferred from equal owner, workspace or source ID.
+
+The shared context builder now rechecks expiry and every permission dependency
+after all final and marginal token counts. Optional items that expire during
+counting are removed and recounted; late permission loss or expiry fails the
+build closed. Chat revalidates source snapshots again immediately before model
+handoff. The `ai_memory` header describes untrusted historical source data,
+per-item authority/verification/time scope, possible staleness, and no current
+fact or action authority.
+
+The original `mem1-paired-v1` stateful suite and fixture remain unchanged and
+are now described as structural/safety-proxy evidence. A distinct
+`mem1-consumer-v1` suite exercises the shared packer and a deterministic
+consumer whose interface accepts only packed messages and narrow read/execute
+handles. Its 16 paired cases are synthetic and author-reviewed; independent
+fixture review and real-model utility remain unverified. It does not establish
+agent lift.
+
+No safe source-fence compaction was available without a durable issuer
+watermark or versioned namespace epoch. The 1,024-row fence limit and permanent
+replay tombstones are therefore an explicit production blocker documented in
+the [capacity follow-up](mem-1-tombstone-capacity-follow-up.md). Both knowledge
+flags remain false by default. No production issuer, recoverable distributed
+lease, public mutation path, application-grant adapter or cloud deletion path
+was added. See the [review remediation evidence](mem-1-review-remediation-evidence.md)
+for test results and the no-go acceptance status.
