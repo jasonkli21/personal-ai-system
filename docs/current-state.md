@@ -30,21 +30,29 @@ outcomes. Tasks do not invoke model providers or automate purchases.
 
 ## MEM-0 research baseline
 
-MEM-0 adds an opt-in offline benchmark, architecture ADR and 30 reviewed synthetic
-cases across six families. `make memory-task-eval` runs four arms twice through
-shared context packing, with real fixed retrieval/revalidation for legal v1
-assertions. Scripted task proxy results are none 20/30, fixed 23/23 with seven
-unsupported cases, full eligible history 29/29 with one truncated case, and gold
-30/30. These denominators differ; paired intersections are recorded explicitly.
-The final MEM-0 source passed 1,821 offline tests (90 environment-dependent cases
-deselected), all three existing memory evaluations, planner replay and backend
-lint. No model-mediated quality, native resource or production evidence is established.
+MEM-0 remains an opt-in offline benchmark. The active v2 corpus has 30 synthetic
+cases across six families and preserves v1 as historical evidence.
+`make memory-task-eval` runs four arms twice through shared context packing, with
+real fixed retrieval/revalidation for legal v1 assertions. Current scripted task
+proxy results are none 19/30, fixed 22/22 with eight unsupported cases, full
+eligible history 29/29 with one truncated case, and gold 30/30. On the 22 paired
+fixed-versus-none cases there are three wins, 19 ties and no regressions. These
+curated denominators do not measure model quality.
+
+The focused MEM-0/memory test command passed 281 tests; the three existing memory
+evaluations, planner replay and backend lint passed. The latest full offline run
+did **not** pass: 1,833 passed, three provider-matrix tests failed, and 90 were
+deselected. All three failures passed together in an isolated retry, so the
+whole-suite failure remains unresolved and is not recorded as a pass. No
+model-mediated quality, native resource or production evidence is established.
 
 The [MEM-0 report](personal-ai-chapter-2/memory/mem-0-baseline-report.md) binds the
-tested base `ad7c5004294b34df6acffd154509a402e2626659` plus source digest, commands,
-results and remaining gaps. Independent review determines readiness for MEM-1
-planning. Existing memory types, migrations, production flags and source-policy
-boundaries remain unchanged; this work implements no MEM-1 feature.
+tested source on base `987bba5f6479791b54ac626d9959b1b39e23fbb3` plus source and
+fixture identities, commands, results and remaining gaps. The independent
+review and its separate remediation record are linked from the [report](personal-ai-chapter-2/memory/mem-0-baseline-report.md).
+Fresh independent verification determines readiness for MEM-1 planning. Existing
+memory types, migrations, production flags and source-policy boundaries remain
+unchanged; this work implements no MEM-1 feature.
 
 ## Identity and effect boundaries
 
@@ -87,12 +95,13 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v14 remain historical. v15 rebinds the same deterministic
-planner, configuration, runtime, fixture dependencies and 30 held-out cases after
-the MEM-0 evaluation additions; it promotes no coverage. The
-strict current-or-direct-child source guard remains. Production replay still
-rejects source, runtime and unrelated revision changes. Portable tests use an
-explicitly test-only lock. Nothing is promoted from this freeze.
+Planner locks v10-v15 remain historical. MEM-0 review remediation adds active
+non-promoting v16, preserving v15's deterministic planner, configuration,
+runtime, fixture dependencies and 30 held-out cases while rebinding the changed
+backend source identity. The strict current-or-direct-child source guard remains.
+Production replay still rejects source, runtime and unrelated revision changes.
+Portable tests use an explicitly test-only lock. Nothing is promoted from this
+freeze.
 
 Phase36 retains its earlier **24 passed offline rows**; its exact soak counts
 remain in the generated evidence. These rows do not establish cloud, provider

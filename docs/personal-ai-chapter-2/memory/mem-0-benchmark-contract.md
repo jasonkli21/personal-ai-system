@@ -1,83 +1,122 @@
-# MEM-0 benchmark contract v1
+# MEM-0 benchmark contract v2
 
-Pre-registered 2026-10-28 before arm comparison. Scope: synthetic offline component
-and scripted task proxy, never measured model competence or production readiness.
-Typed source/case/rubric contracts live in `evaluation/memory_task_contracts.py`.
+Updated 2026-10-29 after the independent review at
+`mem-0-independent-review.md`. The v1 corpus and
+its recorded results remain immutable historical evidence. The active runner
+uses `mem0-v2`, `mem0-rubric-v2`, and
+`evaluation/fixtures/memory/mem0-cases-v2.json`. It retains 30 cases, five per
+family, with the original 18/6/6 split (three development, one calibration, one
+public frozen holdout in each family). V2 is a new experiment identity.
 
-Thirty public synthetic cases: five each of workflow, project, correction,
-temporal, authorization and irrelevant. Within each family: three development,
-one calibration, one frozen holdout. Frozen means published and not tuned after
-comparison, not secret. Implementation review checks source/rubric rationale;
-independent review remains a separate acceptance gate. All IDs and referenced
-sources must resolve; timestamps are explicit UTC; source bodies are bounded;
-fixture versions and digests identify changes. A changed corpus needs a new
-experiment identity and recorded rationale, not an overwritten result claim.
+The benchmark measures synthetic components and a finite scripted task proxy.
+It does not measure model competence, two-session memory learning, production
+security, or deployment readiness. The machine contracts live in
+`evaluation/memory_task_contracts.py`; the runner, driver, and scoped synthetic
+adapter are `memory_task_baseline.py`, `memory_task_driver.py`, and
+`memory_task_runtime.py`.
 
-## Inputs, authority and packing
+## Inputs, authority, and packing
 
-The harness binds synthetic owner/app/workspace/branch, clock, revision, grants
-and transitions. Source content cannot grant access. Current canonical evidence
-is identical across arms and retained in the mandatory task input. History is
-eligible only within scope, branch, observation/effective time, privacy, permission
-and complete support constraints. Pre-query and post-selection transitions are
-distinct. Source/version dependencies are rechecked by the shared builder and at
-driver consumption. Diagnostic history uses an explicitly synthetic resolver;
-legal v1 assertions use actual `MemoryRetriever` and `MemoryPermissionRevalidator`
-with in-memory canonical repositories and lifecycle transitions. Deployed app
-registration/grant identity is unverified, not simulated equivalence.
+Each case binds a synthetic owner/application/workspace/branch, clock, revision,
+task, sources, transitions, rubric, gold references, and budgets. Source content
+cannot grant access. History is eligible only within the full scope, branch,
+observation/effective-time, privacy, permission, and support boundaries.
+Pre-query and post-selection changes remain distinct. The shared builder and
+driver-consumption boundary recheck source dependencies.
 
 | Arm | Contract |
 | --- | --- |
-| none | No historical retrieval or injection; current canonical task context retained. |
-| fixed | Actual fixed retriever, legal v1 candidates, real assembler and memory dependency graph. Procedures/project knowledge outside current contract are recorded unsupported; no forged v1 record. |
-| full_eligible_history | Chronological authorized history through shared `ContextBuilder`; bounded by identical total and historical source budgets. Any dropped eligible history means truncated, excluded from feasible paired task comparisons. |
-| gold_authorized | Grader-owned reference selector supplies only currently eligible sources through the same builder. Gold refs never authorize access. Evidence-availability diagnostic, not an agent ceiling. |
+| `none` | No historical retrieval or injection; current canonical task context remains available. |
+| `fixed` | Actual fixed retriever, legal Memory v1 candidates, real assembler and dependency revalidation. Procedures/project facts that v1 cannot represent are explicitly unsupported. |
+| `full_eligible_history` | Chronological eligible history through shared `ContextBuilder`; a dropped eligible source marks the case truncated and excludes it from feasible paired task comparisons. |
+| `gold_authorized` | Grader-owned references select only eligible sources through the same builder. Gold never grants access; this is an evidence-availability diagnostic. |
 
-All arms use the same input/output reserves, historical cap, fake word-unit token
-counter, current evidence, task, fake tools and scripted policy. Fixed top-K/item
-limits are disclosed capability differences. Source text and structured diagnostic
-facts are data. Supported v1 sources use an identical narrow assertion parser
-across arms; diagnostic facts/receipts are not runtime memory schemas. Selected
-and actually packed IDs are distinct. No task driver may see arm, split, gold IDs,
-rubric or expected answer. The final driver view contains only packed evidence
-and current task inputs. Grading happens afterwards.
+All arms use the same task, current evidence, budget, fake word-unit token
+counter, and finite tools. Fixed top-K/item limits are actual implementation
+behavior. Typed diagnostic history has different metadata overhead from fixed
+memory wrappers. The driver receives only task, current scope, and consumed
+evidence; it never receives arm, split, case ID, gold IDs, rubric, or expected
+answer. Answer grading is separate from execution validation.
 
-## Tasks, outcomes and metrics
+## Causal action and effect contracts
 
-A finite scripted task policy reads relevant facts, checks current revisions,
-inspects simulated receipts, chooses an answer/reuse/reconcile/abstain action,
-and records evidence IDs, revision and receipt verification. It uses task operation
-and visible source authority, never fixture IDs or grader labels. Fake tools have
-no network or real effects; repeated runs cannot cause external writes. Expected
-actions, forbidden actions, exact answer and citation requirements are independent
-grader inputs. Blanket abstention fails useful-answer/required-action rubrics.
+Every trace action has an action-specific payload. Current reads record their
+source and value; revision checks bind the expected task revision to that prior
+read; workflow reuse/avoidance binds one command and result to one receipt and
+run; answers cite their source; and abstention carries no success claim. The
+post-run validator checks action ordering, single-use cardinality, allowed
+actions, revisions, evidence availability, source scope, action results, and
+receipt bindings. It rejects reversed/check-after-use traces, duplicate
+directives, missing results, mismatched revisions, and forged verification or
+receipt fields. Any trace invariant violation marks execution failed and makes
+the CLI exit nonzero; a low task score alone remains an experiment result.
 
-Report task metrics as `synthetic_scripted_task_proxy`; retrieval precision/recall,
-gold coverage and final packed coverage are separate. Task failures are research
-outcomes; invariant/schema/replay failures fail the command. Missing model/native
-evidence remains null/unverified. Unsupported and truncated arms are excluded
-with IDs/reasons from paired evaluable intersections; never turn missing into 0.
-Report by arm/family/split, raw numerators and denominators, family macro means,
-paired case deltas/ties versus none and fixed. No significance claim for curated
-cases. Real-model quality is unverified and no provider adapter is dispatched.
+Reconciliation cases bind the task to an original `effect_key`, run ID, command,
+and revision. A synthetic canonical `EffectObservation` repeats those identities,
+includes full owner/application/workspace/branch scope, outcome, observation ID,
+and observation time. The action trace records the requested identity and scope
+and the returned observation identity. The finite resolver matches all fields;
+wrong/missing/ambiguous observations produce unknown and abstention. Uncertain
+or partial results stay unknown. Confirming an already completed effect is
+observation only; no workflow is retried. A tiny stateful fake verifies repeated
+execution intent returns one receipt/effect count, but this is not native
+idempotency or transaction evidence.
 
-Hard validity failures: unauthorized/future/forgotten packed or consumed source,
-grader leakage, source-version mismatch, successful workflow from unknown/failed
-receipt, or over-budget context. Failures dominate run status; a task fail cannot
-hide an invariant failure. Unverified external evidence does not become passed
-because offline execution succeeded.
+## Derived diagnostic support
 
-Manifest binds Git HEAD and dirty state, source tree/configuration and lockfile
-digest, fixture/schema/rubric/runner/policy identities, seed, Python/dependencies,
-machine profile, budgets, null model/provider and deterministic result hash.
-Semantic hashes exclude sampled elapsed/CPU time, generated-at time and paths;
-latencies are separately reported p50/p95 observations for fresh in-memory runs
-(OS/import caches uncontrolled). Logical embedding calls and serialized metadata
-bytes are synthetic, not quota, physical I/O, index size or native store cost.
+Diagnostic `historical_derived` sources use the explicit `exact_all_v1` recipe:
+support is required and nonempty, and every direct support must provide the
+same exact subject/value claim. User correction support uses the existing narrow
+assertion grammar. A claim without this recipe is marked eligibility-only and
+cannot enter the answer policy, even if all permission edges are valid or the
+rubric expects it. Permission revalidation still checks every dependency.
+This finite rule is not semantic entailment and says nothing about future
+generative consolidation. Production `DerivedMemory` schema 2 and `support-v1`
+are unchanged; their separate component test remains distinct evidence.
 
-Run `make memory-task-eval` with the backend virtualenv on PATH. The CLI accepts
-`--fixtures PATH` and `--output PATH` (restricted to root `artifacts/mem0/`). It
-runs twice, checks identical semantic digests and unchanged fixtures, and writes
-manifest, per-case rows, aggregates and timing observations there. No live mode.
-Tests must mutate grants, source epochs, branches, rubrics and receipts, not only
-check fixture scores. Phase 36 blocker statuses remain canonical and unchanged.
+## V2 control changes
+
+V2 preserves the five-per-family and 3/1/1 split while improving the reviewed
+counterfactuals:
+
+- WF-03 carries a keyed original receipt and independently keyed canonical
+  observation; WF-04 matches the current revision so workspace is the deciding
+  guard.
+- TF-03 is already observed at the task clock but has a future effective date.
+- AU-02 isolates application mismatch; a separate workspace-only twin is
+  exercised outside the scored denominator.
+- CO-04 includes two independent failed run receipts; a one-failure control is
+  exercised outside the scored denominator.
+- IR-03 packs useful authorized answer evidence alongside an untrusted
+  instruction, and the answer must use only the useful source.
+
+Positive twins are also checked for workspace scope, application scope,
+workspace scope, and a future-effective fact after it becomes effective.
+Mutation probes remove one named scope/time guard at a time and must cause the
+corresponding negative control to select unsafe evidence or fail. These
+counterfactual probes do not inflate the four-arm case denominator.
+
+## Outcomes, denominators, and evidence
+
+The finite driver classifies task outcomes separately from execution validity.
+Task pass counts are `synthetic_scripted_task_proxy`, not model quality.
+Retrieval precision/recall, selected/packed/consumed IDs, action traces, source
+age, and final packed coverage remain separate measurements. Unsupported and
+truncated arms are identified and excluded from paired intersections; missing
+native/model evidence stays null/unverified, not zero. No significance or
+natural-frequency claim follows from this curated corpus.
+
+The manifest binds tested Git revision and dirty state, source/fixture/schema/
+runner/policy digests, seed, budgets, Python/dependencies, null model/provider,
+arm ordering, evidence class, and semantic result digest. Two executions must
+match, fixture and source bytes must remain unchanged, and elapsed/CPU samples
+are excluded from semantic hashes. Fresh in-memory timings are descriptive only.
+Serialized JSON bytes are not physical/index bytes; physical database usage,
+provider quota, real model quality, deployed identity/grants, and physical
+deletion remain unverified.
+
+Run `make memory-task-eval` with `backend/.venv/bin` on PATH. The CLI accepts
+`--fixtures PATH` and `--output PATH`, restricted to root `artifacts/mem0/`.
+It writes ignored manifests, per-case rows, aggregates, and separate timings.
+There is no live/provider mode. Existing memory evaluation targets and Phase 36
+status semantics remain unchanged.

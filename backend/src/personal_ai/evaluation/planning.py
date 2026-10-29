@@ -39,7 +39,8 @@ from personal_ai.settings import Settings
 CORPUS_PATH = Path(__file__).parent / "fixtures/context/planning-heldout-v2.json"
 HISTORICAL_V13_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v13.json"
 HISTORICAL_V14_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v14.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v15.json"
+HISTORICAL_V15_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v15.json"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v16.json"
 PLANNING_EVALUATOR_VERSION = "planning-evaluator-v6"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -122,7 +123,7 @@ def baseline_planner():
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v15",
+        "baseline_lock_version": "planning-baseline-lock-v16",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

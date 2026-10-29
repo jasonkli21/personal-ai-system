@@ -1,8 +1,10 @@
 # MEM-0 architecture reconciliation and MEM-1 options
 
-Date: 2026-10-28 (PDT). Status: accepted for the bounded MEM-0 harness;
-MEM-1 schema preference is a hypothesis pending independent review. Inspected
-base: `ad7c5004294b34df6acffd154509a402e2626659`. No runtime migration.
+Date: 2026-10-28 (PDT), updated 2026-10-29. Status: the bounded MEM-0 v1
+harness is preserved as historical evidence; v2 remediation is implemented and
+awaits fresh independent re-verification. MEM-1 schema preference remains a
+hypothesis. Inspected base: `ad7c5004294b34df6acffd154509a402e2626659`. No
+runtime migration.
 
 ## Ownership and executable boundary
 
@@ -28,6 +30,30 @@ history/summary reuse. Summaries are lossy branch context, not durable knowledge
 Cross-store failure means reconcile the original intent/receipt, never assume a
 Dynamo checkpoint and Postgres commit were atomic. No second scheduler or memory
 database is introduced by this evaluation.
+
+## MEM-0 v2 review remediation boundary
+
+The v2 harness adds action-specific evaluation contracts and a post-run causal
+validator. Workflow reuse follows a bound current-revision read/check, emits one
+receipt-bound directive, and cannot be repeated in the same trace. Reconciliation
+uses an evaluation-only original effect key, run ID, command, revision, and a
+canonical observation bound to the same scope and identity. It reports observed
+uncertainty without retrying. A stateful fake demonstrates one effect per key;
+it is not native idempotency evidence.
+
+Diagnostic derived claims now require nonempty exact support for the same
+subject/value or remain unavailable to the answer policy. This is a finite
+fixture recipe, not entailment for generative summaries. V2 also isolates the
+reviewed scope/time guards with matching-precondition negative cases and positive
+twins. The original v1 corpus bytes remain unchanged; the active comparison uses
+v2 and retains the 3/1/1 split.
+
+These changes remain evaluation-only. Production `Memory` schema 1,
+`DerivedMemory` schema 2, `support-v1`, migrations, permission policy, and
+default-off flags are unchanged. No Phase 36 status or production claim follows
+from the new synthetic checks. See the independent review and separate
+[`mem-0-review-remediation.md`](mem-0-review-remediation.md) for dispositions,
+exact checks, results, and unresolved external evidence.
 
 ## Authority dimensions and minimal future receipt
 

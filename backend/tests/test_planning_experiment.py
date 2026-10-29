@@ -457,9 +457,24 @@ def test_v14_source_rebind_preserves_corpus_runtime_and_non_promotion():
     assert current["source_revision"] == "20ef41ae6b76de691c003ae6a345fdb91b3ecd02"
 
 
-def test_v15_mem0_rebind_preserves_corpus_runtime_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+def test_v15_mem0_rebind_remains_immutable_historical_evidence():
+    current = json.loads(planning.HISTORICAL_V15_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V14_FREEZE_PATH.read_text())
+    for key in (
+        "baseline_version", "configuration_digest", "corpus_digest",
+        "fixture_dependency_digest", "evaluator_version", "counter_identity",
+        "runtime_dependency_digest", "runtime_distribution_count", "promotion_decision",
+        "source_revision_binding",
+    ):
+        assert current[key] == previous[key]
+    assert current["source_identity_digest"] != previous["source_identity_digest"]
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_revision"] == "ad7c5004294b34df6acffd154509a402e2626659"
+
+
+def test_v16_review_rebind_preserves_v15_corpus_runtime_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V15_FREEZE_PATH.read_text())
     for key in (
         "baseline_version", "configuration_digest", "corpus_digest",
         "fixture_dependency_digest", "evaluator_version", "counter_identity",
@@ -470,7 +485,7 @@ def test_v15_mem0_rebind_preserves_corpus_runtime_and_non_promotion():
     assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["source_revision"] == "ad7c5004294b34df6acffd154509a402e2626659"
+    assert current["source_revision"] == "987bba5f6479791b54ac626d9959b1b39e23fbb3"
 
 
 def test_evaluator_records_bound_validation_trace_metrics(runtime_bound_planning_lock):

@@ -18,7 +18,14 @@ from personal_ai.context.contracts import fingerprint
 from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.contracts.context_references import ContextPermissionDependency
 from personal_ai.entities import Conversation, Message, MessageStatus
-from personal_ai.evaluation.memory_task_contracts import Case, Fact, Record, Source
+from personal_ai.evaluation.memory_task_contracts import (
+    Case,
+    Fact,
+    Record,
+    Scope,
+    Source,
+    diagnostic_claim,
+)
 from personal_ai.memory.contracts import Memory, MemoryCandidate, identity, normalize
 from personal_ai.memory.dependencies import MemoryPermissionRevalidator
 from personal_ai.memory.fake import FakeEmbedder
@@ -33,6 +40,7 @@ from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMes
 
 class VisibleEvidence(Record):
     source_id: str
+    scope: Scope
     content: str
     fact: Fact | None
     authority: str
@@ -40,6 +48,8 @@ class VisibleEvidence(Record):
     revision: str
     current: bool
     receipt: dict | None
+    observation: dict | None = None
+    support_verified: bool = True
 
 
 class OfflineSettings(Settings):
@@ -61,6 +71,7 @@ def assertion_fact(content):
 def visible_source(source: Source):
     return VisibleEvidence(
         source_id=source.source_id,
+        scope=source.scope,
         content=source.content,
         fact=assertion_fact(source.content) if source.fixed_type else source.fact,
         authority=source.authority,
@@ -68,6 +79,28 @@ def visible_source(source: Source):
         revision=source.revision,
         current=source.current,
         receipt=source.receipt.model_dump(mode="json") if source.receipt else None,
+        observation=source.observation.model_dump(mode="json") if source.observation else None,
+        support_verified=(
+            source.authority != "historical_derived"
+            or source.support_recipe == "exact_all_v1"
+        ),
+    )
+
+
+def diagnostic_scope_matches(active, source):
+    return (
+        active.owner_id == source.owner_id
+        and active.application_id == source.application_id
+        and active.workspace_id == source.workspace_id
+        and active.branch == source.branch
+    )
+
+
+def diagnostic_time_matches(case: Case, source: Source):
+    return (
+        source.observed_at <= case.clock_utc
+        and source.effective_at <= case.task.as_of
+        and (source.expires_at is None or source.expires_at > case.clock_utc)
     )
 
 
@@ -234,15 +267,26 @@ class Environment:
         @cache
         def check(source_key):
             source = self.sources[source_key]
+            derived_supported = True
+            if source.authority == "historical_derived":
+                claim = (source.fact.subject, source.fact.value) if source.fact else None
+                derived_supported = (
+                    source.support_recipe == "exact_all_v1"
+                    and bool(source.support_ids)
+                    and claim is not None
+                    and all(
+                        diagnostic_claim(self.sources[support_key]) == claim
+                        for support_key in source.support_ids
+                    )
+                )
             return (
-                source.scope == self.case.scope
+                diagnostic_scope_matches(self.case.scope, source.scope)
                 and source.granted
                 and source_key not in self.invalid
                 and source.privacy == "synthetic_public"
-                and source.observed_at <= self.case.clock_utc
-                and source.effective_at <= self.case.task.as_of
-                and (source.expires_at is None or source.expires_at > self.case.clock_utc)
+                and diagnostic_time_matches(self.case, source)
                 and (not history or not source.current and self.case.task.use_memory)
+                and derived_supported
                 and all(check(k) for k in source.support_ids)
             )
 
@@ -252,7 +296,7 @@ class Environment:
         source = self.sources[key]
         if source.current:
             return "current_context"
-        if source.scope != self.case.scope:
+        if not diagnostic_scope_matches(self.case.scope, source.scope):
             return "scope_or_branch_mismatch"
         if not source.granted or key in self.invalid:
             return "source_revoked_or_invalidated"
@@ -266,6 +310,8 @@ class Environment:
             return "explicit_memory_exclusion"
         if not all(self.eligible(k) for k in source.support_ids):
             return "support_invalidated"
+        if source.authority == "historical_derived" and not self.eligible(key):
+            return "derived_support_unverified"
         return "eligible"
 
     def dependency(self, key):
@@ -326,6 +372,7 @@ class Environment:
         record = self.records[key]
         return VisibleEvidence(
             source_id=key,
+            scope=self.sources[key].scope,
             content=record.content,
             fact=assertion_fact(record.content),
             authority="user_asserted",
@@ -333,4 +380,6 @@ class Environment:
             revision="user-statement",
             current=False,
             receipt=None,
+            observation=None,
+            support_verified=True,
         )

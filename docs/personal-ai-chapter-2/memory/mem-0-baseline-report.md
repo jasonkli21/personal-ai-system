@@ -1,4 +1,51 @@
-# MEM-0 baseline report and implementation handoff
+# MEM-0 baseline report: v1 history and v2 review remediation
+
+## Latest status: review remediation (2026-10-29)
+
+The independent review at `mem-0-independent-review.md` found four actionable
+gaps. The bounded remediation is implemented in the current v2 harness; the
+original v1 corpus and its results below remain immutable historical evidence.
+The latest commands and dispositions are recorded in the separate
+[`mem-0-review-remediation.md`](mem-0-review-remediation.md). Fresh independent
+verification is still required before this can be accepted as an MEM-1 planning
+baseline.
+
+The active fixture is `mem0-cases-v2.json` (SHA256
+`592a0e3799aeafc32ebf7cba0c7e162ff0af98d0049af2cf683de653e5fc02e1`); v1 remains
+`mem0-cases-v1.json` (SHA256
+`043edaae3461286b49bcb4fda4f73bdc5059e528361bad3fa670a3b1c4e58b18`). A
+deterministic `make memory-task-eval` replay passed on base revision
+`987bba5f6479791b54ac626d9959b1b39e23fbb3` with a dirty source tree. The v2
+semantic result digest is
+`f961fd6335397f3efb6ccacc8f6ac9b4a357d949a1671426399014c6dc470f28`; source
+SHA256 is `23fcf288ff995adc98d728bedd5dd1c8c67c96aab65f1ea49c2cd621b8084f2f`.
+The active planner freeze is v16 with source identity
+`fc73dc999e509cc493a511987dcbfb8cbd30cb6d1e0c1c0c86c96a06c1288ac7`; v15 is
+retained as historical evidence. V16 preserves its predecessor's corpus,
+configuration, fixture/runtime identities, non-promotion, and strict
+current-or-direct-child source guard.
+
+V2 task-proxy results are none 19/30, fixed 22/22 with eight unsupported cases,
+full eligible history 29/29 with one truncated case, and gold-authorized 30/30.
+On the 22 paired fixed-versus-none cases, fixed has three wins, 19 ties and no
+regressions. This remains a curated finite scripted proxy, not model task
+quality. The focused MEM-0/memory test command passed 281 tests. Existing memory
+evaluations, planning evaluation and backend lint passed. The required full
+offline suite did **not** pass: 1,833 passed, three provider-matrix tests failed,
+and 90 were deselected. All three failures passed when rerun together in
+isolation, but this does not establish a clean full-suite result or prove a
+root cause. See the remediation report for exact names and commands.
+
+Production `Memory` schema 1, `DerivedMemory` schema 2, support policy, migrations
+and default-off flags are unchanged. Model quality, native resource use,
+provider quota, deployed identity/grants, cloud behavior and physical deletion
+remain unverified. The full suite failure and fresh independent review are open
+gates.
+
+## Historical v1 baseline and implementation handoff
+
+The sections below preserve the v1 baseline report and its original evidence.
+They are not the active v2 acceptance record.
 
 Date: 2026-10-29 (America/Los_Angeles). Inspected base and pre-commit tested
 revision: `ad7c5004294b34df6acffd154509a402e2626659` plus the implementation patch

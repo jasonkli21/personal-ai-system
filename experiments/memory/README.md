@@ -31,12 +31,16 @@ See [Phase 34 implementation report](../../docs/personal-ai-chapter-2/phase-34-i
 Run `make memory-task-eval` with `backend/.venv/bin` on PATH. The hermetic CLI
 `python -m personal_ai.evaluation.memory_task_baseline` accepts `--fixtures PATH`
 and `--output PATH` (within root `artifacts/mem0/`). It runs 30 public synthetic
-cases across `none`, `fixed`, `full_eligible_history`, and `gold_authorized`.
+cases from the active v2 corpus across `none`, `fixed`,
+`full_eligible_history`, and `gold_authorized`. Corpus v1 and its result digest
+are retained as historical evidence.
 There is no live/paid dispatch option. The original evaluators are unchanged.
 
 Results distinguish selected, packed and consumed sources; current canonical
 task evidence is shared by every arm. Procedures are unsupported by current v1
-memory; diagnostic gold cannot grant permissions. Task outcomes are a finite
+memory; diagnostic gold cannot grant permissions. V2 checks causal action
+ordering/results, binds reconciliation to the original effect key and scope,
+and admits diagnostic derived claims only under exact support. Task outcomes are a finite
 `synthetic_scripted_task_proxy`, not LLM task quality. Native bytes/quota and real
 model quality remain null/unverified. See
 [MEM-0 contract](../../docs/personal-ai-chapter-2/memory/mem-0-benchmark-contract.md),

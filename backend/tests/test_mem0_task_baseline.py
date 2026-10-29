@@ -41,6 +41,7 @@ def validate_change(original, **changes):
 
 
 def test_corpus_frozen_identity_and_review_governance(corpus):
+    assert corpus.benchmark_version == "mem0-v2"
     assert set(Counter(c.family for c in corpus.cases).values()) == {5}
     assert Counter(c.split for c in corpus.cases) == {
         "development": 18,
@@ -53,8 +54,14 @@ def test_corpus_frozen_identity_and_review_governance(corpus):
     from hashlib import sha256
 
     assert sha256(FIXTURES.read_bytes()).hexdigest() == (
+        "592a0e3799aeafc32ebf7cba0c7e162ff0af98d0049af2cf683de653e5fc02e1"
+    )
+    historical_v1 = FIXTURES.with_name("mem0-cases-v1.json")
+    assert sha256(historical_v1.read_bytes()).hexdigest() == (
         "043edaae3461286b49bcb4fda4f73bdc5059e528361bad3fa670a3b1c4e58b18"
     )
+    archived = Corpus.model_validate_json(historical_v1.read_bytes())
+    assert archived.benchmark_version == "mem0-v1" and len(archived.cases) == 30
 
 
 @pytest.mark.parametrize(
@@ -245,32 +252,373 @@ def test_revision_and_unknown_receipt_never_verify_success(corpus):
     c = c.model_dump(mode="json")
     c["sources"][0]["receipt"]["outcome"] = "uncertain"
     row, _ = run_case(Case.model_validate(c), "gold_authorized")
-    assert not any(a["verification"] == "verified" for a in row["action_trace"])
+    assert "reuse_workflow" not in [a["action"] for a in row["action_trace"]]
+    assert row["task_status"] == "failed"
     original = case(corpus, "WF-01")
-    fake = ActionTrace(
-        action="reuse_workflow",
-        evidence_ids=("tested",),
-        revision="rev-2",
-        receipt_id="forged",
-        verification="verified",
+    valid = next(
+        ActionTrace.model_validate(action)
+        for action in run_case(original, "gold_authorized")[0]["action_trace"]
+        if action["action"] == "reuse_workflow"
     )
-    assert grade(original, (fake,), ["tested"])["unverified_success_claims"]
+    fake = valid.model_copy(update={"revision": "rev-2", "receipt_id": "forged"})
+    score = grade(original, (fake,), ["tested"])
+    assert score["unverified_success_claims"]
+    assert score["action_contract_violations"]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["reverse", "reuse_before_check", "duplicate_reuse", "missing_check_result", "wrong_revision", "forged_receipt"],
+)
+def test_workflow_action_trace_mutations_fail_grade_and_run_status(corpus, monkeypatch, fault):
+    c = case(corpus, "WF-01")
+    valid_row, _ = run_case(c, "gold_authorized")
+    assert valid_row["scores"]["passed"]
+    actions = tuple(ActionTrace.model_validate(item) for item in valid_row["action_trace"])
+    check = next(item for item in actions if item.action == "check_revision")
+    reuse = next(item for item in actions if item.action == "reuse_workflow")
+
+    if fault == "reverse":
+        mutated = tuple(reversed(actions))
+    elif fault == "reuse_before_check":
+        mutated = (actions[0], actions[1], reuse, check, actions[-1])
+    elif fault == "duplicate_reuse":
+        mutated = (*actions, reuse)
+    elif fault == "missing_check_result":
+        mutated = tuple(
+            item.model_copy(update={"result": {}}) if item.action == "check_revision" else item
+            for item in actions
+        )
+    elif fault == "wrong_revision":
+        mutated = tuple(
+            item.model_copy(update={"arguments": {"expected_revision": "unrelated-revision"}})
+            if item.action == "check_revision"
+            else item
+            for item in actions
+        )
+    else:
+        mutated = tuple(
+            item.model_copy(update={"receipt_id": "invented-receipt"})
+            if item.action == "reuse_workflow"
+            else item
+            for item in actions
+        )
+
+    consumed = [*valid_row["current_ids"], *valid_row["consumed_ids"]]
+    direct = grade(c, mutated, consumed)
+    assert not direct["passed"]
+    assert direct["action_contract_violations"]
+
+    monkeypatch.setattr(
+        "personal_ai.evaluation.memory_task_baseline.run_driver",
+        lambda _view: mutated,
+    )
+    row, _ = run_case(c, "gold_authorized")
+    assert row["execution_status"] == "failed"
+    assert row["task_status"] == "failed"
+    assert row["invariant_violations"]
+
+
+def test_forged_non_workflow_verification_fields_fail_grade_and_runner(corpus, monkeypatch):
+    c = case(corpus, "CO-01")
+    valid_row, _ = run_case(c, "fixed")
+    assert valid_row["scores"]["passed"]
+    actions = tuple(ActionTrace.model_validate(item) for item in valid_row["action_trace"])
+    mutated = tuple(
+        item.model_copy(
+            update={
+                "revision": "wrong-revision",
+                "receipt_id": "invented-receipt",
+                "verification": "verified",
+            }
+        )
+        if item.action == "answer"
+        else item
+        for item in actions
+    )
+    consumed = [*valid_row["current_ids"], *valid_row["consumed_ids"]]
+    direct = grade(c, mutated, consumed)
+    assert direct["answer_correct"]
+    assert not direct["passed"]
+    assert "action_payload_invalid:1" in direct["action_contract_violations"]
+    assert "recall_action_order_or_cardinality_invalid" in direct["action_contract_violations"]
+
+    wrong_revision = tuple(
+        item.model_copy(update={"revision": "wrong-revision"})
+        if item.action == "answer"
+        else item
+        for item in actions
+    )
+    revision_grade = grade(c, wrong_revision, consumed)
+    assert not revision_grade["passed"]
+    assert "action_revision_mismatch:1" in revision_grade["action_contract_violations"]
+    monkeypatch.setattr(
+        "personal_ai.evaluation.memory_task_baseline.run_driver",
+        lambda _view: mutated,
+    )
+    row, _ = run_case(c, "fixed")
+    assert row["execution_status"] == "failed"
+    assert row["task_status"] == "failed"
+
+
+def test_trace_invariant_failure_is_written_as_failed_and_cli_exits_nonzero(
+    corpus, monkeypatch, tmp_path
+):
+    import sys
+
+    from personal_ai.evaluation import memory_task_baseline as baseline
+
+    actual = driver.run_driver
+
+    def reverse_workflows(view):
+        actions = actual(view)
+        return tuple(reversed(actions)) if view.task.operation == "workflow" else actions
+
+    monkeypatch.setattr(baseline, "run_driver", reverse_workflows)
+    output = tmp_path / "artifacts" / "mem0"
+    monkeypatch.setattr(baseline, "OUTPUT", output)
+    manifest = write_run(output=output)
+    assert manifest["status"] == "failed"
+    assert (output / "cases.json").exists()
+    monkeypatch.setattr(baseline, "write_run", lambda *_args, **_kwargs: {"status": "failed"})
+    monkeypatch.setattr(sys, "argv", ["memory_task_baseline"])
+    assert baseline.main() == 1
 
 
 def test_reconciliation_policy_depends_on_canonical_observation(corpus):
     c = case(corpus, "WF-03")
     original, _ = run_case(c, "none")
     assert original["scores"]["passed"]
+    reconcile = original["action_trace"][1]
+    assert reconcile["arguments"]["effect_key"] == c.task.effect_key
+    assert reconcile["result"]["observation_id"] == "canonical-observation-17"
+    assert reconcile["result"]["outcome"] == "uncertain"
+    assert reconcile["verification"] == "unknown"
     changed = c.model_dump(mode="json")
-    changed["sources"] = [s for s in changed["sources"] if not s["current"]]
+    changed["sources"][1]["observation"] = None
     missing, _ = run_case(Case.model_validate(changed), "none")
     assert missing["scores"]["incorrect_abstention"]
     assert missing["action_trace"] != original["action_trace"]
     changed = c.model_dump(mode="json")
-    changed["sources"][1]["fact"]["value"] = "success"
+    changed["sources"][1]["observation"]["effect_key"] = "unrelated-effect-key"
     observed, _ = run_case(Case.model_validate(changed), "none")
-    assert observed["action_trace"][-1]["answer"] == "effect_confirmed_observed_original_key"
+    assert observed["action_trace"][-1]["action"] == "abstain"
     assert not observed["scores"]["passed"]
+    changed = c.model_dump(mode="json")
+    changed["sources"][1]["observation"]["scope"]["owner_id"] = "unrelated-owner"
+    with pytest.raises(ValidationError, match="effect_observation_binding_invalid"):
+        Case.model_validate(changed)
+
+
+def test_keyed_reconciliation_confirms_without_replaying_and_ledger_is_idempotent(corpus):
+    c = case(corpus, "WF-03").model_dump(mode="json")
+    c["sources"][1]["observation"]["outcome"] = "success"
+    c["expected"]["answer"] = "effect_confirmed_observed_original_key"
+    confirmed = Case.model_validate(c)
+    row, _ = run_case(confirmed, "none")
+    assert row["task_status"] == row["execution_status"] == "passed"
+    assert row["action_trace"][1]["result"]["effect_key"] == confirmed.task.effect_key
+    assert row["action_trace"][1]["result"]["observation_id"] == "canonical-observation-17"
+    assert "reuse_workflow" not in [item["action"] for item in row["action_trace"]]
+
+    from personal_ai.evaluation.memory_task_driver import SyntheticEffectLedger
+
+    ledger = SyntheticEffectLedger()
+    first, created = ledger.execute_once("effect-key-17", "apply change")
+    second, repeated = ledger.execute_once("effect-key-17", "apply change")
+    assert created and not repeated
+    assert first == second
+    assert ledger.effect_count == 1
+
+
+def test_derived_diagnostic_claim_requires_exact_nonempty_support(corpus):
+    c = case(corpus, "AU-05")
+    data = c.model_dump(mode="json")
+    data["changes"] = []
+    data["sources"][2]["fact"]["value"] = "fabricated preference"
+    data["expected"].update(
+        required_actions=["inspect", "answer"],
+        answer="fabricated preference",
+        abstain=False,
+        citation_ids=["derived"],
+    )
+    with pytest.raises(ValidationError, match="derived_exact_support_mismatch"):
+        Case.model_validate(data)
+
+    data = c.model_dump(mode="json")
+    data["sources"][2]["support_ids"] = []
+    with pytest.raises(ValidationError, match="derived_support_required"):
+        Case.model_validate(data)
+
+    data = c.model_dump(mode="json")
+    data["sources"][2]["support_ids"] = ["support_a", "missing"]
+    with pytest.raises(ValidationError, match="support_reference_invalid"):
+        Case.model_validate(data)
+
+    data = c.model_dump(mode="json")
+    data["changes"] = []
+    data["sources"][2]["support_recipe"] = "eligibility_only_unverified"
+    data["sources"][2]["fact"]["value"] = "fabricated preference"
+    data["expected"].update(
+        required_actions=["inspect", "answer"],
+        answer="fabricated preference",
+        abstain=False,
+        citation_ids=["derived"],
+    )
+    unverified = Case.model_validate(data)
+    row, _ = run_case(unverified, "gold_authorized")
+    assert "derived" not in row["packed_ids"]
+    assert row["task_status"] == "failed"
+    assert row["action_trace"][-1]["action"] == "abstain"
+
+
+def _expect_answer(case_data, *, answer, citation_id):
+    case_data["expected"].update(
+        required_actions=["inspect", "answer"],
+        answer=answer,
+        abstain=False,
+        citation_ids=[citation_id],
+    )
+    case_data["gold_evidence_ids"] = [citation_id]
+    return Case.model_validate(case_data)
+
+
+def test_scope_guards_have_single_dimension_negative_and_positive_twins(corpus, monkeypatch):
+    from personal_ai.evaluation import memory_task_runtime as runtime
+
+    workflow = case(corpus, "WF-04")
+    normal, _ = run_case(workflow, "full_eligible_history")
+    assert normal["task_status"] == "passed"
+    assert "other_repo" not in normal["packed_ids"]
+    original = runtime.diagnostic_scope_matches
+
+    def ignore_workspace(active, source):
+        return (
+            active.owner_id == source.owner_id
+            and active.application_id == source.application_id
+            and active.branch == source.branch
+        )
+
+    monkeypatch.setattr(runtime, "diagnostic_scope_matches", ignore_workspace)
+    wrong_workspace, _ = run_case(workflow, "full_eligible_history")
+    assert "other_repo" in wrong_workspace["packed_ids"]
+    assert wrong_workspace["execution_status"] == "failed"
+    assert any("action_evidence_scope_mismatch" in item for item in wrong_workspace["invariant_violations"])
+    monkeypatch.setattr(runtime, "diagnostic_scope_matches", original)
+
+    positive_data = workflow.model_dump(mode="json")
+    next(s for s in positive_data["sources"] if s["source_id"] == "other_repo")["scope"] = (
+        workflow.scope.model_dump(mode="json")
+    )
+    positive = _expect_answer(positive_data, answer="make test", citation_id="other_repo")
+    positive_row, _ = run_case(positive, "gold_authorized")
+    assert positive_row["task_status"] == positive_row["execution_status"] == "passed"
+
+    app_only = case(corpus, "AU-02")
+    app_row, _ = run_case(app_only, "full_eligible_history")
+    assert app_row["task_status"] == "passed" and not app_row["packed_ids"]
+    app_source = app_only.sources[0]
+
+    def ignore_application(active, source):
+        return (
+            active.owner_id == source.owner_id
+            and active.workspace_id == source.workspace_id
+            and active.branch == source.branch
+        )
+
+    monkeypatch.setattr(runtime, "diagnostic_scope_matches", ignore_application)
+    app_mutant, _ = run_case(app_only, "full_eligible_history")
+    assert app_source.source_id in app_mutant["packed_ids"]
+    assert app_mutant["execution_status"] == "failed"
+    assert any("action_evidence_scope_mismatch" in item for item in app_mutant["invariant_violations"])
+    monkeypatch.setattr(runtime, "diagnostic_scope_matches", original)
+
+    workspace_only_data = app_only.model_dump(mode="json")
+    workspace_only_data["sources"][0]["scope"].update(
+        application_id=app_only.scope.application_id,
+        workspace_id="repo-beta",
+    )
+    workspace_only = Case.model_validate(workspace_only_data)
+    workspace_row, _ = run_case(workspace_only, "full_eligible_history")
+    assert workspace_row["task_status"] == "passed" and not workspace_row["packed_ids"]
+
+    monkeypatch.setattr(runtime, "diagnostic_scope_matches", ignore_workspace)
+    workspace_mutant, _ = run_case(workspace_only, "full_eligible_history")
+    assert workspace_only.sources[0].source_id in workspace_mutant["packed_ids"]
+    assert workspace_mutant["execution_status"] == "failed"
+    monkeypatch.setattr(runtime, "diagnostic_scope_matches", original)
+
+    positive_data = app_only.model_dump(mode="json")
+    positive_data["sources"][0]["scope"] = app_only.scope.model_dump(mode="json")
+    positive = _expect_answer(positive_data, answer="private canary", citation_id="other_app")
+    positive_row, _ = run_case(positive, "gold_authorized")
+    assert positive_row["task_status"] == positive_row["execution_status"] == "passed"
+
+
+def test_effective_time_guard_has_observed_future_negative_and_positive_twins(corpus, monkeypatch):
+    from personal_ai.evaluation import memory_task_runtime as runtime
+
+    temporal = case(corpus, "TF-03")
+    future = next(source for source in temporal.sources if source.source_id == "future")
+    assert future.observed_at <= temporal.clock_utc
+    assert future.effective_at > temporal.task.as_of
+    normal, _ = run_case(temporal, "full_eligible_history")
+    assert "future" not in normal["packed_ids"]
+    assert normal["task_status"] == "passed"
+
+    original = runtime.diagnostic_time_matches
+
+    def ignore_effective_date(case_value, source):
+        return (
+            source.observed_at <= case_value.clock_utc
+            and (source.expires_at is None or source.expires_at > case_value.clock_utc)
+        )
+
+    monkeypatch.setattr(runtime, "diagnostic_time_matches", ignore_effective_date)
+    mutant, _ = run_case(temporal, "full_eligible_history")
+    assert "future" in mutant["packed_ids"]
+    assert mutant["task_status"] == "failed"
+    monkeypatch.setattr(runtime, "diagnostic_time_matches", original)
+
+    positive_data = temporal.model_dump(mode="json")
+    future_data = next(s for s in positive_data["sources"] if s["source_id"] == "future")
+    future_data["effective_at"] = "2026-10-01T00:00:00Z"
+    positive = _expect_answer(positive_data, answer="policy-v2", citation_id="future")
+    positive_row, _ = run_case(positive, "full_eligible_history")
+    assert positive_row["task_status"] == positive_row["execution_status"] == "passed"
+
+
+def test_repeated_failure_case_and_one_failure_control_are_distinct(corpus):
+    repeated = case(corpus, "CO-04")
+    failures = [
+        source.receipt
+        for source in repeated.sources
+        if source.receipt and source.receipt.outcome == "failure"
+    ]
+    assert len(failures) == 2
+    assert len({receipt.run_id for receipt in failures}) == 2
+    control_data = repeated.model_dump(mode="json")
+    control_data["sources"] = [
+        source for source in control_data["sources"]
+        if source["source_id"] != "repeat_failure_prior"
+    ]
+    one_failure_control = Case.model_validate(control_data)
+    control_receipts = [
+        source.receipt
+        for source in one_failure_control.sources
+        if source.receipt and source.receipt.outcome == "failure"
+    ]
+    assert len(control_receipts) == 1
+
+
+def test_useful_answer_and_untrusted_instruction_are_mixed_in_history(corpus):
+    c = case(corpus, "IR-03")
+    row, _ = run_case(c, "gold_authorized")
+    assert set(row["consumed_ids"]) == {"useful_format", "injection"}
+    answer = next(item for item in row["action_trace"] if item["action"] == "answer")
+    assert answer["answer"] == "concise bullets"
+    assert answer["evidence_ids"] == ["useful_format"]
+    assert row["task_status"] == row["execution_status"] == "passed"
 
 
 def test_prohibited_actions_and_blanket_abstention_cannot_game_scorer(corpus):

@@ -10,15 +10,24 @@ from importlib.metadata import version
 from pathlib import Path
 from time import perf_counter, process_time
 
+from pydantic import ValidationError
+
 from personal_ai.context.builder import ContextBuilder, ContextBuildItem, ContextBuildPolicy
 from personal_ai.context.providers import ContextSourceReference
-from personal_ai.evaluation.memory_task_contracts import ARMS, FAMILIES, Case, Corpus
+from personal_ai.evaluation.memory_task_contracts import (
+    ARMS,
+    FAMILIES,
+    ActionTrace,
+    Case,
+    Corpus,
+    diagnostic_claim,
+)
 from personal_ai.evaluation.memory_task_driver import DriverInput, run_driver
 from personal_ai.evaluation.memory_task_runtime import Environment, visible_source
 from personal_ai.memory.services import MemoryRetriever
 
 ROOT = Path(__file__).resolve().parents[4]
-FIXTURES = Path(__file__).parent / "fixtures/memory/mem0-cases-v1.json"
+FIXTURES = Path(__file__).parent / "fixtures/memory/mem0-cases-v2.json"
 OUTPUT = ROOT / "artifacts/mem0"
 UNVERIFIED = (
     "real_model_task_quality",
@@ -54,40 +63,287 @@ def load_corpus(path=FIXTURES):
     return Corpus.model_validate_json(path.read_bytes())
 
 
+def validate_action_trace(case, actions, consumed_ids):
+    """Validate causal order, source/result bindings and action cardinality."""
+    violations = []
+    normalized = []
+    sources = {source.source_id: source for source in case.sources}
+    for index, action in enumerate(actions):
+        try:
+            payload = action.model_dump(mode="json") if isinstance(action, ActionTrace) else action
+            action = ActionTrace.model_validate(payload)
+            normalized.append(action)
+        except (AttributeError, TypeError, ValidationError):
+            violations.append(f"action_payload_invalid:{index}")
+            normalized.append(None)
+    names = [action.action if action is not None else "invalid" for action in normalized]
+    if len(names) != len(set(names)):
+        violations.append("duplicate_action")
+    for index, action in enumerate(normalized):
+        if action is None:
+            continue
+        if action.revision != case.task.revision:
+            violations.append(f"action_revision_mismatch:{index}")
+        if action.action not in case.task.allowed_actions:
+            violations.append(f"action_outside_tool_authority:{index}")
+        for source_id in action.evidence_ids:
+            if source_id not in sources or source_id not in consumed_ids:
+                violations.append(f"action_evidence_unavailable:{index}:{source_id}")
+            elif sources[source_id].scope != case.scope:
+                violations.append(f"action_evidence_scope_mismatch:{index}:{source_id}")
+
+    by_name = {action.action: action for action in normalized if action is not None}
+    read = by_name.get("read_current")
+    check = by_name.get("check_revision")
+    if read:
+        query_subject = "revision" if case.task.operation == "workflow" else case.task.subject
+        if read.result.get("subject") != query_subject:
+            violations.append("current_read_subject_mismatch")
+        if read.evidence_ids:
+            source = sources.get(read.evidence_ids[0])
+            claim = diagnostic_claim(source) if source else None
+            if (
+                not source
+                or not source.current
+                or source.authority != "canonical_domain_version"
+                or claim != (read.result.get("subject"), read.result.get("value"))
+            ):
+                violations.append("current_read_result_unbound")
+        elif read.result.get("value") != "not_found" or any(
+            source.current
+            and source.authority == "canonical_domain_version"
+            and source.fact
+            and source.fact.subject == query_subject
+            for source in case.sources
+        ):
+            violations.append("current_read_negative_result_unbound")
+
+    if check:
+        expected = check.arguments.get("expected_revision")
+        observed = check.result.get("observed_revision")
+        if expected != case.task.revision:
+            violations.append("revision_check_expected_task_mismatch")
+        if check.evidence_ids:
+            source = sources.get(check.evidence_ids[0])
+            if not source or observed != source.revision and not (
+                case.task.operation == "workflow"
+                and source.fact
+                and source.fact.subject == "revision"
+                and observed == source.fact.value
+            ):
+                violations.append("revision_check_result_unbound")
+            if check.verification != ("verified" if observed == expected else "failed"):
+                violations.append("revision_check_verification_forged")
+        elif observed != "not_found" or check.verification != "failed":
+            violations.append("revision_check_missing_read")
+        if case.task.operation == "workflow":
+            if not read or check.evidence_ids != read.evidence_ids:
+                violations.append("workflow_revision_check_not_bound_to_read")
+            if not read or check.result.get("observed_revision") != read.result.get("value"):
+                violations.append("workflow_revision_check_read_result_mismatch")
+
+    if case.task.operation == "workflow":
+        if names[:3] != ["inspect", "read_current", "check_revision"]:
+            violations.append("workflow_precondition_order_invalid")
+        if check and check.verification != "verified":
+            expected_tail = ["abstain"]
+        elif "reuse_workflow" in names:
+            expected_tail = ["reuse_workflow", "answer"]
+        elif "avoid_failed" in names:
+            expected_tail = ["avoid_failed", "answer"]
+        else:
+            expected_tail = ["abstain"]
+        if names[3:] != expected_tail:
+            violations.append("workflow_action_order_or_cardinality_invalid")
+    elif case.task.operation == "reconcile":
+        expected_tail = ["answer"] if "answer" in names else ["abstain"]
+        if names != ["inspect", "reconcile", *expected_tail]:
+            violations.append("reconcile_action_order_or_cardinality_invalid")
+    elif case.task.operation == "compute":
+        if names != ["inspect", "answer"]:
+            violations.append("compute_action_order_or_cardinality_invalid")
+    elif case.task.operation == "current":
+        if names not in (["inspect", "read_current", "answer"], ["inspect", "read_current", "abstain"]):
+            violations.append("current_action_order_or_cardinality_invalid")
+    else:
+        allowed = (["inspect", "answer"], ["inspect", "abstain"],
+                   ["inspect", "check_revision", "answer"],
+                   ["inspect", "check_revision", "abstain"])
+        if names not in allowed:
+            violations.append("recall_action_order_or_cardinality_invalid")
+
+    reuse = by_name.get("reuse_workflow")
+    avoid = by_name.get("avoid_failed")
+    for action, outcome, verification in (
+        (reuse, "success", "verified"),
+        (avoid, "failure", "failed"),
+    ):
+        if action is None:
+            continue
+        source = sources.get(action.evidence_ids[0]) if len(action.evidence_ids) == 1 else None
+        receipt = source.receipt if source else None
+        if (
+            not check
+            or check.verification != "verified"
+            or not receipt
+            or source.authority != "tool_receipt_verified"
+            or receipt.outcome != outcome
+            or action.verification != verification
+            or action.receipt_id != receipt.receipt_id
+            or action.revision != receipt.revision
+            or action.revision != case.task.revision
+            or action.arguments.get("command") != receipt.command
+            or action.result != {"outcome": outcome, "run_id": receipt.run_id}
+        ):
+            violations.append(f"workflow_receipt_binding_invalid:{action.action}")
+        if action.action == "reuse_workflow" and receipt and action.arguments.get("command") != source.fact.value:
+            violations.append("workflow_command_result_mismatch")
+
+    reconcile = by_name.get("reconcile")
+    if reconcile:
+        task = case.task
+        identity = {
+            "effect_key": task.effect_key,
+            "run_id": task.effect_run_id,
+            "command": task.effect_command,
+        }
+        if reconcile.arguments != identity:
+            violations.append("reconcile_request_identity_mismatch")
+        if reconcile.scope != case.scope:
+            violations.append("reconcile_request_scope_mismatch")
+        observation = None
+        if len(reconcile.evidence_ids) == 1:
+            source = sources.get(reconcile.evidence_ids[0])
+            observation = source.observation if source else None
+            if (
+                not source
+                or not source.current
+                or source.scope != case.scope
+                or source.authority != "canonical_domain_version"
+                or not observation
+                or observation.scope != case.scope
+                or observation.effect_key != task.effect_key
+                or observation.run_id != task.effect_run_id
+                or observation.command != task.effect_command
+                or observation.original_revision != task.revision
+                or source.revision != task.revision
+            ):
+                violations.append("reconcile_observation_identity_mismatch")
+        if observation:
+            expected_verification = {
+                "success": "verified", "failure": "failed",
+                "uncertain": "unknown", "partial": "unknown",
+            }[observation.outcome]
+            expected_result = {
+                **identity,
+                "outcome": observation.outcome,
+                "observation_id": observation.observation_id,
+            }
+            if (
+                reconcile.result != expected_result
+                or reconcile.receipt_id != observation.observation_id
+                or reconcile.verification != expected_verification
+            ):
+                violations.append("reconcile_observation_result_unbound")
+        elif (
+            reconcile.evidence_ids
+            or reconcile.result != {**identity, "outcome": "unknown", "observation_id": ""}
+            or reconcile.receipt_id is not None
+            or reconcile.verification != "unknown"
+        ):
+            violations.append("reconcile_unknown_result_forged")
+
+    answer_actions = [
+        action for action in normalized if action is not None and action.action == "answer"
+    ]
+    if answer_actions:
+        answer = answer_actions[0]
+        task = case.task
+        if task.operation == "compute":
+            if answer.evidence_ids or answer.answer != str(sum(task.operands)):
+                violations.append("compute_answer_unbound")
+        elif task.operation == "workflow":
+            source_action = reuse or avoid
+            source = sources.get(source_action.evidence_ids[0]) if source_action and source_action.evidence_ids else None
+            expected_answer = (
+                source.fact.value if reuse and source and source.fact
+                else "avoid:" + source.fact.value if avoid and source and source.fact
+                else None
+            )
+            if (
+                expected_answer is None
+                or answer.answer != expected_answer
+                or source_action.evidence_ids != answer.evidence_ids
+            ):
+                violations.append("workflow_answer_not_bound_to_receipt")
+        elif task.operation == "reconcile":
+            source = sources.get(reconcile.evidence_ids[0]) if reconcile and reconcile.evidence_ids else None
+            observation = source.observation if source else None
+            expected_answers = {
+                "success": "effect_confirmed_observed_original_key",
+                "failure": "effect_failed_inspect_original_key",
+                "uncertain": "effect_uncertain_inspect_original_key",
+                "partial": "effect_uncertain_inspect_original_key",
+            }
+            if (
+                not observation
+                or answer.answer != expected_answers[observation.outcome]
+                or answer.evidence_ids != reconcile.evidence_ids
+            ):
+                violations.append("reconcile_answer_not_bound_to_observation")
+        else:
+            if len(answer.evidence_ids) != 1:
+                violations.append("answer_requires_one_source")
+            else:
+                source = sources.get(answer.evidence_ids[0])
+                claim = diagnostic_claim(source) if source else None
+                if (
+                    not source
+                    or not source.granted
+                    or source.scope != case.scope
+                    or source.authority in ("untrusted_external", "model_proposed")
+                    or source.authority == "historical_derived"
+                    and source.support_recipe != "exact_all_v1"
+                    or claim != (task.subject, answer.answer)
+                ):
+                    violations.append("answer_not_bound_to_authorized_fact")
+
+    citations = {
+        source_id
+        for action in answer_actions
+        for source_id in action.evidence_ids
+    }
+    unsupported_refs = sorted(
+        source_id
+        for action in normalized
+        if action is not None
+        for source_id in action.evidence_ids
+        if source_id not in consumed_ids
+    )
+    return sorted(set(violations)), citations, unsupported_refs
+
+
 def grade(case, actions, consumed_ids):
-    """Post-execution scorer. No reference to this function in the task driver."""
+    """Post-execution scorer and independent finite action-contract validator."""
     rubric = case.expected
-    observed = [a.action for a in actions]
-    answers = [a.answer for a in actions if a.action == "answer"]
-    citations = {key for a in actions for key in a.evidence_ids}
+    observed = [getattr(action, "action", "invalid") for action in actions]
+    answers = [
+        getattr(action, "answer", None)
+        for action in actions
+        if getattr(action, "action", None) == "answer"
+    ]
+    trace_violations, citations, unsupported_refs = validate_action_trace(
+        case, actions, consumed_ids
+    )
     required = set(rubric.required_actions)
     forbidden = sum(a in rubric.prohibited_actions for a in observed)
     missing = sorted(required - set(observed))
     abstained = "abstain" in observed
     answer_correct = answers == ([] if rubric.abstain else [rubric.answer])
     citation_correct = set(rubric.citation_ids) <= citations
-    unsupported_refs = sorted(citations - set(consumed_ids))
-    sources = {s.source_id: s for s in case.sources}
-    invalid_success = []
-    for action in actions:
-        if action.action != "reuse_workflow":
-            continue
-        valid = len(action.evidence_ids) == 1
-        for key in action.evidence_ids:
-            source = sources.get(key)
-            valid = bool(
-                valid
-                and source
-                and source.receipt
-                and source.authority == "tool_receipt_verified"
-                and source.receipt.outcome == "success"
-                and source.receipt.receipt_id == action.receipt_id
-                and source.receipt.revision == action.revision == case.task.revision
-                and action.arguments.get("command") == source.receipt.command
-                and action.verification == "verified"
-            )
-        if not valid:
-            invalid_success.append(action.action)
+    invalid_success = [
+        item for item in trace_violations if item.startswith("workflow_receipt_binding_invalid")
+    ]
     passed = (
         not missing
         and not forbidden
@@ -95,7 +351,7 @@ def grade(case, actions, consumed_ids):
         and citation_correct
         and abstained == rubric.abstain
         and not unsupported_refs
-        and not invalid_success
+        and not trace_violations
     )
     return {
         "passed": passed,
@@ -110,6 +366,7 @@ def grade(case, actions, consumed_ids):
         "incorrect_abstention": abstained != rubric.abstain,
         "unsupported_evidence_ids": unsupported_refs,
         "unverified_success_claims": invalid_success,
+        "action_contract_violations": trace_violations,
     }
 
 
@@ -207,7 +464,7 @@ def run_case(case: Case, arm):
         visible = tuple(
             [visible_source(env.sources[k]) for k in current_ids] + [evidence[k] for k in consumed]
         )
-        view = DriverInput(task=case.task, evidence=visible)
+        view = DriverInput(task=case.task, scope=case.scope, evidence=visible)
         actions = run_driver(view)
         scores = grade(case, actions, (*current_ids, *consumed))
     eligible_gold = {key for key in case.gold_evidence_ids if env.eligible(key)}
@@ -225,6 +482,7 @@ def run_case(case: Case, arm):
         applicability = "truncated"
         reasons.append("eligible_history_exceeds_final_budget")
     violations = []
+    violations.extend(scores["action_contract_violations"])
     if invalid_packed:
         violations.append("ineligible_packed_source")
     if scores["unsupported_evidence_ids"]:
@@ -425,7 +683,7 @@ def write_run(fixtures=FIXTURES, output=OUTPUT):
         "fixture_sha256": before,
         "schema_sha256": digest(Corpus.model_json_schema()),
         "runner_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
-        "policy_versions": ["memory-read-v1", "mem0-scripted-policy-v1", "mem0-rubric-v1"],
+        "policy_versions": ["memory-read-v1", "mem0-scripted-policy-v2", "mem0-rubric-v2"],
         "profile": "synthetic-offline-no-provider-dispatch",
         "seed": 0,
         "arms": ARMS,

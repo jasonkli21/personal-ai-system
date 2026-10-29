@@ -5,15 +5,19 @@ JSON fixtures live under `fixtures/<area>/`; output schemas live under `schemas/
 exercise services through synthetic inputs and do not establish provider, cloud, or deployment
 behavior.
 
-MEM-0 adds `make memory-task-eval`: 30 synthetic cases, four historical-context
-arms, actual fixed memory retrieval/revalidation/packing where v1-compatible, and
-an independent finite scripted task policy. The command runs twice and writes
-sanitized semantic results and separate timings to ignored `artifacts/mem0/`.
-It has no provider dispatch mode. See the
+MEM-0 adds `make memory-task-eval`: the active v2 corpus has 30 synthetic cases,
+four historical-context arms, action-specific causal traces, keyed effect
+observations, exact diagnostic-derived support, and actual fixed memory
+retrieval/revalidation/packing where v1-compatible. The command runs twice and
+writes sanitized semantic results and separate timings to ignored
+`artifacts/mem0/`. It has no provider dispatch mode. Corpus v1 remains frozen
+historical evidence. See the
 [benchmark contract](../../../../docs/personal-ai-chapter-2/memory/mem-0-benchmark-contract.md)
 and [baseline report](../../../../docs/personal-ai-chapter-2/memory/mem-0-baseline-report.md).
 Unsupported and truncated cases have explicit paired-comparison exclusions;
 scripted task proxy success is not measured model quality or native-store evidence.
+The independent review and bounded remediation are recorded separately; fresh
+independent re-verification remains a gate for accepting the baseline.
 
 Phase 36's `verification/` program indexes existing executable contracts and
 original acceptance obligations in a strict versioned matrix. `make

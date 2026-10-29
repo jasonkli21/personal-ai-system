@@ -64,10 +64,25 @@ class Fact(Record):
 class Receipt(Record):
     receipt_id: str = Field(min_length=1, max_length=100)
     run_id: str = Field(min_length=1, max_length=100)
+    effect_key: str | None = Field(default=None, min_length=1, max_length=100)
     issuer: Literal["synthetic-tool"]
     revision: str = Field(min_length=1, max_length=100)
     command: str = Field(min_length=1, max_length=200)
     outcome: Literal["success", "failure", "uncertain", "partial"]
+    observed_at: datetime
+    _utc = field_validator("observed_at")(utc)
+
+
+class EffectObservation(Record):
+    """Evaluation-only canonical observation bound to one original effect."""
+
+    scope: Scope
+    effect_key: str = Field(min_length=1, max_length=100)
+    run_id: str = Field(min_length=1, max_length=100)
+    command: str = Field(min_length=1, max_length=200)
+    original_revision: str = Field(min_length=1, max_length=100)
+    outcome: Literal["success", "failure", "uncertain", "partial"]
+    observation_id: str = Field(min_length=1, max_length=100)
     observed_at: datetime
     _utc = field_validator("observed_at")(utc)
 
@@ -95,7 +110,9 @@ class Source(Record):
     current: bool = False
     fixed_type: MemoryType | None = None
     support_ids: tuple[str, ...] = Field(default=(), max_length=16)
+    support_recipe: Literal["exact_all_v1", "eligibility_only_unverified"] | None = None
     receipt: Receipt | None = None
+    observation: EffectObservation | None = None
     expires_at: datetime | None = None
     similarity: float = Field(default=0.95, ge=0, le=1)
     _utc = field_validator("observed_at", "effective_at")(utc)
@@ -119,12 +136,27 @@ class Source(Record):
         if self.authority == "tool_receipt_verified" and self.receipt is None:
             raise ValueError("missing_receipt")
         if self.receipt and (
-            self.receipt.revision != self.revision
+            self.authority != "tool_receipt_verified"
+            or self.receipt.revision != self.revision
             or self.receipt.observed_at > self.observed_at
             or self.fact is None
             or self.receipt.command != self.fact.value
         ):
             raise ValueError("receipt_binding_invalid")
+        if self.observation and (
+            self.authority != "canonical_domain_version"
+            or not self.current
+            or self.observation.scope != self.scope
+            or self.observation.observed_at > self.observed_at
+        ):
+            raise ValueError("effect_observation_binding_invalid")
+        if self.authority == "historical_derived":
+            if not self.support_ids:
+                raise ValueError("derived_support_required")
+            if self.support_recipe is None:
+                object.__setattr__(self, "support_recipe", "eligibility_only_unverified")
+        elif self.support_recipe is not None:
+            raise ValueError("support_recipe_only_for_derived")
         if len(set(self.support_ids)) != len(self.support_ids):
             raise ValueError("duplicate_support")
         return self
@@ -141,6 +173,9 @@ class Task(Record):
     operation: Literal["recall", "workflow", "current", "as_of", "reconcile", "compute"]
     subject: str = Field(min_length=1, max_length=80)
     revision: str = Field(min_length=1, max_length=100)
+    effect_key: str | None = Field(default=None, min_length=1, max_length=100)
+    effect_run_id: str | None = Field(default=None, min_length=1, max_length=100)
+    effect_command: str | None = Field(default=None, min_length=1, max_length=200)
     as_of: datetime
     use_memory: bool = True
     operands: tuple[int, int] | None = None
@@ -155,6 +190,9 @@ class Task(Record):
             raise ValueError("compute_operands_required")
         if self.operands and any(abs(v) > 10000 for v in self.operands):
             raise ValueError("operands_too_large")
+        identity = (self.effect_key, self.effect_run_id, self.effect_command)
+        if self.operation != "reconcile" and any(value is not None for value in identity):
+            raise ValueError("effect_identity_only_for_reconcile")
         return self
 
 
@@ -186,7 +224,7 @@ class Review(Record):
 
 
 class Case(Record):
-    schema_version: Literal["mem0-task-case-v1"]
+    schema_version: Literal["mem0-task-case-v1", "mem0-task-case-v2"]
     case_id: str = Field(pattern=r"^MEM0-(WF|PR|CO|TF|AU|IR)-0[1-5]$")
     family: Family
     split: Literal["development", "calibration", "frozen_holdout"]
@@ -246,6 +284,14 @@ class Case(Record):
                 and source.expires_at <= self.clock_utc
             ):
                 raise ValueError("invalid_current_context")
+            if source.authority == "historical_derived" and source.support_recipe == "exact_all_v1":
+                if source.fact is None:
+                    raise ValueError("derived_fact_required")
+                support_claims = [diagnostic_claim(sources[key]) for key in source.support_ids]
+                if any(claim is None for claim in support_claims) or any(
+                    claim != (source.fact.subject, source.fact.value) for claim in support_claims
+                ):
+                    raise ValueError("derived_exact_support_mismatch")
         visited = set()
 
         def visit(key, stack):
@@ -278,16 +324,46 @@ class Case(Record):
 
             if not gold_valid(sources[key]):
                 raise ValueError("gold_not_initially_authorized")
+        if self.schema_version == "mem0-task-case-v2" and self.task.operation == "reconcile" and any(
+            value is None
+            for value in (
+                self.task.effect_key,
+                self.task.effect_run_id,
+                self.task.effect_command,
+            )
+        ):
+            raise ValueError("reconcile_effect_identity_required")
+        if self.task.operation == "reconcile" and self.task.effect_key is not None:
+            matching_receipts = [
+                source.receipt
+                for source in self.sources
+                if source.receipt
+                and source.authority == "tool_receipt_verified"
+                and source.scope == self.scope
+                and not source.current
+                and source.receipt.effect_key == self.task.effect_key
+                and source.receipt.run_id == self.task.effect_run_id
+                and source.receipt.command == self.task.effect_command
+                and source.receipt.revision == self.task.revision
+            ]
+            if len(matching_receipts) != 1:
+                raise ValueError("reconcile_original_receipt_identity_invalid")
         return self
 
 
 class Corpus(Record):
-    benchmark_version: Literal["mem0-v1"]
-    rubric_version: Literal["mem0-rubric-v1"]
+    benchmark_version: Literal["mem0-v1", "mem0-v2"]
+    rubric_version: Literal["mem0-rubric-v1", "mem0-rubric-v2"]
     cases: tuple[Case, ...] = Field(min_length=30, max_length=100)
 
     @model_validator(mode="after")
     def coverage(self):
+        expected_case_version = "mem0-task-case-v1" if self.benchmark_version == "mem0-v1" else "mem0-task-case-v2"
+        expected_rubric_version = "mem0-rubric-v1" if self.benchmark_version == "mem0-v1" else "mem0-rubric-v2"
+        if self.rubric_version != expected_rubric_version or any(
+            case.schema_version != expected_case_version for case in self.cases
+        ):
+            raise ValueError("corpus_version_mismatch")
         if len({c.case_id for c in self.cases}) != len(self.cases):
             raise ValueError("duplicate_case_id")
         for family in FAMILIES:
@@ -307,6 +383,8 @@ class ActionTrace(Record):
     receipt_id: str | None = None
     verification: Literal["verified", "failed", "unknown", "not_applicable"]
     answer: str | None = Field(default=None, max_length=200)
+    result: dict[str, str] = Field(default_factory=dict, max_length=5)
+    scope: Scope | None = None
 
     @field_validator("arguments")
     @classmethod
@@ -314,3 +392,85 @@ class ActionTrace(Record):
         if any(len(k) > 80 or len(v) > 200 for k, v in value.items()):
             raise ValueError("action_arguments_too_large")
         return value
+
+    @field_validator("result")
+    @classmethod
+    def bounded_result(cls, value):
+        if any(len(key) > 80 or len(item) > 200 for key, item in value.items()):
+            raise ValueError("action_result_too_large")
+        return value
+
+    @model_validator(mode="after")
+    def action_payload_contract(self):
+        empty = not self.arguments and not self.evidence_ids and self.receipt_id is None
+        if self.action == "inspect":
+            valid = empty and self.answer is None and not self.result and self.verification == "not_applicable" and self.scope is None
+        elif self.action == "read_current":
+            valid = (
+                not self.arguments and len(self.evidence_ids) in (0, 1) and self.answer is None
+                and self.receipt_id is None and set(self.result) == {"subject", "value"}
+                and self.verification == "verified"
+                and (self.result.get("value") == "not_found") == (not self.evidence_ids)
+                and self.scope is None
+            )
+        elif self.action == "check_revision":
+            valid = (
+                set(self.arguments) == {"expected_revision"} and len(self.evidence_ids) in (0, 1)
+                and self.answer is None and self.receipt_id is None
+                and set(self.result) == {"observed_revision"}
+                and self.verification in ("verified", "failed")
+                and (self.result.get("observed_revision") == "not_found") == (not self.evidence_ids)
+                and self.scope is None
+            )
+        elif self.action in ("reuse_workflow", "avoid_failed"):
+            outcome = "success" if self.action == "reuse_workflow" else "failure"
+            valid = (
+                set(self.arguments) == {"command"} and len(self.evidence_ids) == 1
+                and self.receipt_id is not None and self.answer is None
+                and set(self.result) == {"outcome", "run_id"}
+                and self.result.get("outcome") == outcome
+                and self.verification == ("verified" if outcome == "success" else "failed")
+                and self.scope is None
+            )
+        elif self.action == "reconcile":
+            valid = (
+                set(self.arguments) == {"effect_key", "run_id", "command"}
+                and len(self.evidence_ids) in (0, 1) and self.answer is None
+                and self.verification in ("verified", "failed", "unknown")
+                and set(self.result) == {"effect_key", "run_id", "command", "outcome", "observation_id"}
+                and self.result.get("outcome") in ("success", "failure", "uncertain", "partial", "unknown")
+                and (self.result.get("outcome") == "unknown") == (not self.evidence_ids)
+                and (self.receipt_id is not None) == bool(self.evidence_ids)
+                and self.scope is not None
+            )
+        elif self.action == "answer":
+            valid = (
+                not self.arguments and self.answer is not None and self.receipt_id is None
+                and not self.result and self.verification == "not_applicable"
+                and self.scope is None
+            )
+        elif self.action == "abstain":
+            valid = (
+                empty and self.answer is None and not self.result and self.verification == "unknown"
+                and self.scope is None
+            )
+        else:
+            # Prohibited actions remain representable so the independent grader
+            # can report them, but they carry no claims of successful authority.
+            valid = self.answer is None and self.receipt_id is None and not self.result and self.scope is None
+        if not valid:
+            raise ValueError("action_payload_contract_invalid:" + self.action)
+        return self
+
+
+def diagnostic_claim(source: Source) -> tuple[str, str] | None:
+    """Return the exact structured claim available to the finite harness."""
+    if source.fact is not None:
+        return source.fact.subject, source.fact.value
+    if source.fixed_type:
+        import re
+
+        match = re.fullmatch(r"(?:Correction: I now prefer|I prefer) (.+)\.", source.content)
+        if match:
+            return "response_format", match[1]
+    return None
