@@ -30,6 +30,15 @@ constraint → Shopping note. Domain apps retain canonical data, UI, revisions,
 validation and consent. Personal AI persists only orchestration intent and
 outcomes. Tasks do not invoke model providers or automate purchases.
 
+## Platform Independence / freeze status
+
+[PI-0](platform-independence/pi-0-implementation-report.md) establishes a local
+architecture/documentation/dependency-diagnostic baseline with no runtime change;
+independent PI-0 acceptance remains pending. [PI-1 through PI-8](platform-independence/README.md)
+are not delivered. The user-directed memory feature freeze stops at MEM-2:
+MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
+semantics and independent/security/production gates remain in force.
+
 ## MEM-0 research baseline
 
 MEM-0 remains an opt-in offline benchmark. The active v2 corpus has 30 synthetic

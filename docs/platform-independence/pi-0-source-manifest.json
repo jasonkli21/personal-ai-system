@@ -1,0 +1,81 @@
+{
+  "base_revision": "8571a8af33969f249614c2652a7d29c0c686f2d8",
+  "baseline_files": [
+    {
+      "path": "backend/scripts/platform_dependency_inventory.py",
+      "sha256": "6a02705b5e4e9d1278efdd3854a84f909e4edf3d58f57c5d5650c0a4633f458b"
+    },
+    {
+      "path": "backend/tests/test_platform_dependency_inventory.py",
+      "sha256": "f4bd9efa2c05fc14b28cadb311719a8158d22d3939fe84b70d80e987866909a7"
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "00c5b46bdce4b2aca83fba7efde0a4d3fb4dec11e8ae4de38fa07b16e13eebb2"
+    },
+    {
+      "path": "docs/current-state.md",
+      "sha256": "966882efd21361c109875ac622d17dc9716fc265c51fef2da8df3588cb2b3e47"
+    },
+    {
+      "path": "docs/platform-independence/README.md",
+      "sha256": "469c60eb5bd5eaa4b5dbdd6d30a6a2df7681e8bb3b9d11c893cdfe9ba87598b3"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-architecture-decisions.md",
+      "sha256": "927b1185f6ee7052fcb83d8e68ade1bb7e90d36002e4204a8187a19196279e52"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-dependency-inventory.json",
+      "sha256": "c4513296e504bd65b4d62b409764475a494098ff11366b71cef499ca17a2c73c"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-dependency-inventory.md",
+      "sha256": "1f5f0ee20a8c03b40021fced4a6d8a49ec63e971d682e9342378d22a7e0d7709"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-exit-contract.md",
+      "sha256": "8f79447b09dc8d9d3ed3d6fc5669119ae94e90e1312ac2dac13cc44258400933"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-import-waivers.json",
+      "sha256": "d562cff9fa3fc34cc917c884c2244badc68e8329437f7ce57d970422825de47e"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-review.md",
+      "sha256": "0445766bfadfa00e2bee450048bab7035e7e99cd38e2b22fa3d944e5fa9ef660"
+    },
+    {
+      "path": "docs/platform-independence/pi-0-sol-codex-handoff.md",
+      "sha256": "edff40e422e02d2caab41974eee9b2df99c31f7b3922b1357152dd5001ac1387"
+    },
+    {
+      "path": "docs/platform-independence/platform-independence-roadmap.md",
+      "sha256": "082c2b75e71a70032445b1b6e8b89b9bdd1c1c4d8ca00d9a1f3f5fed948b9779"
+    }
+  ],
+  "branch": "main",
+  "frozen_digest_algorithm": "SHA256 of sorted repo-relative UTF-8 path + NUL + raw SHA256(file bytes), repeated for git ls-files -z -- frozen_tracked_paths; excludes untracked files.",
+  "frozen_tracked_content_sha256": "7db9d2bc6440658bc296f988a2abeaa4d10668319dbb4fb3246906236d1e7310",
+  "frozen_tracked_file_count": 694,
+  "frozen_tracked_paths": [
+    "backend/src",
+    "frontend",
+    "experiments",
+    "backend/tests"
+  ],
+  "frozen_tree_objects": {
+    "backend/src": "4dd21603d0d2112f49b68bc30ab44fcda3fc245d",
+    "backend/tests": "937fabc33c2098c3f38c6ead033614269fdab2fe",
+    "experiments": "f8dc2b5e9efb635f821e26caf10b1d427c7de490",
+    "frontend": "104c132b1815565abff099f722749c955a18fada"
+  },
+  "preexisting_pi_document_sha256": {
+    "README.md": "f4a79a6b04e151251e6a6f859dd759187799d943fdbfcdf2ba1c252a20310afc",
+    "pi-0-review.md": "ee5c893d3cd52ecd1371fe24426afb5fe52f9d0226021a025ba6d1f8b09a2ea9",
+    "pi-0-sol-codex-handoff.md": "edff40e422e02d2caab41974eee9b2df99c31f7b3922b1357152dd5001ac1387",
+    "platform-independence-roadmap.md": "56f987f3d2f35639514dd5860988e6c57e04e44b5480a52698f9fdc12770f8b1"
+  },
+  "report_identity": "This manifest excludes itself and the report to avoid circular hashes; report binds this manifest by digest.",
+  "schema_version": 1
+}

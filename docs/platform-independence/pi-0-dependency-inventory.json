@@ -1,0 +1,850 @@
+{
+  "entries": [
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Wheel declares all four even when fallback is unused; zero-example test must inspect distribution metadata.",
+      "evidence": {
+        "lines": [
+          32
+        ],
+        "path": "backend/pyproject.toml"
+      },
+      "from": "backend/pyproject.toml::[project.entry-points.",
+      "kind": "default_registration",
+      "owner": "packaging",
+      "phase": "PI-1",
+      "to": "finance/health/shopping/travel -> personal_ai.context.* configured factories"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Count and summary remain Gemini-bound even with neutral generation contracts.",
+      "evidence": {
+        "lines": [
+          236
+        ],
+        "path": "backend/src/personal_ai/api/dependencies.py"
+      },
+      "from": "backend/src/personal_ai/api/dependencies.py::def get_context_assembler",
+      "kind": "factory_call",
+      "owner": "context composition",
+      "phase": "PI-3",
+      "to": "GeminiTokenCounter + GeminiConversationSummarizer; ContextAssembler"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "External preparation substitutes estimated counting; not proof of neutral ordinary provider dispatch.",
+      "evidence": {
+        "lines": [
+          294
+        ],
+        "path": "backend/src/personal_ai/api/dependencies.py"
+      },
+      "from": "backend/src/personal_ai/api/dependencies.py::def get_external_context_assembler",
+      "kind": "factory_call",
+      "owner": "context composition",
+      "phase": "PI-3",
+      "to": "get_context_assembler + EstimatedTokenCounter; summarizer=None"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Changing AI_PROVIDER alone does not replace ordinary workflow composition.",
+      "evidence": {
+        "lines": [
+          180
+        ],
+        "path": "backend/src/personal_ai/api/dependencies.py"
+      },
+      "from": "backend/src/personal_ai/api/dependencies.py::def get_llm_client",
+      "kind": "factory_call",
+      "owner": "inference composition",
+      "phase": "PI-3",
+      "to": "GeminiLLMClient(settings, usage_accounting=usage)"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Auxiliary memory calls must participate in same disclosure/cost policy.",
+      "evidence": {
+        "lines": [
+          315
+        ],
+        "path": "backend/src/personal_ai/api/dependencies.py"
+      },
+      "from": "backend/src/personal_ai/api/dependencies.py::def get_memory_adapter",
+      "kind": "factory_call",
+      "owner": "memory composition",
+      "phase": "PI-3",
+      "to": "GeminiMemoryAdapter"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "No production host installed; flags alone cannot supply issuer or source lease.",
+      "evidence": {
+        "lines": [
+          20
+        ],
+        "path": "backend/src/personal_ai/api/memory_control.py"
+      },
+      "from": "backend/src/personal_ai/api/memory_control.py::def get_memory_control_service",
+      "kind": "factory_call",
+      "owner": "memory controls",
+      "phase": "PI-4",
+      "to": "default-off memory gates + explicit memory_control_host resolver/project mapping"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Base manifests are extended, not replaced, by contributions; preserve old IDs/policy versions.",
+      "evidence": {
+        "lines": [
+          400
+        ],
+        "path": "backend/src/personal_ai/applications/registry.py"
+      },
+      "from": "backend/src/personal_ai/applications/registry.py::def default_application_registry",
+      "kind": "default_registration",
+      "owner": "applications",
+      "phase": "PI-1",
+      "to": "personal_ai + travel/shopping/finance/health manifests and comparison domain_registry()"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Installed Python plugins execute trusted code; declarations do not authorize data.",
+      "evidence": {
+        "lines": [
+          58
+        ],
+        "path": "backend/src/personal_ai/applications/registry.py"
+      },
+      "from": "backend/src/personal_ai/applications/registry.py::def from_entry_points",
+      "kind": "runtime_import",
+      "owner": "applications",
+      "phase": "PI-1",
+      "to": "personal_ai.application_contributions -> entry_points(...).load()"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "No app rename, namespace flattening, actor inference or legacy child rewrite.",
+      "evidence": {
+        "lines": [
+          80
+        ],
+        "path": "backend/src/personal_ai/auth/scope.py"
+      },
+      "from": "backend/src/personal_ai/auth/scope.py::class ApplicationScopedRecord",
+      "kind": "state_contract",
+      "owner": "auth/storage",
+      "phase": "PI-1/PI-2",
+      "to": "legacy standalone personal_ai/null scope v1; new explicit scope v2"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Registration and enablement cannot grant source access or model disclosure.",
+      "evidence": {
+        "lines": [
+          51
+        ],
+        "path": "backend/src/personal_ai/context/authorization.py"
+      },
+      "from": "backend/src/personal_ai/context/authorization.py::def _selection_policy",
+      "kind": "state_contract",
+      "owner": "context policy",
+      "phase": "PI-2/PI-4",
+      "to": "deny unknown operation/field and unauthorized cross-app selection"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Explicit empty source catalog still composes federation/task deployment metadata.",
+      "evidence": {
+        "lines": [
+          32
+        ],
+        "path": "backend/src/personal_ai/context/deployment.py"
+      },
+      "from": "backend/src/personal_ai/context/deployment.py::def configured_context_runtime",
+      "kind": "factory_call",
+      "owner": "context",
+      "phase": "PI-1",
+      "to": "configured_federation_contribution + configured_task_contribution"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing field whitelist and per-destination sharing already exist; broader memory sharing remains unimplemented.",
+      "evidence": {
+        "lines": [
+          199
+        ],
+        "path": "backend/src/personal_ai/context/profile.py"
+      },
+      "from": "backend/src/personal_ai/context/profile.py::class GlobalProfileContextProvider",
+      "kind": "state_contract",
+      "owner": "profile/context",
+      "phase": "PI-4",
+      "to": "existing preferred_units, locale, response_style, answer_length shared_fields view"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Arbitrary installed plugin imports are outside AST coverage; duplicate ownership is rejected.",
+      "evidence": {
+        "lines": [
+          40
+        ],
+        "path": "backend/src/personal_ai/context/runtime.py"
+      },
+      "from": "backend/src/personal_ai/context/runtime.py::def from_entry_points",
+      "kind": "runtime_import",
+      "owner": "context",
+      "phase": "PI-1",
+      "to": "personal_ai.context_contributions -> entry_points(...).load()"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Comparison domain factories are lazy but always called by default registry.",
+      "evidence": {
+        "lines": [
+          48
+        ],
+        "path": "backend/src/personal_ai/domains/registry.py"
+      },
+      "from": "backend/src/personal_ai/domains/registry.py::def registry()",
+      "kind": "factory_call",
+      "owner": "domains",
+      "phase": "PI-1",
+      "to": "TravelModule(), ShoppingModule()"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Installed export implementation differs from declaration and current grant; retain grant history.",
+      "evidence": {
+        "lines": [
+          14
+        ],
+        "path": "backend/src/personal_ai/federation/deployment.py"
+      },
+      "from": "backend/src/personal_ai/federation/deployment.py::INITIAL_FEDERATION_CASES =",
+      "kind": "default_registration",
+      "owner": "federation",
+      "phase": "PI-1",
+      "to": "Health->Travel dietary; Health->Shopping ergonomic; Travel->Shopping trip; Finance->Shopping budget"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Neutral protocols exist; count/embed transports still Gemini-specific.",
+      "evidence": {
+        "lines": [
+          317
+        ],
+        "path": "backend/src/personal_ai/llm/client.py"
+      },
+      "from": "backend/src/personal_ai/llm/client.py::class EmbeddingSpace",
+      "kind": "state_contract",
+      "owner": "llm",
+      "phase": "PI-3",
+      "to": "GenerationClient / TokenCountingClient / EmbeddingClient / EmbeddingSpace"
+    },
+    {
+      "classification": "adapter",
+      "compatibility_risk": "AST does not prove SDK network/cost semantics; live preflight remains open.",
+      "evidence": {
+        "lines": [
+          1017
+        ],
+        "path": "backend/src/personal_ai/llm/litellm/gateway.py"
+      },
+      "from": "backend/src/personal_ai/llm/litellm/gateway.py::def _load_litellm",
+      "kind": "runtime_import",
+      "owner": "llm",
+      "phase": "PI-3",
+      "to": "pinned LiteLLM SDK runtime load"
+    },
+    {
+      "classification": "adapter",
+      "compatibility_risk": "Preserve embedding-space identity/model/dimensions and extraction behavior.",
+      "evidence": {
+        "lines": [
+          23
+        ],
+        "path": "backend/src/personal_ai/llm/memory.py"
+      },
+      "from": "backend/src/personal_ai/llm/memory.py::class GeminiMemoryAdapter",
+      "kind": "factory_call",
+      "owner": "llm",
+      "phase": "PI-3",
+      "to": "GeminiLLMClient + GeminiTokenCounter + GeminiEmbeddingClient + MemoryCandidateExtractor"
+    },
+    {
+      "classification": "adapter",
+      "compatibility_risk": "Explicit adapter construction, not routing or automatic workflow replacement.",
+      "evidence": {
+        "lines": [
+          13
+        ],
+        "path": "backend/src/personal_ai/llm/providers.py"
+      },
+      "from": "backend/src/personal_ai/llm/providers.py::def build_generation_adapter",
+      "kind": "factory_call",
+      "owner": "llm",
+      "phase": "PI-3",
+      "to": "LiteLLMGenerationClient(gemini | groq | cloudflare_workers_ai)"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Example routes are mounted unconditionally; flags only guard execution.",
+      "evidence": {
+        "lines": [
+          114
+        ],
+        "path": "backend/src/personal_ai/main.py"
+      },
+      "from": "backend/src/personal_ai/main.py::application.include_router",
+      "kind": "route_mount",
+      "owner": "api",
+      "phase": "PI-1",
+      "to": "itinerary_proposals_router, booking_extractions_router, domains_router (alongside shared routes)"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Retained task contract resolution must fail clearly, never silently discard uncertain effects.",
+      "evidence": {
+        "lines": [
+          51
+        ],
+        "path": "backend/src/personal_ai/main.py"
+      },
+      "from": "backend/src/personal_ai/main.py::async def lifespan",
+      "kind": "factory_call",
+      "owner": "startup",
+      "phase": "PI-1",
+      "to": "configured_context_runtime -> reconcile_federation_runtime_metadata -> install_task_metadata -> require_reconciliation_compatibility"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Current gate disabled does not remove old reconciliation adapters; no automatic resend.",
+      "evidence": {
+        "lines": [
+          23
+        ],
+        "path": "backend/src/personal_ai/mutations/deployment.py"
+      },
+      "from": "backend/src/personal_ai/mutations/deployment.py::def configured_task_contribution",
+      "kind": "factory_call",
+      "owner": "mutations",
+      "phase": "PI-1",
+      "to": "ShoppingTaskAdapter; budget-allocation and context-note; current + retained fingerprints"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "PostgresDynamoPersistenceFactory shares capability storage; retain historical decoders/IDs.",
+      "evidence": {
+        "lines": [
+          32
+        ],
+        "path": "backend/src/personal_ai/persistence/factory.py"
+      },
+      "from": "backend/src/personal_ai/persistence/factory.py::class PersistenceFactory",
+      "kind": "factory_call",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "itinerary_proposal_repository / booking_extraction_repository alongside shared stores"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Schema-3 records, normalized sources, tombstones; preserve 1,024 cap and replay fences.",
+      "evidence": {
+        "lines": [
+          1
+        ],
+        "path": "backend/src/personal_ai/persistence/migrations/028_verified_memory_knowledge.sql"
+      },
+      "from": "backend/src/personal_ai/persistence/migrations/028_verified_memory_knowledge.sql::--",
+      "kind": "state_contract",
+      "owner": "memory/persistence",
+      "phase": "PI-1/PI-4/PI-7",
+      "to": "028_verified_memory_knowledge.sql"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Exact nullable actor source identities; retain orphan legacy deny fences.",
+      "evidence": {
+        "lines": [
+          1
+        ],
+        "path": "backend/src/personal_ai/persistence/migrations/029_knowledge_actor_source_fences.sql"
+      },
+      "from": "backend/src/personal_ai/persistence/migrations/029_knowledge_actor_source_fences.sql::--",
+      "kind": "state_contract",
+      "owner": "memory/persistence",
+      "phase": "PI-1/PI-4/PI-7",
+      "to": "029_knowledge_actor_source_fences.sql"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Pending proposals and durable receipts; no second lifecycle engine.",
+      "evidence": {
+        "lines": [
+          1
+        ],
+        "path": "backend/src/personal_ai/persistence/migrations/030_memory_control.sql"
+      },
+      "from": "backend/src/personal_ai/persistence/migrations/030_memory_control.sql::--",
+      "kind": "state_contract",
+      "owner": "memory/persistence",
+      "phase": "PI-1/PI-4/PI-7",
+      "to": "030_memory_control.sql"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Expiry index and stable project-ID receipt backfill; no destructive rollback.",
+      "evidence": {
+        "lines": [
+          1
+        ],
+        "path": "backend/src/personal_ai/persistence/migrations/031_memory_control_expiry_index.sql"
+      },
+      "from": "backend/src/personal_ai/persistence/migrations/031_memory_control_expiry_index.sql::--",
+      "kind": "state_contract",
+      "owner": "memory/persistence",
+      "phase": "PI-1/PI-4/PI-7",
+      "to": "031_memory_control_expiry_index.sql"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Rights, cost, snippet-only restrictions and partial/unavailable outcomes must survive generalization.",
+      "evidence": {
+        "lines": [
+          45
+        ],
+        "path": "backend/src/personal_ai/search/runtime.py"
+      },
+      "from": "backend/src/personal_ai/search/runtime.py::SEARCH_ADAPTERS =",
+      "kind": "default_registration",
+      "owner": "search",
+      "phase": "PI-5",
+      "to": "fake (synthetic) + brave SearchAdapterRegistration; compose_search_adapter"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Static defaults do not establish a live environment configuration; never load secrets for inventory.",
+      "evidence": {
+        "lines": [
+          249
+        ],
+        "path": "backend/src/personal_ai/settings.py"
+      },
+      "from": "backend/src/personal_ai/settings.py::memory_enabled:",
+      "kind": "setting",
+      "owner": "settings",
+      "phase": "PI-0",
+      "to": "all default-false gates listed in dependency inventory Markdown"
+    },
+    {
+      "classification": "deployment",
+      "compatibility_risk": "Old env names and optional integration configs may be used by deployments; no field removal in PI-0.",
+      "evidence": {
+        "lines": [
+          171
+        ],
+        "path": "backend/src/personal_ai/settings.py"
+      },
+      "from": "backend/src/personal_ai/settings.py::travel_context_enabled:",
+      "kind": "setting",
+      "owner": "settings",
+      "phase": "PI-1/PI-7",
+      "to": "travel/shopping/finance/health context URLs, service audiences/accounts/timeouts; travel/health federation; task_shopping_*"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing local synthetic assertions; not absent-package, external identity or provider/cloud acceptance.",
+      "evidence": {
+        "lines": [
+          34
+        ],
+        "path": "backend/tests/test_application_scope.py"
+      },
+      "from": "backend/tests/test_application_scope.py::def ",
+      "kind": "state_contract",
+      "owner": "verification",
+      "phase": "PI-0",
+      "to": "test_application_scope.py"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing local synthetic assertions; not absent-package, external identity or provider/cloud acceptance.",
+      "evidence": {
+        "lines": [
+          32
+        ],
+        "path": "backend/tests/test_applications.py"
+      },
+      "from": "backend/tests/test_applications.py::def ",
+      "kind": "state_contract",
+      "owner": "verification",
+      "phase": "PI-0",
+      "to": "test_applications.py"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing local synthetic assertions; not absent-package, external identity or provider/cloud acceptance.",
+      "evidence": {
+        "lines": [
+          73
+        ],
+        "path": "backend/tests/test_context_runtime_composition.py"
+      },
+      "from": "backend/tests/test_context_runtime_composition.py::def ",
+      "kind": "state_contract",
+      "owner": "verification",
+      "phase": "PI-0",
+      "to": "test_context_runtime_composition.py"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing local synthetic assertions; not absent-package, external identity or provider/cloud acceptance.",
+      "evidence": {
+        "lines": [
+          30
+        ],
+        "path": "backend/tests/test_memory_control.py"
+      },
+      "from": "backend/tests/test_memory_control.py::def ",
+      "kind": "state_contract",
+      "owner": "verification",
+      "phase": "PI-0",
+      "to": "test_memory_control.py"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing local synthetic assertions; not absent-package, external identity or provider/cloud acceptance.",
+      "evidence": {
+        "lines": [
+          21
+        ],
+        "path": "backend/tests/test_memory_control_api.py"
+      },
+      "from": "backend/tests/test_memory_control_api.py::def ",
+      "kind": "state_contract",
+      "owner": "verification",
+      "phase": "PI-0",
+      "to": "test_memory_control_api.py"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing local synthetic assertions; not absent-package, external identity or provider/cloud acceptance.",
+      "evidence": {
+        "lines": [
+          95
+        ],
+        "path": "backend/tests/test_phase36_integrated.py"
+      },
+      "from": "backend/tests/test_phase36_integrated.py::def ",
+      "kind": "state_contract",
+      "owner": "verification",
+      "phase": "PI-0",
+      "to": "test_phase36_integrated.py"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Source-tree fallback imports the four example factories; preserve until optional installed composition is tested.",
+      "evidence": {
+        "lines": [
+          17
+        ],
+        "path": "personal_ai/context/deployment.py"
+      },
+      "from": "personal_ai.context.deployment",
+      "kind": "static_import",
+      "owner": "context",
+      "phase": "PI-1",
+      "to": "personal_ai.context.finance"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Source-tree fallback imports the four example factories; preserve until optional installed composition is tested.",
+      "evidence": {
+        "lines": [
+          18
+        ],
+        "path": "personal_ai/context/deployment.py"
+      },
+      "from": "personal_ai.context.deployment",
+      "kind": "static_import",
+      "owner": "context",
+      "phase": "PI-1",
+      "to": "personal_ai.context.health"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Source-tree fallback imports the four example factories; preserve until optional installed composition is tested.",
+      "evidence": {
+        "lines": [
+          19
+        ],
+        "path": "personal_ai/context/deployment.py"
+      },
+      "from": "personal_ai.context.deployment",
+      "kind": "static_import",
+      "owner": "context",
+      "phase": "PI-1",
+      "to": "personal_ai.context.shopping"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Source-tree fallback imports the four example factories; preserve until optional installed composition is tested.",
+      "evidence": {
+        "lines": [
+          20
+        ],
+        "path": "personal_ai/context/deployment.py"
+      },
+      "from": "personal_ai.context.deployment",
+      "kind": "static_import",
+      "owner": "context",
+      "phase": "PI-1",
+      "to": "personal_ai.context.travel"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing comparison fixture builder uses example schemas; extraction must preserve evaluation consumers.",
+      "evidence": {
+        "lines": [
+          21
+        ],
+        "path": "personal_ai/domains/fixtures.py"
+      },
+      "from": "personal_ai.domains.fixtures",
+      "kind": "static_import",
+      "owner": "domains",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.shopping.models"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing comparison fixture builder uses example schemas; extraction must preserve evaluation consumers.",
+      "evidence": {
+        "lines": [
+          29
+        ],
+        "path": "personal_ai/domains/fixtures.py"
+      },
+      "from": "personal_ai.domains.fixtures",
+      "kind": "static_import",
+      "owner": "domains",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.shopping.module"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Existing comparison fixture builder uses example schemas; extraction must preserve evaluation consumers.",
+      "evidence": {
+        "lines": [
+          30
+        ],
+        "path": "personal_ai/domains/fixtures.py"
+      },
+      "from": "personal_ai.domains.fixtures",
+      "kind": "static_import",
+      "owner": "domains",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.travel.models"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Lazy default comparison factory constructs Travel and Shopping; disabled execution does not remove imports.",
+      "evidence": {
+        "lines": [
+          50
+        ],
+        "path": "personal_ai/domains/registry.py"
+      },
+      "from": "personal_ai.domains.registry",
+      "kind": "static_import",
+      "owner": "domains",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.shopping.module"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Lazy default comparison factory constructs Travel and Shopping; disabled execution does not remove imports.",
+      "evidence": {
+        "lines": [
+          51
+        ],
+        "path": "personal_ai/domains/registry.py"
+      },
+      "from": "personal_ai.domains.registry",
+      "kind": "static_import",
+      "owner": "domains",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.travel.module"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "App factory imports example routes and error types; preserve HTTP compatibility and startup until PI-1.",
+      "evidence": {
+        "lines": [
+          12
+        ],
+        "path": "personal_ai/main.py"
+      },
+      "from": "personal_ai.main",
+      "kind": "static_import",
+      "owner": "main",
+      "phase": "PI-1",
+      "to": "personal_ai.api.booking_extractions"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "App factory imports example routes and error types; preserve HTTP compatibility and startup until PI-1.",
+      "evidence": {
+        "lines": [
+          18
+        ],
+        "path": "personal_ai/main.py"
+      },
+      "from": "personal_ai.main",
+      "kind": "static_import",
+      "owner": "main",
+      "phase": "PI-1",
+      "to": "personal_ai.api.itinerary_proposals"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "App factory imports example routes and error types; preserve HTTP compatibility and startup until PI-1.",
+      "evidence": {
+        "lines": [
+          31
+        ],
+        "path": "personal_ai/main.py"
+      },
+      "from": "personal_ai.main",
+      "kind": "static_import",
+      "owner": "main",
+      "phase": "PI-1",
+      "to": "personal_ai.booking_extractions.repositories"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "App factory imports example routes and error types; preserve HTTP compatibility and startup until PI-1.",
+      "evidence": {
+        "lines": [
+          38
+        ],
+        "path": "personal_ai/main.py"
+      },
+      "from": "personal_ai.main",
+      "kind": "static_import",
+      "owner": "main",
+      "phase": "PI-1",
+      "to": "personal_ai.itinerary_proposals.contracts"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Shopping task and retained reconciliation adapters must survive in-flight task recovery.",
+      "evidence": {
+        "lines": [
+          9
+        ],
+        "path": "personal_ai/mutations/deployment.py"
+      },
+      "from": "personal_ai.mutations.deployment",
+      "kind": "static_import",
+      "owner": "mutations",
+      "phase": "PI-1",
+      "to": "personal_ai.mutations.shopping"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Type-only repository contracts still couple source packaging; preserve historical row decoding.",
+      "evidence": {
+        "lines": [
+          20
+        ],
+        "path": "personal_ai/persistence/factory.py"
+      },
+      "from": "personal_ai.persistence.factory",
+      "kind": "static_import",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "personal_ai.booking_extractions.repositories"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Type-only repository contracts still couple source packaging; preserve historical row decoding.",
+      "evidence": {
+        "lines": [
+          26
+        ],
+        "path": "personal_ai/persistence/factory.py"
+      },
+      "from": "personal_ai.persistence.factory",
+      "kind": "static_import",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "personal_ai.itinerary_proposals.repositories"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Shared SQL capability adapter decodes historical itinerary and booking rows; split without deleting history.",
+      "evidence": {
+        "lines": [
+          14
+        ],
+        "path": "personal_ai/persistence/postgres/capabilities.py"
+      },
+      "from": "personal_ai.persistence.postgres.capabilities",
+      "kind": "static_import",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "personal_ai.booking_extractions.contracts"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Shared SQL capability adapter decodes historical itinerary and booking rows; split without deleting history.",
+      "evidence": {
+        "lines": [
+          15,
+          20,
+          23,
+          26
+        ],
+        "path": "personal_ai/persistence/postgres/capabilities.py"
+      },
+      "from": "personal_ai.persistence.postgres.capabilities",
+      "kind": "static_import",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "personal_ai.booking_extractions.repositories"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Shared SQL capability adapter decodes historical itinerary and booking rows; split without deleting history.",
+      "evidence": {
+        "lines": [
+          29
+        ],
+        "path": "personal_ai/persistence/postgres/capabilities.py"
+      },
+      "from": "personal_ai.persistence.postgres.capabilities",
+      "kind": "static_import",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "personal_ai.itinerary_proposals.contracts"
+    },
+    {
+      "classification": "core",
+      "compatibility_risk": "Shared SQL capability adapter decodes historical itinerary and booking rows; split without deleting history.",
+      "evidence": {
+        "lines": [
+          34
+        ],
+        "path": "personal_ai/persistence/postgres/capabilities.py"
+      },
+      "from": "personal_ai.persistence.postgres.capabilities",
+      "kind": "static_import",
+      "owner": "persistence",
+      "phase": "PI-1",
+      "to": "personal_ai.itinerary_proposals.repositories"
+    }
+  ],
+  "evidence_status": "source inspection; external acceptance not reverified",
+  "schema_version": 1,
+  "source_revision": "8571a8af33969f249614c2652a7d29c0c686f2d8"
+}
