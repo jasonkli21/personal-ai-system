@@ -170,6 +170,8 @@ class Settings(BaseSettings):
     auth_audience: str = Field(default="", max_length=500)
     auth_allowed_emails: tuple[str, ...] = Field(default=(), max_length=1)
     auth_hosted_domain: str = Field(default="", max_length=253)
+    # Absolute operator-owned JSON policy; empty means no external clients.
+    auth_application_clients_file: str = Field(default="", max_length=1000)
     auth_recent_token_seconds: int = Field(default=300, ge=60, le=900)
     # HMAC key keeps destination choice handles opaque and binds them to one
     # grant issuance, owner/actor and exact destination. Required with federation.

@@ -13,6 +13,11 @@ class AuthenticatedPrincipal:
     authenticated: bool
     authenticated_at: int | None = None
 
+    # Verified Google OAuth client claims; never supplied by HTTP scope headers.
+    audience: str | None = None
+    authorized_party: str | None = None
+    expires_at: int | None = None
+
     @classmethod
     def development(cls) -> "AuthenticatedPrincipal":
         """Return the explicit local/test principal, never a deployed identity."""

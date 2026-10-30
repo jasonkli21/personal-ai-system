@@ -157,3 +157,14 @@ platform-independence-check: backend-build reference-build
 	$(PLATFORM_PYTHON) backend/scripts/platform_dependency_inventory.py --check
 	$(PLATFORM_PYTHON) backend/scripts/pi1_core_evaluation_probe.py
 	$(PLATFORM_PYTHON) backend/scripts/pi1_artifact_checks.py
+
+.PHONY: pi2-build pi2-check
+pi2-build: backend-build reference-build
+	cd examples/reading-logbook/client && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
+	cd examples/reading-logbook/host && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
+
+pi2-check: pi2-build
+	$(PLATFORM_PYTHON) backend/scripts/platform_dependency_inventory.py --check
+	$(PLATFORM_PYTHON) backend/scripts/pi1_core_evaluation_probe.py
+	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
+	$(PLATFORM_PYTHON) backend/scripts/pi2_artifact_checks.py

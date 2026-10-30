@@ -48,6 +48,9 @@ def owner_principal(issued_at: int | None = None) -> AuthenticatedPrincipal:
         issued_at=issued_at or int(time.time()),
         authenticated_at=issued_at or int(time.time()),
         authenticated=True,
+        audience="synthetic-client",
+        authorized_party="synthetic-client",
+        expires_at=int(time.time()) + 3600,
     )
 
 

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling==1.27.0", "editables==0.5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reading-logbook-host"
+version = "0.1.0"
+description = "Operator-trusted, history-only Reading Logbook registration"
+requires-python = ">=3.11"
+dependencies = ["personal-ai-backend==0.1.0"]
+
+[project.entry-points."personal_ai.application_contributions"]
+reading_logbook = "reading_logbook_host:application"
+
+[project.entry-points."personal_ai.context_contributions"]
+reading_logbook = "reading_logbook_host:context"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reading_logbook_host"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/pyproject.toml"]

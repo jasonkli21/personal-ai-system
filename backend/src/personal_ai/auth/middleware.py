@@ -30,6 +30,14 @@ from personal_ai.applications.registry import (
     ApplicationNotRegisteredError,
     application_registry_for,
 )
+from personal_ai.auth.application_clients import (
+    ClientApplicationDenied,
+    ClientPolicyUnavailable,
+    bind_client_authority,
+    external_operation_allowed,
+    require_client_application,
+    reset_client_authority,
+)
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.directory import (
     IdentityDirectoryUnavailable,
@@ -301,6 +309,7 @@ async def authenticate_request(request: Request) -> Response | None:
                     # Consume only a bounded task-control body and replay it to
                     # the router below. No assertion or token is persisted.
                     from personal_ai.auth.task_identity import task_principal
+
                     raw = bytearray()
                     try:
                         with anyio.fail_after(3):
@@ -312,7 +321,9 @@ async def authenticate_request(request: Request) -> Response | None:
                     except (ValueError, TypeError, TimeoutError, RecursionError) as error:
                         raise InvalidIdentityToken from error
                     request.state.task_auth_body = bytes(raw)
-                    principal = await anyio.to_thread.run_sync(task_principal, request, settings, payload)
+                    principal = await anyio.to_thread.run_sync(
+                        task_principal, request, settings, payload
+                    )
                 else:
                     principal = await anyio.to_thread.run_sync(
                         principal_from_google_token, token, settings
@@ -327,7 +338,7 @@ async def authenticate_request(request: Request) -> Response | None:
                     request=request,
                     correlation_id=correlation_id,
                 )
-            except IdentityProviderUnavailable as error:
+            except (IdentityProviderUnavailable, ClientPolicyUnavailable) as error:
                 logger.info(
                     "request_rejected reason=identity_provider_unavailable error_class=%s",
                     type(error).__name__,
@@ -400,6 +411,44 @@ async def authenticate_request(request: Request) -> Response | None:
                 request=request,
                 correlation_id=correlation_id,
             )
+
+        if not request.headers.get("x-user-delegation"):
+            try:
+                external = require_client_application(principal, settings, application_id)
+            except ClientApplicationDenied:
+                return _error(
+                    403,
+                    "application_client_denied",
+                    "This client cannot access this application.",
+                    request=request,
+                    correlation_id=correlation_id,
+                )
+            except ClientPolicyUnavailable:
+                return _error(
+                    503,
+                    "application_client_policy_unavailable",
+                    "Client authorization is unavailable.",
+                    request=request,
+                    correlation_id=correlation_id,
+                )
+            if external:
+                if any(name in request.headers for name in ("x-owner-id", "x-acting-user-id")):
+                    return _error(
+                        403,
+                        "client_identity_override_denied",
+                        "Identity overrides are not allowed.",
+                        request=request,
+                        correlation_id=correlation_id,
+                    )
+                if not external_operation_allowed(request.method, request.url.path):
+                    return _error(
+                        403,
+                        "client_operation_denied",
+                        "This operation is not available to this client.",
+                        request=request,
+                        correlation_id=correlation_id,
+                    )
+                request.state.external_client = True
 
         capabilities_header = request.headers.get("x-client-capabilities", "")
         capabilities = tuple(
@@ -483,6 +532,21 @@ async def authenticate_request(request: Request) -> Response | None:
                     request=request,
                     correlation_id=correlation_id,
                 )
+        if getattr(request.state, "external_client", False):
+
+            def current_client_authority():
+                current_settings = _settings_for_request(request)
+                if not require_client_application(principal, current_settings, application_id):
+                    raise ClientApplicationDenied
+                _ensure_active_principal(request, current_settings, principal, correlation_id)
+                registry = application_registry_for(request)
+                registry.get(application_id)
+                if workspace_id is not None and not registry.workspace_authorizer.is_member(
+                    principal, application_id, workspace_id
+                ):
+                    raise ClientApplicationDenied
+
+            request.state.client_authority = current_client_authority
         request.state.request_scope = request_scope
         if _provider_switch_is_on(request, settings):
             return _safeguard_error(
@@ -565,16 +629,21 @@ class AuthenticationMiddleware:
         if (
             response is None
             and scope.get("method") == "POST"
-            and scope.get("path")
-            in {
-                "/v1/travel/itinerary-proposals",
-                "/v1/travel/booking-extractions",
-            }
+            and (
+                getattr(request.state, "external_client", False)
+                or scope.get("path")
+                in {
+                    "/v1/travel/itinerary-proposals",
+                    "/v1/travel/booking-extractions",
+                }
+            )
         ):
             is_extraction_request = scope.get("path") == "/v1/travel/booking-extractions"
             settings = _settings_for_request(request)
             body_limit = (
-                MAX_BOOKING_EXTRACTION_REQUEST_BYTES
+                131_072
+                if getattr(request.state, "external_client", False)
+                else MAX_BOOKING_EXTRACTION_REQUEST_BYTES
                 if scope.get("path") == "/v1/travel/booking-extractions"
                 else MAX_ITINERARY_PROPOSAL_REQUEST_BYTES
             )
@@ -590,7 +659,9 @@ class AuthenticationMiddleware:
             disconnected = False
             body_timed_out = False
             operation_timeout = (
-                settings.booking_extraction_timeout_seconds
+                10.0
+                if getattr(request.state, "external_client", False)
+                else settings.booking_extraction_timeout_seconds
                 if is_extraction_request
                 else settings.itinerary_proposal_timeout_seconds
             )
@@ -634,8 +705,10 @@ class AuthenticationMiddleware:
             elif body_timed_out:
                 response = _error(
                     408,
-                    "booking_extraction_deadline_exceeded",
-                    "The extraction request exceeded its total time limit.",
+                    "request_body_timeout"
+                    if getattr(request.state, "external_client", False)
+                    else "booking_extraction_deadline_exceeded",
+                    "The request exceeded its total time limit.",
                     request=request,
                     correlation_id=correlation_id,
                 )
@@ -686,6 +759,9 @@ class AuthenticationMiddleware:
                 if response is None
                 else None
             )
+            client_authority_token = bind_client_authority(
+                getattr(request.state, "client_authority", None) if response is None else None
+            )
             if response is None:
                 await self.app(scope, app_receive, harden_send)
             else:
@@ -706,6 +782,8 @@ class AuthenticationMiddleware:
                 getattr(getattr(request.state, "request_scope", None), "workspace_id", None)
                 or "none",
             )
+            if "client_authority_token" in locals():
+                reset_client_authority(client_authority_token)
             if "scope_token" in locals() and scope_token is not None:
                 reset_request_scope(scope_token)
             if "identity_token" in locals() and identity_token is not None:

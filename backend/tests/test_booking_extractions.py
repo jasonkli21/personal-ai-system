@@ -591,6 +591,9 @@ def test_booking_extraction_http_requires_verified_owner(monkeypatch):
         email="owner@gmail.com",
         issued_at=int(time()),
         authenticated=True,
+        audience="synthetic-client",
+        authorized_party="synthetic-client",
+        expires_at=int(time()) + 3600,
     )
     configured = route_settings(
         auth_mode="google_oidc",

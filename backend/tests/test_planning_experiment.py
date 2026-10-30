@@ -520,12 +520,12 @@ def test_v18_control_rebind_preserves_historical_locks_and_non_promotion():
 
 
 def test_v19_core_fixture_rebind_preserves_v18_history_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V19_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V18_FREEZE_PATH.read_text())
 
     assert current["baseline_lock_version"] == "planning-baseline-lock-v19"
     assert current["evaluator_version"] == planning.PLANNING_EVALUATOR_VERSION
-    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert current["source_identity_digest"] == "ac0526535784cc783db25689fb45f63fe2a2812640ff74c420fdd334c87d8142"
     assert current["configuration_digest"] == planning.baseline_planner().configuration_digest
     assert current["source_revision"] == "b97aab4a679df0410ad7688fa50c8b8557a7ec8b"
     assert current["supersedes"] == previous["baseline_lock_version"]
@@ -819,3 +819,21 @@ def test_sensitivity_ceiling_is_checked_before_experiment_metadata(broker_case):
             maximum_sensitivity="public",
         )
     assert f["adapter"].calls == 0
+
+
+def test_v20_pi2_source_rebind_preserves_v19_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V19_FREEZE_PATH.read_text())
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v20"
+    assert current["source_revision"] == "2746ea711248603b484f5985ab561978c4ec34bc"
+    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    for key in (
+        "configuration_digest",
+        "evaluator_version",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "promotion_decision",
+    ):
+        assert current[key] == previous[key]
+    assert current["source_identity_digest"] != previous["source_identity_digest"]

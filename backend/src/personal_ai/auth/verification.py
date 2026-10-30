@@ -8,9 +8,10 @@ import time
 from collections import OrderedDict
 from typing import Any
 
-from google.auth.exceptions import TransportError
+from google.auth.exceptions import GoogleAuthError, TransportError
 from google.oauth2 import id_token
 
+from personal_ai.auth.application_clients import accepted_audiences
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.google_transport import signing_key_request
 from personal_ai.settings import Settings
@@ -30,7 +31,7 @@ class IdentityProviderUnavailable(RuntimeError):
     """Google's verification keys could not be checked within the request bound."""
 
 
-def _verified_claims(token: str, audience: str) -> dict[str, Any]:
+def _verified_claims(token: str, audience: str | list[str]) -> dict[str, Any]:
     token_fingerprint = hashlib.sha256(f"{audience}\0{token}".encode()).hexdigest()
     now = int(time.time())
     with _cache_lock:
@@ -45,7 +46,7 @@ def _verified_claims(token: str, audience: str) -> dict[str, Any]:
             claims = id_token.verify_oauth2_token(token, request, audience=audience)
     except TransportError as error:
         raise IdentityProviderUnavailable from error
-    except (ValueError, TypeError, KeyError) as error:
+    except (GoogleAuthError, ValueError, TypeError, KeyError) as error:
         raise InvalidIdentityToken from error
     except Exception as error:
         raise IdentityProviderUnavailable from error
@@ -70,7 +71,19 @@ def principal_from_google_token(token: str, settings: Settings) -> Authenticated
     if settings.auth_mode != "google_oidc" or not settings.auth_required:
         raise InvalidIdentityToken
 
-    claims = _verified_claims(token, settings.auth_audience)
+    audiences = accepted_audiences(settings)
+    claims = _verified_claims(token, audiences)
+    audience = claims.get("aud")
+    authorized_party = claims.get("azp", audience)
+    allowed = [audiences] if isinstance(audiences, str) else audiences
+    if (
+        not isinstance(audience, str)
+        or audience not in allowed
+        or not isinstance(authorized_party, str)
+        or not authorized_party
+        or len(authorized_party) > 500
+    ):
+        raise InvalidIdentityToken
     issuer = claims.get("iss")
     canonical_issuer = "https://accounts.google.com"
     if issuer not in {"accounts.google.com", canonical_issuer}:
@@ -119,6 +132,9 @@ def principal_from_google_token(token: str, settings: Settings) -> Authenticated
         issued_at=int(issued_at),
         authenticated=True,
         authenticated_at=authenticated_at,
+        audience=audience,
+        authorized_party=authorized_party,
+        expires_at=int(claims["exp"]),
     )
 
 

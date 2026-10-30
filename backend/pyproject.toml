@@ -53,8 +53,9 @@ target-version = "py311"
 testpaths = ["tests"]
 # Source-tree compatibility harness for tests that exercise the optional bundle.
 # It is not installed-artifact proof; CI runs pi1_artifact_checks.py separately.
-pythonpath = ["src", "../reference-apps/src"]
+pythonpath = ["src", "../reference-apps/src", "../examples/reading-logbook/client/src", "../examples/reading-logbook/host/src"]
 markers = [
+  "loopback_http: synthetic HTTP socket fixture; run with pi2_http_checks.py",
   "persistence_integration: requires local Postgres/pgvector and DynamoDB Local",
   "cloud_smoke: explicit opt-in against already-provisioned cloud resources",
 ]

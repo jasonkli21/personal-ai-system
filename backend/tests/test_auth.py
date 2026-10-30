@@ -149,6 +149,9 @@ def test_health_delegation_requires_recent_verified_auth_time(auth_time_kind: st
         email="owner@gmail.com",
         issued_at=now,
         authenticated=True,
+        audience="personal-ai-web-client",
+        authorized_party="personal-ai-web-client",
+        expires_at=int(time.time()) + 3600,
         authenticated_at=authenticated_at,
     )
     with pytest.raises(ValueError, match="delegated_user_identity_unavailable"):
@@ -178,6 +181,9 @@ def test_health_delegation_signs_verified_auth_time_separately_from_fresh_token_
         email="owner@gmail.com",
         issued_at=now,
         authenticated=True,
+        audience="personal-ai-web-client",
+        authorized_party="personal-ai-web-client",
+        expires_at=int(time.time()) + 3600,
         authenticated_at=authenticated_at,
     )
     assertion = delegated_user_assertion(
@@ -318,6 +324,9 @@ def test_identity_mapping_is_created_idempotently_and_can_be_revoked(
         email="owner@example.com",
         issued_at=int(time.time()),
         authenticated=True,
+        audience="personal-ai-web-client",
+        authorized_party="personal-ai-web-client",
+        expires_at=int(time.time()) + 3600,
     )
     monkeypatch.setattr(
         "personal_ai.auth.middleware.principal_from_google_token",
@@ -349,6 +358,9 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
         email="owner@example.com",
         issued_at=int(time.time()),
         authenticated=True,
+        audience="personal-ai-web-client",
+        authorized_party="personal-ai-web-client",
+        expires_at=int(time.time()) + 3600,
     )
     monkeypatch.setattr(
         "personal_ai.auth.middleware.principal_from_google_token",

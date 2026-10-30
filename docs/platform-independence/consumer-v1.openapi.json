@@ -1,0 +1,2884 @@
+{
+  "components": {
+    "schemas": {
+      "ApplicationLaunchContext": {
+        "additionalProperties": false,
+        "description": "Versioned, bounded host hints; every identifier remains non-authoritative.",
+        "properties": {
+          "application_id": {
+            "maxLength": 42,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_-]{1,40}$",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "client_context": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxProperties": 32,
+            "title": "Client Context",
+            "type": "object"
+          },
+          "conversation_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "entity_refs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextEntityReference"
+            },
+            "maxItems": 16,
+            "title": "Entity Refs",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "application-launch-v1",
+            "default": "application-launch-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "view_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "application_id",
+          "conversation_id"
+        ],
+        "title": "ApplicationLaunchContext",
+        "type": "object"
+      },
+      "ApplicationScope": {
+        "additionalProperties": false,
+        "description": "The namespace of a request; this never grants owner or workspace access.",
+        "properties": {
+          "application_id": {
+            "default": "personal_ai",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Workspace Id"
+          }
+        },
+        "title": "ApplicationScope",
+        "type": "object"
+      },
+      "ContextAuthorityReference": {
+        "additionalProperties": false,
+        "description": "Durable-safe reference projection; raw IDs and retrieval URIs stay transient.",
+        "properties": {
+          "fingerprint": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fingerprint"
+          },
+          "kind": {
+            "enum": [
+              "record",
+              "source",
+              "conversation_message",
+              "evidence",
+              "url",
+              "tool_invocation"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reference_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Reference Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "reference_digest"
+        ],
+        "title": "ContextAuthorityReference",
+        "type": "object"
+      },
+      "ContextEntityReference": {
+        "additionalProperties": false,
+        "description": "An exact entity reference that keeps its application/workspace scope.",
+        "properties": {
+          "application_id": {
+            "maxLength": 42,
+            "minLength": 2,
+            "title": "Application Id",
+            "type": "string"
+          },
+          "entity_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "application_id"
+        ],
+        "title": "ContextEntityReference",
+        "type": "object"
+      },
+      "ContextPermissionDependency": {
+        "additionalProperties": false,
+        "description": "Permission or capability identity required to disclose an item.",
+        "properties": {
+          "acting_user_id": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Acting User Id"
+          },
+          "destination_application_id": {
+            "anyOf": [
+              {
+                "maxLength": 42,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Destination Application Id"
+          },
+          "destination_workspace_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Destination Workspace Id"
+          },
+          "entity_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextEntityReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Owner Id"
+          },
+          "permission_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Permission Id",
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "source_application_id": {
+            "anyOf": [
+              {
+                "maxLength": 42,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Application Id"
+          },
+          "source_revision": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Revision"
+          },
+          "source_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationScope"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "source_workspace_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Workspace Id"
+          },
+          "version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "permission_id",
+          "version",
+          "purpose"
+        ],
+        "title": "ContextPermissionDependency",
+        "type": "object"
+      },
+      "ContextPreviewExclusion": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "reason"
+        ],
+        "title": "ContextPreviewExclusion",
+        "type": "object"
+      },
+      "ContextPreviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "excluded_sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextPreviewExclusion"
+            },
+            "maxItems": 64,
+            "title": "Excluded Sources",
+            "type": "array"
+          },
+          "planned_sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextPreviewSource"
+            },
+            "maxItems": 16,
+            "title": "Planned Sources",
+            "type": "array"
+          },
+          "selected_message_count": {
+            "maximum": 20000.0,
+            "minimum": 0.0,
+            "title": "Selected Message Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selected_message_count"
+        ],
+        "title": "ContextPreviewResponse",
+        "type": "object"
+      },
+      "ContextPreviewSource": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "fields": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Fields",
+            "type": "array"
+          },
+          "max_results": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Max Results",
+            "type": "integer"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "maximum": 128000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "operation": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Operation",
+            "type": "string"
+          },
+          "source_class": {
+            "anyOf": [
+              {
+                "maxLength": 48,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Class"
+          }
+        },
+        "required": [
+          "category",
+          "operation",
+          "max_results"
+        ],
+        "title": "ContextPreviewSource",
+        "type": "object"
+      },
+      "ContextSourceSnapshot": {
+        "additionalProperties": false,
+        "description": "Payload-free frozen identity for final authority rechecks, not a source store.",
+        "properties": {
+          "application_id": {
+            "maxLength": 42,
+            "minLength": 2,
+            "title": "Application Id",
+            "type": "string"
+          },
+          "content_fingerprint": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Fingerprint",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expires At"
+          },
+          "federation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FederationProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "item_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Item Id",
+            "type": "string"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "profile",
+                  "current",
+                  "entity",
+                  "history",
+                  "search"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Operation"
+          },
+          "owner_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "permission_dependencies": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextPermissionDependency"
+            },
+            "maxItems": 16,
+            "title": "Permission Dependencies",
+            "type": "array"
+          },
+          "provider_id": {
+            "maxLength": 81,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "source_classes": {
+            "default": [],
+            "items": {
+              "enum": [
+                "global_profile",
+                "domain_profile",
+                "domain_current",
+                "domain_history",
+                "ai_memory",
+                "conversation",
+                "external_research",
+                "tool_result",
+                "client_context"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "title": "Source Classes",
+            "type": "array"
+          },
+          "source_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_refs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextAuthorityReference"
+            },
+            "maxItems": 200,
+            "title": "Source Refs",
+            "type": "array"
+          },
+          "source_version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source Version",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "provider_id",
+          "source_id",
+          "source_version",
+          "item_id",
+          "owner_id",
+          "application_id",
+          "content_fingerprint"
+        ],
+        "title": "ContextSourceSnapshot",
+        "type": "object"
+      },
+      "ContinuationRequestPayload": {
+        "additionalProperties": false,
+        "description": "Browser/API continuation contract; federation authority stays server-side.",
+        "properties": {
+          "candidate_message_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Message Ids"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/ExecutionChoice"
+          },
+          "content": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "excluded_source_classes": {
+            "default": [],
+            "items": {
+              "enum": [
+                "global_profile",
+                "domain_profile",
+                "domain_current",
+                "domain_history",
+                "ai_memory",
+                "conversation",
+                "external_research",
+                "tool_result",
+                "client_context"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "title": "Excluded Source Classes",
+            "type": "array"
+          },
+          "federation_choice_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Federation Choice Ids",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "launch_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationLaunchContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "content",
+          "idempotency_key"
+        ],
+        "title": "ContinuationRequestPayload",
+        "type": "object"
+      },
+      "ContinuationStatusResponse": {
+        "additionalProperties": false,
+        "description": "Metadata-only observation of the original key, including inactive branches.",
+        "properties": {
+          "message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
+          },
+          "state": {
+            "enum": [
+              "not_found",
+              "in_progress",
+              "unknown",
+              "completed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "ContinuationStatusResponse",
+        "type": "object"
+      },
+      "Conversation": {
+        "additionalProperties": false,
+        "description": "A persisted conversation owned by the current logical user.",
+        "properties": {
+          "application_id": {
+            "default": "personal_ai",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "owner_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "scope_version": {
+            "default": 1,
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Scope Version",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "id",
+          "owner_id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Conversation",
+        "type": "object"
+      },
+      "ConversationDetailResponse": {
+        "additionalProperties": false,
+        "description": "A conversation with its selected active message branch.",
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/Conversation"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "title": "Messages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversation",
+          "messages"
+        ],
+        "title": "ConversationDetailResponse",
+        "type": "object"
+      },
+      "ConversationListResponse": {
+        "additionalProperties": false,
+        "description": "Newest-first conversations for the current Phase 1 owner.",
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/Conversation"
+            },
+            "title": "Conversations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversations"
+        ],
+        "title": "ConversationListResponse",
+        "type": "object"
+      },
+      "CreateConversationRequest": {
+        "additionalProperties": false,
+        "description": "Optional initial title and retry identity for conversation creation.",
+        "properties": {
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "CreateConversationRequest",
+        "type": "object"
+      },
+      "EndpointRef": {
+        "additionalProperties": false,
+        "properties": {
+          "endpoint_profile_id": {
+            "title": "Endpoint Profile Id",
+            "type": "string"
+          },
+          "profile_version": {
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Profile Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "endpoint_profile_id",
+          "profile_version"
+        ],
+        "title": "EndpointRef",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "additionalProperties": false,
+        "description": "Stable, safe error fields returned by the HTTP API.",
+        "properties": {
+          "code": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "description": "Consistent JSON error envelope for Phase 1 routes.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "ExecutionChoice": {
+        "additionalProperties": false,
+        "description": "Producer-neutral continuation choice. Historical origin never selects a route.",
+        "properties": {
+          "audience": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audience"
+          },
+          "caller_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller Id"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
+          "connection_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Revision"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndpointRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "default": "automatic",
+            "enum": [
+              "automatic",
+              "connected_provider",
+              "manual_external"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          }
+        },
+        "title": "ExecutionChoice",
+        "type": "object"
+      },
+      "FederationProvenance": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/ApplicationScope"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/ContextEntityReference"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Entities",
+            "type": "array"
+          },
+          "grant_epoch": {
+            "minimum": 1,
+            "title": "Grant Epoch",
+            "type": "integer"
+          },
+          "grant_id": {
+            "format": "uuid",
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "grant_issuance_id": {
+            "format": "uuid",
+            "title": "Grant Issuance Id",
+            "type": "string"
+          },
+          "grant_revision": {
+            "minimum": 1,
+            "title": "Grant Revision",
+            "type": "integer"
+          },
+          "purpose": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ApplicationScope"
+          },
+          "source_provider_id": {
+            "maxLength": 81,
+            "minLength": 1,
+            "title": "Source Provider Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_provider_id",
+          "source",
+          "destination",
+          "category",
+          "entities",
+          "grant_id",
+          "grant_issuance_id",
+          "grant_revision",
+          "grant_epoch",
+          "purpose"
+        ],
+        "title": "FederationProvenance",
+        "type": "object"
+      },
+      "Message": {
+        "additionalProperties": false,
+        "description": "A persisted, branchable message in a conversation.",
+        "properties": {
+          "application_id": {
+            "default": "personal_ai",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnAttribution"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "content": {
+            "maxLength": 20000,
+            "title": "Content",
+            "type": "string"
+          },
+          "continuation_digest": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Continuation Digest"
+          },
+          "conversation_id": {
+            "format": "uuid",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Code"
+          },
+          "error_fact_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "server_observed",
+                  "client_reported"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Fact Source"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnReservation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "failure_latency_ms": {
+            "anyOf": [
+              {
+                "maximum": 3600000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Failure Latency Ms"
+          },
+          "failure_status": {
+            "anyOf": [
+              {
+                "maximum": 599,
+                "minimum": 100,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Failure Status"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "owner_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "parent_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parent Message Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MessageRole"
+          },
+          "scope_version": {
+            "default": 1,
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Scope Version",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MessageStatus"
+          },
+          "supersedes_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supersedes Message Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "id",
+          "conversation_id",
+          "owner_id",
+          "role",
+          "content",
+          "status",
+          "created_at"
+        ],
+        "title": "Message",
+        "type": "object"
+      },
+      "MessageRole": {
+        "description": "The two message authors supported by the Phase 1 chat surface.",
+        "enum": [
+          "user",
+          "assistant"
+        ],
+        "title": "MessageRole",
+        "type": "string"
+      },
+      "MessageStatus": {
+        "description": "Durable states for append-only messages and replacements.",
+        "enum": [
+          "pending",
+          "streaming",
+          "completed",
+          "failed",
+          "superseded"
+        ],
+        "title": "MessageStatus",
+        "type": "string"
+      },
+      "SSEMessageCreated": {
+        "additionalProperties": false,
+        "description": "Payload for a ``message.created`` SSE event.",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "SSEMessageCreated",
+        "type": "object"
+      },
+      "SSEResponseCompleted": {
+        "additionalProperties": false,
+        "description": "Payload for a ``response.completed`` SSE event.",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "SSEResponseCompleted",
+        "type": "object"
+      },
+      "SSEResponseDelta": {
+        "additionalProperties": false,
+        "description": "Payload for a ``response.delta`` SSE event.",
+        "properties": {
+          "delta": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Delta",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "delta"
+        ],
+        "title": "SSEResponseDelta",
+        "type": "object"
+      },
+      "SSEResponseError": {
+        "additionalProperties": false,
+        "description": "Payload for a safe, stable ``response.error`` SSE event.",
+        "properties": {
+          "code": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "code",
+          "message"
+        ],
+        "title": "SSEResponseError",
+        "type": "object"
+      },
+      "TurnAttribution": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Connection Id"
+          },
+          "connection_revision": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Connection Revision"
+          },
+          "context_fact_source": {
+            "const": "server_observed",
+            "default": "server_observed",
+            "title": "Context Fact Source",
+            "type": "string"
+          },
+          "effective_context_sensitivity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "public",
+                  "personal",
+                  "sensitive",
+                  "restricted",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Effective Context Sensitivity"
+          },
+          "execution_origin": {
+            "enum": [
+              "automatic_managed",
+              "connected_local",
+              "manual_import"
+            ],
+            "title": "Execution Origin",
+            "type": "string"
+          },
+          "fact_source": {
+            "enum": [
+              "server_observed",
+              "client_reported",
+              "user_declared"
+            ],
+            "title": "Fact Source",
+            "type": "string"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Tokens"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "maximum": 3600000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Latency Ms"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/ -]{0,199}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Id"
+          },
+          "model_verified": {
+            "const": false,
+            "default": false,
+            "title": "Model Verified",
+            "type": "boolean"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Tokens"
+          },
+          "package_fingerprint": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Package Fingerprint"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/ -]{0,199}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider Id"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "source_message_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10000,
+            "title": "Source Message Ids",
+            "type": "array"
+          },
+          "source_snapshots": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextSourceSnapshot"
+            },
+            "maxItems": 512,
+            "title": "Source Snapshots",
+            "type": "array"
+          },
+          "status": {
+            "const": "success",
+            "default": "success",
+            "title": "Status",
+            "type": "string"
+          },
+          "task": {
+            "const": "chat",
+            "default": "chat",
+            "title": "Task",
+            "type": "string"
+          },
+          "usage_confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "reported",
+                  "estimated"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Usage Confidence"
+          },
+          "usage_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "provider",
+                  "estimated"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Usage Source"
+          }
+        },
+        "required": [
+          "fact_source",
+          "execution_origin",
+          "recorded_at"
+        ],
+        "title": "TurnAttribution",
+        "type": "object"
+      },
+      "TurnReservation": {
+        "additionalProperties": false,
+        "description": "One branch-owned execution lifecycle, persisted inside its assistant message.",
+        "properties": {
+          "audience": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Audience"
+          },
+          "authority_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Authority Digest",
+            "type": "string"
+          },
+          "branch_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Branch Digest",
+            "type": "string"
+          },
+          "caller_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller Id"
+          },
+          "completion_digest": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completion Digest"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Connection Id"
+          },
+          "connection_revision": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Connection Revision"
+          },
+          "effective_sensitivity": {
+            "enum": [
+              "public",
+              "personal",
+              "sensitive",
+              "restricted"
+            ],
+            "title": "Effective Sensitivity",
+            "type": "string"
+          },
+          "endpoint_profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Endpoint Profile Id"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "max_output_bytes": {
+            "maximum": 80000,
+            "minimum": 1,
+            "title": "Max Output Bytes",
+            "type": "integer"
+          },
+          "max_output_chars": {
+            "default": 20000,
+            "maximum": 20000,
+            "minimum": 1,
+            "title": "Max Output Chars",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "connected_provider",
+              "manual_external"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Id"
+          },
+          "package_fingerprint": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Package Fingerprint",
+            "type": "string"
+          },
+          "policy_version": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "profile_digest": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Digest"
+          },
+          "profile_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Version"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider Id"
+          },
+          "request_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Request Digest",
+            "type": "string"
+          },
+          "reservation_id": {
+            "format": "uuid",
+            "title": "Reservation Id",
+            "type": "string"
+          },
+          "selected_memory_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10000,
+            "title": "Selected Memory Ids",
+            "type": "array"
+          },
+          "source_message_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10000,
+            "title": "Source Message Ids",
+            "type": "array"
+          },
+          "source_snapshots": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ContextSourceSnapshot"
+            },
+            "maxItems": 512,
+            "title": "Source Snapshots",
+            "type": "array"
+          },
+          "state": {
+            "default": "prepared",
+            "enum": [
+              "prepared",
+              "dispatched",
+              "completed",
+              "cancelled",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reservation_id",
+          "request_digest",
+          "mode",
+          "package_fingerprint",
+          "branch_digest",
+          "authority_digest",
+          "policy_version",
+          "effective_sensitivity",
+          "expires_at",
+          "max_output_bytes"
+        ],
+        "title": "TurnReservation",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "GoogleUserIDToken": {
+        "bearerFormat": "Google OIDC ID token",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Personal AI external consumer",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/conversations": {
+      "get": {
+        "description": "List conversations belonging to the current Phase 1 owner.",
+        "operationId": "list_conversations_v1_conversations_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "List Conversations",
+        "tags": [
+          "conversations"
+        ]
+      },
+      "post": {
+        "description": "Create an empty conversation for the Phase 1 owner.",
+        "operationId": "create_conversation_v1_conversations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Create Conversation",
+        "tags": [
+          "conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}": {
+      "get": {
+        "description": "Retrieve a conversation and its selected active message path.",
+        "operationId": "get_conversation_v1_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Get Conversation",
+        "tags": [
+          "conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/context-preview": {
+      "post": {
+        "description": "Show the shared automatic planner's bounded source choices before a turn.",
+        "operationId": "preview_automatic_context_v1_conversations__conversation_id__context_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContinuationRequestPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Preview Automatic Context",
+        "tags": [
+          "external turns"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/continuations/{idempotency_key}": {
+      "get": {
+        "operationId": "continuation_status_v1_conversations__conversation_id__continuations__idempotency_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "idempotency_key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContinuationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Continuation Status",
+        "tags": [
+          "conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/continue": {
+      "post": {
+        "description": "Continue through the shared automatic lane or external-turn preparation UI.",
+        "operationId": "continue_conversation_turn_v1_conversations__conversation_id__continue_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContinuationRequestPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Server-sent event stream"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Continue Conversation Turn",
+        "tags": [
+          "conversations"
+        ]
+      }
+    }
+  },
+  "x-external-request-max-bytes": 131072,
+  "x-sse-events": {
+    "message.created": {
+      "$ref": "#/components/schemas/SSEMessageCreated"
+    },
+    "response.completed": {
+      "$ref": "#/components/schemas/SSEResponseCompleted"
+    },
+    "response.delta": {
+      "$ref": "#/components/schemas/SSEResponseDelta"
+    },
+    "response.error": {
+      "$ref": "#/components/schemas/SSEResponseError"
+    }
+  },
+  "x-stream-resume": "unsupported; reconcile the original idempotency_key"
+}

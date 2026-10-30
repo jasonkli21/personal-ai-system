@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -35,3 +35,17 @@ The owning repo's `AGENTS.md`, code/tests/migrations, [`docs/current-state.md`](
 PI-0 independent acceptance remains pending. The roadmap and exit contract retain all gates. This index does not supersede memory security or production acceptance.
 
 Do not move or duplicate the historical MEM/Chapter2 evidence into this folder. Link to those records and preserve their version and provenance.
+
+## PI-2 external consumer candidate
+
+- [Same-session plan hardening](pi-2-plan-hardening.md), including the PI-0/1 gate exception and threat model.
+- [Implementation/verification report](pi-2-implementation-report.md), observed limitations and artifact identities.
+- [External v1 HTTP contract](consumer-v1.md) and [generated OpenAPI subset](consumer-v1.openapi.json).
+- [Independent Reading Logbook quickstart](../../examples/reading-logbook/README.md), operator identity/membership policy and rollback.
+- [Separate independent-review prompt](pi-2-independent-review-prompt.md); self-review supplies no independent verdict.
+
+The new client does not grant access to global profile, app-private memory, tasks,
+account administration or gated external turns. Existing MEM-0/1/2 flags, schemas,
+source/actor fences, receipts and fixture/lock history remain preserved. v20 is
+a source-only planner rebind with no promotion. Real identity/IAM, providers,
+native storage recovery, Linux/Python 3.12 CI and independent acceptance stay open.

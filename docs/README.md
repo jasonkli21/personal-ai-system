@@ -14,7 +14,7 @@ or provider/cloud acceptance. Each repository owns one current-state page.
 
 | Task | Minimum context |
 | --- | --- |
-| Platform Independence and memory feature freeze | [PI index](platform-independence/README.md), [PI-0 baseline](platform-independence/pi-0-implementation-report.md), [architecture decisions](platform-independence/pi-0-architecture-decisions.md), [PI-1 candidate](platform-independence/pi-1-implementation-report.md), [PI-1 review remediation](platform-independence/pi-1-review-remediation-2026-10-30.md) |
+| Platform Independence and memory feature freeze | [PI index](platform-independence/README.md), [PI-0 baseline](platform-independence/pi-0-implementation-report.md), [architecture decisions](platform-independence/pi-0-architecture-decisions.md), [PI-1 candidate](platform-independence/pi-1-implementation-report.md), [PI-1 review remediation](platform-independence/pi-1-review-remediation-2026-10-30.md), [PI-2 candidate](platform-independence/pi-2-implementation-report.md), [external HTTP contract](platform-independence/consumer-v1.md) |
 | Five-repo stabilization or separate review | [Current verification](../stabilization/VERIFICATION.md), [fresh re-review handoff](../stabilization/FRESH-REVIEW-HANDOFF.md), [contracts](../stabilization/CROSS-REPO-CONTRACTS.md) |
 | Delegated identity, confirmed tasks, domain receipts | [Suite contracts](../stabilization/CROSS-REPO-CONTRACTS.md), `backend/src/personal_ai/contracts/`, `mutations/`, `auth/task_identity.py`, and [integration matrix](../stabilization/INTEGRATION-MATRIX.md) |
 | Federation, grants, context identity and revocation | `backend/src/personal_ai/federation/`, [Phase30 architecture](personal-ai-chapter-2/phase-30-architecture.md), owning context adapter and domain contract |

@@ -27,7 +27,13 @@ def api(monkeypatch):
     rt.knowledge.resolver = rt.authority
     rt.service = rt.for_scope(rt.scope)
     # Keep the request clock aligned with the synthetic source and principal.
-    rt.principal = replace(rt.principal, authenticated_at=int(now.timestamp()))
+    rt.principal = replace(
+        rt.principal,
+        authenticated_at=int(now.timestamp()),
+        audience="synthetic-web-client",
+        authorized_party="synthetic-web-client",
+        expires_at=int(now.timestamp()) + 3600,
+    )
     rt.now = now
     with rt.user():
         record = rt.seed()

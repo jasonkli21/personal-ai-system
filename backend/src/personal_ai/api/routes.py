@@ -25,6 +25,7 @@ from personal_ai.api.dependencies import (
 )
 from personal_ai.api.federation_choices import resolve_continuation_payload
 from personal_ai.api.schemas import (
+    ContinuationStatusResponse,
     ConversationDetailResponse,
     ConversationListResponse,
     CreateConversationRequest,
@@ -90,6 +91,19 @@ def get_conversation(
     return ConversationDetailResponse(conversation=conversation, messages=messages)
 
 
+@router.get(
+    "/{conversation_id}/continuations/{idempotency_key}", response_model=ContinuationStatusResponse
+)
+def continuation_status(
+    conversation_id: UUID,
+    idempotency_key: UUID,
+    service: Annotated[ConversationService, Depends(get_conversation_service)],
+) -> ContinuationStatusResponse:
+    return ContinuationStatusResponse.model_validate(
+        service.continuation_status(conversation_id, idempotency_key)
+    )
+
+
 class _LifecycleStreamingResponse(StreamingResponse):
     """Close async body iterators when the ASGI send path fails or is cancelled."""
 
@@ -148,7 +162,7 @@ def _sse_response(stream: object, *, request_id: str) -> StreamingResponse:
         sse_frames(stream),  # type: ignore[arg-type]
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-store",
             "X-Accel-Buffering": "no",
             "X-Request-ID": request_id,
         },

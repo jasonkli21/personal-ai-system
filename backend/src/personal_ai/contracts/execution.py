@@ -4,7 +4,7 @@ import re
 from enum import StrEnum
 from hashlib import sha256
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -177,7 +177,9 @@ class ContinuationRequestPayload(BaseModel):
 
     @model_validator(mode="after")
     def choices_and_exclusions_are_unique(self):
-        if any(not re.fullmatch(r"[A-Za-z0-9_-]{43}", handle) for handle in self.federation_choice_ids):
+        if any(
+            not re.fullmatch(r"[A-Za-z0-9_-]{43}", handle) for handle in self.federation_choice_ids
+        ):
             raise ValueError("federation_choice_invalid")
         if len(set(self.federation_choice_ids)) != len(self.federation_choice_ids):
             raise ValueError("federation_choices_must_be_unique")
@@ -195,3 +197,8 @@ class ContinuationRequestPayload(BaseModel):
             launch_context=self.launch_context,
             excluded_source_classes=self.excluded_source_classes,
         )
+
+
+def continuation_message_id(conversation_id: UUID, owner_id: str, scope, key: UUID) -> UUID:
+    """Existing v1 durable identity; preserve byte-for-byte across client versions."""
+    return uuid5(conversation_id, f"{owner_id}:{scope.application_id}:{scope.workspace_id}:{key}")

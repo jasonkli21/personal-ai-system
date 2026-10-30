@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.scope import ApplicationScope
+from personal_ai.contracts.execution import continuation_message_id
 from personal_ai.entities import Conversation, Message
 from personal_ai.storage.errors import ConversationConflictError, ResourceNotFoundError
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
@@ -104,3 +106,27 @@ class ConversationService:
             owner_id=self._owner_id, conversation_id=conversation_id
         )
         return conversation, messages
+
+    def continuation_status(self, conversation_id: UUID, key: UUID) -> dict:
+        """Observe canonical messages only; no recovery mutation or provider work."""
+        self._conversations.get(owner_id=self._owner_id, conversation_id=conversation_id)
+        scope = self._application_context.scope if self._application_context else ApplicationScope()
+        identity = continuation_message_id(conversation_id, self._owner_id, scope, key)
+        try:
+            message = self._messages.get(
+                owner_id=self._owner_id, conversation_id=conversation_id, message_id=identity
+            )
+        except ResourceNotFoundError:
+            try:
+                self._messages.get(
+                    owner_id=self._owner_id,
+                    conversation_id=conversation_id,
+                    message_id=uuid5(identity, "user"),
+                )
+            except ResourceNotFoundError:
+                return {"state": "not_found", "message_id": None}
+            return {"state": "unknown", "message_id": None}
+        state = {"completed": "completed", "streaming": "in_progress"}.get(
+            message.status.value, "unknown"
+        )
+        return {"state": state, "message_id": message.id}

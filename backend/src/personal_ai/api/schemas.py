@@ -1,5 +1,6 @@
 """HTTP request and response schemas for the documented Phase 1 API."""
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -81,3 +82,10 @@ class SSEResponseError(APIModel):
     message_id: UUID
     code: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9_]+$")
     message: str = Field(min_length=1, max_length=500)
+
+
+class ContinuationStatusResponse(APIModel):
+    """Metadata-only observation of the original key, including inactive branches."""
+
+    state: Literal["not_found", "in_progress", "unknown", "completed"]
+    message_id: UUID | None = None

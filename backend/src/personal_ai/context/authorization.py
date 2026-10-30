@@ -17,6 +17,7 @@ from personal_ai.applications.contracts import (
     ContextOperationPolicy,
     ContextSensitivity,
 )
+from personal_ai.auth.application_clients import require_current_client_authority
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context.providers import (
     ContextFieldSensitivity,
@@ -33,6 +34,7 @@ def _at_most(value: ContextSensitivity, ceiling: ContextSensitivity) -> bool:
 
 def authorize_base_disclosure(context: ApplicationContextRequest) -> ContextSensitivity:
     """Authorize mandatory user/history content before summaries or counts."""
+    require_current_client_authority()
     baseline = ContextSelection(
         provider_id="conversation_history",
         operation="history",

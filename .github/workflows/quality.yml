@@ -26,7 +26,7 @@ jobs:
         working-directory: backend
       - run: uv sync --locked --extra dev --group build --no-build-isolation
         working-directory: backend
-      - run: make platform-independence-check
+      - run: make pi2-check
 
   backend:
     runs-on: ubuntu-latest

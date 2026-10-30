@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling==1.27.0", "editables==0.5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reading-logbook-client"
+version = "0.1.0"
+description = "Independent HTTP-only reading records and Personal AI v1 CLI"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+reading-logbook = "reading_logbook.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reading_logbook"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/pyproject.toml"]

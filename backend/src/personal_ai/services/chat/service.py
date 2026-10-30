@@ -13,6 +13,7 @@ from uuid import UUID, uuid4, uuid5
 import anyio
 
 from personal_ai.applications.contracts import ApplicationContextRequest, ContextSensitivity
+from personal_ai.auth.application_clients import require_current_client_authority
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.authority import source_snapshots_current
@@ -28,6 +29,7 @@ from personal_ai.context.history import (
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
 from personal_ai.contracts.context_references import ContextEntityReference, ContextSourceSnapshot
+from personal_ai.contracts.execution import continuation_message_id
 from personal_ai.entities import MAX_MESSAGE_CONTENT_CHARS, Message, MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.llm import (
@@ -361,7 +363,9 @@ class ChatTurnService:
             maximum_sensitivity=maximum_context_sensitivity,
         )
         history_exclusions = {}
-        reuse_policy = self._application_context.definition.context_policy.sidecar.manual_import_reuse
+        reuse_policy = (
+            self._application_context.definition.context_policy.sidecar.manual_import_reuse
+        )
         history = conversation_context_messages(
             history,
             manual_import_reuse=reuse_policy,
@@ -399,9 +403,9 @@ class ChatTurnService:
                 )
             except ValueError as error:
                 raise ContextPreparationError("application_launch_scope_mismatch") from error
-        identity = uuid5(
-            conversation_id,
-            f"{self._owner_id}:{self._application_context.scope.application_id if self._application_context else 'personal_ai'}:{self._application_context.scope.workspace_id if self._application_context else None}:{request.idempotency_key}",
+        scope = self._application_context.scope if self._application_context else ApplicationScope()
+        identity = continuation_message_id(
+            conversation_id, self._owner_id, scope, request.idempotency_key
         )
         intent_digest = request.intent_digest
         active = self._active(conversation_id)
@@ -886,6 +890,7 @@ class ChatTurnService:
             # while sending either event must fail the already-persisted turn.
             for message in turn.created:
                 yield TurnMessageCreated(message)
+            await io_call(require_current_client_authority)
             if not source_snapshots_current(
                 turn.source_snapshots,
                 self._context.permission_revalidator,
@@ -947,6 +952,7 @@ class ChatTurnService:
                 raise LLMIncompleteGenerationError("language model ended without a terminal result")
             if not content.strip():
                 raise LLMInvalidResponseError("language model response was empty")
+            await io_call(require_current_client_authority)
             if not source_snapshots_current(
                 turn.source_snapshots,
                 self._context.permission_revalidator,
@@ -1129,6 +1135,7 @@ class ChatTurnService:
         self, conversation_id: UUID, assistant: Message
     ) -> AsyncIterator[TurnEvent]:
         async def replay():
+            await io_call(require_current_client_authority)
             user = self.get_message(conversation_id, uuid5(assistant.id, "user"))
             for message in (user, assistant):
                 yield TurnMessageCreated(message)

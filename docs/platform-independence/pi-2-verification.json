@@ -1,0 +1,402 @@
+{
+  "artifacts": [
+    {
+      "entry_point_metadata": [],
+      "members": 418,
+      "path": "backend/dist/personal_ai_backend-0.1.0-py3-none-any.whl",
+      "requires_dist": [
+        "anyio<5.0,>=4.0",
+        "boto3<2.0,>=1.35",
+        "cryptography<51,>=46",
+        "fastapi<1.0,>=0.115",
+        "google-auth<3.0,>=2.0",
+        "google-cloud-pubsub<3.0,>=2.21",
+        "httpx<1.0,>=0.27",
+        "litellm==1.102.1",
+        "psycopg[binary,pool]<4.0,>=3.2",
+        "pydantic-settings<3.0,>=2.0",
+        "pyjwt[crypto]<3,>=2.10",
+        "uvicorn[standard]<1.0,>=0.30",
+        "httpx<1.0,>=0.27; extra == 'dev'",
+        "pytest<9.0,>=8.0; extra == 'dev'",
+        "ruff<1.0,>=0.6; extra == 'dev'"
+      ],
+      "sha256": "c04ade5c989b426711575f600cb643c11e440e5c95d67fab1d9120599f8c2f86"
+    },
+    {
+      "entry_point_metadata": [],
+      "members": 419,
+      "path": "backend/dist/personal_ai_backend-0.1.0.tar.gz",
+      "requires_dist": [
+        "anyio<5.0,>=4.0",
+        "boto3<2.0,>=1.35",
+        "cryptography<51,>=46",
+        "fastapi<1.0,>=0.115",
+        "google-auth<3.0,>=2.0",
+        "google-cloud-pubsub<3.0,>=2.21",
+        "httpx<1.0,>=0.27",
+        "litellm==1.102.1",
+        "psycopg[binary,pool]<4.0,>=3.2",
+        "pydantic-settings<3.0,>=2.0",
+        "pyjwt[crypto]<3,>=2.10",
+        "uvicorn[standard]<1.0,>=0.30",
+        "httpx<1.0,>=0.27; extra == 'dev'",
+        "pytest<9.0,>=8.0; extra == 'dev'",
+        "ruff<1.0,>=0.6; extra == 'dev'"
+      ],
+      "sha256": "8ac95c289942a596705cc411a623be6df5bf131cdaa6cb45e29f715a93391aa9"
+    },
+    {
+      "entry_point_metadata": [
+        "[personal_ai.application_contributions]\nfinance = personal_ai_reference_apps.applications:finance_application\nhealth = personal_ai_reference_apps.applications:health_application\nshopping = personal_ai_reference_apps.applications:shopping_application\ntravel = personal_ai_reference_apps.applications:travel_application\n\n[personal_ai.context_contributions]\nfinance = personal_ai_reference_apps.deployment:finance_context\nhealth = personal_ai_reference_apps.deployment:health_context\nshopping = personal_ai_reference_apps.deployment:shopping_context\ntravel = personal_ai_reference_apps.deployment:travel_context\n"
+      ],
+      "members": 54,
+      "path": "reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl",
+      "requires_dist": [
+        "personal-ai-backend==0.1.0"
+      ],
+      "sha256": "dc34894104bdda3a82fef1b4f1b69fca6f84649cdacaa6983eeefc0a107071fd"
+    },
+    {
+      "entry_point_metadata": [],
+      "members": 54,
+      "path": "reference-apps/dist/personal_ai_reference_apps-0.1.0.tar.gz",
+      "requires_dist": [
+        "personal-ai-backend==0.1.0"
+      ],
+      "sha256": "ba3464852d505ae68a2484af9dacbc03ca3ca9d03c3b17abbe12d551de4cc58c"
+    },
+    {
+      "entry_point_metadata": [
+        "[console_scripts]\nreading-logbook = reading_logbook.cli:main\n"
+      ],
+      "members": 8,
+      "path": "examples/reading-logbook/client/dist/reading_logbook_client-0.1.0-py3-none-any.whl",
+      "requires_dist": [],
+      "sha256": "19e448a3e9a9fd408359292005752a7f3534d7da381303bab19c675fdebaa4a0"
+    },
+    {
+      "entry_point_metadata": [],
+      "members": 7,
+      "path": "examples/reading-logbook/client/dist/reading_logbook_client-0.1.0.tar.gz",
+      "requires_dist": [],
+      "sha256": "f2d2f1a7379b0145e3cdcdb02e0f2856f42663d6efa1c8a61fa682eca0f81fc1"
+    },
+    {
+      "entry_point_metadata": [
+        "[personal_ai.application_contributions]\nreading_logbook = reading_logbook_host:application\n\n[personal_ai.context_contributions]\nreading_logbook = reading_logbook_host:context\n"
+      ],
+      "members": 5,
+      "path": "examples/reading-logbook/host/dist/reading_logbook_host-0.1.0-py3-none-any.whl",
+      "requires_dist": [
+        "personal-ai-backend==0.1.0"
+      ],
+      "sha256": "4b11168dd3a22927cf47592d5b5f4f6a41e4ab1b15b5bc3ef819e0a1648b8e3c"
+    },
+    {
+      "entry_point_metadata": [],
+      "members": 4,
+      "path": "examples/reading-logbook/host/dist/reading_logbook_host-0.1.0.tar.gz",
+      "requires_dist": [
+        "personal-ai-backend==0.1.0"
+      ],
+      "sha256": "a793e5c29fd86782ef412daf1001fa683f764c5d56304d90dadc39ffd50ed6f7"
+    }
+  ],
+  "base_revision": "2746ea711248603b484f5985ab561978c4ec34bc",
+  "changed_file_inventory": [
+    ".github/workflows/quality.yml",
+    "Makefile",
+    "README.md",
+    "backend/.env.example",
+    "backend/pyproject.toml",
+    "backend/scripts/pi2_artifact_checks.py",
+    "backend/scripts/pi2_client_probe.py",
+    "backend/scripts/pi2_contract.py",
+    "backend/scripts/pi2_http_checks.py",
+    "backend/src/personal_ai/api/consumer_contract.py",
+    "backend/src/personal_ai/api/federation_choices.py",
+    "backend/src/personal_ai/api/routes.py",
+    "backend/src/personal_ai/api/schemas.py",
+    "backend/src/personal_ai/auth/application_clients.py",
+    "backend/src/personal_ai/auth/contracts.py",
+    "backend/src/personal_ai/auth/middleware.py",
+    "backend/src/personal_ai/auth/verification.py",
+    "backend/src/personal_ai/context/authorization.py",
+    "backend/src/personal_ai/contracts/execution.py",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v20.json",
+    "backend/src/personal_ai/evaluation/planning.py",
+    "backend/src/personal_ai/extensions/__init__.py",
+    "backend/src/personal_ai/extensions/v1.py",
+    "backend/src/personal_ai/services/chat/service.py",
+    "backend/src/personal_ai/services/conversations.py",
+    "backend/src/personal_ai/settings.py",
+    "backend/tests/test_auth.py",
+    "backend/tests/test_booking_extractions.py",
+    "backend/tests/test_memory_control_api.py",
+    "backend/tests/test_phase9_controls.py",
+    "backend/tests/test_pi2_client.py",
+    "backend/tests/test_pi2_http.py",
+    "backend/tests/test_planning_experiment.py",
+    "docs/README.md",
+    "docs/current-state.md",
+    "docs/platform-independence/README.md",
+    "docs/platform-independence/consumer-v1.md",
+    "docs/platform-independence/consumer-v1.openapi.json",
+    "docs/platform-independence/pi-2-implementation-report.md",
+    "docs/platform-independence/pi-2-independent-review-prompt.md",
+    "docs/platform-independence/pi-2-plan-hardening.md",
+    "docs/platform-independence/pi-2-verification.json",
+    "examples/reading-logbook/README.md",
+    "examples/reading-logbook/client/pyproject.toml",
+    "examples/reading-logbook/client/src/reading_logbook/__init__.py",
+    "examples/reading-logbook/client/src/reading_logbook/cli.py",
+    "examples/reading-logbook/client/src/reading_logbook/client.py",
+    "examples/reading-logbook/client/src/reading_logbook/store.py",
+    "examples/reading-logbook/host/pyproject.toml",
+    "examples/reading-logbook/host/src/reading_logbook_host/__init__.py"
+  ],
+  "commands": [
+    {
+      "command": "UV_OFFLINE=true UV_CACHE_DIR=/tmp/pi2-uv-cache make pi2-check",
+      "exit_code": 0,
+      "summary": "wheel-from-sdist builds for 4 distributions; import/facade guard 0 edges; context fixtures 9; planner 30 non-promoting cases / 0 calls / 0 tokens; core installed subset 49, legacy 190, restored-key 56; PI-2 installed HTTP/protocol 55 (35 HTTP, 20 protocol); client-only CLI process and final uninstall/core probes pass; zero observed forbidden attempts"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi1_offline_checks.py -q backend/tests/test_auth.py backend/tests/test_phase9_controls.py backend/tests/test_memory_control_api.py backend/tests/test_booking_extractions.py backend/tests/test_application_scope.py backend/tests/test_applications.py backend/tests/test_context_runtime_composition.py backend/tests/test_memory_control.py backend/tests/test_memory_control_context.py backend/tests/test_memory_knowledge.py backend/tests/test_memory_knowledge_evaluation.py backend/tests/test_memory_knowledge_consumer.py backend/tests/test_mem0_task_baseline.py backend/tests/test_memory_disclosure_authorization.py backend/tests/test_chat_stream_lifecycle.py backend/tests/test_task_identity.py backend/tests/test_task_deployment.py backend/tests/test_mutations.py backend/tests/test_external_turns.py backend/tests/test_external_turn_composition.py backend/tests/test_phase36_integrated.py backend/tests/test_federation.py backend/tests/test_planning_experiment.py backend/tests/test_pi2_client.py --tb=short",
+      "exit_code": 0,
+      "summary": "593 passed, 4 warnings; 0 blocked network attempts; serial run; no skips"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi1_offline_checks.py -q backend/tests/test_chat_stream_lifecycle.py backend/tests/test_memory_disclosure_authorization.py --tb=short",
+      "exit_code": 0,
+      "summary": "30 passed; 0 blocked attempts; isolated timing retry, not root-cause evidence"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-lint",
+      "exit_code": 0,
+      "summary": "All checks passed"
+    },
+    {
+      "command": "backend/.venv/bin/python -m ruff check examples/reading-logbook",
+      "exit_code": 0,
+      "summary": "All checks passed"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "summary": "No whitespace errors"
+    }
+  ],
+  "date": "2026-10-30",
+  "entry_worktree_untracked_preserved": [
+    "docs/memory/plans/mem-1-detailed-implementation-plan.md",
+    "docs/memory/plans/mem-2-detailed-implementation-plan.md",
+    "docs/personal-ai-chapter-2/litellm-routing-review-handoff-2026-10-08.md",
+    "docs/phase-11-independent-review-2026-10-07.md",
+    "docs/phase-12-independent-review-2026-10-07.md",
+    "docs/phase-13-independent-review-2026-10-07.md",
+    "docs/phase-14-independent-review-2026-10-07.md",
+    "docs/phase-15-independent-review-2026-10-07.md",
+    "docs/phase-17r-independent-review-2026-10-08.md",
+    "docs/platform-independence/pi-0-independent-review-handoff.md",
+    "docs/platform-independence/pi-2-detailed-implementation-plan.md",
+    "docs/platform-independence/pi-2-sol-implementation-prompt.md"
+  ],
+  "environment": {
+    "artifact_PYTHONPATH": "unset",
+    "artifact_environment": "PATH, UV_CACHE_DIR in temporary workspace, UV_OFFLINE=true, AI_PROVIDER=fake, AI_MODEL=pi1-artifact, PYTHONDONTWRITEBYTECODE=1; PI2_INSTALLED=1 and client-only interpreter/runner paths for HTTP fixture",
+    "network_dependency_downloads": 0,
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "preinstalled_dependencies": true,
+    "python": "3.11.15 (main, May 10 2026, 19:23:07) [Clang 22.1.3 ]",
+    "socket_fence": "numeric-loopback-only for HTTP parent and independent CLI child; no network for offline regressions; not arbitrary native/OS isolation",
+    "source_tests": "explicit fake file list; wrapper refuses .env; inherited shell environment; Python network audit fence"
+  },
+  "failures_and_repairs": "See implementation report: collection import, sandbox listener denial, forbidden unconfigured native PG lookup, over-broad federation guard, frozen source lock, artifact dotfile/spec path, two deadline-sensitive overlapping-run failures; all retained as failures, no inferred root cause.",
+  "fixture_sha256": {
+    "backend/scripts/pi2_artifact_checks.py": "53b11c0d78446da81fe327468708ee8fef6f24d67286025b7d28b21c53dbed80",
+    "backend/scripts/pi2_client_probe.py": "dfa7b35f9660e5e368506da4f860695bf71c9104bcb3984727f9323d431fa914",
+    "backend/scripts/pi2_http_checks.py": "b320e78d57da8b61aac6e38866b7f9d135f1cf0f8eaa26707056101a964374ab",
+    "backend/tests/test_pi2_client.py": "5d84d105393e3404ecd9aa986f132f748e891addc32261c8d2cd8879efd90f8f",
+    "backend/tests/test_pi2_http.py": "f2f7344db851df18316595b5f911839da4893c2caafbe7df6623b70638a0a7c8",
+    "docs/platform-independence/consumer-v1.openapi.json": "205db70feb46dacb28ef2c15014fe05b5b715310a1bc296431f25d4bf98e2c72"
+  },
+  "frozen_file_sha256": {
+    "backend/src/personal_ai/evaluation/fixtures/context/context-fixtures.json": "89573230becac4758a26ec86c21c8bc1edb92d3762c12311b9b13d4d32bb0e22",
+    "backend/src/personal_ai/evaluation/fixtures/context/context-plan-fixtures.json": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v1.json": "4edac61d22f595aa0918435f60ef1daaa20dd5c1bfcd2491eacfb224ff6292c5",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v10.json": "a5d94d407d36bf937a589ab97d46b1c2f90b8ed1c92080fc94581146207f5ab6",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v11.json": "ec5e2d2d50f2d886d9f07cd585420dd3a6ac3d8292b4b2b511259c9f8de2efe2",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v12.json": "e29a190ccdcd794ff12e5be0e338900f17d85b13b65350a7ece65bfc3276a122",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v13.json": "1548d32f168342b8c9b25e16f27a92fe0306b7969420d2f6aa6823a9830f476e",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v14.json": "55b503c348227508da9920fc12cbb6fc4671a5a3b00e4f1dca38c7cb11d942bc",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v15.json": "52138c17596772daa7cfebaacf7097625fd8ce1323838054e59961492a189683",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v16.json": "328c44acc253cbf42547e0f671223117a75e9264ad1117f56154d1a68b408249",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v17.json": "1779b35420c9080e2c45417d0a91e9f7c35af2ed3c3cd7967bc00bc446a6e068",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v18.json": "04342a8f00c82503f52f4cfb93a25bd45ff6c2507c769ff30db71ffe372c48dd",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v19.json": "f20b549437916d999ec277c90149cd9b9b769e4cf92040902717e06940424865",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v2.json": "7c2b18adc6a44081d5c1ac110f6d714c129c9a7821fbdbd84522bfa7b9e29963",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v3.json": "a1cd94e59027595a724c9733778c822b363fdc694f6f5a06c0da0394cb938919",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v4.json": "0ccc073e5751451d3c551a2f289a1798fc81b6259cb1dc27d7d7b67d00787750",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v5.json": "bc90a287f1d1e8b6f4261ac9f8548a1a072effd6da6b57cb7a132244131b688e",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v6.json": "4069f0e21c442a3f140b99c86e13bf5b9a1a08485c3044b68156e1e6d2edfe34",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v7.json": "4ce4068a94b42d4dbdce166d4ec6b2426af858815f49ecaa821deaf8ebff0ee5",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v8.json": "c8d3cd09f233de65eed9ea47498a8b1c2e32182f45c94f93728b1c56a9719b98",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v9.json": "549002529e05c9a0250dc62d7874145c094a21cd23fb7a7c8cbdf1e2a073dd78",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-heldout-v1.json": "6378721cf26fb6cfdc0520577fca0b8edddcf77abbc41c80f3aa1b9d0d505b73",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-heldout-v2.json": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+    "backend/src/personal_ai/evaluation/fixtures/decisions/decision-fixtures.json": "221e9a3b42945b33363720b67a6d50e8204b3e01cae582fc81f24d1f2c870cb2",
+    "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures-v2.json": "b65ee153b020ae44dbefab33fb21ff268585ca08b0a490af98d0aa5d87ecc129",
+    "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures.json": "6db4b06c7d371c2a54fec37886c4b9df4ff555b671689a1c96cf9c4935ff4ef1",
+    "backend/src/personal_ai/evaluation/fixtures/memory/mem0-cases-v1.json": "043edaae3461286b49bcb4fda4f73bdc5059e528361bad3fa670a3b1c4e58b18",
+    "backend/src/personal_ai/evaluation/fixtures/memory/mem0-cases-v2.json": "592a0e3799aeafc32ebf7cba0c7e162ff0af98d0049af2cf683de653e5fc02e1",
+    "backend/src/personal_ai/evaluation/fixtures/memory/mem1-consumer-v1.json": "ff94f67f8889f13887128003d21e5f1b89078e806c12a1d148c4ac7d1d347066",
+    "backend/src/personal_ai/evaluation/fixtures/memory/mem1-paired-v1.json": "587e87f11422719e8ad2f512ede7020c0bae937cb555b1035cd8eb386866756e",
+    "backend/src/personal_ai/evaluation/fixtures/memory/mem2-control-v1.json": "7d2e93b33904ddb81bef6e4f8f3ffff89a51b7d63b85b5e88c21877c4b6c2a9d",
+    "backend/src/personal_ai/evaluation/fixtures/memory/memory-baseline-v1.json": "ff6d04416592acc7bc4b3b63ff073112534d045fe231e3d48a0aa638361608c3",
+    "backend/src/personal_ai/evaluation/fixtures/memory/memory-fixtures.json": "bd2f7a0c3ee8ab6cc4dd728364be091ebddbf8af3daa9ae49ec19e22b974471a",
+    "backend/src/personal_ai/evaluation/fixtures/memory/memory-lifecycle-fixtures.json": "b8863d06cdb4c6d5bf0cd2753fbb64ebffbbb19945870abd096a691d0d152f06",
+    "backend/src/personal_ai/evaluation/fixtures/research/research-fixtures.json": "e2901c69e02f46229644b70026b87954245d6ae685e04908e4282785879e64ec",
+    "backend/src/personal_ai/evaluation/fixtures/research/retrieval-baseline-v1.json": "58ffcadd82e2e00685fb20ae407f3b5007d27e1218ff8831cc803b6e8f1fa665",
+    "backend/src/personal_ai/evaluation/fixtures/research/retrieval-baseline-v2.json": "8fd05a3b792eb629da72948802e8a144ca233fa576867351fefa835680cf7782",
+    "backend/src/personal_ai/evaluation/fixtures/research/retrieval-heldout-v1.json": "3a7947abb909dd887e81e4b10f09a0bd2cd97fa6541bf54126442e9d7281fd96",
+    "backend/src/personal_ai/evaluation/fixtures/research/retrieval-heldout-v2.json": "679e05ed0c6ad8be3136a1938f444cb27ec05df3997425df52e9cc1cd12d5cdc",
+    "backend/src/personal_ai/evaluation/fixtures/routing/adaptive-baseline-v1.json": "434f8129c62f1ac17e3e25864da5f71d80819d6dbfc75b5e6a031ba063ed2f78",
+    "backend/src/personal_ai/evaluation/fixtures/routing/adaptive-observations-v1.json": "01215fc2854f5c9c872c539ee83c6fd30cbcfd7706063a80ae9bc5140edbd276",
+    "backend/src/personal_ai/evaluation/fixtures/routing/provider-matrix-fixtures.json": "cc3f7d22e53ea02f2c3408f7891dab84b3ccdf3aab82e83a2ddb43894f5fbc96",
+    "backend/src/personal_ai/evaluation/fixtures/routing/quota-scarcity-fixtures.json": "2565503b75bc0174f92a3d8cc8d0c65950fe4e8dbe72758a1aa72b0430ca2ff0",
+    "backend/src/personal_ai/persistence/migrations/028_verified_memory_knowledge.sql": "652c92c1251ede51ae0697d72a74e1bcc61ebbdf9b101d3cbf00ac312ced067c",
+    "backend/src/personal_ai/persistence/migrations/029_knowledge_actor_source_fences.sql": "2613727de6eea62ffa4b58561adcf35f1981cac2e78d084b68f3a7758d63acd8",
+    "backend/src/personal_ai/persistence/migrations/030_memory_control.sql": "0690004c83086e1dce8539f9311fb24a1d0f1afba6666e6b5077d0618d56a058",
+    "backend/src/personal_ai/persistence/migrations/031_memory_control_expiry_index.sql": "a94ff68de6d8c1eb7cd8d0fb8f481ef856485bf28b1e24d6b3deee02b036a2b2"
+  },
+  "frozen_preexisting_files_unchanged": 47,
+  "hosted_ci": "Unavailable: GitHub API unreachable; Linux/Python 3.12 not observed",
+  "installed_profile": {
+    "entry_points": [
+      "EntryPoint(name='reading_logbook', value='reading_logbook_host:application', group='personal_ai.application_contributions')",
+      "EntryPoint(name='reading_logbook', value='reading_logbook_host:context', group='personal_ai.context_contributions')"
+    ],
+    "origins": [
+      "/var/folders/kn/djny7kpj0vl523qvdw763ppm0000gn/T/pi1-installed-kidv9sd1/venv/lib/python3.11/site-packages/personal_ai/__init__.py",
+      "/var/folders/kn/djny7kpj0vl523qvdw763ppm0000gn/T/pi1-installed-kidv9sd1/venv/lib/python3.11/site-packages/reading_logbook/__init__.py",
+      "/var/folders/kn/djny7kpj0vl523qvdw763ppm0000gn/T/pi1-installed-kidv9sd1/venv/lib/python3.11/site-packages/reading_logbook_host/__init__.py"
+    ],
+    "sys_path": [
+      "/private/var/folders/kn/djny7kpj0vl523qvdw763ppm0000gn/T/pi1-installed-kidv9sd1",
+      "/Users/jasonkli/.local/share/uv/python/cpython-3.11-macos-aarch64-none/lib/python311.zip",
+      "/Users/jasonkli/.local/share/uv/python/cpython-3.11-macos-aarch64-none/lib/python3.11",
+      "/Users/jasonkli/.local/share/uv/python/cpython-3.11-macos-aarch64-none/lib/python3.11/lib-dynload",
+      "/var/folders/kn/djny7kpj0vl523qvdw763ppm0000gn/T/pi1-installed-kidv9sd1/venv/lib/python3.11/site-packages"
+    ]
+  },
+  "open_gates": [
+    "independent PI-0/1/2 review",
+    "real Google OAuth login/client and private service IAM",
+    "native PostgreSQL/DynamoDB race/crash/restart",
+    "real provider/physical-send/cost",
+    "production source revocation/deletion/recovery",
+    "Linux/Python 3.12 hosted CI",
+    "inherited MEM/Phase36 production gates"
+  ],
+  "runtime_file_sha256": {
+    ".github/workflows/quality.yml": "933e08bcf2c13a2e81d7213b283bd867ef495624aa3d40e830e8c84124f05378",
+    "Makefile": "8a004bc0b4909d8f95ec5482f20fa056b379c37c088440db96a3304dff1189bd",
+    "backend/pyproject.toml": "f868b46c97cfbf40d87d8e12fd8702f8231ee6571fca7f56f367e9de757f0110",
+    "backend/scripts/pi2_artifact_checks.py": "53b11c0d78446da81fe327468708ee8fef6f24d67286025b7d28b21c53dbed80",
+    "backend/scripts/pi2_client_probe.py": "dfa7b35f9660e5e368506da4f860695bf71c9104bcb3984727f9323d431fa914",
+    "backend/scripts/pi2_contract.py": "d0a36d22d9a775d46c75e46cf7f0d6afa06a131f20243fdfa164be13e7c88fb1",
+    "backend/scripts/pi2_http_checks.py": "b320e78d57da8b61aac6e38866b7f9d135f1cf0f8eaa26707056101a964374ab",
+    "backend/src/personal_ai/api/consumer_contract.py": "f105c4d1a9e34fca090ea59dcd0a4bd79dc4bd50d8cc9c266e4301b3edd04fe0",
+    "backend/src/personal_ai/api/federation_choices.py": "6d8ad3fd356f57e9793d33a1b116dd3f5c268ee06c93e3b06c16e16a9ecf0a2c",
+    "backend/src/personal_ai/api/routes.py": "f9015ca59191a4181dfc0f58fd53970e2ca7b5d9de75978c4fd52f15da6f5fc7",
+    "backend/src/personal_ai/api/schemas.py": "8e9e71cf20850ffbb7003d638b8130e58dd46919c79432882149721de8c42d8e",
+    "backend/src/personal_ai/auth/application_clients.py": "c28c7f76cbb001804491d67cae0d89fdd92cf672898d6c81ac4e9db00ce6c769",
+    "backend/src/personal_ai/auth/contracts.py": "5a9f31ab6c29ad1936ff45a596de6a368df88c735f4c9638927c738296458f0a",
+    "backend/src/personal_ai/auth/middleware.py": "d139c50df8e10325f5d17bc31ba3b5d5e17a417cdc417618acde4b70aec5ce65",
+    "backend/src/personal_ai/auth/verification.py": "d1e8f24c79c3d7e92f7c2766749599f52e22e6ccc77c7ac58229b580c24b0178",
+    "backend/src/personal_ai/context/authorization.py": "ca425d960b91a62a4853e28cf77ae41c41a0877ea1290962ee11fe5b2abb7f05",
+    "backend/src/personal_ai/contracts/execution.py": "300c632a6cb905c556229aeea24c7f00366f996bf64dc78cd44ffc088153d832",
+    "backend/src/personal_ai/evaluation/planning.py": "4bf31ab2aedc434cf7f49b6c4bed43f1ab6c8245d7b7ee7754684708c1173f83",
+    "backend/src/personal_ai/extensions/__init__.py": "4e01ddbdb3139a3af3b057d7886edc09974d2f526977d1cff6d69ce2072ec150",
+    "backend/src/personal_ai/extensions/v1.py": "6aa45665e24df8b3c223d1831df81f8ddf9817555de109a9876f97ad5842dee4",
+    "backend/src/personal_ai/services/chat/service.py": "714ea3f3332f7699a6117eb38bad54db2cdb70034d93d628ac6e11a1ea98d1f1",
+    "backend/src/personal_ai/services/conversations.py": "70c5194094d61cece1a710b161954e81f2232869226379515fbf0368f8af8dff",
+    "backend/src/personal_ai/settings.py": "78b880874d13872f49c7585e4199ecbb550e82b1b8e722b7afc096f3deaa0437",
+    "backend/tests/test_auth.py": "c57e2730b42d40c02a820af5453deefb6ce3a895fbc123bcd7408e83c6821acb",
+    "backend/tests/test_booking_extractions.py": "02dd696994deaa947901b3f483617bbbe29c4823cd1ed58162253e3454fc2996",
+    "backend/tests/test_memory_control_api.py": "57b3fd9239b7d5a66fea4964687cad5995d79f900ac9e2a51c7f237c06ee80fb",
+    "backend/tests/test_phase9_controls.py": "47bbc2e06d02e099d65b3fe3fdf93abeffdcc43bf09e18aaf5dee8e32f3e0737",
+    "backend/tests/test_pi2_client.py": "5d84d105393e3404ecd9aa986f132f748e891addc32261c8d2cd8879efd90f8f",
+    "backend/tests/test_pi2_http.py": "f2f7344db851df18316595b5f911839da4893c2caafbe7df6623b70638a0a7c8",
+    "backend/tests/test_planning_experiment.py": "bef32087eb8b5248103aab8b9ebfb989b14fe96c4c14f1a195ff84f2b282ec30",
+    "examples/reading-logbook/client/pyproject.toml": "8162f5471a42b4bda060d9b4c07ecfb9f9374c0d0967ecccf594b68149b6b263",
+    "examples/reading-logbook/client/src/reading_logbook/__init__.py": "674e9176936953980326760de952e7e68c27f890efd6cafc85a93bf797f5f23b",
+    "examples/reading-logbook/client/src/reading_logbook/cli.py": "c78b1ad5f4c9aa9a6c997ca9e48c90bebfb0c6e073e760a65711a0dd2b6e7aa5",
+    "examples/reading-logbook/client/src/reading_logbook/client.py": "4b7a1671d9add684b2338706f66f587fa6fe509752b6384da74bd468b9df7c71",
+    "examples/reading-logbook/client/src/reading_logbook/store.py": "a56b4362137227ca728f9ffae825222d526edebc321af4368ce797c3313863df",
+    "examples/reading-logbook/host/pyproject.toml": "70db9341da2df16057ecad117deb453573ac783af51017a496eea1db439dcee4",
+    "examples/reading-logbook/host/src/reading_logbook_host/__init__.py": "10a55801dc2b1b62f6fd7e06185d4df4e0b4aecfe6d296a55e33fe0923ddb175"
+  },
+  "schema_version": "pi2-local-verification-v1",
+  "skips": "No skipped focused/installed tests; native/cloud/manual suites not run; no full-suite acceptance claim",
+  "source_binding_v20": {
+    "configuration_digest": "c1e4f6057781add8a9ddc8b8372d988904ab04f793c7c21f9838ed705e45d7fe",
+    "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+    "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+    "promotion_decision": "non_promotion; no model-answer quality evidence or promoted coverage",
+    "source_identity_digest": "8efbba6dcc7b4bc6abdb8f30c560f1a2825aba08b18e1d597dbea66f25ad4ce5",
+    "source_revision": "2746ea711248603b484f5985ab561978c4ec34bc"
+  },
+  "status": "implementation_candidate_not_independent_acceptance",
+  "stdout_logs": {
+    "pi2-artifacts-final.log": {
+      "result_lines": [
+        "PI2_CONSUMER_CONTRACT=PASS",
+        "CORE_ARTIFACT_PROBE=PASS",
+        "49 passed, 3 warnings in 7.50s",
+        "PI1_BLOCKED_NETWORK_ATTEMPTS=0 events=[]",
+        "CORE_INSTALLED_MEMORY_RESEARCH_SUMMARY=PASS",
+        "190 passed, 3 warnings in 5.52s",
+        "PI1_BLOCKED_NETWORK_ATTEMPTS=0 events=[]",
+        "REFERENCE_INSTALLED_COMPATIBILITY_AND_UNINSTALL=PASS",
+        "56 passed, 3 warnings in 2.55s",
+        "PI1_BLOCKED_NETWORK_ATTEMPTS=0 events=[]",
+        "RESTORED_REFERENCE_ORIGINAL_KEY_COMPATIBILITY=PASS",
+        "55 passed, 2 warnings in 17.03s",
+        "PI2_FORBIDDEN_NETWORK_ATTEMPTS=0 events=[]",
+        "PI2_INSTALLED_HTTP_CLIENT_AND_UNINSTALL=PASS"
+      ],
+      "sha256": "6759daf4550d524248f0cd03b543514fbdf8cff1aa0abe24f8338eb930b7e688"
+    },
+    "pi2-client-lint.log": {
+      "result_lines": [
+        "All checks passed!"
+      ],
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "pi2-final-regression-serial.log": {
+      "result_lines": [
+        "593 passed, 4 warnings in 51.26s",
+        "PI1_BLOCKED_NETWORK_ATTEMPTS=0 events=[]"
+      ],
+      "sha256": "d8d3e5dc7e17531cefb3054885df074cb54239d70877f0525c8300d7736d7356"
+    },
+    "pi2-lint.log": {
+      "result_lines": [
+        "All checks passed!"
+      ],
+      "sha256": "76caa6909b8e8ca0c33f1a1843642608b70dbb5dc7326606e73b7909a6585c1d"
+    },
+    "pi2-timing-retry.log": {
+      "result_lines": [
+        "30 passed, 2 warnings in 4.22s",
+        "PI1_BLOCKED_NETWORK_ATTEMPTS=0 events=[]"
+      ],
+      "sha256": "0a51dba0c27b8f468168ddda035d47b670a09dda166c0fd7364d6d8bcb870101"
+    }
+  },
+  "target_revision": "single commit containing this manifest; resolve with git log -1 --format=%H -- docs/platform-independence/pi-2-implementation-report.md",
+  "timezone": "America/Los_Angeles"
+}

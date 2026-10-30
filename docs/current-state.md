@@ -39,8 +39,12 @@ adds explicit facade-import diagnostics and strict waiver validation. Independen
 PI-0 acceptance remains pending. [PI-1](platform-independence/pi-1-implementation-report.md) is a user-directed
 implementation candidate pending independent review: separately built core and
 optional reference distributions, explicit catalog selection, core HTTP/lifespan
-physical-absence probes and retained-task startup refusal. PI-2 through PI-8
-remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+physical-absence probes and retained-task startup refusal. [PI-2](platform-independence/pi-2-implementation-report.md) adds a user-directed
+local candidate: verified OAuth client/app binding with revocable operator policy,
+a narrow v1 HTTP contract, canonical continuation-key status, a separately built
+history-only Reading Logbook host and a dependency-free HTTP client with its own
+local records/journal. Independent PI-0/1/2 acceptance remains pending. PI-3 through
+PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
@@ -203,13 +207,13 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v17 remain historical. MEM-2 adds active non-promoting v18,
-preserving v17's deterministic planner, configuration, runtime, fixture dependencies
-and 30 held-out cases while rebinding the changed backend source identity.
-The strict current-or-direct-child source guard remains.
-Production replay still rejects source, runtime and unrelated revision changes.
-Portable tests use an explicitly test-only lock. Nothing is promoted from this
-freeze.
+Planner locks v10-v19 remain historical. MEM-2's v18 and PI-1's v19 retain
+their dated source bindings. PI-2 adds active, source-only, non-promoting v20,
+preserving v19's deterministic planner configuration, 30 held-out cases, corpus
+and fixture dependencies. All historical lock bytes remain unchanged. The strict
+current-or-direct-child source guard remains; production replay still rejects
+source, runtime and unrelated revision changes. Portable tests use an explicitly
+test-only lock. Nothing is promoted from this freeze.
 
 Phase36 retains its earlier **24 passed offline rows**; its exact soak counts
 remain in the generated evidence. These rows do not establish cloud, provider

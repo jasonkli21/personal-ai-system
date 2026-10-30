@@ -2,6 +2,7 @@
 
 from fastapi import HTTPException
 
+from personal_ai.auth.application_clients import is_external_client_request
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.providers import ContextPreparationError
@@ -19,6 +20,8 @@ def resolve_continuation_payload(
     """Reject client-authored grant selectors and resolve only signed handles."""
     choices = ()
     if payload.federation_choice_ids:
+        if is_external_client_request():
+            raise HTTPException(status_code=403, detail="external_federation_unavailable")
         acting_user_id = f"{principal.issuer}|{principal.subject}"
         if (
             not principal.authenticated

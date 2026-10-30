@@ -31,6 +31,17 @@ copied compatibility tests, uninstalls references and rechecks core. It uses no
 network dependency installation. See [PI-1 evidence](docs/platform-independence/pi-1-implementation-report.md)
 for tested commands and limitations. This is a candidate pending independent review.
 
+## External application HTTP candidate
+
+The [PI-2 consumer contract](docs/platform-independence/consumer-v1.md) documents
+versioned scoped conversations, metadata-only context preview, automatic SSE and
+original-key recovery. The separately built [Reading Logbook](examples/reading-logbook/README.md)
+client owns its local records and uses only HTTP; its optional trusted host is a
+different distribution. OAuth client/app binding and independent workspace rights
+are required. `make pi2-check` builds and tests the installed profiles offline over
+synthetic loopback HTTP. This candidate does not close independent review or
+real identity/provider/cloud acceptance.
+
 ## What it does
 
 The system provides reusable AI capabilities that can be used directly through its web UI or consumed by domain applications such as travel and shopping.
