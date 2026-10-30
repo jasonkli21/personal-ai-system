@@ -24,6 +24,27 @@ def waiver(importer="personal_ai.main", target="personal_ai.context.travel"):
     }
 
 
+def facade_waiver(importer="personal_ai.main", target="personal_ai.api.domains"):
+    return {
+        "from": importer,
+        "to": target,
+        "rationale": "Retain legacy example-facing composition until PI-1",
+        "phase": "PI-1",
+        "review_status": "implementation-reviewed; independent-pending",
+    }
+
+
+def baseline(*, waivers=(), facade_waivers=()):
+    return {
+        "review_date": "2026-10-30",
+        "review_scope": "hermetic test",
+        "schema_version": 1,
+        "source_revision": "test-revision",
+        "waivers": list(waivers),
+        "facade_waivers": list(facade_waivers),
+    }
+
+
 class InventoryTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -38,7 +59,7 @@ class InventoryTests(unittest.TestCase):
     def test_new_forbidden_import_fails_cli_without_auto_waiver(self):
         self.source("personal_ai/main.py", "import personal_ai.context.travel\n")
         baseline = self.root / "waivers.json"
-        baseline.write_text(json.dumps({"schema_version": 1, "waivers": []}))
+        baseline.write_text(json.dumps(globals()["baseline"]()))
         result = subprocess.run(
             [
                 sys.executable,
@@ -58,10 +79,55 @@ class InventoryTests(unittest.TestCase):
 
     def test_exact_existing_debt_allowed_but_different_edge_rejected(self):
         self.source("personal_ai/main.py", "import personal_ai.context.travel\n")
-        baseline = {"schema_version": 1, "waivers": [waiver()]}
+        baseline = globals()["baseline"](waivers=[waiver()])
         self.assertEqual(guard.check(guard.inventory(self.root), baseline), [])
         self.source("personal_ai/main.py", "import personal_ai.context.health\n")
         self.assertEqual(len(guard.check(guard.inventory(self.root), baseline)), 2)
+
+    def test_new_facade_import_fails_while_same_leaf_debt_is_waived(self):
+        self.source(
+            "personal_ai/main.py",
+            "import personal_ai.context.travel\nimport personal_ai.api.domains\n",
+        )
+        self.source("personal_ai/context/travel.py", "VALUE = 1\n")
+        self.source("personal_ai/api/domains.py", "VALUE = 1\n")
+        current = guard.inventory(self.root)
+        result = guard.check(
+            current,
+            baseline(waivers=[waiver()], facade_waivers=[]),
+        )
+        self.assertEqual(current["edges"], [{
+            "from": "personal_ai.main",
+            "to": "personal_ai.context.travel",
+            "kind": "static_import",
+            "evidence": {"path": "personal_ai/main.py", "lines": [1]},
+        }])
+        self.assertEqual(result, ["unexpected facade: personal_ai.main -> personal_ai.api.domains"])
+        baseline_path = self.root / "waivers.json"
+        baseline_path.write_text(json.dumps(baseline(waivers=[waiver()])), encoding="utf-8")
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--source-root",
+                str(self.root),
+                "--check",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("unexpected facade: personal_ai.main -> personal_ai.api.domains", completed.stdout)
+
+    def test_existing_facade_edges_require_exact_facade_waivers(self):
+        self.source("personal_ai/api/domains.py", "from personal_ai.domains.fixtures import get_fixture\n")
+        self.source("personal_ai/domains/fixtures.py", "VALUE = 1\n")
+        current = guard.inventory(self.root)
+        records = [facade_waiver("personal_ai.api.domains", "personal_ai.domains.fixtures")]
+        self.assertEqual(guard.check(current, baseline(facade_waivers=records)), [])
 
     def test_relative_nested_type_only_and_package_submodule_imports(self):
         self.source("personal_ai/context/travel.py", "raise RuntimeError('must never import')\n")
@@ -77,10 +143,19 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(edges[0]["evidence"]["path"], "personal_ai/context/__init__.py")
 
     def test_example_and_evaluation_consumers_excluded_without_prefix_collision(self):
-        for name in ("context/travel.py", "evaluation/probe.py", "context/traveler.py"):
+        for name in (
+            "context/travel.py",
+            "evaluation/probe.py",
+            "context/traveler.py",
+        ):
             self.source("personal_ai/" + name, "import personal_ai.context.health\n")
+        self.source("personal_ai/api/domainsish.py", "VALUE = 1\n")
+        self.source("personal_ai/core.py", "import personal_ai.api.domainsish\n")
         edges = guard.inventory(self.root)["edges"]
         self.assertEqual([e["from"] for e in edges], ["personal_ai.context.traveler"])
+        self.assertEqual(guard.inventory(self.root)["facade_edges"], [])
+        self.assertFalse(guard.is_example("personal_ai.api.domainsish"))
+        self.assertFalse(guard.is_example_facade("personal_ai.api.domainsish"))
 
     def test_deterministic_sorted_output_and_no_application_import(self):
         self.source("personal_ai/z.py", "import personal_ai.context.health\n")
@@ -100,9 +175,25 @@ class InventoryTests(unittest.TestCase):
         ]
         for item in invalid:
             with self.subTest(item=item), self.assertRaises(ValueError):
-                guard.check({"edges": []}, {"schema_version": 1, "waivers": [item]})
+                guard.check({"edges": [], "facade_edges": []}, baseline(waivers=[item]))
         with self.assertRaises(ValueError):
-            guard.check({"edges": []}, {"schema_version": 1, "waivers": [waiver(), waiver()]})
+            guard.check({"edges": [], "facade_edges": []}, baseline(waivers=[waiver(), waiver()]))
+
+    def test_rejects_semantically_empty_wrong_type_and_malformed_waivers(self):
+        invalid = [
+            dict(waiver(), rationale="  "),
+            dict(waiver(), rationale=123),
+            dict(waiver(), rationale=["placeholder"]),
+            {key: value for key, value in waiver().items() if key != "phase"},
+            dict(waiver(), phase=1),
+        ]
+        for item in invalid:
+            with self.subTest(item=item), self.assertRaises(ValueError):
+                guard.check({"edges": [], "facade_edges": []}, baseline(waivers=[item]))
+        malformed = baseline()
+        malformed["unexpected"] = True
+        with self.assertRaises(ValueError):
+            guard.check({"edges": [], "facade_edges": []}, malformed)
 
     def test_missing_and_malformed_sources_fail_closed(self):
         with self.assertRaises(ValueError):

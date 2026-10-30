@@ -1,9 +1,9 @@
 # PI-0 dependency inventory
 
 Inspected 2026-10-30 at `8571a8af33969f249614c2652a7d29c0c686f2d8`.
-[Machine inventory](pi-0-dependency-inventory.json) contains 56 sorted records:
+[Machine inventory](pi-0-dependency-inventory.json) contains 60 sorted records:
 exact `from`, `to`, allowed `kind`, owner, classification, compatibility risk,
-phase and path/line evidence. The 20 static edges use paths relative to
+phase and path/line evidence. The 20 implementation edges and four facade edges use paths relative to
 `backend/src/`; other records use repository-relative paths. This is source
 inspection plus the [executed local checks](pi-0-implementation-report.md), not
 external verification.
@@ -27,20 +27,31 @@ nested and `TYPE_CHECKING` imports, and fails on missing/malformed source.
 It scans non-example production importers conservatively as core, including
 composition roots, persistence adapters and comparison fixture builders.
 `personal_ai.evaluation` is excluded as diagnostic code; tests/scripts are outside
-`backend/src/personal_ai`. The explicit example-prefix list is emitted in output.
-No arbitrary module-name substring matching or wildcard waiver is used.
+`backend/src/personal_ai`. The explicit example-prefix and example-facade lists
+are emitted in output. No arbitrary module-name substring matching or wildcard
+waiver is used.
 
-[Exact waivers](pi-0-import-waivers.json) contain 20 importer/imported pairs,
-each with rationale, PI-1 owner phase and
-`implementation-reviewed; independent-pending` status. They were reviewed against
-the current source during PI-0. This is **not independent acceptance**. `--check`
-rejects new edges, stale/duplicate waivers, wildcards and incomplete review records.
-It does not update the baseline. A newly documented edge is never automatically
-allowed; a future change needs explicit source review and a separate exact waiver
-if still necessary. Eight hermetic tests include new-edge CLI rejection, existing
-tracked debt, relative/nested/type imports, classification boundaries, deterministic
-output, invalid baselines, malformed sources and repository-baseline agreement.
-The existing pytest CI collects these tests; no CI/workflow changes were needed.
+[Exact waivers](pi-0-import-waivers.json) preserve 20 implementation-edge pairs
+and add four separately classified facade-edge pairs. Every waiver has a
+nonblank string rationale, exact importer/target, PI-1 owner phase and
+`implementation-reviewed; independent-pending` status. They are current
+implementation review debt, **not independent acceptance**. `--check` rejects
+new edges in either category, stale/duplicate waivers, wildcard records and
+malformed metadata. It does not update the baseline. A newly documented edge is
+never automatically allowed; a future change needs explicit source review and a
+separate exact waiver if still necessary. Hermetic tests cover new leaf and
+facade rejection, tracked leaf/facade debt, relative/nested/type imports,
+classification boundaries, deterministic output, invalid baselines, malformed
+sources and repository-baseline agreement.
+
+Example implementations remain the explicit prefixes emitted as
+`example_prefixes`. Example-dependent facades are separately limited to
+`personal_ai.api.domains`, `personal_ai.domains.fixtures` and
+`personal_ai.domains.registry`; neutral `domains.contracts`, `domains.providers`
+and shared decision infrastructure are not classified as example facades. The
+new `facade_edges` inventory is a direct-import audit, not transitive closure.
+The current source has 20 implementation edges and four facade edges. The
+original 20 leaf-edge records and waivers are unchanged.
 
 | Importer | Exact static edge count | Migration risk / PI-1 owner |
 | --- | --- | --- |

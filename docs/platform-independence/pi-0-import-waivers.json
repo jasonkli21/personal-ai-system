@@ -144,5 +144,35 @@
       "review_status": "implementation-reviewed; independent-pending",
       "to": "personal_ai.itinerary_proposals.repositories"
     }
+  ],
+  "facade_waivers": [
+    {
+      "from": "personal_ai.api.domains",
+      "to": "personal_ai.domains.fixtures",
+      "rationale": "The existing example-facing API route serves shared comparison fixtures; preserve its HTTP behavior until PI-1.",
+      "phase": "PI-1",
+      "review_status": "implementation-reviewed; independent-pending"
+    },
+    {
+      "from": "personal_ai.applications.registry",
+      "to": "personal_ai.domains.registry",
+      "rationale": "Default application composition extends the legacy comparison registry; extract behind optional composition in PI-1.",
+      "phase": "PI-1",
+      "review_status": "implementation-reviewed; independent-pending"
+    },
+    {
+      "from": "personal_ai.domains.service",
+      "to": "personal_ai.domains.registry",
+      "rationale": "The legacy domain service uses the explicit Travel and Shopping registry; preserve compatibility until PI-1.",
+      "phase": "PI-1",
+      "review_status": "implementation-reviewed; independent-pending"
+    },
+    {
+      "from": "personal_ai.main",
+      "to": "personal_ai.api.domains",
+      "rationale": "The app factory unconditionally mounts the legacy example-facing domains API; preserve route compatibility until PI-1.",
+      "phase": "PI-1",
+      "review_status": "implementation-reviewed; independent-pending"
+    }
   ]
 }

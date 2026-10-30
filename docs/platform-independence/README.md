@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally on the review base; independent post-implementation acceptance is **pending**. PI-1 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for exact checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -22,6 +22,7 @@ The owning repo's `AGENTS.md`, code/tests/migrations, [`docs/current-state.md`](
 - [Dependency inventory and guard](pi-0-dependency-inventory.md), [machine records](pi-0-dependency-inventory.json), [exact import waivers](pi-0-import-waivers.json) — static and dynamic/default composition, flags and historical obligations.
 - [Later-phase exit contract](pi-0-exit-contract.md) — PI-1 physical absence and PI-2 separately installed consumer proof, plus provider/privacy/replay gates.
 - [Implementation evidence](pi-0-implementation-report.md) — source identity, preservation, executed checks and remaining review.
+- [Independent review remediation](pi-0-independent-review-remediation-2026-10-30.md) — R01–R03 dispositions, updated guard evidence and residual limits.
 
 Future PI-1/PI-2 plans and evidence will be linked here when created; the roadmap and exit contract specify their gates now. This index does not supersede memory security or production acceptance.
 

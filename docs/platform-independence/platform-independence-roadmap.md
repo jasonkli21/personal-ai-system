@@ -287,7 +287,9 @@ Each phase is a separate reviewed change with: pinned base and `git status`; sco
 
 The platform can operate **without examples**, and one separately installed app can use the versioned core through a documented, verified boundary. It has a functioning provider-neutral free-first path, no silent paid fallback, deliberate owner-scoped cross-app preference sharing, typed search/retrieval, attributable outputs, and clear user revocation/erasure semantics. Security, performance and task value are evidenced rather than inferred. **MEM-3+ remains frozen** pending a new explicit decision, regardless of PI readiness. Any unverified production/cloud/identity/deletion/provider gate must be prominently retained in the readiness report.
 
-**Next action:** use the self-contained `pi-0-sol-codex-handoff.md` to execute only PI-0; compare the resulting report against the independent `pi-0-review.md`; then commission a fresh independent check before PI-1.
+**Historical pre-implementation next action (superseded):** use the self-contained `pi-0-sol-codex-handoff.md` to execute only PI-0; compare the resulting report against the independent `pi-0-review.md`; then commission a fresh independent check before PI-1.
+
+**Current next action:** complete independent PI-0 remediation/reverification and obtain independent acceptance. Only then prepare PI-1 planning for explicit review; PI-1 implementation requires its own approval and entry gates. MEM-3+ remains frozen.
 
 
 ## 2026-10-30 PI-0 implementation reconciliation

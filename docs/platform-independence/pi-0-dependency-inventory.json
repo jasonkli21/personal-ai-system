@@ -541,6 +541,36 @@
       "to": "test_phase36_integrated.py"
     },
     {
+      "classification": "example_dependent_facade",
+      "compatibility_risk": "The domain API is a shared-facing route that consumes Travel/Shopping fixture composition; PI-1 must preserve route compatibility while separating examples.",
+      "evidence": {
+        "lines": [
+          17
+        ],
+        "path": "backend/src/personal_ai/api/domains.py"
+      },
+      "from": "personal_ai.api.domains",
+      "kind": "static_facade_import",
+      "owner": "PI-1 example separation",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.fixtures"
+    },
+    {
+      "classification": "example_dependent_facade",
+      "compatibility_risk": "Default application composition extends the legacy Travel/Shopping registry; PI-1 must make this composition optional.",
+      "evidence": {
+        "lines": [
+          404
+        ],
+        "path": "backend/src/personal_ai/applications/registry.py"
+      },
+      "from": "personal_ai.applications.registry",
+      "kind": "static_facade_import",
+      "owner": "PI-1 example separation",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.registry"
+    },
+    {
       "classification": "core",
       "compatibility_risk": "Source-tree fallback imports the four example factories; preserve until optional installed composition is tested.",
       "evidence": {
@@ -676,6 +706,21 @@
       "to": "personal_ai.domains.travel.module"
     },
     {
+      "classification": "example_dependent_facade",
+      "compatibility_risk": "The domain service obtains registrations from the explicit Travel/Shopping registry; PI-1 must preserve this behavior for existing consumers.",
+      "evidence": {
+        "lines": [
+          29
+        ],
+        "path": "backend/src/personal_ai/domains/service.py"
+      },
+      "from": "personal_ai.domains.service",
+      "kind": "static_facade_import",
+      "owner": "PI-1 example separation",
+      "phase": "PI-1",
+      "to": "personal_ai.domains.registry"
+    },
+    {
       "classification": "core",
       "compatibility_risk": "App factory imports example routes and error types; preserve HTTP compatibility and startup until PI-1.",
       "evidence": {
@@ -689,6 +734,21 @@
       "owner": "main",
       "phase": "PI-1",
       "to": "personal_ai.api.booking_extractions"
+    },
+    {
+      "classification": "example_dependent_facade",
+      "compatibility_risk": "The app factory unconditionally mounts the example-facing domain API; PI-1 must preserve existing HTTP compatibility while removing examples from core.",
+      "evidence": {
+        "lines": [
+          14
+        ],
+        "path": "backend/src/personal_ai/main.py"
+      },
+      "from": "personal_ai.main",
+      "kind": "static_facade_import",
+      "owner": "PI-1 example separation",
+      "phase": "PI-1",
+      "to": "personal_ai.api.domains"
     },
     {
       "classification": "core",
