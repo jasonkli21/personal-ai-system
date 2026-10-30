@@ -126,6 +126,11 @@ class MemoryExtractionService:
     ):
         if not self.settings.memory_enabled or not self.settings.memory_extraction_enabled:
             return ExtractionResult(reasons=("disabled",))
+        # Extraction has no useful outcome without the mandatory document
+        # embedding and persistence continuation. Check that chain before an
+        # external extractor sees any source turn.
+        if getattr(self.embedder, "capability_available", True) is False:
+            return ExtractionResult(reasons=("memory_embedding_unavailable",))
         inference_context = None
         if application_context is not None:
             scope = application_context.scope
@@ -403,6 +408,13 @@ class MemoryRetriever:
     ):
         if not self.settings.memory_enabled:
             return RetrievalResult(diagnostics=("disabled",))
+        if getattr(self.embedder, "capability_available", True) is False:
+            return RetrievalResult(
+                diagnostics=("memory_embedding_unavailable",),
+                requested_variant=self.settings.memory_experiment_variant,
+                applied_variant="empty",
+                policy_version=self.settings.memory_scoring_policy_version,
+            )
         deadline = monotonic() + min(
             timeout or self.settings.memory_timeout_seconds, self.settings.memory_timeout_seconds
         )

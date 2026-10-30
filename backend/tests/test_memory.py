@@ -258,6 +258,33 @@ def test_optional_extraction_failure_is_safe(monkeypatch, stage):
     assert not repo.records
 
 
+def test_unavailable_embedding_blocks_futile_extraction_and_reports_retrieval_capability():
+    from personal_ai.llm.execution import UnavailableEmbedding
+
+    settings, _, messages, repo, turns, _candidates, pending, embedder = named()
+    settings.memory_enabled = True
+    settings.memory_extraction_enabled = True
+
+    class MustNotExtract:
+        requires_inference_context = True
+
+        def extract(self, *args, **kwargs):
+            pytest.fail("extractor must not receive source turns without an embedding path")
+
+    unavailable = UnavailableEmbedding()
+    result = MemoryExtractionService(
+        settings, repo, messages, MustNotExtract(), unavailable
+    ).run(turns[0][1])
+    assert result.reasons == ("memory_embedding_unavailable",)
+    assert not embedder.calls and not repo.records
+
+    retrieval = MemoryRetriever(settings, repo, messages, unavailable).retrieve(
+        "local", pending.content, []
+    )
+    assert retrieval.diagnostics == ("memory_embedding_unavailable",)
+    assert retrieval.applied_variant == "empty"
+
+
 def test_branch_rewritten_during_embedding_cannot_persist(monkeypatch):
     settings, _, messages, repo, turns, candidates, _, embedder = named()
     original = embedder.embed

@@ -11,6 +11,7 @@ import anyio
 
 from personal_ai.agents.research.contracts import ResearchError, ResearchSession, evolve
 from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.application_clients import require_current_client_authority
 from personal_ai.context.authority import permission_dependencies_current
 from personal_ai.context.authorization import (
     authorize_base_disclosure,
@@ -20,6 +21,7 @@ from personal_ai.context.providers import ContextPreparationError, ContextSelect
 from personal_ai.evidence.contracts import AdapterAttempt, SearchQuery
 from personal_ai.evidence.pipeline import extract_evidence, select_evidence, validate_synthesis
 from personal_ai.llm.attribution import log_generation_attribution
+from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.preparation import require_matching_endpoint
 from personal_ai.search.authority import ResearchSourceRightsRevalidator, observation_dependencies
 from personal_ai.search.contracts import (
@@ -315,24 +317,54 @@ class ResearchService:
                     source_count=len(observations),
                     evidence_count=len(evidence),
                 )
-                selection, messages, inference_context = await io_call(
-                    select_evidence,
-                    current,
-                    self.context,
-                    self.clock(),
-                    deadline,
-                    self.reranker,
-                    clock=self.clock,
-                    packing_strategy=(self.settings.research_packing_strategy
-                                      if self.settings.research_retrieval_experiments_enabled
-                                      else "literal-extractive-v1"),
-                    application_context=self.application_context,
-                    expected_counter_identity=(
-                        self.llm.identity
-                        if getattr(self.llm, "requires_inference_context", False)
-                        else None
-                    ),
+                preparation_rights = normalize_rights_authorization(
+                    self.adapter.authorize_snippets(), self.adapter.name
                 )
+                if preparation_rights is None or any(
+                    s.rights_authority_id != preparation_rights.authority_id
+                    or s.rights_epoch != preparation_rights.epoch
+                    or s.rights_reference != preparation_rights.reference
+                    for s in current.observations if s.status == "accepted"
+                ):
+                    raise ResearchError("research_configuration_invalid")
+
+                def revalidate_selection_disclosure():
+                    require_current_client_authority()
+                    if self.application_context is None:
+                        raise ResearchError("application_context_required", 403)
+                    authorize_base_disclosure(self.application_context)
+                    latest = normalize_rights_authorization(
+                        self.adapter.authorize_snippets(), self.adapter.name
+                    )
+                    if latest != preparation_rights or not permission_dependencies_current(
+                        observation_dependencies(
+                            tuple(s for s in current.observations if s.status == "accepted")
+                        ),
+                        self.context.permission_revalidator,
+                    ):
+                        raise ResearchError("research_source_rights_revoked", 403)
+
+                with bind_disclosure_guard(revalidate_selection_disclosure):
+                    revalidate_selection_disclosure()
+                    selection, messages, inference_context = await io_call(
+                        select_evidence,
+                        current,
+                        self.context,
+                        self.clock(),
+                        deadline,
+                        self.reranker,
+                        clock=self.clock,
+                        packing_strategy=(self.settings.research_packing_strategy
+                                          if self.settings.research_retrieval_experiments_enabled
+                                          else "literal-extractive-v1"),
+                        application_context=self.application_context,
+                        expected_counter_identity=(
+                            self.llm.identity
+                            if getattr(self.llm, "requires_inference_context", False)
+                            else None
+                        ),
+                    )
+                    revalidate_selection_disclosure()
                 await save(selection=selection)
                 yield event(
                     "selected",
@@ -366,29 +398,54 @@ class ResearchService:
                         for s in current.observations if s.status == "accepted"
                     ):
                         raise ResearchError("research_configuration_invalid")
-                    output = ""
-                    bounded = getattr(self.llm, "stream_bounded", None)
-                    stream = (
-                        bounded(
-                            messages,
-                            max_output_tokens=self.context.settings.max_response_tokens,
-                            timeout_seconds=max(0.01, min(
-                                self.context.settings.request_timeout_seconds,
-                                deadline - monotonic(),
-                            )),
-                            inference_context=inference_context,
-                        )
-                        if bounded is not None
-                        else self.llm.stream(messages, inference_context=inference_context)
+                    selected_evidence = tuple(
+                        item for item in current.evidence if item.id in set(selection.evidence_ids)
                     )
-                    try:
-                        with bind_usage_task(
-                            "web_research_synthesis", run_id=str(current.id)
+
+                    def revalidate_synthesis_disclosure():
+                        require_current_client_authority()
+                        if self.application_context is None:
+                            raise ResearchError("application_context_required", 403)
+                        authorize_base_disclosure(self.application_context)
+                        latest = normalize_rights_authorization(
+                            self.adapter.authorize_snippets(), self.adapter.name
+                        )
+                        if latest != reference or any(
+                            item.expires_at <= self.clock() for item in selected_evidence
+                        ) or not permission_dependencies_current(
+                            observation_dependencies(
+                                tuple(s for s in current.observations if s.status == "accepted")
+                            ),
+                            self.context.permission_revalidator,
                         ):
-                            async for delta in stream:
-                                if not isinstance(delta, str) or len(output) + len(delta) > 20000:
-                                    raise ResearchError("synthesis_oversized")
-                                output += delta
+                            raise ResearchError("research_source_rights_revoked", 403)
+
+                    output = ""
+                    stream = None
+                    try:
+                        with bind_disclosure_guard(revalidate_synthesis_disclosure):
+                            revalidate_synthesis_disclosure()
+                            bounded = getattr(self.llm, "stream_bounded", None)
+                            stream = (
+                                bounded(
+                                    messages,
+                                    max_output_tokens=self.context.settings.max_response_tokens,
+                                    timeout_seconds=max(0.01, min(
+                                        self.context.settings.request_timeout_seconds,
+                                        deadline - monotonic(),
+                                    )),
+                                    inference_context=inference_context,
+                                )
+                                if bounded is not None
+                                else self.llm.stream(messages, inference_context=inference_context)
+                            )
+                            with bind_usage_task(
+                                "web_research_synthesis", run_id=str(current.id)
+                            ):
+                                async for delta in stream:
+                                    if not isinstance(delta, str) or len(output) + len(delta) > 20000:
+                                        raise ResearchError("synthesis_oversized")
+                                    output += delta
                     finally:
                         close = getattr(stream, "aclose", None)
                         if close is not None:

@@ -56,6 +56,7 @@ native storage recovery, Linux/Python 3.12 CI and independent acceptance stay op
 
 - [Pre-code plan hardening](pi-3-plan-hardening.md), source audit, counter/cost decisions and inherited gate exception.
 - [Implementation, self-review and P3-01–P3-20 evidence](pi-3-implementation-report.md).
+- [2026-10-30 independent-review remediation evidence](pi-3-review-remediation-2026-10-30.md).
 - [Machine verification record](pi-3-verification.json).
 - [Operator and adapter instructions](../../backend/src/personal_ai/llm/README.md#pi-3-explicit-execution-profiles).
 

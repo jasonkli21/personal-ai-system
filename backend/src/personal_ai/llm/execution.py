@@ -109,12 +109,27 @@ class SendAccounting:
 
 
 class Admission:
-    def __init__(self, profile, usage):
+    def __init__(self, profile, usage, *, credential_getter=None, credential_fingerprint=None):
         self.profile = profile
         self.usage = usage
         self.bound = None
+        self.credential_getter = credential_getter
+        self.credential_fingerprint = credential_fingerprint
 
     def check(self, requirements):
+        # A mutable Settings object can be rotated after composition. Do not
+        # allow the endpoint facts captured for one credential to authorize a
+        # later physical count/send using another value. Keep only a one-way
+        # process-local fingerprint; never persist or log it.
+        if self.credential_getter is not None:
+            current_secret = self.credential_getter()
+            current_fingerprint = sha256(current_secret.encode()).digest()
+            if (
+                not current_secret
+                or self.credential_fingerprint is None
+                or current_fingerprint != self.credential_fingerprint
+            ):
+                raise LLMInvalidConfigurationError("inference credential changed; refresh admission")
         if self.usage is None or self.usage.endpoint_profile_resolver is None:
             raise LLMInvalidConfigurationError("canonical inference accounting is required")
         registry = self.usage.endpoint_profile_resolver.endpoint_registry
@@ -327,7 +342,13 @@ def compose_pair(settings, usage=None, *, profile=None):
         ledger = SendAccounting(usage)
         generator = GeminiLLMClient(settings, usage_accounting=ledger)
         counter = LiteLLMTokenCounter(settings, usage_accounting=ledger)
-        admission = Admission(generator.endpoint_profile, usage)
+        credential = settings.ai_api_key.get_secret_value()
+        admission = Admission(
+            generator.endpoint_profile,
+            usage,
+            credential_getter=lambda: settings.ai_api_key.get_secret_value(),
+            credential_fingerprint=sha256(credential.encode()).digest(),
+        )
     selected_counter = SelectedCounter(counter, admission)
     return ExecutionPair(
         SelectedGeneration(generator, selected_counter, settings, admission), selected_counter
@@ -348,6 +369,7 @@ class UnavailableEmbedding:
     """No approved exact embedding-input counter is installed. Never dispatch."""
 
     requires_inference_context = True
+    capability_available = False
 
     def embed(self, *args, **kwargs):
         from personal_ai.llm.errors import LLMUnsupportedCapabilityError

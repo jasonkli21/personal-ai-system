@@ -18,8 +18,8 @@
   "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
   "runtime_distribution_count": 94,
   "runtime_profile": "core-only with explicit synthetic reference fixture rules",
-  "source_change_summary": "PI-3 explicit operation composition/admission; source-only non-promoting rebind; unchanged planner, cases, corpus and fixture dependencies.",
-  "source_identity_digest": "a86146b71ad9a56e6b9284fef640ac3ad59a9097f7f197cbca9e7ffac674f883",
+  "source_change_summary": "PI-3 explicit operation composition/admission plus review-remediation source-only rebind; unchanged planner, cases, corpus and fixture dependencies.",
+  "source_identity_digest": "6d9ec1a937ad290b2683343fddb5fe916fba18b956d8d003b02061a5db45f18c",
   "source_revision": "0dbe7406fda20c58c784339647ca15c4c7ab3f7e",
   "source_revision_binding": "PI-3 recorded entry base plus implementation source identity; current-or-direct-child guard unchanged",
   "supersedes": "planning-baseline-lock-v21"

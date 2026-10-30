@@ -40,6 +40,7 @@ from personal_ai.agents.research.iterative.contracts import (
     SufficiencyAssessment,
 )
 from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.application_clients import require_current_client_authority
 from personal_ai.auth.scope import current_application_scope
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.authority import permission_dependencies_current
@@ -52,6 +53,7 @@ from personal_ai.entities.research import MoneyValue
 from personal_ai.evidence.contracts import AdapterAttempt, EvidenceSelection, SearchQuery
 from personal_ai.evidence.pipeline import extract_evidence, select_evidence, validate_synthesis
 from personal_ai.llm.attribution import log_generation_attribution
+from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.preparation import require_matching_endpoint
 from personal_ai.search.authority import ResearchSourceRightsRevalidator, observation_dependencies
 from personal_ai.search.contracts import (
@@ -1024,9 +1026,40 @@ class IterativeResearchService:
             decision_id=decision_id,
             created_at=now,
         )
-        selection = await self._select(
-            session, deadline=monotonic() + max(1, self._remaining_elapsed(run))
+        selection_rights = normalize_rights_authorization(
+            self.adapter.authorize_snippets(), self.adapter.name
         )
+        if selection_rights is None or any(
+            source.rights_authority_id != selection_rights.authority_id
+            or source.rights_epoch != selection_rights.epoch
+            or source.rights_reference != selection_rights.reference
+            for source in session.observations if source.status == "accepted"
+        ):
+            raise ResearchError("research_configuration_invalid")
+
+        def revalidate_selection_disclosure():
+            require_current_client_authority()
+            if self.application_context is None:
+                raise ResearchError("application_context_required", 403)
+            authorize_base_disclosure(self.application_context)
+            self._assert_lease(run, run.lease_owner)
+            latest = normalize_rights_authorization(
+                self.adapter.authorize_snippets(), self.adapter.name
+            )
+            if latest != selection_rights or not permission_dependencies_current(
+                observation_dependencies(
+                    tuple(s for s in session.observations if s.status == "accepted")
+                ),
+                self.context.permission_revalidator,
+            ):
+                raise ResearchError("research_source_rights_revoked", 403)
+
+        with bind_disclosure_guard(revalidate_selection_disclosure):
+            revalidate_selection_disclosure()
+            selection = await self._select(
+                session, deadline=monotonic() + max(1, self._remaining_elapsed(run))
+            )
+            revalidate_selection_disclosure()
         return assessment, tuple(gaps), selection, decision_state, decision_id
 
     def _decision_selection(self, session, evidence, now):
@@ -1909,31 +1942,55 @@ class IterativeResearchService:
         )
         response = ""
         iterator = None
+        selected_evidence = tuple(
+            item for item in session.evidence if item.id in set(selection.evidence_ids)
+        )
+
+        def revalidate_synthesis_disclosure():
+            require_current_client_authority()
+            if self.application_context is None:
+                raise ResearchError("application_context_required", 403)
+            authorize_base_disclosure(self.application_context)
+            self._assert_lease(run, run.lease_owner)
+            latest = normalize_rights_authorization(
+                self.adapter.authorize_snippets(), self.adapter.name
+            )
+            if latest != reference or any(
+                item.expires_at <= self.clock() for item in selected_evidence
+            ) or not permission_dependencies_current(
+                observation_dependencies(
+                    tuple(s for s in session.observations if s.status == "accepted")
+                ),
+                self.context.permission_revalidator,
+            ):
+                raise ResearchError("research_source_rights_revoked", 403)
         try:
             synth_timeout = min(
                 run.budget.provider_timeout_seconds,
                 run.budget.synthesis_reserve_seconds,
                 self._remaining_elapsed(run),
             )
-            bounded_stream = getattr(self.llm, "stream_bounded", None)
-            iterator = (
-                bounded_stream(
-                    messages,
-                    max_output_tokens=output_tokens,
-                    timeout_seconds=synth_timeout,
-                    inference_context=inference_context,
+            with bind_disclosure_guard(revalidate_synthesis_disclosure):
+                revalidate_synthesis_disclosure()
+                bounded_stream = getattr(self.llm, "stream_bounded", None)
+                iterator = (
+                    bounded_stream(
+                        messages,
+                        max_output_tokens=output_tokens,
+                        timeout_seconds=synth_timeout,
+                        inference_context=inference_context,
+                    )
+                    if bounded_stream
+                    else self.llm.stream(messages, inference_context=inference_context)
                 )
-                if bounded_stream
-                else self.llm.stream(messages, inference_context=inference_context)
-            )
-            async with asyncio.timeout(synth_timeout):
-                with bind_usage_task("iterative_research_synthesis", run_id=str(run.id)):
-                    async for delta in iterator:
-                        if not isinstance(delta, str) or len(response) + len(delta) > min(
-                            20000, output_tokens * 4
-                        ):
-                            raise ResearchError("synthesis_oversized")
-                        response += delta
+                async with asyncio.timeout(synth_timeout):
+                    with bind_usage_task("iterative_research_synthesis", run_id=str(run.id)):
+                        async for delta in iterator:
+                            if not isinstance(delta, str) or len(response) + len(delta) > min(
+                                20000, output_tokens * 4
+                            ):
+                                raise ResearchError("synthesis_oversized")
+                            response += delta
             self._assert_lease(run, run.lease_owner)
             answer, citations = validate_synthesis(
                 session.model_copy(update={"selection": selection}), response
@@ -2212,12 +2269,20 @@ class IterativeResearchService:
     def _assert_lease(self, run, token):
         now = self.clock()
         deadline = run.created_at + timedelta(seconds=run.budget.max_elapsed_seconds)
+        try:
+            current = self.runs.get(run.owner_id, run.id)
+        except Exception as error:
+            raise ResearchError("research_conflict", 409) from error
         if (
             run.state in TERMINAL_STATES
+            or current.state in TERMINAL_STATES
             or token is None
             or run.lease_owner != token
+            or current.lease_owner != token
             or run.lease_expires_at is None
             or run.lease_expires_at <= now
+            or current.lease_expires_at is None
+            or current.lease_expires_at <= now
             or deadline <= now
         ):
             raise ResearchError("research_conflict", 409)

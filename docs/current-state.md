@@ -51,7 +51,12 @@ composition, and unconditional paid-mode denial. Remote Groq/Cloudflare generati
 and new memory embeddings remain unavailable without approved exact input counters;
 this is not live non-Gemini or billing acceptance. The inspected OS/Python-fenced PI-3 suite passed 780 tests with zero forbidden
 network attempts; installed core/reference/task/Reading Logbook checks passed.
-Independent PI-3 review remains pending. PI-4 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+The 2026-10-30 [PI-3 review remediation](platform-independence/pi-3-review-remediation-2026-10-30.md)
+binds source checks through chat assembly and research synthesis, denies in-process
+credential rotation under an old admission, and reports unavailable memory
+embedding before retrieval/extraction. Initial credential-to-account proof,
+independent PI-3 review, installed Linux/Python 3.12 checks, and provider/cloud
+acceptance remain open. PI-4 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,

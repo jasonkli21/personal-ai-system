@@ -675,21 +675,51 @@ class ChatTurnService:
                     ),
                     application_context=self._application_context,
                 )
-            assembled = context.assemble(
-                history_for_context,
-                post_active[-1],
-                deadline=deadline,
-                retrieval=retrieval,
-                refresh=not external,
-                application_context=self._application_context,
-                context_plan=context_plan,
-                history_exclusions=history_exclusions,
-                expected_counter_identity=(
-                    self._llm.identity
-                    if not external and getattr(self._llm, "requires_inference_context", False)
-                    else None
-                ),
+            # Keep the request's source authority bound throughout every remote
+            # count and optional summary call made by the assembler. At this
+            # stage the exact selected set is not known, so fence the complete
+            # candidate history conservatively; the selected snapshots are
+            # checked again after assembly and during generation.
+            preparation_ids = {message.id for message in history_for_context}
+            preparation_snapshots = tuple(
+                snapshot
+                for message in history_for_context
+                for snapshot in source_snapshots_for_message(message)
             )
+
+            def revalidate_preparation():
+                if self._application_context is not None:
+                    require_current_client_authority()
+                    authorize_base_disclosure(self._application_context)
+                if not source_snapshots_current(
+                    preparation_snapshots,
+                    context.permission_revalidator,
+                    now=datetime.now(UTC),
+                ):
+                    raise ContextPreparationError("context_source_authority_changed")
+                current_active = self._messages.list_active(
+                    owner_id=self._owner_id, conversation_id=user.conversation_id
+                )
+                if not preparation_ids.issubset({message.id for message in current_active}):
+                    raise ContextPreparationError("context_source_authority_changed")
+
+            with bind_disclosure_guard(revalidate_preparation):
+                assembled = context.assemble(
+                    history_for_context,
+                    post_active[-1],
+                    deadline=deadline,
+                    retrieval=retrieval,
+                    refresh=not external,
+                    application_context=self._application_context,
+                    context_plan=context_plan,
+                    history_exclusions=history_exclusions,
+                    expected_counter_identity=(
+                        self._llm.identity
+                        if not external and getattr(self._llm, "requires_inference_context", False)
+                        else None
+                    ),
+                )
+                revalidate_preparation()
             remaining(deadline)
             assistant_id = assistant_id or uuid4()
             if self._context_traces is not None:

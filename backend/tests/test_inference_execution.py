@@ -305,6 +305,15 @@ def test_physical_accounting_requires_current_bound_authority():
         SendAccounting(ledger).reserve_attempt(SimpleNamespace(), SimpleNamespace(), max_attempts=1)
 
 
+def test_rotated_secret_cannot_reuse_composed_account_attestation():
+    from pydantic import SecretStr
+
+    config, _ledger, pair = legacy()
+    config.ai_api_key = SecretStr("rotated-synthetic-key")
+    with pytest.raises(LLMInvalidConfigurationError, match="credential changed"):
+        pair.counter.count(MESSAGES, inference_context=CTX)
+
+
 @pytest.mark.anyio
 async def test_source_revocation_during_additional_generation_count_blocks_send():
     pair = compose_pair(settings())

@@ -1,5 +1,10 @@
 # PI-3 local implementation and verification
 
+The supplied independent review and implementation response are recorded in
+[PI-3 review remediation](pi-3-review-remediation-2026-10-30.md). That response
+does not supersede this original implementation evidence or claim independent
+acceptance.
+
 2026-10-30, America/Los_Angeles. Entry/tested base:
 `0dbe7406fda20c58c784339647ca15c4c7ab3f7e` plus the implementation source digest
 and artifact identities in [verification](pi-3-verification.json). One implementing
