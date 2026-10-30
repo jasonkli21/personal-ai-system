@@ -48,8 +48,13 @@ The explicit source-tree legacy profile is
 `personal_ai.main:app` with installed entry points and the selection above.
 The reference profile is useful for historical compatibility tests; it does not
 turn feature flags on. Tests in `backend/tests` import the reference namespace
-explicitly; pytest adds its source directory for development only. The artifact
-probe never uses these source directories.
+explicitly; pytest adds its source directory for development only. The normal
+`make backend-test` suite is therefore a **source-tree compatibility** run. It
+does not establish that either distribution can be installed or that core works
+without examples. The CI artifact job and `make platform-independence-check`
+build both distributions, then run the core wheel with the reference package
+physically absent before separately installing and probing the reference wheel.
+The artifact probe never uses these source directories.
 
 The optional persistence wrapper delegates to the canonical core factory and
 owns only itinerary/booking constructors. No migration, table, payload, source
@@ -57,7 +62,9 @@ fence or receipt was rewritten. Example cleanup is now
 `python -m personal_ai_reference_apps.booking_extractions.cleanup`.
 Reference evaluations use
 `personal_ai_reference_apps.evaluation.{domain,itinerary_proposals}`; the itinerary
-fixture is packaged with identical bytes to the historical test fixture.
+fixture is packaged with identical bytes to the historical test fixture. The
+`make domain-eval` and `make itinerary-proposal-eval` targets require the optional
+reference distribution to be installed in the active environment.
 
 Frontend Travel/Shopping links/pages/proxies retain literal-true server gates
 `DECISION_ENABLED`, `TRAVEL_ENABLED`, `SHOPPING_ENABLED` (plus inspection gates).

@@ -3,6 +3,9 @@
 
 .PHONY: memory-task-eval memory-knowledge-eval memory-knowledge-causal-eval
 
+PLATFORM_PYTHON := backend/.venv/bin/python
+UV ?= uv
+
 memory-knowledge-eval:
 
 	cd backend && python -m personal_ai.evaluation.memory_knowledge
@@ -31,7 +34,7 @@ adaptive-routing-eval:
 
 backend-build:
 
-	cd backend && uv build --no-build-isolation
+	cd backend && $(UV) build --no-build-isolation --python .venv/bin/python
 
 frontend-build:
 
@@ -148,8 +151,9 @@ memory-control-eval:
 .PHONY: reference-build platform-independence-check
 
 reference-build:
-	cd reference-apps && uv build --no-build-isolation --python ../backend/.venv/bin/python
+	cd reference-apps && $(UV) build --no-build-isolation --python ../backend/.venv/bin/python
 
 platform-independence-check: backend-build reference-build
-	python backend/scripts/platform_dependency_inventory.py --check
-	python backend/scripts/pi1_artifact_checks.py
+	$(PLATFORM_PYTHON) backend/scripts/platform_dependency_inventory.py --check
+	$(PLATFORM_PYTHON) backend/scripts/pi1_core_evaluation_probe.py
+	$(PLATFORM_PYTHON) backend/scripts/pi1_artifact_checks.py

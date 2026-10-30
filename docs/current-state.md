@@ -43,6 +43,12 @@ physical-absence probes and retained-task startup refusal. PI-2 through PI-8
 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
+The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
+the stale reference-evaluation module invocation, and the platform-specific
+artifact-check temporary path. Offline wheel/sdist and installed-profile checks
+pass locally; see the [remediation evidence](platform-independence/pi-1-review-remediation-2026-10-30.md).
+PI-1 independent review, Linux/Python 3.12 CI, provider/cloud, and native-storage
+acceptance remain open.
 
 ## MEM-0 research baseline
 

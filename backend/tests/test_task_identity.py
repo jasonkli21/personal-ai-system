@@ -15,6 +15,10 @@ from cryptography.hazmat.primitives.serialization import (
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from personal_ai.applications.registry import (
+    ApplicationContributionCatalog,
+    default_application_registry,
+)
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.delegation import delegated_user_assertion
 from personal_ai.auth.directory import InMemoryPrincipalDirectory
@@ -84,6 +88,14 @@ def source_identity(monkeypatch):
     app.add_middleware(AuthenticationMiddleware)
     app.dependency_overrides[get_settings] = lambda: settings
     app.state.principal_directory = InMemoryPrincipalDirectory()
+    from personal_ai_reference_apps.applications import application_contribution
+
+    app.state.application_registry = default_application_registry(
+        contribution_catalog=ApplicationContributionCatalog(
+            (name, lambda name=name: application_contribution(name))
+            for name in ("finance", "shopping")
+        )
+    )
 
     @app.post("/v1/mutations/commands")
     def received(command: AuthenticatedCommandRequest, request: Request):
@@ -187,3 +199,15 @@ def test_principal_deactivation_fences_a_previously_valid_origin(source_identity
     assert first.status_code == 200
     client.app.state.principal_directory.deactivate(first.json()["owner_id"])
     assert client.post(path, json=payload, headers=headers).status_code == 403
+
+
+def test_signed_origin_is_denied_when_reference_applications_are_unselected(source_identity):
+    client, settings, key, _ = source_identity
+    client.app.state.application_registry = default_application_registry()
+    payload = {"source_application_id": "finance", "command_id": str(uuid4())}
+    path = "/v1/mutations/commands"
+
+    response = client.post(path, json=payload, headers=signed_headers(settings, key, path, payload))
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "application_not_registered"

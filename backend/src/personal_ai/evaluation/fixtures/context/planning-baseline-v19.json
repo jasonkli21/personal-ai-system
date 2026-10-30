@@ -1,0 +1,28 @@
+{
+  "baseline_lock_version": "planning-baseline-lock-v19",
+  "baseline_version": "deterministic-context-planner-v1",
+  "configuration_digest": "c1e4f6057781add8a9ddc8b8372d988904ab04f793c7c21f9838ed705e45d7fe",
+  "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+  "counter_identity": "phase13-envelope-byte-estimate-v1",
+  "evaluator_version": "planning-evaluator-v7",
+  "evidence_kind": "synthetic_offline",
+  "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+  "frozen_at": "2026-10-30T00:00:00-07:00",
+  "platform_runtime": "macOS-27.0.1-arm64-arm-64bit",
+  "preserved_corpus": "planning-heldout-v2.json; all 23 fixture records and source bytes remain unchanged",
+  "promotion_decision": "non_promotion; no model-answer quality evidence or promoted coverage",
+  "pydantic_runtime": "2.13.5",
+  "python_abi": "cpython-311",
+  "python_implementation": "CPython",
+  "python_runtime": "3.11.15",
+  "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
+  "runtime_distribution_count": 94,
+  "runtime_profile": "core-only with explicit synthetic reference fixture rules",
+  "source_change_summary": [
+    "PI-1 extraction moved reference rules out of the core default runtime. V19 keeps the 23 held-out rows executable with explicit synthetic core fixture rules, preserves v18 as historical evidence, and remains non-promoting."
+  ],
+  "source_identity_digest": "ac0526535784cc783db25689fb45f63fe2a2812640ff74c420fdd334c87d8142",
+  "source_revision": "b97aab4a679df0410ad7688fa50c8b8557a7ec8b",
+  "source_revision_binding": "current-or-direct-child-with-identical-source-identity",
+  "supersedes": "planning-baseline-lock-v18"
+}

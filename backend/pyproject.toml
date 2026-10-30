@@ -51,6 +51,8 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Source-tree compatibility harness for tests that exercise the optional bundle.
+# It is not installed-artifact proof; CI runs pi1_artifact_checks.py separately.
 pythonpath = ["src", "../reference-apps/src"]
 markers = [
   "persistence_integration: requires local Postgres/pgvector and DynamoDB Local",

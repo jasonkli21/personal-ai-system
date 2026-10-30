@@ -26,7 +26,11 @@ from personal_ai.agents.research.iterative.service import IterativeResearchServi
 from personal_ai.agents.research.repositories import InMemoryResearchRepository
 from personal_ai.agents.research.service import ResearchService
 from personal_ai.applications.contracts import ApplicationContextRequest
-from personal_ai.applications.registry import default_application_registry
+from personal_ai.applications.registry import (
+    ApplicationContributionCatalog,
+    ApplicationNotRegisteredError,
+    default_application_registry,
+)
 from personal_ai.auth.scope import ApplicationScope, RequestScope, application_scope_context
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.providers import ContextPreparationError
@@ -41,7 +45,15 @@ NOW = datetime(2026, 10, 2, 12, tzinfo=UTC)
 
 
 def application_context(owner_id="local", application_id="personal_ai", workspace_id=None):
-    registry = default_application_registry()
+    if application_id == "personal_ai":
+        registry = default_application_registry()
+    else:
+        from personal_ai_reference_apps.applications import application_contribution
+
+        catalog = ApplicationContributionCatalog(
+            ((application_id, lambda: application_contribution(application_id)),)
+        )
+        registry = default_application_registry(contribution_catalog=catalog)
     return ApplicationContextRequest(
         definition=registry.get(application_id),
         scope=RequestScope(
@@ -280,6 +292,11 @@ async def test_same_owner_and_idempotency_key_create_independent_runs_per_scope(
             assert runs.get(service.owner_id, expected.id) == expected
             assert runs.session(service.owner_id, expected.session_id).iterative_run_id == expected.id
     assert runs.get_by_key(service.owner_id, req.idempotency_key) == standalone
+
+
+def test_core_only_registry_rejects_an_unselected_reference_application():
+    with pytest.raises(ApplicationNotRegisteredError):
+        default_application_registry().get("travel")
 
 
 @pytest.mark.anyio

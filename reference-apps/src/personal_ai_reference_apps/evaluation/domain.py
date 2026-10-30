@@ -91,21 +91,32 @@ def evaluate() -> dict:
             )),
         })
 
-    root = Path(__file__).resolve().parents[4]
-    revision = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
-        cwd=root,
+    repository = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=Path.cwd(),
         capture_output=True,
         text=True,
-        check=True,
-    ).stdout.strip()
-    dirty = bool(subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip())
+        check=False,
+    )
+    if repository.returncode == 0:
+        root = Path(repository.stdout.strip())
+        revision_result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        revision = revision_result.stdout.strip()
+        dirty = bool(subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip())
+    else:
+        revision, dirty = "unavailable", False
     return {
         "schema_version": "domain-eval-v1",
         "synthetic": True,

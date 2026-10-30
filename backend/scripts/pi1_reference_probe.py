@@ -2,6 +2,8 @@
 
 import json
 import sys
+from importlib.metadata import distribution
+from pathlib import Path
 
 attempts = []
 
@@ -61,10 +63,30 @@ with TestClient(app):
 assert not attempts
 import personal_ai_reference_apps
 
+reference_distribution = distribution("personal-ai-reference-apps")
+assert Path(personal_ai_reference_apps.__file__).is_relative_to(Path(sys.prefix))
+assert "personal-ai-backend==0.1.0" in (reference_distribution.requires or [])
+expected_entries = {
+    (group, name)
+    for group in (
+        "personal_ai.application_contributions",
+        "personal_ai.context_contributions",
+    )
+    for name in ("travel", "shopping", "finance", "health")
+}
+assert {
+    (entry.group, entry.name) for entry in reference_distribution.entry_points
+} == expected_entries
 print(
     json.dumps(
         {
             "reference_module": personal_ai_reference_apps.__file__,
+            "sys_path": sys.path,
+            "requires_dist": reference_distribution.requires,
+            "entry_points": sorted(
+                [entry.group, entry.name, entry.value]
+                for entry in reference_distribution.entry_points
+            ),
             "selections": results,
             "legacy_four_cases": "PASS",
             "network_attempts": attempts,

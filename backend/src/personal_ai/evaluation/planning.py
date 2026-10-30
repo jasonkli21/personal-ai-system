@@ -20,12 +20,14 @@ from statistics import fmean
 
 import pydantic
 
-from personal_ai.context.deployment import configured_context_runtime
 from personal_ai.context.planner import ContextPlanner, PlanningTrace
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.evaluation.context_planner import FIXTURE_PATH, _run_fixture
 from personal_ai.evaluation.output import emit
-from personal_ai.evaluation.planning_fixtures import federation_planning_rows
+from personal_ai.evaluation.planning_fixtures import (
+    federation_planning_rows,
+    historical_reference_planning_rules,
+)
 from personal_ai.evaluation.planning_promotion import (
     PlanningCoverageKey,
     PlanningMeasurements,
@@ -34,7 +36,6 @@ from personal_ai.evaluation.planning_promotion import (
 from personal_ai.evaluation.planning_quality import (
     PlanningAnswerQualityEvidence,
 )
-from personal_ai.settings import Settings
 
 CORPUS_PATH = Path(__file__).parent / "fixtures/context/planning-heldout-v2.json"
 HISTORICAL_V13_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v13.json"
@@ -42,8 +43,9 @@ HISTORICAL_V14_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V15_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v15.json"
 HISTORICAL_V16_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v16.json"
 HISTORICAL_V17_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v17.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v18.json"
-PLANNING_EVALUATOR_VERSION = "planning-evaluator-v6"
+HISTORICAL_V18_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v18.json"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v19.json"
+PLANNING_EVALUATOR_VERSION = "planning-evaluator-v7"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 SOURCE_IDENTITY_PATHS = (
@@ -96,36 +98,15 @@ SOURCE_IDENTITY_PATHS = tuple(
 
 
 def baseline_planner():
-    # Valid startup composition, synthetic endpoint names, no credential or sends.
-    options = {
-        "_env_file": None,
-        "ai_provider": "fake",
-        "ai_model": "synthetic",
-        "auth_mode": "google_oidc",
-        "auth_required": True,
-        "auth_audience": "synthetic",
-        "auth_allowed_emails": ("synthetic@gmail.com",),
-        "travel_context_enabled": True,
-        "shopping_context_enabled": True,
-        "finance_context_enabled": True,
-        "federation_choice_hmac_key": "synthetic-key-" * 3,
-    }
-    for name in ("travel", "shopping", "finance"):
-        options.update(
-            {
-                f"{name}_context_base_url": "https://synthetic.invalid",
-                f"{name}_context_service_audience": "https://synthetic.invalid",
-                f"{name}_context_service_account": "synthetic@example.invalid",
-            }
-        )
-    runtime = configured_context_runtime(Settings(**options))
-    return ContextPlanner(runtime.planning_rules)
+    # Historical cross-app rows use explicit synthetic rule contracts from the
+    # core evaluation corpus. No optional package is imported or activated.
+    return ContextPlanner(historical_reference_planning_rules())
 
 
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v18",
+        "baseline_lock_version": "planning-baseline-lock-v19",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

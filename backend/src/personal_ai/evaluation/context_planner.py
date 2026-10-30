@@ -386,7 +386,14 @@ def _run_fixture(
     retrieval = None
     profile_repository = None
     memory_validator = None
-    registry_definition = default_application_registry().get(fixture["application_id"])
+    application_id = fixture["application_id"]
+    if application_id == "personal_ai":
+        base_policy = default_application_registry().get(application_id).context_policy
+    else:
+        # Reference rows are deliberately composed as isolated, synthetic
+        # manifests. This evaluator keeps meaningful historical coverage in a
+        # core-only install without importing optional application code.
+        base_policy = ApplicationContextPolicy()
     max_context_tokens = fixture.get("max_context_tokens", 2_048)
     available_context_tokens = max_context_tokens - 100 - 20
     settings = Settings(
@@ -466,7 +473,7 @@ def _run_fixture(
             maximum_bytes=8_192,
             maximum_timeout_seconds=2,
         )
-        if registry_definition.context_policy.operation(provider_id, operation) is None:
+        if base_policy.operation(provider_id, operation) is None:
             synthetic_policy_operations[provider_id] = ContextOperationPolicy(
                 operation=operation,
                 fields=tuple(
@@ -502,7 +509,7 @@ def _run_fixture(
         memory_namespace=fixture["application_id"],
         context_provider_ids=tuple(provider_ids),
         context_policy=_policy_with_fixture_operations(
-            registry_definition.context_policy,
+            base_policy,
             synthetic_policy_operations,
         ),
     )

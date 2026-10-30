@@ -317,8 +317,16 @@ make frontend-test
 make frontend-lint
 make frontend-typecheck
 make backend-build
+make platform-independence-check
 make frontend-build
 ```
+
+`make backend-test` uses the source-tree compatibility harness configured in
+`backend/pyproject.toml`; it covers core and optional-reference code from the
+checkout. It is not clean-wheel evidence. `make platform-independence-check`
+builds both distributions with the backend virtualenv interpreter, proves the
+installed core wheel works with reference files physically absent, then installs
+and probes the optional reference wheel.
 
 `make backend-test-offline` excludes the intentionally deferred native-store,
 cloud-smoke and live Gemini suites. `make integrated-verification` runs the

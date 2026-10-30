@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from uuid import uuid4
 
 import pytest
@@ -504,7 +505,7 @@ def test_v17_knowledge_rebind_preserves_historical_locks_and_non_promotion():
 
 
 def test_v18_control_rebind_preserves_historical_locks_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V18_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V17_FREEZE_PATH.read_text())
     for key in (
         "baseline_version", "configuration_digest", "corpus_digest",
@@ -513,10 +514,30 @@ def test_v18_control_rebind_preserves_historical_locks_and_non_promotion():
         "source_revision_binding",
     ):
         assert current[key] == previous[key]
-    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "7c8f2671ffc163f803e781b9b34d6c81d466e8fa"
+
+
+def test_v19_core_fixture_rebind_preserves_v18_history_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V18_FREEZE_PATH.read_text())
+
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v19"
+    assert current["evaluator_version"] == planning.PLANNING_EVALUATOR_VERSION
+    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert current["configuration_digest"] == planning.baseline_planner().configuration_digest
+    assert current["source_revision"] == "b97aab4a679df0410ad7688fa50c8b8557a7ec8b"
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_identity_digest"] != previous["source_identity_digest"]
+    assert current["configuration_digest"] != previous["configuration_digest"]
+    assert current["promotion_decision"] == previous["promotion_decision"]
+    assert current["corpus_digest"] == previous["corpus_digest"]
+    assert current["fixture_dependency_digest"] == previous["fixture_dependency_digest"]
+    assert current["source_change_summary"]
+    assert sha256(planning.HISTORICAL_V18_FREEZE_PATH.read_bytes()).hexdigest() == (
+        "04342a8f00c82503f52f4cfb93a25bd45ff6c2507c769ff30db71ffe372c48dd"
+    )
 
 
 def test_evaluator_records_bound_validation_trace_metrics(runtime_bound_planning_lock):

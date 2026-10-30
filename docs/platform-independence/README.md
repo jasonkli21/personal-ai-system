@@ -28,6 +28,7 @@ The owning repo's `AGENTS.md`, code/tests/migrations, [`docs/current-state.md`](
 
 - [Detailed plan](pi-1-detailed-implementation-plan.md) and [pre-implementation hardening](pi-1-plan-hardening.md).
 - [Implementation report](pi-1-implementation-report.md), [current import inventory](pi-1-dependency-inventory.json), and [verification commands](pi-1-verification-commands.md).
+- [2026-10-30 review-remediation evidence](pi-1-review-remediation-2026-10-30.md) — reproduced findings, code and CI corrections, local offline checks, artifact identities and remaining acceptance.
 - [Independent-review instructions](pi-1-independent-review-prompt.md); no verdict supplied by the implementer.
 - [Optional package operations](../../reference-apps/README.md).
 

@@ -9,6 +9,25 @@ permissions:
   contents: read
 
 jobs:
+  backend-artifact-profiles:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.13"
+      - run: uv sync --locked --only-group build --no-install-project
+        working-directory: backend
+      - run: uv sync --locked --extra dev --group build --no-build-isolation
+        working-directory: backend
+      - run: make platform-independence-check
+
   backend:
     runs-on: ubuntu-latest
     services:
@@ -42,19 +61,28 @@ jobs:
       - run: uv sync --locked --only-group build --no-install-project
       - run: uv sync --locked --extra dev --group build --no-build-isolation
       - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - run: uv build --no-build-isolation --python .venv/bin/python
+      - run: cd ../reference-apps && uv build --no-build-isolation --python ../backend/.venv/bin/python
+      - run: uv pip install --python .venv/bin/python --no-deps --no-index ../reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl
       - run: python -m ruff check .
       - run: python -m pytest
       - run: python -m pytest -m persistence_integration tests/persistence/test_provider_usage_accounting.py tests/persistence/test_artifact_tier.py tests/persistence/test_routing_decisions.py
         env:
           PERSISTENCE_TEST_POSTGRES_DSN: postgresql://personal_ai:personal_ai_test_only@127.0.0.1:5432/personal_ai_test
       - run: python -m personal_ai.evaluation.context
+      - run: python -m personal_ai.evaluation.context_planner
+      - run: python -m personal_ai.evaluation.planning
       - run: python -m personal_ai.evaluation.memory
       - run: python -m personal_ai.evaluation.memory_lifecycle
       - run: python -m personal_ai.evaluation.research
       - run: python -m personal_ai.evaluation.decision
-      - run: python -m personal_ai.evaluation.domain
       - run: python -m personal_ai.evaluation.iterative_research
-      - run: uv build --no-build-isolation
+      - run: python -m personal_ai_reference_apps.evaluation.domain
+        env:
+          APPLICATION_CONTRIBUTIONS: '["travel","shopping","finance","health"]'
+      - run: python -m personal_ai_reference_apps.evaluation.itinerary_proposals
+        env:
+          APPLICATION_CONTRIBUTIONS: '["travel","shopping","finance","health"]'
 
   frontend:
     runs-on: ubuntu-latest

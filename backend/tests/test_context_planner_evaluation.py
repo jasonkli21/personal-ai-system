@@ -2,6 +2,12 @@
 
 import json
 
+import pytest
+
+from personal_ai.applications.registry import (
+    ApplicationNotRegisteredError,
+    default_application_registry,
+)
 from personal_ai.context.contracts import TokenCount
 from personal_ai.evaluation import context_planner
 
@@ -11,6 +17,30 @@ def test_context_planner_baseline_passes_all_offline_fixtures():
 
     assert rows
     assert all(row["result"] == "passed" for row in rows)
+
+
+def test_reference_fixtures_remain_explicit_and_scored_in_core_only_profile():
+    fixtures = json.loads(context_planner.FIXTURE_PATH.read_text())["fixtures"]
+    rows = context_planner.evaluate()
+    expected_ids = [fixture["name"] for fixture in fixtures]
+
+    assert [row["fixture"] for row in rows] == expected_ids
+    assert len(rows) == 9
+    assert default_application_registry().application_ids == {"personal_ai"}
+    with pytest.raises(ApplicationNotRegisteredError):
+        default_application_registry().get("travel")
+
+    reference_rows = {
+        row["fixture"]: row for row in rows if row["fixture"].startswith("synthetic-")
+    }
+    assert set(reference_rows) == {
+        "synthetic-travel-hotel-dates",
+        "synthetic-shopping-saved-chair",
+        "synthetic-finance-cash-position",
+        "synthetic-health-medication-history",
+    }
+    assert all(row["result"] == "passed" and row["expected_fields"] for row in reference_rows.values())
+    assert sum(row["selected_source_count"] for row in reference_rows.values()) == 4
 
 
 def test_positive_memory_fixture_fails_when_source_budget_omits_support():

@@ -13,6 +13,7 @@ from personal_ai.auth.scope import (
     ApplicationScope,
     RequestScope,
 )
+from personal_ai.context.planner import ContextPlanningRule
 from personal_ai.context.providers import (
     ContextItem,
     ContextProviderCoordinator,
@@ -37,6 +38,136 @@ from personal_ai.federation.contracts import FederationGrantIntent
 from personal_ai.federation.deployment import install_federation_metadata
 from personal_ai.federation.service import FederationPermissionAuthority
 from personal_ai.persistence.postgres.federation import validate_transition
+
+
+def historical_reference_planning_rules() -> tuple[ContextPlanningRule, ...]:
+    """Synthetic rule contracts for the named historical reference cases.
+
+    These rules exercise the shared planner without importing optional app
+    implementations. They are not production registration or authorization.
+    The full rule catalog remains owned by the selected reference package.
+    """
+    return (
+        ContextPlanningRule(
+            rule_id="travel.selected-trip:v1",
+            category="travel_current_trip",
+            phrases=("this trip", "my trip", "trip itinerary", "current itinerary"),
+            provider_id="travel.trip_context",
+            operation="current",
+            fields=("trip_title", "start_date", "end_date", "timezone", "itinerary_overview"),
+            max_results=4,
+            max_bytes=24_576,
+            max_tokens=512,
+            timeout_seconds=5,
+            use_candidate_entities=True,
+            require_candidate_entities=True,
+            trigger_on_selected_entities=True,
+            candidate_entity_types=("trip",),
+            priority=20,
+            application_ids=("travel",),
+            explanation="Synthetic rule for the historical selected-trip planning case.",
+        ),
+        ContextPlanningRule(
+            rule_id="travel.selected-entities:v1",
+            category="travel_selected_entities",
+            phrases=("selected day", "selected place", "this place", "day itinerary", "reservation"),
+            provider_id="travel.trip_context",
+            operation="entity",
+            fields=(
+                "day_date", "day_title", "item_title", "item_type", "item_status",
+                "item_schedule", "place_name", "place_category", "place_address",
+                "place_source", "place_attribution",
+            ),
+            max_results=12,
+            max_bytes=32_768,
+            max_tokens=512,
+            timeout_seconds=5,
+            use_candidate_entities=True,
+            require_candidate_entities=True,
+            trigger_on_selected_entities=True,
+            candidate_entity_types=("day", "itinerary_item", "place", "reservation"),
+            priority=25,
+            application_ids=("travel",),
+            explanation="Synthetic rule for the historical selected-entity planning case.",
+        ),
+        ContextPlanningRule(
+            rule_id="shopping.selected-project-context:v1",
+            category="shopping_project_context",
+            phrases=("this shopping project", "my shopping project", "project requirements"),
+            provider_id="shopping.product_context",
+            operation="current",
+            fields=("project_title", "project_goal", "requirements", "selected_products"),
+            max_results=12,
+            max_bytes=24_576,
+            max_tokens=768,
+            timeout_seconds=5,
+            use_candidate_entities=True,
+            require_candidate_entities=True,
+            candidate_entity_types=("project", "project_product"),
+            required=True,
+            priority=25,
+            application_ids=("shopping",),
+            explanation="Synthetic rule for the historical selected-project planning case.",
+        ),
+        ContextPlanningRule(
+            rule_id="shopping.selected-catalog-evidence:v1",
+            category="shopping_selected_catalog_evidence",
+            phrases=("compare these selected products", "use selected product evidence"),
+            provider_id="shopping.catalog_search",
+            operation="search",
+            fields=("catalog_observations",),
+            max_results=24,
+            max_bytes=24_576,
+            max_tokens=768,
+            timeout_seconds=5,
+            use_candidate_entities=True,
+            require_candidate_entities=True,
+            trigger_on_selected_entities=True,
+            candidate_entity_types=("project", "project_product"),
+            priority=30,
+            application_ids=("shopping",),
+            explanation="Synthetic rule for the historical selected-products planning case.",
+        ),
+        ContextPlanningRule(
+            rule_id="finance.selected-account:v1",
+            category="finance_selected_account",
+            phrases=("this finance account", "selected account context"),
+            provider_id="finance.account_context",
+            operation="current",
+            fields=("account_summary", "balance_summary"),
+            max_results=4,
+            max_bytes=12_288,
+            max_tokens=512,
+            timeout_seconds=3,
+            use_candidate_entities=True,
+            require_candidate_entities=True,
+            trigger_on_selected_entities=True,
+            candidate_entity_types=("account",),
+            required=True,
+            priority=20,
+            application_ids=("finance",),
+            explanation="Synthetic rule for the historical selected-account planning case.",
+        ),
+        ContextPlanningRule(
+            rule_id="finance.selected-thesis:v1",
+            category="finance_selected_thesis",
+            phrases=("selected finance thesis", "this thesis note"),
+            provider_id="finance.research_context",
+            operation="current",
+            fields=("research_thesis",),
+            max_results=4,
+            max_bytes=16_384,
+            max_tokens=768,
+            timeout_seconds=3,
+            use_candidate_entities=True,
+            require_candidate_entities=True,
+            trigger_on_selected_entities=True,
+            candidate_entity_types=("issuer",),
+            priority=32,
+            application_ids=("finance",),
+            explanation="Synthetic rule for the historical selected-thesis planning case.",
+        ),
+    )
 
 
 class Repository:

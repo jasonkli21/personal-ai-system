@@ -5,6 +5,7 @@ all .pth/editable hooks and platform distributions. Install only the built wheel
 with uv --no-index --no-deps. No dependency downloads or source PYTHONPATH.
 """
 
+import atexit
 import hashlib
 import json
 import os
@@ -18,9 +19,10 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-artifacts = sorted((ROOT / "backend/dist").glob("personal_ai_backend-0.1.0*"))
-assert len(artifacts) == 2
-for artifact in artifacts:
+core_artifacts = sorted((ROOT / "backend/dist").glob("personal_ai_backend-0.1.0*"))
+assert len(core_artifacts) == 2, "build the core wheel and sdist first"
+for artifact in core_artifacts:
+    metadata = ""
     if artifact.suffix == ".whl":
         with zipfile.ZipFile(artifact) as archive:
             names = archive.namelist()
@@ -32,6 +34,9 @@ for artifact in artifacts:
     else:
         with tarfile.open(artifact) as archive:
             names = archive.getnames()
+            metadata_name = next(name for name in names if name.endswith("/PKG-INFO"))
+            metadata = archive.extractfile(metadata_name).read().decode()
+    assert "personal-ai-reference" not in metadata
     forbidden = (
         "personal_ai_reference_apps",
         "personal_ai/context/travel",
@@ -64,7 +69,52 @@ for artifact in artifacts:
         flush=True,
     )
 
-workspace = Path(tempfile.mkdtemp(prefix="pi1-installed-", dir="/private/tmp"))
+reference_artifacts = sorted(
+    (ROOT / "reference-apps/dist").glob("personal_ai_reference_apps-0.1.0*")
+)
+assert len(reference_artifacts) == 2, "build the reference wheel and sdist first"
+reference_wheel = next(item for item in reference_artifacts if item.suffix == ".whl")
+for artifact in reference_artifacts:
+    if artifact.suffix == ".whl":
+        with zipfile.ZipFile(artifact) as archive:
+            names = archive.namelist()
+            metadata_name = next(name for name in names if name.endswith("/METADATA"))
+            metadata = archive.read(metadata_name).decode()
+            points_name = next(name for name in names if name.endswith("/entry_points.txt"))
+            points = archive.read(points_name).decode()
+            assert "Requires-Dist: personal-ai-backend==0.1.0" in metadata
+            assert "[personal_ai.application_contributions]" in points
+            assert "[personal_ai.context_contributions]" in points
+            assert sum(
+                line.startswith(("travel =", "shopping =", "finance =", "health ="))
+                for line in points.splitlines()
+            ) == 8
+            assert not any(name.startswith("personal_ai/") for name in names)
+    else:
+        with tarfile.open(artifact) as archive:
+            names = archive.getnames()
+            metadata_name = next(name for name in names if name.endswith("/PKG-INFO"))
+            metadata = archive.extractfile(metadata_name).read().decode()
+            assert "Requires-Dist: personal-ai-backend==0.1.0" in metadata
+            assert not any("/personal_ai/" in f"/{name}" for name in names)
+    print(
+        json.dumps(
+            {
+                "artifact": str(artifact),
+                "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                "file_count": len(names),
+            }
+        ),
+        flush=True,
+    )
+
+uv = shutil.which("uv")
+if uv is None:
+    raise RuntimeError("uv is required for offline wheel installation")
+uv = str(Path(uv).resolve())
+temporary_workspace = tempfile.TemporaryDirectory(prefix="pi1-installed-")
+atexit.register(temporary_workspace.cleanup)
+workspace = Path(temporary_workspace.name)
 venv_dir = workspace / "venv"
 venv.EnvBuilder(with_pip=False).create(venv_dir)
 source_site = (
@@ -90,17 +140,17 @@ for path in sorted(source_site.iterdir()):
     copied.append(path.name)
 (workspace / "dependency-files.json").write_text(json.dumps(copied, indent=2))
 env = {
-    "PATH": os.environ["PATH"],
+    "PATH": f"{Path(uv).parent}{os.pathsep}{os.environ.get('PATH', '')}",
     "UV_CACHE_DIR": str(workspace / "uv-cache"),
     "UV_OFFLINE": "true",
     "AI_PROVIDER": "fake",
     "AI_MODEL": "pi1-artifact",
     "PYTHONDONTWRITEBYTECODE": "1",
 }
-wheel = next(artifact for artifact in artifacts if artifact.suffix == ".whl")
+wheel = next(artifact for artifact in core_artifacts if artifact.suffix == ".whl")
 python = venv_dir / "bin/python"
 subprocess.run(
-    ["uv", "pip", "install", "--python", str(python), "--no-deps", "--no-index", str(wheel)],
+    [uv, "pip", "install", "--python", str(python), "--no-deps", "--no-index", str(wheel)],
     cwd=workspace,
     env=env,
     check=True,
@@ -132,14 +182,6 @@ subprocess.run(
 print("CORE_INSTALLED_MEMORY_RESEARCH_SUMMARY=PASS", flush=True)
 
 
-reference_wheel = ROOT / "reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl"
-with zipfile.ZipFile(reference_wheel) as archive:
-    entries = archive.namelist()
-    assert not any(name.startswith("personal_ai/") for name in entries)
-    points = archive.read(
-        next(name for name in entries if name.endswith("/entry_points.txt"))
-    ).decode()
-    assert "personal_ai_reference_apps" in points
 print(
     json.dumps(
         {
@@ -151,7 +193,7 @@ print(
 )
 subprocess.run(
     [
-        "uv",
+        uv,
         "pip",
         "install",
         "--python",
@@ -167,6 +209,14 @@ subprocess.run(
 reference_probe = workspace / "reference_probe.py"
 shutil.copyfile(ROOT / "backend/scripts/pi1_reference_probe.py", reference_probe)
 subprocess.run([str(python), str(reference_probe)], cwd=workspace, env=env, check=True)
+reference_evaluation_probe = workspace / "reference_evaluation_probe.py"
+shutil.copyfile(
+    ROOT / "backend/scripts/pi1_reference_evaluation_probe.py",
+    reference_evaluation_probe,
+)
+subprocess.run(
+    [str(python), str(reference_evaluation_probe)], cwd=workspace, env=env, check=True
+)
 # Run copied compatibility tests against INSTALLED packages, never source pythonpath.
 tests = workspace / "tests"
 tests.mkdir()
@@ -192,7 +242,7 @@ runner = workspace / "offline_checks.py"
 shutil.copyfile(ROOT / "backend/scripts/pi1_offline_checks.py", runner)
 subprocess.run([str(python), str(runner), "-q", str(tests)], cwd=workspace, env=env, check=True)
 subprocess.run(
-    ["uv", "pip", "uninstall", "--python", str(python), "personal-ai-reference-apps"],
+    [uv, "pip", "uninstall", "--python", str(python), "personal-ai-reference-apps"],
     cwd=workspace,
     env=env,
     check=True,
@@ -201,7 +251,7 @@ subprocess.run([str(python), str(probe)], cwd=workspace, env=env, check=True)
 print("REFERENCE_INSTALLED_COMPATIBILITY_AND_UNINSTALL=PASS", flush=True)
 subprocess.run(
     [
-        "uv",
+        uv,
         "pip",
         "install",
         "--python",

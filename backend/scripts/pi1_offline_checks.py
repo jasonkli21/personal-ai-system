@@ -34,8 +34,15 @@ assert not Path(".env").exists() and not Path("backend/.env").exists(), (
     "Refuse local environment files"
 )
 os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
-import pytest
 
-result = pytest.main(["-p", "anyio.pytest_plugin", *sys.argv[1:]])
-print(f"PI1_BLOCKED_NETWORK_ATTEMPTS={len(attempts)} events={attempts}")
-sys.exit(3 if attempts else result)
+
+def main():
+    import pytest
+
+    result = pytest.main(["-p", "anyio.pytest_plugin", *sys.argv[1:]])
+    print(f"PI1_BLOCKED_NETWORK_ATTEMPTS={len(attempts)} events={attempts}")
+    return 3 if attempts else result
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
