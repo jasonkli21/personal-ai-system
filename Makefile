@@ -168,3 +168,7 @@ pi2-check: pi2-build
 	$(PLATFORM_PYTHON) backend/scripts/pi1_core_evaluation_probe.py
 	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
 	$(PLATFORM_PYTHON) backend/scripts/pi2_artifact_checks.py
+
+.PHONY: pi3-check
+pi3-check:
+	$(PLATFORM_PYTHON) backend/scripts/pi3_checks.py

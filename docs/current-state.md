@@ -43,8 +43,15 @@ physical-absence probes and retained-task startup refusal. [PI-2](platform-indep
 local candidate: verified OAuth client/app binding with revocable operator policy,
 a narrow v1 HTTP contract, canonical continuation-key status, a separately built
 history-only Reading Logbook host and a dependency-free HTTP client with its own
-local records/journal. Independent PI-0/1/2 acceptance remains pending. PI-3 through
-PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+local records/journal. Independent PI-0/1/2 acceptance remains pending. [PI-3](platform-independence/pi-3-implementation-report.md)
+adds a user-directed local candidate: closed operator-selected normal inference,
+two exact local fake profiles, explicit strict-free legacy composition, ancillary
+privacy/admission and physical-reservation rechecks, neutral summary/memory/worker
+composition, and unconditional paid-mode denial. Remote Groq/Cloudflare generation
+and new memory embeddings remain unavailable without approved exact input counters;
+this is not live non-Gemini or billing acceptance. The inspected OS/Python-fenced PI-3 suite passed 780 tests with zero forbidden
+network attempts; installed core/reference/task/Reading Logbook checks passed.
+Independent PI-3 review remains pending. PI-4 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
@@ -207,11 +214,12 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v20 remain historical. MEM-2's v18, PI-1's v19 and the initial
+Planner locks v10-v21 remain historical. MEM-2's v18, PI-1's v19 and the initial
 PI-2 candidate's v20 retain their dated source bindings. The PI-2 review
-remediation adds active, source-only, non-promoting v21, preserving v20's
+remediation added source-only, non-promoting v21, preserving v20's
 deterministic planner configuration, 30 held-out cases, corpus and fixture
-dependencies. All prior lock bytes remain unchanged. The strict
+dependencies. All prior lock bytes remain unchanged. PI-3 adds active source-only v22 after the inference composition changes, retaining
+all v21 planner/corpus/fixture/configuration bytes and non-promotion. The strict
 current-or-direct-child source guard remains; production replay still rejects
 source, runtime and unrelated revision changes. Portable tests use an explicitly
 test-only lock. Nothing is promoted from this freeze. See the

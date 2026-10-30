@@ -300,9 +300,21 @@ AI_API_KEY=
 
 Leave `AI_API_KEY` empty for offline/fake-backed testing.
 
-For a real streamed model response, set the key only in the untracked local environment file or Secret Manager in cloud deployments.
+Normal inference defaults to `INFERENCE_PROFILE=offline_fake` and
+`INFERENCE_COST_MODE=offline_fake`; no provider credentials or examples are needed
+for fake generation. A real response requires an explicitly selected
+`legacy_gemini` profile, `strict_free` mode, canonical accounting, and current
+account-specific privacy, free-tier, quota, counter and bounded endpoint evidence.
+A key alone does not authorize disclosure. Summary/extraction are separately
+selected and default disabled. New memory embedding work is unavailable pending
+an approved exact embedding-input counter; existing vectors remain intact.
 
-Gemini remains the only provider wired into automatic chat, research, and memory workflows. The pinned LiteLLM 1.102.1 Python SDK runs below Personal AI's neutral inference gateway; Personal AI still selects providers and credentials, and LiteLLM Proxy, Router, and cross-provider fallback are not used. Groq and Cloudflare Workers AI support bounded generation and model-gated structured output, but their live gates default off and require account/model-specific free-tier, privacy, and compatibility preflight evidence. They do not provide authoritative endpoint token counting, which current workflows require before dispatch, so enabling their adapter flags alone does not switch application traffic.
+See the [PI-3 operator instructions](backend/src/personal_ai/llm/README.md#pi-3-explicit-execution-profiles)
+for configuration, finite attestation overlays, limitations and rollback. Groq and
+Cloudflare generation adapters remain opt-in evaluation transports; normal
+composition rejects them until an approved exact counter is installed. Paid modes
+remain disabled because hard monetary admission is absent. LiteLLM Proxy, Router
+and automatic cross-provider fallback are not used.
 
 The Phase 25.3 continuation sidecar is implemented, but manual external disclosure and connected dispatch are unavailable by default. `EXTERNAL_TURN_ACCEPTANCE_ENABLED` is an explicit, default-off gate; keep it disabled until Phase 15 derived-source/revocation authority and Phase 25.2 DynamoDB transaction/race/restart acceptance pass. The shared planner, local estimated-count preparation runtime, bounded preview, idempotency-key reconciliation, scope propagation, and transient shared-chat streaming seams are implemented and covered locally. Automatic Personal AI continuation remains available. Connected execution additionally requires an approved explicit Phase 18 profile and dispatch signer. A separately started user-local ChatGPT bridge owns reusable credentials, account-specific discovery, and restricted Responses streaming. Live connected execution remains unverified pending distribution approval, enforceable plan-only billing, real OAuth/Responses compatibility, and native browser/loopback acceptance. See the [Phase 25.3 guide](docs/personal-ai-chapter-2/phase-25-3-implementation-guide.md) and [evidence](docs/personal-ai-chapter-2/phase-25-3-implementation-evidence.md). Installation, pairing, and open gates are documented in the [Phase 25.1 guide](docs/personal-ai-chapter-2/phase-25-1-implementation-guide.md).
 

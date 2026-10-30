@@ -204,6 +204,22 @@ with TestClient(app) as client:
         == "validation_error"
     )
 
+# PI-3: exercise the installed normal dependency composition without replacing
+# either model or context assembler. Only persistence/identity ports stay offline.
+app.dependency_overrides.pop(deps.get_llm_client)
+app.dependency_overrides.pop(deps.get_context_assembler)
+app.dependency_overrides[deps.get_provider_usage_accounting] = lambda: None
+assert settings.inference_profile == "offline_fake"
+assert not settings.ai_api_key.get_secret_value()
+with TestClient(app) as client:
+    created = client.post("/v1/conversations", json={})
+    assert created.status_code == 201
+    result = client.post(
+        f"/v1/conversations/{created.json()['id']}/messages", json={"content": "PI3 normal path"}
+    )
+    events(result)
+    assert "Offline test response." in result.text
+
 # Historical contract removal fails actual startup, preserving the inventory.
 required.append(("shopping", "project.set_budget", 1, "c" * 64))
 blocked = create_app(selected_contributions=())
@@ -231,6 +247,7 @@ print(
             "max_actual_input_tokens": max(trace.actual_input_tokens for trace in prepared),
             "missing_reconciler_startup": "PASS",
             "worker_import": "PASS",
+            "pi3_normal_fake_composition": "PASS",
             "example_import_attempts": import_attempts,
             "network_attempts": network_attempts,
         },

@@ -1,0 +1,316 @@
+{
+  "P3_matrix": {
+    "P3-01": "Entry SHA/dirty state, pre-code hardening and user-directed gate exception recorded",
+    "P3-02": "Installed wheel/sdist probe exercises normal fake API/context with examples physically absent and no credentials; ports remain explicitly in-memory",
+    "P3-03": "Two different non-Gemini local fake identities execute canonical chat; live Groq/Cloudflare unsupported, not accepted",
+    "P3-04": "Closed operation selection, matched counters, explicit summary/extraction; embedding unavailable, no covert Gemini",
+    "P3-05": "Exact fake serialization/Unicode/schema and original Gemini matching; unknown/incompatible/missing counter fails before send; no remote estimate waiver",
+    "P3-06": "Separate summary task/count/send and full sensitivity test; existing branch/source compatibility retained; deployed source races open",
+    "P3-07": "No new embedding dispatch/space; original persisted identity and mismatch tests pass; approved embedding-input counter remains missing",
+    "P3-08": "Unknown/stale/future/expired tier/privacy/account/counter/quota denies; quota exhaustion/429/outage exercised; no fallback",
+    "P3-09": "Paid/mostly-free explicitly denied; USD authority/reservation/reconciliation unsatisfied and not accepted",
+    "P3-10": "Operator literal catalog only; PI-2 authentication/app/workspace/client claim isolation and unchanged v1 contract exercised",
+    "P3-11": "Separate canonical count/generation/summary attempts/reservations and confidence tested; extraction uses existing task port; embedding has no send/attempt because unavailable",
+    "P3-12": "Concurrent distinct profiles, wrapper cancellation/missing terminal, SDK retry prevention, canonical original-key replay, and existing PI-2 unknown-outcome cases",
+    "P3-13": "Source/policy changes during count/pre-reservation and original PI-2 per-delta/completed replay fences retained; atomic deployed source lease open",
+    "P3-14": "Missing/untrusted profile/counter/credentials/current endpoint fail closed; no dynamic import/duplicate registration surface",
+    "P3-15": "Explicit legacy mocked transport, edit/regenerate, reference package and retained tasks, independently installed Reading Logbook/original v1 regressions",
+    "P3-16": "Frozen memory/actor/source/forget/receipt/context suites, unchanged memory flags and corpus/lock history; no MEM-3+",
+    "P3-17": "macOS/CPython 3.11.15 OS/Python fences, artifact probes, dependency guard, lint/build/diff; Linux/Python 3.12/hosted CI not run",
+    "P3-18": "Live non-Gemini/provider/billing smoke not run; no separately verified authorization/cost/privacy environment",
+    "P3-19": "Core API/worker/research/optional factories audited; direct adapter constructors confined to compatibility/explicit experimental paths; no promotion",
+    "P3-20": "No durable migration/rekey; disable/drain new selection, retain all original keys, unknown reservations, receipts, branches and spaces; cloud rollback not exercised"
+  },
+  "active_planner_lock": {
+    "path": "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v22.json",
+    "promotion": "non_promotion; no model-answer quality evidence or promoted coverage",
+    "sha256": "c78edc99e94bc0b0ba01327299b546a9c92de7773f129950c5c7131da09dff18",
+    "source_revision": "0dbe7406fda20c58c784339647ca15c4c7ab3f7e",
+    "supersedes": "planning-baseline-lock-v21"
+  },
+  "artifact_sha256": [
+    {
+      "bytes": 1041589,
+      "path": "backend/dist/personal_ai_backend-0.1.0-py3-none-any.whl",
+      "sha256": "ee9f4936bda04cff8bc4d3b955474d786389a4a1e12b86c5fa03b4be5028470a"
+    },
+    {
+      "bytes": 1022162,
+      "path": "backend/dist/personal_ai_backend-0.1.0.tar.gz",
+      "sha256": "0f295fafa020e55d90ce3d6efab846e58af57781c026423bce43eb59b8fbe240"
+    },
+    {
+      "bytes": 118725,
+      "path": "reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl",
+      "sha256": "f8cab1b4fdad815638bcc740732bb739770f484a3055595ea777b0d635c996ac"
+    },
+    {
+      "bytes": 91712,
+      "path": "reference-apps/dist/personal_ai_reference_apps-0.1.0.tar.gz",
+      "sha256": "b55a0630c42f2b16a6978958e144f607676b33530ee6aff6befbe035247985f3"
+    },
+    {
+      "bytes": 7387,
+      "path": "examples/reading-logbook/client/dist/reading_logbook_client-0.1.0-py3-none-any.whl",
+      "sha256": "19e448a3e9a9fd408359292005752a7f3534d7da381303bab19c675fdebaa4a0"
+    },
+    {
+      "bytes": 5967,
+      "path": "examples/reading-logbook/client/dist/reading_logbook_client-0.1.0.tar.gz",
+      "sha256": "f2d2f1a7379b0145e3cdcdb02e0f2856f42663d6efa1c8a61fa682eca0f81fc1"
+    },
+    {
+      "bytes": 2515,
+      "path": "examples/reading-logbook/host/dist/reading_logbook_host-0.1.0-py3-none-any.whl",
+      "sha256": "4b11168dd3a22927cf47592d5b5f4f6a41e4ab1b15b5bc3ef819e0a1648b8e3c"
+    },
+    {
+      "bytes": 1977,
+      "path": "examples/reading-logbook/host/dist/reading_logbook_host-0.1.0.tar.gz",
+      "sha256": "a793e5c29fd86782ef412daf1001fa683f764c5d56304d90dadc39ffd50ed6f7"
+    }
+  ],
+  "commands": [
+    {
+      "command": "git status --short; git rev-parse HEAD",
+      "detail": "Entry tracked state clean; 14 pre-existing untracked planning/review files preserved; no reset/rebase/subagents.",
+      "outcome": "passed"
+    },
+    {
+      "command": "initial editing helper using python",
+      "detail": "Shell executable python unavailable (127); all subsequent helpers used backend/.venv/bin/python.",
+      "outcome": "failed"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi1_offline_checks.py -q backend/tests/test_inference_execution.py --tb=short (initial)",
+      "detail": "6 failed, 22 passed, zero Python network attempts; fixture assumptions fixed.",
+      "outcome": "failed"
+    },
+    {
+      "command": "pi1_offline_checks.py -q test_inference_execution.py test_retrieval_phase33.py test_context_provider.py test_memory_provider.py --tb=short",
+      "detail": "4 failed, 62 passed; fixture repository/turn shapes and explicit literal fake research composition corrected.",
+      "local_log": "/tmp/pi3-first.log",
+      "log_sha256": "049ac8da881191a3430782844fde8737c911e4581af0a9643b7a27cb18b6ddee",
+      "outcome": "failed"
+    },
+    {
+      "command": "intermediate focused inference rerun",
+      "detail": "1 failed, 26 passed; corrected fixture turn nesting; later 27 and 35-case focused reruns passed.",
+      "outcome": "failed"
+    },
+    {
+      "command": "/usr/bin/sandbox-exec ... native probes (initial)",
+      "detail": "Nested tool sandbox refused sandbox_apply; authorized outer execution retained deny network*. Initial Unix nonexistent path returned ENOENT; replaced with real temporary listener and required EPERM/EACCES. No network-fence waiver.",
+      "outcome": "blocked_then_corrected"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make pi3-check (initial broad)",
+      "detail": "658 passed, one provider-matrix synthetic row-count failure (77 vs 80), plus 3 forbidden DNS attempts; target returned nonzero.",
+      "local_log": "/tmp/pi3-os-suite.log",
+      "log_sha256": "de1ac16c6f1a1b1aca3b6fb6bddeb779776bd8c244b9206f1f893ae75b4770a7",
+      "outcome": "failed"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi3_checks.py --only test_provider_matrix.py",
+      "detail": "17 passed; native IPv4/IPv6/Unix probes passed; zero forbidden Python attempts. Clean retry does not establish timing root cause/fix.",
+      "local_log": "/tmp/pi3-matrix-os.log",
+      "log_sha256": "93a88fcff60fd9cd9726e80baaba7ba7c6698d816163902fca46dc32725f9d59",
+      "outcome": "passed"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi3_checks.py (intermediate broad)",
+      "detail": "716 pytest cases passed but target failed on three forbidden ConnectError DNS attempts. Traced to SDK replacement-client retry and remediated in production bounded transport.",
+      "local_log": "/tmp/pi3-os-suite-final.log",
+      "log_sha256": "b6410a411ed952e78d61e4c2bbcd48ec52245a091d1ec92637006ab5169a43c2",
+      "outcome": "failed"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi1_offline_checks.py -q backend/tests/test_inference_execution.py --tb=short (final)",
+      "detail": "38 passed, zero unexpected Python network attempts.",
+      "local_log": "/tmp/pi3-focused-final.log",
+      "log_sha256": "c39e2cc30e7fc8ee08f0cd34d1e4b001b82828ca071c16045e5f8bbdbbe7e439",
+      "outcome": "passed"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi3_checks.py --only test_litellm_gateway.py test_inference_execution.py",
+      "detail": "113 passed; native probes passed, zero forbidden Python network attempts; replacement-client attempts explicitly asserted absent.",
+      "local_log": "/tmp/pi3-transport-os.log",
+      "log_sha256": "69a30a162e3befbde470b5f551c107fa8dbf7247b273af852a6651be6a666470",
+      "outcome": "passed"
+    },
+    {
+      "command": "backend/.venv/bin/python backend/scripts/pi3_checks.py (exact make pi3-check recipe)",
+      "detail": "780 passed; 4 upstream warnings; native IPv4/IPv6/Unix probes passed; zero forbidden Python attempts; OS sandbox denies native network including persistence transports.",
+      "local_log": "/tmp/pi3-os-acceptance.log",
+      "log_sha256": "fd636afa2f8ad6ea563fed89d9faa49505d9961c7a09fac3956ac08e3941e128",
+      "outcome": "passed"
+    },
+    {
+      "command": "UV_OFFLINE=true UV_CACHE_DIR=/tmp/pi3-uv-cache make pi2-check (initial)",
+      "detail": "Build/offline installed portions passed; installed HTTP fixture had 20 passed and 45 setup errors from denied numeric-loopback bind.",
+      "local_log": "/tmp/pi3-pi2-check.log",
+      "log_sha256": "c632b88cced05abf79aeaddec6b824a3de15e6a8ee47f680506d694c262fbcc6",
+      "outcome": "failed"
+    },
+    {
+      "command": "UV_OFFLINE=true UV_CACHE_DIR=/tmp/pi3-uv-cache make pi2-check (source-edit overlap)",
+      "detail": "Strict planner source guard refused stale worktree binding; v22 refreshed after final source edits, guard unchanged.",
+      "local_log": "/tmp/pi3-pi2-check-final.log",
+      "log_sha256": "8eccfd2025b4a525d10490e4a6c4f7b6a555fa33b6b7d75a990b014b33e661ad",
+      "outcome": "failed"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" UV_OFFLINE=true UV_CACHE_DIR=/tmp/pi3-uv-cache make pi2-check (final)",
+      "detail": "Core installed 87 passed; reference 190 passed; retained task 56 passed; installed HTTP/client 64 passed, 1 skipped (source-only synthetic second host). Wheel/sdist builds, normal fake API with examples absent, original v1, package origins, client-only import isolation, uninstall and 30-case non-promotion passed; zero forbidden Python attempts. Python-only fences, not native or live acceptance.",
+      "local_log": "/tmp/pi3-pi2-acceptance.log",
+      "log_sha256": "30f22fa75532928867dec193882ca5ebdf702877e9b5f9437a7e5e73970b7d02",
+      "outcome": "passed"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" UV_OFFLINE=true UV_CACHE_DIR=/tmp/pi3-uv-cache make platform-independence-check",
+      "detail": "Core/reference builds, zero dependency/facade edges, unchanged strict planner non-promotion, installed physical-absence/profile/task probes passed.",
+      "local_log": "/tmp/pi3-platform-check.log",
+      "log_sha256": "eadb56c2f30648e3a4b4d364b06ef475dd032edc7d4c69d0953cbb828271a191",
+      "outcome": "passed"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-lint; backend/.venv/bin/python -m ruff check reference-apps examples/reading-logbook",
+      "detail": "Final lint passed for backend, reference code and independent host/client; initial lint errors were corrected.",
+      "outcome": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "detail": "Final whitespace/content diff check passed.",
+      "outcome": "passed"
+    },
+    {
+      "command": "live providers / non-Gemini smoke / bills",
+      "detail": "No claim of acceptance; no separately verified authorized environment or independent session in this work.",
+      "outcome": "not_run"
+    },
+    {
+      "command": "native PostgreSQL / DynamoDB / cloud / OAuth-IAM / deployment",
+      "detail": "No claim of acceptance; no separately verified authorized environment or independent session in this work.",
+      "outcome": "not_run"
+    },
+    {
+      "command": "Linux / Python 3.12 / hosted CI",
+      "detail": "No claim of acceptance; no separately verified authorized environment or independent session in this work.",
+      "outcome": "not_run"
+    },
+    {
+      "command": "frontend build / browser / native device acceptance",
+      "detail": "No claim of acceptance; no separately verified authorized environment or independent session in this work.",
+      "outcome": "not_run"
+    },
+    {
+      "command": "independent PI-0/1/2/3 or memory/Phase36 review",
+      "detail": "No claim of acceptance; no separately verified authorized environment or independent session in this work.",
+      "outcome": "not_run"
+    }
+  ],
+  "counter_contract": "Exact same-identity authoritative strict path unchanged. Local fake JSON-byte units only; no remote byte-bound waiver.",
+  "date": "2026-10-30",
+  "embedding": "New normal vector work unavailable pending approved exact input counter; original space/vector bytes unchanged.",
+  "entry_revision": "0dbe7406fda20c58c784339647ca15c4c7ab3f7e",
+  "historical_planning_lock_sha256": {
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v1.json": "4edac61d22f595aa0918435f60ef1daaa20dd5c1bfcd2491eacfb224ff6292c5",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v10.json": "a5d94d407d36bf937a589ab97d46b1c2f90b8ed1c92080fc94581146207f5ab6",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v11.json": "ec5e2d2d50f2d886d9f07cd585420dd3a6ac3d8292b4b2b511259c9f8de2efe2",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v12.json": "e29a190ccdcd794ff12e5be0e338900f17d85b13b65350a7ece65bfc3276a122",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v13.json": "1548d32f168342b8c9b25e16f27a92fe0306b7969420d2f6aa6823a9830f476e",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v14.json": "55b503c348227508da9920fc12cbb6fc4671a5a3b00e4f1dca38c7cb11d942bc",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v15.json": "52138c17596772daa7cfebaacf7097625fd8ce1323838054e59961492a189683",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v16.json": "328c44acc253cbf42547e0f671223117a75e9264ad1117f56154d1a68b408249",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v17.json": "1779b35420c9080e2c45417d0a91e9f7c35af2ed3c3cd7967bc00bc446a6e068",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v18.json": "04342a8f00c82503f52f4cfb93a25bd45ff6c2507c769ff30db71ffe372c48dd",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v19.json": "f20b549437916d999ec277c90149cd9b9b769e4cf92040902717e06940424865",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v2.json": "7c2b18adc6a44081d5c1ac110f6d714c129c9a7821fbdbd84522bfa7b9e29963",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v20.json": "760157406ebdc993407f008c30673cc65c6dceb4c91b57454af31e2e0e3ff028",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v21.json": "881f10a7cb7493e26cfbbffadaaad4115d5981c90dcd71529a3855f1d56cce92",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v3.json": "a1cd94e59027595a724c9733778c822b363fdc694f6f5a06c0da0394cb938919",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v4.json": "0ccc073e5751451d3c551a2f289a1798fc81b6259cb1dc27d7d7b67d00787750",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v5.json": "bc90a287f1d1e8b6f4261ac9f8548a1a072effd6da6b57cb7a132244131b688e",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v6.json": "4069f0e21c442a3f140b99c86e13bf5b9a1a08485c3044b68156e1e6d2edfe34",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v7.json": "4ce4068a94b42d4dbdce166d4ec6b2426af858815f49ecaa821deaf8ebff0ee5",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v8.json": "c8d3cd09f233de65eed9ea47498a8b1c2e32182f45c94f93728b1c56a9719b98",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v9.json": "549002529e05c9a0250dc62d7874145c094a21cd23fb7a7c8cbdf1e2a073dd78"
+  },
+  "implementation_file_sha256": {
+    "Makefile": "ea20ba2eeb5032677c00f2f9840a0d909d3b636fd8fdf93830a2c4a2b948e259",
+    "README.md": "b9e74199624839987e234e2d18ca303e3fe603039199229cb193a0fef0af6343",
+    "backend/.env.example": "54a00bc38c5dd19dd6ed02e45575f623bde6c177721bfb9119dc27edafd30101",
+    "backend/scripts/pi1_artifact_checks.py": "a1a20f74154e78fd375365278062292119db050cf65bf3cfb6cdd640ec631f10",
+    "backend/scripts/pi1_core_probe.py": "4020240e6eccd89bf62843483e71e44d660869a5c9eddd280e2db635bdd99706",
+    "backend/scripts/pi3_checks.py": "c67daffbe481514b21366705aa28aef29ea46076ee66123dffc0e8976abf195e",
+    "backend/src/personal_ai/api/dependencies.py": "873182e2150c647d5a140d5c5dbab5f5aab6043adb93c901369a9d51f77d0028",
+    "backend/src/personal_ai/context/assembler.py": "1cde93ebf34c706af722c19bd46fb235d152d9ff81ea83e3a94c118cd280e382",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v22.json": "c78edc99e94bc0b0ba01327299b546a9c92de7773f129950c5c7131da09dff18",
+    "backend/src/personal_ai/evaluation/planning.py": "654df15d21b1a8c03b4b26cea7c589396b72a09e977288dd7fcc92f8851429e6",
+    "backend/src/personal_ai/llm/README.md": "b22474ee8d3d10da3c52e76b494d5d5f59fc948d8b6a2680f43cce451e0dfb7b",
+    "backend/src/personal_ai/llm/context.py": "fe26b27b6a315d61ea83a1fc55ba487dcef33065309a19a4059b8611c6a55c1e",
+    "backend/src/personal_ai/llm/disclosure.py": "d1f2c3e056f5a879e86c264648b72b8d391ca05e0ee525ab7c286c441cf661fb",
+    "backend/src/personal_ai/llm/execution.py": "41f0675ff8724dd6b035c8861256ea1192fbc2b05a914b854b1bc6dd79c39ced",
+    "backend/src/personal_ai/llm/litellm/transport.py": "f3edfd7f1379f043e7adad8abe55536b83a83ac37520fbc59e93188894ae7b69",
+    "backend/src/personal_ai/llm/memory.py": "0a87fe4c37dfc2548a60aec88b9c9b82c66e8c4943f66638b62ade59bc16ade7",
+    "backend/src/personal_ai/llm/research.py": "689db3d534062eee60c21a456e7e87bfe7f8d94f4325ec4374a1ac7fb1973c3a",
+    "backend/src/personal_ai/memory/extraction.py": "7dcc02fe973e550a0cac25f886e8c86eb01ceba7ee9a40c7bbdeb9b380a7629b",
+    "backend/src/personal_ai/services/chat/service.py": "9f0e058ff52be0bf84702a56965fdd66b66a95c35971a99cb0f73c85f18cea97",
+    "backend/src/personal_ai/settings.py": "6e79b25e63b5f96c7f7757d592447c2f983653d58c57451f8b8b009c9ecac630",
+    "backend/src/personal_ai/worker.py": "172988bf4c3133dbaaa7f4e56bf394df222db4459c00e064815a6f607d754948",
+    "backend/tests/test_inference_execution.py": "1cc0373cd78cd78ad9d5c3cacbdc3a74561a31daba9a7ce5d97bde965b979d6c",
+    "backend/tests/test_litellm_gateway.py": "5ff2fa21b7606f6189e5d47b653d2a620a28c65dc1030b4c8feec57dfbd07c5f",
+    "backend/tests/test_planning_experiment.py": "37c18b557d3bd99ff538b5e7f2bbc3b4f20a6053032fc9bfc6ea8c8a34639fe1",
+    "docs/README.md": "ba7d0d961ceab77ac890bcacfa50441a2024009abdda36f2836773d9acff94ba",
+    "docs/current-state.md": "3dc71c80111c1aa75623ad643b98700920326d56c2c4208f2ca44f47d5ee872f",
+    "docs/platform-independence/README.md": "b8d8fc6a4e74b438cdc01b89f4522b650f504562a01d0179118eab4b7e337a2e",
+    "docs/platform-independence/pi-3-implementation-report.md": "c122ea5e98c368917caaf1319900e884f470eba2b7eb652debe1c01387c7bff3",
+    "docs/platform-independence/pi-3-plan-hardening.md": "cb03ef3a8f2dbebfc05ace15f21d66fdbd4b3ea52d997213abbbf34a4998571e",
+    "reference-apps/src/personal_ai_reference_apps/api/booking_extractions.py": "c1a99faaeee2ef6898fc980b4f0fe0c7454ff7575feb100f61886c70ec49d976",
+    "reference-apps/src/personal_ai_reference_apps/api/itinerary_proposals.py": "aa8c909e3eb1083abacd0b9d9e125ee36a60155a5a6dd91c7050163c79ad7e29"
+  },
+  "independent_acceptance": false,
+  "installed_fence_limit": "PI-1/PI-2 artifact probes use their original Python fences; not claimed native-hermetic.",
+  "native_fence": "macOS sandbox deny network* plus ctypes probes against IPv4, IPv6 and real Unix listener; inherited by child processes. Final inspected suite zero unexpected Python attempts.",
+  "no_subagents": true,
+  "paid_modes": "Denied: canonical USD price/dual-consent/monetary reservations and caps absent.",
+  "remaining_gates": [
+    "Independent PI-0/1/2/3",
+    "MEM-0/1/2 and Phase36",
+    "Live non-Gemini/embedding counters",
+    "Real identity/source leases/revocation",
+    "Billing/free account facts",
+    "Native storage/physical deletion/recovery",
+    "Linux/Python 3.12/hosted CI"
+  ],
+  "runtime": {
+    "abi": "cpython-311",
+    "implementation": "CPython",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "python": "3.11.15"
+  },
+  "schema_version": "pi3-local-verification-v1",
+  "source_identity": {
+    "baseline_lock_version": "planning-baseline-lock-v22",
+    "baseline_version": "deterministic-context-planner-v1",
+    "configuration_digest": "c1e4f6057781add8a9ddc8b8372d988904ab04f793c7c21f9838ed705e45d7fe",
+    "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+    "counter_identity": "phase13-envelope-byte-estimate-v1",
+    "evaluator_version": "planning-evaluator-v7",
+    "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+    "platform_runtime": "macOS-27.0.1-arm64-arm-64bit",
+    "pydantic_runtime": "2.13.5",
+    "python_abi": "cpython-311",
+    "python_implementation": "CPython",
+    "python_runtime": "3.11.15",
+    "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
+    "runtime_distribution_count": 94,
+    "source_identity_digest": "a86146b71ad9a56e6b9284fef640ac3ad59a9097f7f197cbca9e7ffac674f883"
+  },
+  "tested_revision": "entry revision plus exact source/file hashes below; single direct-child implementation commit",
+  "timezone": "America/Los_Angeles",
+  "tracked_fixture_bytes_unchanged_from_entry": true,
+  "tracked_fixture_count": 45,
+  "tracked_fixture_manifest_sha256": "b809a3ee5462bf7d2b829812bafebbe40efff7cedc053f866311e075c59620ca",
+  "user_directed_entry_exception": true
+}

@@ -21,7 +21,7 @@ from personal_ai.auth.service_tokens import (
     ServiceTokenVerificationUnavailable,
     verify_google_service_token,
 )
-from personal_ai.llm.memory import GeminiMemoryAdapter
+from personal_ai.llm.execution import compose_memory
 from personal_ai.memory.lifecycle.jobs import (
     MemoryJobNotification,
     MemoryLifecycleCoordinator,
@@ -72,7 +72,7 @@ def _components(settings: Settings):
         lifecycle,
         memories,
         messages,
-        GeminiMemoryAdapter(settings, usage_accounting=usage),
+        compose_memory(settings, usage),
         owner_active=PostgresArtifactMetadataRepository(factory.database).active,
     )
     return worker, republisher

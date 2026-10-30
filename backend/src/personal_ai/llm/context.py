@@ -19,20 +19,12 @@ class GeminiTokenCounter(LiteLLMTokenCounter):
     """Authoritative Gemini countTokens seam backed by LiteLLM serialization."""
 
 
-class GeminiConversationSummarizer:
-    def __init__(
-        self,
-        settings: Settings,
-        *,
-        sync_transport_factory: Callable[[], httpx.BaseTransport] | None = None,
-        usage_accounting: ProviderUsageAccounting | None = None,
-    ) -> None:
+class ConversationSummarizer:
+    """A summary operation using an explicitly composed, bounded generator."""
+
+    def __init__(self, settings, generator):
         self.settings = settings
-        self._generator = GeminiLLMClient(
-            settings,
-            sync_transport_factory=sync_transport_factory,
-            usage_accounting=usage_accounting,
-        )
+        self._generator = generator
 
     def summarize(
         self,
@@ -74,5 +66,19 @@ class GeminiConversationSummarizer:
         )
 
     @property
-    def generator(self) -> GeminiLLMClient:
+    def generator(self):
         return self._generator
+
+
+class GeminiConversationSummarizer(ConversationSummarizer):
+    """Compatibility constructor for existing direct adapter tests and tools."""
+
+    def __init__(
+        self, settings: Settings, *,
+        sync_transport_factory: Callable[[], httpx.BaseTransport] | None = None,
+        usage_accounting: ProviderUsageAccounting | None = None,
+    ) -> None:
+        super().__init__(settings, GeminiLLMClient(
+            settings, sync_transport_factory=sync_transport_factory,
+            usage_accounting=usage_accounting,
+        ))

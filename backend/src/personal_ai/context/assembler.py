@@ -980,7 +980,16 @@ class ContextAssembler:
             if application_context is not None:
                 inference_context = make_inference_context(
                     application_context,
-                    authorize_base_disclosure(application_context),
+                    max(
+                        (authorize_base_disclosure(application_context),
+                         getattr(self.counter, "inference_context", None).effective_sensitivity
+                         if getattr(self.counter, "inference_context", None) is not None
+                         else authorize_base_disclosure(application_context), *(
+                            message_context_authority(message)[2] for message in bounded
+                            if message.role is MessageRole.ASSISTANT
+                        )),
+                        key=SENSITIVITY_RANK.__getitem__,
+                    ),
                 )
             draft = self.summarizer.summarize(  # type: ignore[union-attr]
                 bounded, prior, inference_context=inference_context

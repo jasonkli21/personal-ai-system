@@ -45,6 +45,7 @@ from personal_ai.llm import (
     LLMTimeoutError,
 )
 from personal_ai.llm.client import GenerationEvent, GenerationMetadata, GenerationResult
+from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.errors import LLMIncompleteGenerationError
 from personal_ai.llm.preparation import require_matching_endpoint
 from personal_ai.services.chat.events import (
@@ -893,6 +894,14 @@ class ChatTurnService:
             # while sending either event must fail the already-persisted turn.
             for message in turn.created:
                 yield TurnMessageCreated(message)
+            def revalidate_send():
+                require_current_client_authority()
+                if not source_snapshots_current(
+                    turn.source_snapshots, self._context.permission_revalidator,
+                    now=datetime.now(UTC),
+                ):
+                    raise ContextPreparationError("context_source_authority_changed")
+
             await io_call(require_current_client_authority)
             if not source_snapshots_current(
                 turn.source_snapshots,
@@ -902,7 +911,7 @@ class ChatTurnService:
                 raise ContextPreparationError("context_source_authority_changed")
             events: asyncio.Queue[GenerationEvent | Exception | None] = asyncio.Queue(maxsize=1)
             demand = asyncio.Semaphore(0)
-            with bind_usage_task("chat_generation"):
+            with bind_usage_task("chat_generation"), bind_disclosure_guard(revalidate_send):
                 provider_iterator = self._llm.stream_events(
                     turn.history,
                     max_output_tokens=self._context.settings.max_response_tokens,

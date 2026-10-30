@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -50,3 +50,21 @@ account administration or gated external turns. Existing MEM-0/1/2 flags, schema
 source/actor fences, receipts and fixture/lock history remain preserved. PI-2 v20
 and remediation v21 are source-only planner rebinds with no promotion. Real identity/IAM, providers,
 native storage recovery, Linux/Python 3.12 CI and independent acceptance stay open.
+
+
+## PI-3 provider-neutral execution candidate
+
+- [Pre-code plan hardening](pi-3-plan-hardening.md), source audit, counter/cost decisions and inherited gate exception.
+- [Implementation, self-review and P3-01–P3-20 evidence](pi-3-implementation-report.md).
+- [Machine verification record](pi-3-verification.json).
+- [Operator and adapter instructions](../../backend/src/personal_ai/llm/README.md#pi-3-explicit-execution-profiles).
+
+Normal API composition supports two credential-free fake identities and an
+explicitly approved strict-free legacy Gemini profile through the same neutral
+ports. Unsupported remote counters, new embedding work and paid modes deny.
+Existing vector identities, MEM-0/1/2 semantics/flags, PI-2 v1, original keys,
+external SSE fences, tasks and Phase36 gates remain intact. v22 is a source-only
+non-promoting planning rebind; no historical lock or held-out corpus is rewritten.
+Independent review and all inherited/live-provider/billing/native/cloud gates stay
+open. This candidate does not establish a live non-Gemini counter or production
+memory-vector portability.

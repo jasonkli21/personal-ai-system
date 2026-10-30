@@ -74,3 +74,31 @@ class GeminiMemoryAdapter:
             return self.extractor.extract(
                 source_turn, timeout=timeout, inference_context=inference_context
             )
+
+
+class MemoryAdapter:
+    """Existing memory behavior with explicit generation and embedding ports."""
+
+    requires_inference_context = True
+
+    def __init__(self, settings, extraction_pair, embedder):
+        self.embedder = embedder
+        self.extractor = None if extraction_pair is None else MemoryCandidateExtractor(
+            settings, extraction_pair.generator, extraction_pair.counter
+        )
+
+    def embed(self, texts, *, query=False, timeout=None, inference_context=None):
+        with bind_usage_task("memory_embedding"):
+            return self.embedder.embed(
+                texts, query=query, timeout=timeout, inference_context=inference_context
+            )
+
+    def extract(self, source_turn, *, timeout, inference_context=None):
+        if self.extractor is None:
+            from personal_ai.llm.errors import LLMUnsupportedCapabilityError
+
+            raise LLMUnsupportedCapabilityError("memory extraction is not selected")
+        with bind_usage_task("memory_extraction"):
+            return self.extractor.extract(
+                source_turn, timeout=timeout, inference_context=inference_context
+            )

@@ -64,6 +64,7 @@ class MemoryCandidateExtractor:
             ChatMessage("system", instruction),
             ChatMessage("user", json.dumps(source, ensure_ascii=False, separators=(",", ":"))),
         )
+        self.generator.capabilities.require("structured_generation")
         response_schema = MemoryCandidateResponse.model_json_schema()
         prepared = prepare_bounded_input(
             messages,

@@ -1350,9 +1350,19 @@ def test_async_generation_status_failures_make_one_physical_send(provider, statu
 
 
 @pytest.mark.parametrize("provider", ["gemini", "groq", "cloudflare_workers_ai"])
-@pytest.mark.parametrize("exception_type", [httpx.ReadTimeout, httpx.ConnectError])
-def test_async_transport_failures_make_one_physical_send(provider, exception_type):
-    calls = []
+@pytest.mark.parametrize("exception_type", [httpx.ReadTimeout, httpx.ConnectError, httpx.RemoteProtocolError])
+def test_async_transport_failures_make_one_physical_send(provider, exception_type, monkeypatch):
+    from personal_ai.llm.litellm.gateway import _load_litellm, _sdk_http_handler_types
+
+    calls, late_clients = [], []
+    handler = _sdk_http_handler_types(_load_litellm())[0]
+    original = handler.create_client
+    def create_client(self, *args, **kwargs):
+        if calls:
+            late_clients.append(True)
+            raise AssertionError("SDK attempted an unbounded replacement client")
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(handler, "create_client", create_client)
 
     def fail(request):
         calls.append(request)
@@ -1379,6 +1389,7 @@ def test_async_transport_failures_make_one_physical_send(provider, exception_typ
     with pytest.raises(expected) as raised:
         asyncio.run(consume())
     assert len(calls) == 1
+    assert not late_clients
     assert "private transport detail" not in str(raised.value)
 
 

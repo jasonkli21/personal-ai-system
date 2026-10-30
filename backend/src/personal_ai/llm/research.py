@@ -1,22 +1,17 @@
 """Research synthesis composition, independent of search adapter selection."""
 
-from personal_ai.llm.errors import LLMInvalidConfigurationError
+from personal_ai.llm.execution import compose_pair
 from personal_ai.settings import Settings
 
 
 def compose_research_inference(settings: Settings, usage_factory):
-    """Build the configured research synthesis client and its matching token counter."""
-    from personal_ai.context.tokens import EstimatedTokenCounter
-    from personal_ai.llm.context import GeminiTokenCounter
-    from personal_ai.llm.fake import FakeResearchLLMClient
-    from personal_ai.llm.gemini import GeminiLLMClient
+    """Use the same operator policy; retain literal-excerpt offline research."""
+    if settings.inference_profile.startswith("offline_fake"):
+        # Resolve first: paid modes and invalid selections must not bypass policy.
+        compose_pair(settings)
+        from personal_ai.context.tokens import EstimatedTokenCounter
+        from personal_ai.llm.fake import FakeResearchLLMClient
 
-    inference_provider = settings.ai_provider.lower()
-    if inference_provider == "fake":
         return EstimatedTokenCounter(), FakeResearchLLMClient()
-    if inference_provider == "gemini":
-        inference_usage = usage_factory()
-        return GeminiTokenCounter(settings, usage_accounting=inference_usage), GeminiLLMClient(
-            settings, usage_accounting=inference_usage
-        )
-    raise LLMInvalidConfigurationError("research inference configuration is unsupported")
+    pair = compose_pair(settings, usage_factory())
+    return pair.counter, pair.generator

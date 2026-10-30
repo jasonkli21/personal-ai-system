@@ -822,11 +822,11 @@ def test_sensitivity_ceiling_is_checked_before_experiment_metadata(broker_case):
 
 
 def test_v21_pi2_review_source_rebind_preserves_v20_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V21_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V20_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v21"
     assert current["source_revision"] == "96227267e4c1361a2366278b051a5d7b2fd5d7d7"
-    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert current["source_identity_digest"] == "f620be93d81e7c73722d34365a250b1d860cf54424cb7f22d4d369f5bb026e6f"
     assert current["supersedes"] == previous["baseline_lock_version"]
     for key in (
         "configuration_digest",
@@ -837,3 +837,17 @@ def test_v21_pi2_review_source_rebind_preserves_v20_and_non_promotion():
     ):
         assert current[key] == previous[key]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
+
+
+def test_v22_pi3_source_rebind_preserves_v21_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V21_FREEZE_PATH.read_text())
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v22"
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_revision"] == "0dbe7406fda20c58c784339647ca15c4c7ab3f7e"
+    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    for key in (
+        "configuration_digest", "evaluator_version", "corpus_digest",
+        "fixture_dependency_digest", "promotion_decision",
+    ):
+        assert current[key] == previous[key]

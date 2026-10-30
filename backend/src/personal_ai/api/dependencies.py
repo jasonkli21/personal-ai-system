@@ -39,9 +39,8 @@ from personal_ai.context.runtime import (
 )
 from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.context.traces import ContextTraceRepository
-from personal_ai.llm import GeminiLLMClient, GenerationClient
-from personal_ai.llm.context import GeminiConversationSummarizer, GeminiTokenCounter
-from personal_ai.llm.memory import GeminiMemoryAdapter
+from personal_ai.llm import GenerationClient
+from personal_ai.llm.execution import ExecutionPair, compose_memory, compose_pair, compose_summary
 from personal_ai.memory.dependencies import MemoryPermissionRevalidator
 from personal_ai.memory.lifecycle.jobs import MemoryLifecycleCoordinator, PubSubMemoryJobPublisher
 from personal_ai.memory.services import MemoryExtractionService, MemoryRetriever
@@ -177,12 +176,21 @@ def get_conversation_service(
     )
 
 
+def get_inference_execution(
+    settings: Annotated[Settings, Depends(get_settings)],
+    usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
+) -> ExecutionPair:
+    """FastAPI caches one exact generation/count binding for this request."""
+    return compose_pair(settings, usage)
+
+
 def get_llm_client(
     settings: Annotated[Settings, Depends(get_settings)],
     usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
+    execution: Annotated[ExecutionPair | None, Depends(get_inference_execution)] = None,
 ) -> GenerationClient:
     """Build the configured provider behind the replaceable streaming contract."""
-    return GeminiLLMClient(settings, usage_accounting=usage)
+    return (execution or compose_pair(settings, usage)).generator
 
 
 def get_summary_repository(
@@ -242,6 +250,7 @@ def get_context_assembler(
     research_repository: Annotated[object, Depends(get_context_research_repository)],
     messages: Annotated[MessageRepository, Depends(get_message_repository)],
     registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
+    execution: Annotated[ExecutionPair | None, Depends(get_inference_execution)] = None,
 ) -> ContextAssembler:
     memories = (
         persistence_factory(settings).memory_repository() if settings.memory_enabled else None
@@ -271,11 +280,12 @@ def get_context_assembler(
             "health_context_enabled": settings.health_context_enabled,
         },
     )
+    pair = execution or compose_pair(settings, usage)
     return ContextAssembler(
         settings,
-        GeminiTokenCounter(settings, usage_accounting=usage),
+        pair.counter,
         summaries,
-        GeminiConversationSummarizer(settings, usage_accounting=usage),
+        compose_summary(settings, pair),
         context_provider_coordinator=providers,
         context_planner=ContextPlanner(runtime.planning_rules),
         permission_revalidator=ContextPermissionRevalidatorRegistry(
@@ -316,7 +326,7 @@ def get_memory_adapter(
     settings: Annotated[Settings, Depends(get_settings)],
     usage: Annotated[ProviderUsageAccounting, Depends(get_provider_usage_accounting)],
 ):
-    return GeminiMemoryAdapter(settings, usage_accounting=usage)
+    return compose_memory(settings, usage)
 
 
 def get_lifecycle_repository(
@@ -389,7 +399,7 @@ def get_chat_turn_service(
         memory_retriever=retriever,
         memory_extraction=None if lifecycle_coordinator is not None else extraction,
         memory_lifecycle=lifecycle_coordinator,
-        model=settings.ai_model,
+        model=llm.identity.model_id if hasattr(llm, "identity") else settings.ai_model,
         stale_stream_after_seconds=settings.request_timeout_seconds + 60,
     )
 

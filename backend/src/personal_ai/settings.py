@@ -75,6 +75,18 @@ class Settings(BaseSettings):
 
     ai_provider: str = Field(min_length=1)
     ai_model: str = Field(min_length=1)
+    # Operator-only, closed catalog. No HTTP/provider-name override is accepted.
+    inference_profile: Literal[
+        "offline_fake", "offline_fake_alt", "legacy_gemini", "groq", "cloudflare_workers_ai"
+    ] = "offline_fake"
+    inference_cost_mode: Literal[
+        "offline_fake", "strict_free", "mostly_free_opt_in", "explicit_paid"
+    ] = "offline_fake"
+    inference_summary_profile: Literal[
+        "disabled", "offline_fake", "offline_fake_alt", "legacy_gemini"
+    ] = "disabled"
+    inference_extraction_profile: Literal["disabled", "legacy_gemini"] = "disabled"
+    inference_embedding_profile: Literal["disabled", "legacy_gemini"] = "disabled"
     ai_api_key: SecretStr = Field(default=SecretStr(""))
     routing_shadow_enabled: bool = False
     routing_shadow_artifact: dict[str, object] = Field(default_factory=dict, max_length=16)

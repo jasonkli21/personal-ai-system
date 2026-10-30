@@ -13,8 +13,7 @@ from personal_ai.api.dependencies import (
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.tokens import EstimatedTokenCounter
-from personal_ai.llm.context import GeminiTokenCounter
-from personal_ai.llm.gemini import GeminiLLMClient
+from personal_ai.llm.execution import compose_pair
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
 
@@ -80,8 +79,8 @@ def proposal_service(
         counter = EstimatedTokenCounter()
     else:
         usage = persistence_factory(settings).provider_usage_accounting(settings)
-        llm = GeminiLLMClient(settings, usage_accounting=usage)
-        counter = GeminiTokenCounter(settings, usage_accounting=usage)
+        pair = compose_pair(settings, usage)
+        llm, counter = pair.generator, pair.counter
     return ItineraryProposalService(
         settings,
         repository,

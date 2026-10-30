@@ -582,7 +582,13 @@ class _BoundedAsyncTransport(httpx.AsyncBaseTransport):
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         await self._state.arecord_request(request)
-        response = await self._inner.handle_async_request(request)
+        try:
+            response = await self._inner.handle_async_request(request)
+        except (httpx.ConnectError, httpx.RemoteProtocolError):
+            # LiteLLM's AsyncHTTPHandler catches these exceptions and retries on
+            # a new, unbounded client even with num_retries=0. Keep ambiguity
+            # inside our one-attempt transport and canonical accounting instead.
+            raise _TransportFault("connection_failure") from None
         self._state.record_response(response)
         if _is_non_success_or_redirect(response.status_code):
             safe_headers = _safe_rate_headers(response.headers)
