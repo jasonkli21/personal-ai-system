@@ -30,8 +30,11 @@ advisory. They cannot grant membership, source access or model disclosure.
 
 External POST bodies are limited to **131,072 bytes** with a **10-second** body
 read deadline; oversized/slow bodies return 413/408. Content is 1–20,000 characters;
-titles are 1–200 characters (omission/null uses the default). UUID keys must be
-retained. The generated schema defines all other field/selector limits. Model
+titles are 1–200 characters (omission/null uses the default). External conversation
+creation requires a non-null UUID `idempotency_key`; a missing or null key returns
+safe `422 validation_error` before persistence. Builtin UI callers keep their
+historical optional-key behavior. UUID keys must be retained. The generated schema
+defines all other field/selector limits. Model
 context/output/time budgets remain operator settings; valid input may exceed the
 context budget and be refused. Lists are bounded by the existing repository
 (default newest 50); there is no pagination or exhaustive export guarantee.

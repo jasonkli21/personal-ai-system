@@ -843,39 +843,6 @@
         "title": "ConversationListResponse",
         "type": "object"
       },
-      "CreateConversationRequest": {
-        "additionalProperties": false,
-        "description": "Optional initial title and retry identity for conversation creation.",
-        "properties": {
-          "idempotency_key": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Idempotency Key"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          }
-        },
-        "title": "CreateConversationRequest",
-        "type": "object"
-      },
       "EndpointRef": {
         "additionalProperties": false,
         "properties": {
@@ -1022,6 +989,36 @@
           }
         },
         "title": "ExecutionChoice",
+        "type": "object"
+      },
+      "ExternalCreateConversationRequest": {
+        "additionalProperties": false,
+        "description": "External v1 creation requires a stable key before persistence.",
+        "properties": {
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          }
+        },
+        "required": [
+          "idempotency_key"
+        ],
+        "title": "ExternalCreateConversationRequest",
         "type": "object"
       },
       "FederationProvenance": {
@@ -2082,7 +2079,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateConversationRequest"
+                "$ref": "#/components/schemas/ExternalCreateConversationRequest"
               }
             }
           },

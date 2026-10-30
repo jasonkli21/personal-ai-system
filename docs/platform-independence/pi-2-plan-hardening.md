@@ -131,3 +131,14 @@ weakening the evaluator or treating old evidence as current. The active source
 pointer/version and historical assertions must distinguish v19 from current v20.
 No memory behavior, experiment gate or historical fixture is changed. Foreign
 runtime/Linux replay remains an open evidence gate, not inferred from this rebind.
+
+## Review-remediation lock addendum
+
+The 2026-10-30 independent review remediation changes the external conversation
+route and shared chat stream. The first offline `make pi2-check` therefore stopped
+at the strict source-identity guard. Preserve v20 and every earlier lock byte;
+the active v21 lock is a source-only, non-promoting rebind on PI-2 base
+`96227267e4c1361a2366278b051a5d7b2fd5d7d7`. It retains v20's configuration,
+corpus, fixture dependencies, evaluator and current-or-direct-child guard. This
+does not revise model utility or promote coverage. Native storage, deployed
+identity, provider, cloud and independent review gates stay open.

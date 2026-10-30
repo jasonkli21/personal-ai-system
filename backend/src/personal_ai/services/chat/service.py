@@ -13,7 +13,10 @@ from uuid import UUID, uuid4, uuid5
 import anyio
 
 from personal_ai.applications.contracts import ApplicationContextRequest, ContextSensitivity
-from personal_ai.auth.application_clients import require_current_client_authority
+from personal_ai.auth.application_clients import (
+    is_external_client_request,
+    require_current_client_authority,
+)
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.authority import source_snapshots_current
@@ -943,6 +946,7 @@ class ChatTurnService:
                         )
                     parts.append(delta)
                     content_length += len(delta)
+                    await self._require_output_authority(turn.source_snapshots)
                     yield TurnDelta(message_id=turn.assistant.id, delta=delta)
             finally:
                 await _cancel_provider_task(provider_task, request_id=turn.request_id)
@@ -1135,11 +1139,54 @@ class ChatTurnService:
         self, conversation_id: UUID, assistant: Message
     ) -> AsyncIterator[TurnEvent]:
         async def replay():
-            await io_call(require_current_client_authority)
+            snapshots = source_snapshots_for_message(assistant)
             user = self.get_message(conversation_id, uuid5(assistant.id, "user"))
             for message in (user, assistant):
+                try:
+                    await self._require_output_authority(snapshots)
+                except ContextPreparationError as error:
+                    yield TurnFailed(
+                        message_id=assistant.id,
+                        code=error.code,
+                        message="The response could not be completed. Please retry.",
+                    )
+                    return
                 yield TurnMessageCreated(message)
+            try:
+                await self._require_output_authority(snapshots)
+            except ContextPreparationError as error:
+                yield TurnFailed(
+                    message_id=assistant.id,
+                    code=error.code,
+                    message="The response could not be completed. Please retry.",
+                )
+                return
             yield TurnDelta(message_id=assistant.id, delta=assistant.content)
+            try:
+                await self._require_output_authority(snapshots)
+            except ContextPreparationError as error:
+                yield TurnFailed(
+                    message_id=assistant.id,
+                    code=error.code,
+                    message="The response could not be completed. Please retry.",
+                )
+                return
             yield TurnCompleted(message=assistant)
 
         return replay()
+
+    async def _require_output_authority(self, snapshots) -> None:
+        """Recheck external identity and source rights immediately before disclosure."""
+        if not is_external_client_request():
+            return
+
+        def current():
+            require_current_client_authority()
+            if not source_snapshots_current(
+                snapshots,
+                self._context.permission_revalidator,
+                now=datetime.now(UTC),
+            ):
+                raise ContextPreparationError("context_source_authority_changed")
+
+        await io_call(current)

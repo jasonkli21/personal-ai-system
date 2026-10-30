@@ -34,6 +34,13 @@ class CreateConversationRequest(APIModel):
     idempotency_key: UUID | None = None
 
 
+class ExternalCreateConversationRequest(APIModel):
+    """External v1 creation requires a stable key before persistence."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    idempotency_key: UUID
+
+
 class ConversationListResponse(APIModel):
     """Newest-first conversations for the current Phase 1 owner."""
 

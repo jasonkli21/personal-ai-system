@@ -207,13 +207,16 @@ signatures and HTTP listeners; Google/Firebase lookups remain synthetic. Exact
 fix commits, commands, source identities, counts and limitations are in
 [verification](../stabilization/VERIFICATION.md).
 
-Planner locks v10-v19 remain historical. MEM-2's v18 and PI-1's v19 retain
-their dated source bindings. PI-2 adds active, source-only, non-promoting v20,
-preserving v19's deterministic planner configuration, 30 held-out cases, corpus
-and fixture dependencies. All historical lock bytes remain unchanged. The strict
+Planner locks v10-v20 remain historical. MEM-2's v18, PI-1's v19 and the initial
+PI-2 candidate's v20 retain their dated source bindings. The PI-2 review
+remediation adds active, source-only, non-promoting v21, preserving v20's
+deterministic planner configuration, 30 held-out cases, corpus and fixture
+dependencies. All prior lock bytes remain unchanged. The strict
 current-or-direct-child source guard remains; production replay still rejects
 source, runtime and unrelated revision changes. Portable tests use an explicitly
-test-only lock. Nothing is promoted from this freeze.
+test-only lock. Nothing is promoted from this freeze. See the
+[PI-2 review remediation evidence](platform-independence/pi-2-review-remediation-2026-10-30.md)
+for the external creation and streaming disclosure fixes and local verification.
 
 Phase36 retains its earlier **24 passed offline rows**; its exact soak counts
 remain in the generated evidence. These rows do not establish cloud, provider

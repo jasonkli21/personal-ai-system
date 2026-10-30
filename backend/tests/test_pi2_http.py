@@ -28,7 +28,10 @@ from reading_logbook.store import Logbook
 from reading_logbook_host import application, context
 
 from personal_ai.api import dependencies as deps
-from personal_ai.applications.registry import ApplicationContributionCatalog
+from personal_ai.applications.registry import (
+    ApplicationContribution,
+    ApplicationContributionCatalog,
+)
 from personal_ai.auth import verification
 from personal_ai.context import ContextAssembler
 from personal_ai.context.repositories import InMemorySummaryRepository
@@ -68,13 +71,20 @@ def http_platform(tmp_path, monkeypatch):
         "expires_at": now + 7200,
         "enabled": True,
     }
+    binding_b = {
+        "audience": "logbook-b-oauth-client",
+        "authorized_party": "logbook-b-oauth-client",
+        "application_id": "reading_logbook_b",
+        "expires_at": now + 7200,
+        "enabled": True,
+    }
 
     def write_policy(**updates):
         policy.write_text(
             json.dumps(
                 {
                     "schema_version": "application-client-policy-v1",
-                    "bindings": [{**binding, **updates}],
+                    "bindings": [{**binding, **updates}, {**binding_b, **updates}],
                 }
             )
         )
@@ -87,8 +97,12 @@ def http_platform(tmp_path, monkeypatch):
         "workspace_id": "shelf",
         "expires_at": now + 7200,
     }
+    memberships = [
+        membership,
+        {**membership, "subject": "synthetic-owner-b"},
+    ]
     members.write_text(
-        json.dumps({"schema_version": "reading-logbook-membership-v1", "memberships": [membership]})
+        json.dumps({"schema_version": "reading-logbook-membership-v1", "memberships": memberships})
     )
     monkeypatch.setenv("READING_LOGBOOK_MEMBERSHIP_FILE", str(members))
     settings = Settings(
@@ -145,10 +159,42 @@ def http_platform(tmp_path, monkeypatch):
         assert importlib.util.find_spec("personal_ai_reference_apps") is None
         app = create_app(selected_contributions=("reading_logbook",))
     else:
+        base_contribution = application()
+        app_b_definition = base_contribution.definitions[0].model_copy(
+            update={
+                "application_id": "reading_logbook_b",
+                "display_name": "Reading Logbook B",
+                "memory_namespace": "reading_logbook_b",
+            }
+        )
+
+        class MembershipB:
+            def is_member(self, principal, application_id, workspace_id):
+                return (
+                    application_id == "reading_logbook_b"
+                    and principal.authenticated
+                    and any(
+                        row["issuer"] == principal.issuer
+                        and row["subject"] == principal.subject
+                        and row["workspace_id"] == workspace_id
+                        and row["expires_at"] > time.time()
+                        for row in json.loads(members.read_text())["memberships"]
+                    )
+                )
+
+        contribution_b = ApplicationContribution(
+            definitions=(app_b_definition,),
+            workspace_authorizers={"reading_logbook_b": MembershipB()},
+        )
         app = create_app(
-            application_catalog=ApplicationContributionCatalog((("reading_logbook", application),)),
+            application_catalog=ApplicationContributionCatalog(
+                (
+                    ("reading_logbook", application),
+                    ("reading_logbook_b", lambda: contribution_b),
+                )
+            ),
             context_runtime_catalog=ContextRuntimeContributionCatalog(
-                (("reading_logbook", context),)
+                (("reading_logbook", context), ("reading_logbook_b", context))
             ),
         )
     conversations = InMemoryConversationRepository()
@@ -218,6 +264,12 @@ def http_platform(tmp_path, monkeypatch):
             client=client,
             raw=raw,
             headers=headers,
+            headers_b={
+                "Authorization": "Bearer "
+                + token(aud="logbook-b-oauth-client", azp="logbook-b-oauth-client"),
+                "X-Application-ID": "reading_logbook_b",
+                "X-Workspace-ID": "shelf",
+            },
             token=token,
             app=app,
             llm=llm,
@@ -282,6 +334,70 @@ def test_real_http_shared_harness_replay_and_scoped_status(http_platform):
     with pytest.raises(APIError) as conflict:
         h.client.start("changed", key)
     assert conflict.value.status == 409 and len(h.llm.requests) == 1
+
+
+@pytest.mark.parametrize("payload", [{}, {"idempotency_key": None}])
+def test_external_creation_requires_non_null_idempotency_key(http_platform, payload):
+    h = http_platform
+    first = h.raw.post("/v1/conversations", headers=h.headers, json=payload)
+    second = h.raw.post("/v1/conversations", headers=h.headers, json=payload)
+    assert first.status_code == second.status_code == 422
+    assert first.json()["error"]["code"] == "validation_error"
+    assert not h.conversations._conversations and not h.llm.requests
+
+
+def test_external_creation_key_replay_conflict_and_openapi(http_platform):
+    h = http_platform
+    key = str(uuid4())
+    body = {"title": "Original", "idempotency_key": key}
+    first = h.raw.post("/v1/conversations", headers=h.headers, json=body)
+    replay = h.raw.post("/v1/conversations", headers=h.headers, json=body)
+    changed = h.raw.post(
+        "/v1/conversations", headers=h.headers, json={**body, "title": "Changed"}
+    )
+    assert first.status_code == replay.status_code == 201
+    assert first.json()["id"] == replay.json()["id"]
+    assert changed.status_code == 409
+    assert len(h.conversations._conversations) == 1 and not h.llm.requests
+    from personal_ai.api.consumer_contract import consumer_openapi
+
+    request_schema = consumer_openapi()["paths"]["/v1/conversations"]["post"]["requestBody"]
+    schema_ref = request_schema["content"]["application/json"]["schema"]["$ref"]
+    assert schema_ref.endswith("ExternalCreateConversationRequest")
+    assert (
+        "idempotency_key"
+        in consumer_openapi()["components"]["schemas"]["ExternalCreateConversationRequest"][
+            "required"
+        ]
+    )
+    assert (
+        consumer_openapi()["components"]["schemas"]["ExternalCreateConversationRequest"][
+            "properties"
+        ]["idempotency_key"]["type"]
+        == "string"
+    )
+
+
+def test_completed_replay_rechecks_source_authority_before_disclosure(http_platform, monkeypatch):
+    h = http_platform
+    cid = h.client.start("Replay fence", uuid4())["id"]
+    body = turn()
+    assert h.client.ask(cid, body)["content"] == "Synthetic answer"
+    from personal_ai.services.chat import service as chat_service
+
+    monkeypatch.setattr(
+        chat_service,
+        "source_snapshots_current",
+        lambda *_args, **_kwargs: False,
+    )
+    response = h.raw.post(
+        f"/v1/conversations/{cid}/continue", json=body, headers=h.headers
+    )
+    assert response.status_code == 200
+    assert "Synthetic answer" not in response.text
+    assert "response.completed" not in response.text
+    assert "response.error" in response.text
+    assert len(h.llm.requests) == 1
 
 
 @pytest.mark.parametrize(
@@ -360,6 +476,68 @@ def test_builtin_and_cross_application_guesses(http_platform):
         ).status_code
         == 401
     )
+
+
+def test_two_external_application_bindings_cannot_cross(http_platform):
+    if os.environ.get("PI2_INSTALLED"):
+        pytest.skip("second synthetic host is exercised in the source HTTP profile")
+    h = http_platform
+    headers_a = h.headers
+    headers_b = h.headers_b
+    headers_b_other_owner = {
+        **headers_b,
+        "Authorization": "Bearer "
+        + h.token(
+            aud="logbook-b-oauth-client",
+            azp="logbook-b-oauth-client",
+            sub="synthetic-owner-b",
+        ),
+    }
+    body_a = {"title": "A", "idempotency_key": str(uuid4())}
+    body_b = {"title": "B", "idempotency_key": str(uuid4())}
+    created_a = h.raw.post("/v1/conversations", headers=headers_a, json=body_a)
+    created_b = h.raw.post("/v1/conversations", headers=headers_b, json=body_b)
+    created_b_other = h.raw.post(
+        "/v1/conversations", headers=headers_b_other_owner, json=body_b
+    )
+    assert created_a.status_code == created_b.status_code == created_b_other.status_code == 201
+
+    mismatches = [
+        (headers_a, headers_b, created_b.json()["id"], body_b["idempotency_key"]),
+        (headers_b, headers_a, created_a.json()["id"], body_a["idempotency_key"]),
+        (
+            headers_a,
+            headers_b,
+            created_b_other.json()["id"],
+            body_b["idempotency_key"],
+        ),
+    ]
+    before = len(h.conversations._conversations)
+    for token_headers, foreign_headers, conversation_id, key in mismatches:
+        auth = {**foreign_headers, "Authorization": token_headers["Authorization"]}
+        assert h.raw.post(
+            "/v1/conversations", headers=auth, json={"idempotency_key": str(uuid4())}
+        ).status_code == 403
+        assert h.raw.get("/v1/conversations", headers=auth).status_code == 403
+        assert h.raw.get(f"/v1/conversations/{conversation_id}", headers=auth).status_code == 403
+        assert (
+            h.raw.get(
+                f"/v1/conversations/{conversation_id}/continuations/{key}", headers=auth
+            ).status_code
+            == 403
+        )
+        assert h.raw.post(
+            f"/v1/conversations/{conversation_id}/context-preview",
+            headers=auth,
+            json=turn(),
+        ).status_code == 403
+        assert h.raw.post(
+            f"/v1/conversations/{conversation_id}/continue",
+            headers=auth,
+            json=turn(),
+        ).status_code == 403
+    assert len(h.conversations._conversations) == before
+    assert not h.llm.requests
 
 
 def test_external_operations_sources_and_payload_limits(http_platform):
@@ -452,12 +630,109 @@ def test_authority_revoked_during_count_never_sends(http_platform, authority, mo
     assert "response.completed" not in response.text and not h.llm.requests
 
 
+@pytest.mark.parametrize(
+    "authority", ["binding", "workspace", "directory", "token", "source"]
+)
+def test_authority_revoked_after_first_delta_stops_later_output(http_platform, authority, monkeypatch):
+    h = http_platform
+    cid = h.client.start("Books", uuid4())["id"]
+    body = turn()
+    h.llm.hold = True
+
+    source_current = {"value": True}
+    if authority == "source":
+        from personal_ai.services.chat import service as chat_service
+
+        monkeypatch.setattr(
+            chat_service,
+            "source_snapshots_current",
+            lambda *_args, **_kwargs: source_current["value"],
+        )
+    original_policy_time = None
+    lines = []
+    current_event = ""
+    saw_first_delta = False
+    with h.raw.stream(
+        "POST", f"/v1/conversations/{cid}/continue", json=body, headers=h.headers
+    ) as response:
+        assert response.status_code == 200
+        stream_lines = response.iter_lines()
+        for line in stream_lines:
+            lines.append(line)
+            if line.startswith("event: "):
+                current_event = line[7:]
+            if current_event == "response.delta" and line.startswith("data: "):
+                saw_first_delta = True
+                break
+        assert saw_first_delta
+        if authority == "binding":
+            h.write_policy(enabled=False)
+        elif authority == "workspace":
+            h.members.write_text(
+                '{"schema_version":"reading-logbook-membership-v1","memberships":[]}'
+            )
+        elif authority == "directory":
+            owner = next(iter(h.conversations._conversations.values())).owner_id
+            h.app.state.principal_directory.deactivate(owner)
+        elif authority == "token":
+            from personal_ai.auth import application_clients
+
+            original_policy_time = application_clients.time
+            monkeypatch.setattr(
+                application_clients, "time", SimpleNamespace(time=lambda: time.time() + 4000)
+            )
+        else:
+            source_current["value"] = False
+        h.release.set()
+        lines.extend(stream_lines)
+
+    output = "\n".join(lines)
+    assert '"delta":"Synthetic "' in output
+    assert '"delta":"answer"' not in output
+    assert "response.completed" not in output
+    assert output.count("response.error") == 1
+    assert len(h.llm.requests) == 1
+    if authority == "binding":
+        h.write_policy()
+    elif authority == "workspace":
+        h.members.write_text(
+            json.dumps(
+                {
+                    "schema_version": "reading-logbook-membership-v1",
+                    "memberships": [
+                        {
+                            "issuer": "https://accounts.google.com",
+                            "subject": "synthetic-owner",
+                            "workspace_id": "shelf",
+                            "expires_at": int(time.time()) + 7200,
+                        }
+                    ],
+                }
+            )
+        )
+    elif authority == "directory":
+        owner = next(iter(h.conversations._conversations.values())).owner_id
+        h.app.state.principal_directory._mappings[owner]["status"] = "active"
+    elif authority == "token":
+        from personal_ai.auth import application_clients
+
+        monkeypatch.setattr(application_clients, "time", original_policy_time)
+    else:
+        source_current["value"] = True
+    status = h.client.status(cid, body["idempotency_key"])
+    assert status["state"] == "unknown"
+    with pytest.raises(APIError) as conflict:
+        h.client.ask(cid, body)
+    assert conflict.value.status == 409 and len(h.llm.requests) == 1
+
+
 def test_racing_creation_and_continuation_keep_original_send(http_platform):
     h = http_platform
     key = uuid4()
     with ThreadPoolExecutor(2) as pool:
         created = list(pool.map(lambda _: h.client.start("Race", key), range(2)))
     assert created[0] == created[1]
+    assert len(h.conversations._conversations) == 1
     cid, body = created[0]["id"], turn()
     h.llm.hold = True
     with ThreadPoolExecutor(1) as pool:
@@ -546,7 +821,11 @@ def test_storage_unavailable_is_safe(http_platform, monkeypatch):
         "create",
         lambda *_: (_ for _ in ()).throw(StorageUnavailableError("PRIVATE")),
     )
-    response = h.raw.post("/v1/conversations", headers=h.headers, json={})
+    response = h.raw.post(
+        "/v1/conversations",
+        headers=h.headers,
+        json={"idempotency_key": str(uuid4())},
+    )
     assert response.status_code == 503 and "PRIVATE" not in response.text
     assert not h.llm.requests
 

@@ -4,6 +4,7 @@ import json
 
 from personal_ai.api.schemas import (
     ErrorResponse,
+    ExternalCreateConversationRequest,
     SSEMessageCreated,
     SSEResponseCompleted,
     SSEResponseDelta,
@@ -25,6 +26,9 @@ def consumer_openapi():
 
     full = create_app(selected_contributions=()).openapi()
     schemas = full["components"]["schemas"]
+    schemas[ExternalCreateConversationRequest.__name__] = (
+        ExternalCreateConversationRequest.model_json_schema()
+    )
     events = {}
     for name, model in (
         (None, ErrorResponse),
@@ -41,6 +45,16 @@ def consumer_openapi():
     paths = {
         path: {method: full["paths"][path][method] for method in methods}
         for path, methods in OPERATIONS.items()
+    }
+    paths["/v1/conversations"]["post"]["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "$ref": "#/components/schemas/ExternalCreateConversationRequest"
+                }
+            }
+        },
     }
     for path in paths.values():
         for operation in path.values():

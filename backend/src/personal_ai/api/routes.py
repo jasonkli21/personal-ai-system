@@ -33,6 +33,7 @@ from personal_ai.api.schemas import (
     EditAndRetryRequest,
     ErrorResponse,
 )
+from personal_ai.auth.application_clients import is_external_client_request
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context import ContextAssembler
@@ -70,6 +71,8 @@ def create_conversation(
     service: Annotated[ConversationService, Depends(get_conversation_service)],
 ) -> Conversation:
     """Create an empty conversation for the Phase 1 owner."""
+    if is_external_client_request() and request.idempotency_key is None:
+        raise HTTPException(status_code=422, detail="validation_error")
     return service.create_conversation(title=request.title, idempotency_key=request.idempotency_key)
 
 

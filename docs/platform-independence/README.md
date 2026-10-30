@@ -40,12 +40,13 @@ Do not move or duplicate the historical MEM/Chapter2 evidence into this folder. 
 
 - [Same-session plan hardening](pi-2-plan-hardening.md), including the PI-0/1 gate exception and threat model.
 - [Implementation/verification report](pi-2-implementation-report.md), observed limitations and artifact identities.
+- [2026-10-30 independent-review remediation evidence](pi-2-review-remediation-2026-10-30.md), fixes, fresh offline checks and remaining acceptance gates.
 - [External v1 HTTP contract](consumer-v1.md) and [generated OpenAPI subset](consumer-v1.openapi.json).
 - [Independent Reading Logbook quickstart](../../examples/reading-logbook/README.md), operator identity/membership policy and rollback.
 - [Separate independent-review prompt](pi-2-independent-review-prompt.md); self-review supplies no independent verdict.
 
 The new client does not grant access to global profile, app-private memory, tasks,
 account administration or gated external turns. Existing MEM-0/1/2 flags, schemas,
-source/actor fences, receipts and fixture/lock history remain preserved. v20 is
-a source-only planner rebind with no promotion. Real identity/IAM, providers,
+source/actor fences, receipts and fixture/lock history remain preserved. PI-2 v20
+and remediation v21 are source-only planner rebinds with no promotion. Real identity/IAM, providers,
 native storage recovery, Linux/Python 3.12 CI and independent acceptance stay open.
