@@ -202,16 +202,25 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaises(SyntaxError):
             guard.inventory(self.root)
 
+    def test_moved_reference_namespace_is_forbidden_even_without_installed_sources(self):
+        self.source("personal_ai/main.py", "from personal_ai_reference_apps import context\n")
+        current = guard.inventory(self.root)
+        self.assertIn("unexpected: personal_ai.main -> personal_ai_reference_apps", guard.check(current, baseline()))
+
+    def test_removed_legacy_submodule_import_still_fails_guard(self):
+        self.source("personal_ai/main.py", "from personal_ai.context import travel\n")
+        current = guard.inventory(self.root)
+        self.assertIn("unexpected: personal_ai.main -> personal_ai.context.travel", guard.check(current, baseline()))
+
     def test_repository_existing_edge_and_baseline_are_tracked(self):
         current = guard.inventory(guard.ROOT / "backend/src")
         baseline = json.loads(
             (guard.ROOT / "docs/platform-independence/pi-0-import-waivers.json").read_text()
         )
         self.assertEqual(guard.check(current, baseline), [])
-        self.assertIn(
-            ("personal_ai.context.deployment", "personal_ai.context.travel"),
-            {(e["from"], e["to"]) for e in current["edges"]},
-        )
+        self.assertEqual(current["edges"], [])
+        self.assertEqual(current["facade_edges"], [])
+
 
 
 if __name__ == "__main__":

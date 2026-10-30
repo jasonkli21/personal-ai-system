@@ -1,0 +1,32 @@
+{
+  "edges": [],
+  "example_facade_prefixes": [
+    "personal_ai.api.domains",
+    "personal_ai.domains.fixtures",
+    "personal_ai.domains.registry"
+  ],
+  "example_prefixes": [
+    "personal_ai_reference_apps",
+    "personal_ai.domains.providers",
+    "personal_ai.domains.service",
+    "personal_ai.persistence.postgres.capabilities",
+    "personal_ai.api.booking_extractions",
+    "personal_ai.api.itinerary_proposals",
+    "personal_ai.booking_extractions",
+    "personal_ai.context.finance",
+    "personal_ai.context.health",
+    "personal_ai.context.health_federation",
+    "personal_ai.context.shopping",
+    "personal_ai.context.travel",
+    "personal_ai.domains.shopping",
+    "personal_ai.domains.travel",
+    "personal_ai.itinerary_proposals",
+    "personal_ai.mutations.shopping"
+  ],
+  "excluded_importer_prefixes": [
+    "personal_ai.evaluation"
+  ],
+  "facade_edges": [],
+  "schema_version": 1,
+  "scope": "AST core-to-example imports, including nested and type-only imports"
+}

@@ -8,6 +8,9 @@ from threading import Event, RLock
 from uuid import UUID, uuid4
 
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from personal_ai.applications.contracts import (
@@ -15,7 +18,7 @@ from personal_ai.applications.contracts import (
     ApplicationDefinition,
     ApplicationSidecarPolicy,
 )
-from personal_ai.applications.registry import ApplicationRegistry, default_application_registry
+from personal_ai.applications.registry import ApplicationRegistry
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.deployment import configured_context_runtime

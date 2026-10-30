@@ -6,6 +6,31 @@ The project is intentionally not a model-training or local-model-hosting project
 
 For concise implementation status and open verification gates, see [docs/current-state.md](docs/current-state.md). Use the [documentation router](docs/README.md) to find task-specific plans, contracts, and evidence.
 
+## Core and optional reference profiles
+
+The core wheel and source archive contain the `personal_ai` harness and standalone
+chat/context consumer. The default application registry contains only
+`personal_ai`; no reference package or configuration is required to import it.
+Model and canonical persistence configuration are still required for ordinary
+operation. Generation/counting/summary/embedding defaults remain Gemini-bound;
+provider portability belongs to PI-3.
+
+Travel, Shopping, Finance and Health implementations live in the separately
+installable [reference distribution](reference-apps/README.md). Installation alone
+does not select them. `APPLICATION_CONTRIBUTIONS` is a JSON array of trusted
+installed catalog names, default `[]`; selection, feature enablement and user/source
+authorization are distinct. The existing Dockerfile builds the core profile.
+A reference deployment must explicitly install the optional wheel into its image
+and configure selection; legacy example flags alone do not install code.
+
+`make backend-build reference-build` builds both artifacts. With the existing
+backend dependencies available, `make platform-independence-check` inspects the
+archives, creates an isolated environment outside the checkout, tests core HTTP
+and lifespan under import/network denial, installs the reference wheel, runs
+copied compatibility tests, uninstalls references and rechecks core. It uses no
+network dependency installation. See [PI-1 evidence](docs/platform-independence/pi-1-implementation-report.md)
+for tested commands and limitations. This is a candidate pending independent review.
+
 ## What it does
 
 The system provides reusable AI capabilities that can be used directly through its web UI or consumed by domain applications such as travel and shopping.

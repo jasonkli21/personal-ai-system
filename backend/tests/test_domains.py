@@ -8,6 +8,33 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from personal_ai_reference_apps.domains.fixtures import FIXTURE_NOW, fixture_registry
+from personal_ai_reference_apps.domains.providers import (
+    DomainProviderError,
+    FakeShoppingProductAdapter,
+    FakeTravelPlaceAdapter,
+    NominatimPlaceAdapter,
+    OpenFoodFactsAdapter,
+    ShoppingProductRecord,
+    TravelPlaceRecord,
+    _ProcessRateLimiter,
+)
+from personal_ai_reference_apps.domains.service import DomainService
+from personal_ai_reference_apps.domains.shopping.models import (
+    ProductVariantIdentity,
+    ShoppingCostBreakdown,
+    ShoppingReviewSignal,
+    normalize_total_cost,
+)
+from personal_ai_reference_apps.domains.shopping.module import ShoppingModule
+from personal_ai_reference_apps.domains.travel.models import (
+    TravelConstraintInput,
+    TravelDateWindow,
+    TravelStayCost,
+    compute_stay_total,
+    local_time_to_utc,
+)
+from personal_ai_reference_apps.domains.travel.module import TravelModule
 
 from personal_ai.decisions.contracts import (
     Candidate,
@@ -25,34 +52,7 @@ from personal_ai.domains.contracts import (
     DomainRegistration,
     ProviderObservationExtension,
 )
-from personal_ai.domains.fixtures import FIXTURE_NOW, fixture_registry
-from personal_ai.domains.providers import (
-    DomainProviderError,
-    FakeShoppingProductAdapter,
-    FakeTravelPlaceAdapter,
-    NominatimPlaceAdapter,
-    OpenFoodFactsAdapter,
-    ShoppingProductRecord,
-    TravelPlaceRecord,
-    _ProcessRateLimiter,
-)
 from personal_ai.domains.repositories import DomainRepositoryError, InMemoryDomainRepository
-from personal_ai.domains.service import DomainService
-from personal_ai.domains.shopping.models import (
-    ProductVariantIdentity,
-    ShoppingCostBreakdown,
-    ShoppingReviewSignal,
-    normalize_total_cost,
-)
-from personal_ai.domains.shopping.module import ShoppingModule
-from personal_ai.domains.travel.models import (
-    TravelConstraintInput,
-    TravelDateWindow,
-    TravelStayCost,
-    compute_stay_total,
-    local_time_to_utc,
-)
-from personal_ai.domains.travel.module import TravelModule
 from personal_ai.entities.research import (
     AvailabilityValue,
     BooleanValue,

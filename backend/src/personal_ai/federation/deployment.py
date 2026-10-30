@@ -7,56 +7,12 @@ from personal_ai.applications.contracts import (
     ContextProviderPolicy,
 )
 from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry
-from personal_ai.contracts.federation import FederationExportDeclaration
-from personal_ai.federation.broker import FederationCase, federation_contribution
+from personal_ai.federation.broker import federation_contribution
 from personal_ai.federation.service import FederationPermissionAuthority
-
-INITIAL_FEDERATION_CASES = (
-    FederationCase(
-        "health",
-        "travel",
-        FederationExportDeclaration(
-            category="dietary_restrictions",
-            provider_id="federation.health_dietary_to_travel",
-            fields=("dietary_restrictions",),
-            sensitivity="restricted",
-        ),
-    ),
-    FederationCase(
-        "health",
-        "shopping",
-        FederationExportDeclaration(
-            category="ergonomic_constraints",
-            provider_id="federation.health_ergonomic_to_shopping",
-            fields=("ergonomic_constraints",),
-            sensitivity="restricted",
-        ),
-    ),
-    FederationCase(
-        "travel",
-        "shopping",
-        FederationExportDeclaration(
-            category="trip",
-            provider_id="federation.travel_trip_to_shopping",
-            fields=("destination", "start_date", "end_date"),
-            sensitivity="sensitive",
-        ),
-    ),
-    FederationCase(
-        "finance",
-        "shopping",
-        FederationExportDeclaration(
-            category="discretionary_budget",
-            provider_id="federation.finance_budget_to_shopping",
-            fields=("amount", "currency", "period"),
-            sensitivity="restricted",
-        ),
-    ),
-)
 
 
 def install_federation_metadata(
-    definitions, capabilities, cases=INITIAL_FEDERATION_CASES, *, implemented_provider_ids=()
+    definitions, capabilities, cases=(), *, implemented_provider_ids=()
 ):
     """Declare exports independently of installed executable adapters and permission."""
     implemented = frozenset(implemented_provider_ids)
@@ -185,11 +141,7 @@ class _ConfiguredGrantRepository:
 
 
 def configured_federation_contribution(settings, source_runtime, *, cases=None):
-    cases = (
-        (*INITIAL_FEDERATION_CASES, *source_runtime.federation_cases)
-        if cases is None
-        else tuple(cases)
-    )
+    cases = tuple(source_runtime.federation_cases) if cases is None else tuple(cases)
     authority = FederationPermissionAuthority(
         _ConfiguredGrantRepository(settings),
         ContextPermissionRevalidatorRegistry(source_runtime.permission_revalidators),
@@ -199,7 +151,11 @@ def configured_federation_contribution(settings, source_runtime, *, cases=None):
             else None
         ),
     )
-    return federation_contribution(cases, authority, source_runtime.export_adapters)
+    declared = {case.export.provider_id for case in cases}
+    adapters = {
+        key: value for key, value in source_runtime.export_adapters.items() if key in declared
+    }
+    return federation_contribution(cases, authority, adapters)
 
 
 def reconcile_federation_runtime_metadata(registry, runtime):

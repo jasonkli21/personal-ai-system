@@ -11,31 +11,36 @@ from uuid import uuid4
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
-
-from personal_ai.api.dependencies import get_settings
-from personal_ai.applications.contracts import ApplicationContextRequest
-from personal_ai.applications.registry import default_application_registry
-from personal_ai.auth.contracts import AuthenticatedPrincipal
-from personal_ai.auth.directory import InMemoryPrincipalDirectory
-from personal_ai.auth.scope import RequestScope
-from personal_ai.booking_extractions.contracts import (
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.booking_extractions.contracts import (
     BookingCandidate,
     BookingExtractionRequest,
     BookingExtractionResult,
     _validate_timezone,
 )
-from personal_ai.booking_extractions.fakes import FakeBookingExtractionLLMClient
-from personal_ai.booking_extractions.repositories import (
+from personal_ai_reference_apps.booking_extractions.fakes import FakeBookingExtractionLLMClient
+from personal_ai_reference_apps.booking_extractions.repositories import (
     ExtractionError,
     InMemoryBookingExtractionRepository,
 )
-from personal_ai.booking_extractions.service import BookingExtractionService, _model_output
+from personal_ai_reference_apps.booking_extractions.service import (
+    BookingExtractionService,
+    _model_output,
+)
+from personal_ai_reference_apps.main import app
+from pydantic import ValidationError
+
+from personal_ai.api.dependencies import get_settings
+from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.contracts import AuthenticatedPrincipal
+from personal_ai.auth.directory import InMemoryPrincipalDirectory
+from personal_ai.auth.scope import RequestScope
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.contracts import TokenCount
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.tokens import EstimatedTokenCounter
-from personal_ai.main import app
 from personal_ai.settings import Settings
 from personal_ai.storage.errors import ResourceNotFoundError
 

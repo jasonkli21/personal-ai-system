@@ -102,13 +102,13 @@ decision-eval:
 	cd backend && python -m personal_ai.evaluation.decision
 
 domain-eval:
-	cd backend && python -m personal_ai.evaluation.domain
+	cd backend && python -m personal_ai_reference_apps.evaluation.domain
 
 iterative-research-eval:
 	cd backend && python -m personal_ai.evaluation.iterative_research
 
 itinerary-proposal-eval:
-	cd backend && python -m personal_ai.evaluation.itinerary_proposals
+	cd backend && python -m personal_ai_reference_apps.evaluation.itinerary_proposals
 
 quota-scarcity-eval:
 	cd backend && python -m personal_ai.evaluation.quota_scarcity
@@ -144,3 +144,12 @@ cascade-eval:
 .PHONY: memory-control-eval
 memory-control-eval:
 	cd backend && python -m personal_ai.evaluation.memory_control
+
+.PHONY: reference-build platform-independence-check
+
+reference-build:
+	cd reference-apps && uv build --no-build-isolation --python ../backend/.venv/bin/python
+
+platform-independence-check: backend-build reference-build
+	python backend/scripts/platform_dependency_inventory.py --check
+	python backend/scripts/pi1_artifact_checks.py

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling==1.27.0", "editables==0.5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "personal-ai-reference-apps"
+version = "0.1.0"
+description = "Explicitly selected Travel, Shopping, Finance and Health reference integrations"
+requires-python = ">=3.11"
+dependencies = ["personal-ai-backend==0.1.0"]
+
+[project.entry-points."personal_ai.application_contributions"]
+travel = "personal_ai_reference_apps.applications:travel_application"
+shopping = "personal_ai_reference_apps.applications:shopping_application"
+finance = "personal_ai_reference_apps.applications:finance_application"
+health = "personal_ai_reference_apps.applications:health_application"
+
+[project.entry-points."personal_ai.context_contributions"]
+travel = "personal_ai_reference_apps.deployment:travel_context"
+shopping = "personal_ai_reference_apps.deployment:shopping_context"
+finance = "personal_ai_reference_apps.deployment:finance_context"
+health = "personal_ai_reference_apps.deployment:health_context"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/personal_ai_reference_apps"]

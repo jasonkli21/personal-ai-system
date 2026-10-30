@@ -8,13 +8,30 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.context.travel import (
+    TRAVEL_CONTEXT_FIELDS,
+    TRAVEL_CONTEXT_PROVIDER_ID,
+    TRAVEL_TRIP_EXPORT_FIELDS,
+    TRAVEL_TRIP_EXPORT_PROVIDER_ID,
+    TravelContextPermissionRevalidator,
+    TravelContextProvider,
+    TravelContextProviderFactory,
+    TravelContextReadResponse,
+    TravelContextRecord,
+    TravelSelectionBinding,
+    TravelTripFederationExportAdapter,
+    configured_travel_context_contribution,
+    travel_context_planning_rules,
+)
 
 from personal_ai.applications.contracts import (
     ApplicationContextRequest,
     ApplicationLaunchContext,
     ManualImportReusePolicy,
 )
-from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import ApplicationScope, RequestScope, application_scope_context
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.contracts import ConversationSummary, fingerprint
@@ -35,21 +52,6 @@ from personal_ai.context.runtime import (
     ContextRuntimeRegistry,
 )
 from personal_ai.context.tokens import FakeTokenCounter
-from personal_ai.context.travel import (
-    TRAVEL_CONTEXT_FIELDS,
-    TRAVEL_CONTEXT_PROVIDER_ID,
-    TRAVEL_TRIP_EXPORT_FIELDS,
-    TRAVEL_TRIP_EXPORT_PROVIDER_ID,
-    TravelContextPermissionRevalidator,
-    TravelContextProvider,
-    TravelContextProviderFactory,
-    TravelContextReadResponse,
-    TravelContextRecord,
-    TravelSelectionBinding,
-    TravelTripFederationExportAdapter,
-    configured_travel_context_contribution,
-    travel_context_planning_rules,
-)
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.contracts.execution import ContinuationRequest
 from personal_ai.contracts.federation import FederationSelection
@@ -350,9 +352,10 @@ def test_travel_federation_capability_is_discovered_only_with_executable_adapter
     assert set(contribution.export_adapters) == {TRAVEL_TRIP_EXPORT_PROVIDER_ID}
     assert contribution.provider_factories == {}
 
-    from personal_ai.context.deployment import configured_context_runtime
+    from personal_ai_reference_apps.deployment import reference_context_catalog
 
-    runtime = configured_context_runtime(settings)
+    from personal_ai.context.deployment import configured_context_runtime
+    runtime = configured_context_runtime(settings, catalog=reference_context_catalog())
     registry = reconcile_federation_runtime_metadata(default_application_registry(), runtime)
     shopping = registry.registration("shopping")
     capability = next(

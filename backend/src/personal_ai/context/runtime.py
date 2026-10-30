@@ -37,9 +37,14 @@ class ContextRuntimeContributionCatalog:
             self.register(name, factory)
 
     @classmethod
-    def from_entry_points(cls):
-        points = sorted(entry_points(group=cls.ENTRY_POINT_GROUP), key=lambda point: point.name)
-        return cls((point.name, point.load()) for point in points)
+    def from_entry_points(cls, *, selected=None):
+        from personal_ai.applications.selection import (
+            load_selected_entry_points,
+            selected_contribution_names,
+        )
+
+        names = selected_contribution_names() if selected is None else selected
+        return cls(load_selected_entry_points(entry_points(group=cls.ENTRY_POINT_GROUP), names))
 
     def register(self, name: str, factory: Callable) -> None:
         if (
@@ -109,11 +114,11 @@ class ContextRuntimeRegistry:
         self.export_adapters = MappingProxyType(dict(export_adapters or {}))
         self.federation_cases = tuple(federation_cases)
         from personal_ai.mutations.registration import validate_adapters
+
         self.mutation_adapters = MappingProxyType(validate_adapters(mutation_adapters or {}))
         from personal_ai.mutations.registration import validate_reconciliation_adapters
-        reconciliation = validate_reconciliation_adapters(
-            mutation_reconciliation_adapters or {}
-        )
+
+        reconciliation = validate_reconciliation_adapters(mutation_reconciliation_adapters or {})
         for key, adapter in self.mutation_adapters.items():
             declaration = adapter.declaration
             reconciliation_key = (*key, declaration.contract_fingerprint)
@@ -141,7 +146,10 @@ def compose_context_runtime(
         if mutation_adapters.keys() & contribution.mutation_adapters.keys():
             raise ValueError("mutation_adapter_duplicate")
         mutation_adapters.update(contribution.mutation_adapters)
-        if mutation_reconciliation_adapters.keys() & contribution.mutation_reconciliation_adapters.keys():
+        if (
+            mutation_reconciliation_adapters.keys()
+            & contribution.mutation_reconciliation_adapters.keys()
+        ):
             raise ValueError("mutation_reconciliation_adapter_duplicate")
         mutation_reconciliation_adapters.update(contribution.mutation_reconciliation_adapters)
         overlap = providers.keys() & contribution.provider_factories.keys()
@@ -162,7 +170,11 @@ def compose_context_runtime(
         export_adapters.update(contribution.export_adapters)
         for case in contribution.federation_cases:
             provider_id = getattr(getattr(case, "export", None), "provider_id", None)
-            if not isinstance(provider_id, str) or not provider_id or provider_id in case_provider_ids:
+            if (
+                not isinstance(provider_id, str)
+                or not provider_id
+                or provider_id in case_provider_ids
+            ):
                 raise ValueError("context_runtime_federation_case_invalid")
             case_provider_ids.add(provider_id)
             federation_cases.append(case)

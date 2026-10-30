@@ -1,5 +1,5 @@
-from personal_ai.domains.fixtures import fixture_registry
-from personal_ai.evaluation.domain import evaluate
+from personal_ai_reference_apps.domains.fixtures import fixture_registry
+from personal_ai_reference_apps.evaluation.domain import evaluate
 
 
 def test_domain_evaluation_proves_travel_and_shopping_use_shared_policies():

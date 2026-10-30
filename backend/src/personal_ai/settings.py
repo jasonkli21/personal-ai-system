@@ -33,6 +33,15 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
+    application_contributions: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_contribution_selection(self):
+        from personal_ai.applications.selection import validate_selection
+
+        validate_selection(self.application_contributions)
+        return self
+
     task_delegation_enabled: bool = False
     task_delegation_audience: str = Field(default="", max_length=500)
     task_delegation_issuer: str = Field(default="", max_length=200)

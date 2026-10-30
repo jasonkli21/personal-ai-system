@@ -3,9 +3,12 @@
 import base64
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.tasks import configured_task_contribution
 
-from personal_ai.applications.registry import default_application_registry
-from personal_ai.mutations.deployment import configured_task_contribution, install_task_metadata
+from personal_ai.mutations.deployment import install_task_metadata
 from personal_ai.settings import Settings
 
 

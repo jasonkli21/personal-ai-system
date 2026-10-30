@@ -1,0 +1,754 @@
+{
+  "date": "2026-10-30",
+  "initial_revision": "623327da171d4acd3d48d96a4c50bd40394c1925",
+  "candidate_identity": "single commit containing this manifest; resolve via git log -1 --format=%H -- docs/platform-independence/pi-1-source-manifest.json",
+  "files": [
+    {
+      "path": "Makefile",
+      "sha256": "791111c2349b2e68e56afb56173fe3f1cf3857419a944c2f0b27a29b96bd5ad7"
+    },
+    {
+      "path": "backend/pyproject.toml",
+      "sha256": "4202788e157c8fe7ee0356671bd4652e55223fd03a9030363436170255018ca7"
+    },
+    {
+      "path": "backend/scripts/pi1_artifact_checks.py",
+      "sha256": "cb1558bc85b6ea9f6f5b28e41af3be08ca8eefdd707900680635b60661653160"
+    },
+    {
+      "path": "backend/scripts/pi1_core_probe.py",
+      "sha256": "4c57055b840da553c198bdc56692d661e8708ba0164674a79330c9d9e79b1ce5"
+    },
+    {
+      "path": "backend/scripts/pi1_offline_checks.py",
+      "sha256": "1bbb0fbdb590218e286c95e16cd1d45132d613c20ba5a8d925398a82d4ad3c5d"
+    },
+    {
+      "path": "backend/scripts/pi1_reference_probe.py",
+      "sha256": "26fe516ea3292dfc80d71c853c319a1d8d2f3a56569f3a6e4f069245f253f03d"
+    },
+    {
+      "path": "backend/scripts/platform_dependency_inventory.py",
+      "sha256": "af80611e6990948a9f575177c57dc60ff46f6363696b34f7410e71160d698f6d"
+    },
+    {
+      "path": "backend/src/personal_ai/applications/contracts.py",
+      "sha256": "aa68f87a3361f8e1a3f903b85897b38b9eeddeae6060deca229f8e72d3f450bd"
+    },
+    {
+      "path": "backend/src/personal_ai/applications/http.py",
+      "sha256": "c598aba49f5cb1456e2f9ce503de2397d83e4baf2337e619d85ee3a50ad78c34"
+    },
+    {
+      "path": "backend/src/personal_ai/applications/registry.py",
+      "sha256": "0a789ae508c850e83cdd7017e0a5ef64c897118d253143c9f52ec4b6a43e3869"
+    },
+    {
+      "path": "backend/src/personal_ai/applications/selection.py",
+      "sha256": "e2224e294db8474bde0cdbf5da41d96ffe5acfa7e2f67fea906f40ab961d5ca7"
+    },
+    {
+      "path": "backend/src/personal_ai/context/deployment.py",
+      "sha256": "e367d4a9d07e6bd8037f76bb93d4454739dc1df9ef6a89fbec2161abd4fb32f0"
+    },
+    {
+      "path": "backend/src/personal_ai/context/runtime.py",
+      "sha256": "749baf16c98e3bd370eaec56944b820907c2810bcca3cee284cd8b9ceb16e57b"
+    },
+    {
+      "path": "backend/src/personal_ai/federation/deployment.py",
+      "sha256": "a32721cb6af155b2a8ade2311a611416a4e837056445bf4fdd29f22cb9132c1d"
+    },
+    {
+      "path": "backend/src/personal_ai/main.py",
+      "sha256": "ffbb00afb2c3315753cf721e460f6f25a8f3b47ce039afcd0cb75f637d786cad"
+    },
+    {
+      "path": "backend/src/personal_ai/mutations/deployment.py",
+      "sha256": "b57619961d06918106937716f9db41528071b8e4af30ec60f55d28366894efae"
+    },
+    {
+      "path": "backend/src/personal_ai/persistence/factory.py",
+      "sha256": "806b6e3c492d414a8df95229353c13d26f53a212a4ce1474afd5867d56254f7b"
+    },
+    {
+      "path": "backend/src/personal_ai/settings.py",
+      "sha256": "f9dd698467453a44b4cc836e3ed620e7cd83f0aae01e3d53e48e951c425ff7b9"
+    },
+    {
+      "path": "backend/tests/persistence/test_local_persistence.py",
+      "sha256": "acd04849271264d5fd7fc56b6706374588fb6da89771571df60e3b8a44c43e7a"
+    },
+    {
+      "path": "backend/tests/test_applications.py",
+      "sha256": "4c12471028de803353c8f30e6ae7db0871afca0f8cee09730df1caf422682075"
+    },
+    {
+      "path": "backend/tests/test_auth.py",
+      "sha256": "aed7b089bf5e9a8f151fbf301964bd762a7bfe081929cad75d5f1282a5d9cd40"
+    },
+    {
+      "path": "backend/tests/test_booking_extractions.py",
+      "sha256": "8c16ac37db2bba385615355811a117192facc6d6a8a20d1a4911f87ddd23927f"
+    },
+    {
+      "path": "backend/tests/test_context_authorization.py",
+      "sha256": "861422d56854dae25219686c424ce358a601d24a185193c0d0766ee38655372e"
+    },
+    {
+      "path": "backend/tests/test_context_provider.py",
+      "sha256": "bb80166343575f193b4b271e7a560af712a1e817d04e2957a5aa42b269e84bb0"
+    },
+    {
+      "path": "backend/tests/test_context_sources.py",
+      "sha256": "dfd85be0783305cc0f9480b107a082014bc3f21fbbb78c52c291b915e5953185"
+    },
+    {
+      "path": "backend/tests/test_conversation_routes.py",
+      "sha256": "0ae142aa2660fffbbd8e39415fbf29f6430114e13d3015d0ddef72eeaa9dbaf7"
+    },
+    {
+      "path": "backend/tests/test_domain_evaluation.py",
+      "sha256": "d8a3476d2ec9338eb5231c4554810b15041f3f0a22b331a28eb4af847b7d24e9"
+    },
+    {
+      "path": "backend/tests/test_domains.py",
+      "sha256": "d743604e258bff726fd8828153da3e4326f041f08658fc64cc6b79f07daa5561"
+    },
+    {
+      "path": "backend/tests/test_external_turn_composition.py",
+      "sha256": "3d1e978b077e36035b7208a21f58160e236fd9d5b4b15cd39bd69a15dac58c16"
+    },
+    {
+      "path": "backend/tests/test_federation.py",
+      "sha256": "df6e8da09383d689aff4823237406884fe086c19496ffa3fae76bf0dc451bf22"
+    },
+    {
+      "path": "backend/tests/test_finance_context.py",
+      "sha256": "133d8226a707d3c737b28719b5ac8704127e6c66525781b2e6dfb4d9e277e919"
+    },
+    {
+      "path": "backend/tests/test_health_context.py",
+      "sha256": "d2d5a25f75dcae4c755c8c23dd73409f436772966cb283912d7d850a053b8806"
+    },
+    {
+      "path": "backend/tests/test_health_federation.py",
+      "sha256": "4ce304dcdc644895de2928733a7a50d3379b696be395a860900e2eb7a663c40b"
+    },
+    {
+      "path": "backend/tests/test_itinerary_proposals.py",
+      "sha256": "98c1626fe711938bf8169c8b20ee3fa846affc924164aaa60329f5a2ec7fa700"
+    },
+    {
+      "path": "backend/tests/test_mutations.py",
+      "sha256": "5892c4f6f0aaf856c8ac9337f70ef13eb14401dbc51019b743318e3748c82035"
+    },
+    {
+      "path": "backend/tests/test_platform_dependency_inventory.py",
+      "sha256": "be1818799d9b906baca3439e0ca1832661429398922db130724a32128846b09a"
+    },
+    {
+      "path": "backend/tests/test_platform_independence.py",
+      "sha256": "51be8bfbbdf1b0248041e067c961ba9fdcc7ae844608f76d100b36abbad8bfd4"
+    },
+    {
+      "path": "backend/tests/test_reference_persistence.py",
+      "sha256": "0d75ba5d10a5faf59c5c9926b99ee47f305f82553cf9fcf158a3962e0b0f23e5"
+    },
+    {
+      "path": "backend/tests/test_shopping_context.py",
+      "sha256": "283437fbb2657d7ba9227476de201bbbe18f41b8110d447d39e648123de1578c"
+    },
+    {
+      "path": "backend/tests/test_task_deployment.py",
+      "sha256": "5e7c781549c57a056127694015cf30ebd9f63fab127baef04f4c6ea1e860a063"
+    },
+    {
+      "path": "backend/tests/test_travel_context.py",
+      "sha256": "30875ed98040e99fe61846302a8d3a11df29576ee9e1b8498e00c96116301d4a"
+    },
+    {
+      "path": "reference-apps/README.md",
+      "sha256": "649f475675baf21facc7940f071caafbe2967c92485b88c2bcb699c67bfbe96c"
+    },
+    {
+      "path": "reference-apps/pyproject.toml",
+      "sha256": "37bbae47ff76f1e7a5f1f40cd5e62ce13af6a4ed98ab0f86154e8517e4a49340"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/__init__.py",
+      "sha256": "5509f773a19f6e17af08db6d4dcf702e219139503a4d7a237febb3c94effac26"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/api/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/api/booking_extractions.py",
+      "sha256": "8e76ad333c87b6428ac0ca23b10054d6e31096b84f7183c0ed5ef691b3388add"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/api/domains.py",
+      "sha256": "95a5aefec836a8d59968eb2b3b3ce7c2ff28f094085517513e349626bfe72db1"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/api/itinerary_proposals.py",
+      "sha256": "3a4519dc111902895023fc7e9a130333dfc0c5c371a7c05d99dc61b5dd462d45"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/applications.py",
+      "sha256": "ff602c382ede6bef635addedd84b7178e63d2ef2c637493b951879defe118eaf"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/booking_extractions/__init__.py",
+      "sha256": "38bf00307ecb4695244e57e1a918c40743e1d228d31ea5402f1c305a90463d2e"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/booking_extractions/cleanup.py",
+      "sha256": "fa1fae6cf7c4a978250f190e865239df6f30159998b74921f73d042232aea2d7"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/booking_extractions/contracts.py",
+      "sha256": "e5ed0efe8bc5d579d4979a68721288e045c01736a4dbb7c7a2a16f8872efee21"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/booking_extractions/fakes.py",
+      "sha256": "76d770bf52e66086cf5a7d33c558bcfca5b67cbe3d83aad6ed5f365d963fbd8c"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/booking_extractions/repositories.py",
+      "sha256": "5def9cb573a1bae5f02ce3fb5f6802721054910071871b09175d92787fcf283f"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/booking_extractions/service.py",
+      "sha256": "deea02c3ded773c4cf8d433d090755ff8ba57a0c6fc368dee668b20a3677d0f5"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/context/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/context/finance.py",
+      "sha256": "238562fdcf98af935b1e539a4275162c10919a2d1f419aba52e1a73cdb674559"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/context/health.py",
+      "sha256": "1f8a378c1a55a9f97c070f178fc8f5f4c2bea0fb1b0ff6701abcc3ac3ea457b1"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/context/health_federation.py",
+      "sha256": "31ba124ec5b8f53539e0695120d0bfa11173c14e2c10f9580c38469b77268c28"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/context/shopping.py",
+      "sha256": "0a215d8d7dfff71a36bccce271c592e6e83e8fccfb38a7e138e9db1c7de994e0"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/context/travel.py",
+      "sha256": "103d4f64100e7306f70dc80c65ab25e67b670e5e0e9896536235e1b680d7c2bf"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/deployment.py",
+      "sha256": "61ad058356a4de0a5a108fa6f2095a2b8a221234e93ae746a206674c211203b9"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/fixtures.py",
+      "sha256": "4a93e6309685e320999de994b84b30da0beb75357264fa793580c39781a98626"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/providers.py",
+      "sha256": "e23b1fda9ade958624a4c76ae10224c0e55ca5ed6aab949d13006200831bf476"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/registry.py",
+      "sha256": "db1151a2f3fb4d085d64bc57b4937b35d662fcdb8de572ebce0c1e2a28402c2b"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/service.py",
+      "sha256": "72a6e8977642a0ace1131ce11627f8894f47208ba9c7146f6f203e71f1a186ab"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/shopping/__init__.py",
+      "sha256": "dccccb91f28b34862788016a6804fc18f65acc85690e83c1fb5c37f7ff501a2d"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/shopping/models.py",
+      "sha256": "1bf9d75e790c9707d0eaf41077c9446dc5afff58abf39f4e10afd895b504f88f"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/shopping/module.py",
+      "sha256": "38239d6969c80a5c7e5f90e4e459035dce9411704cb86ad87ec7d39617ef822b"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/travel/__init__.py",
+      "sha256": "37f113aa7945258b8f588de9fdfeef517d120adb232b6fb64b2302091fb890bf"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/travel/models.py",
+      "sha256": "7cea5b55751794bd178e5a6dfacf41aa381c2d0445f2d8e36285008f9edce8d8"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/domains/travel/module.py",
+      "sha256": "fba7a76f923d59cd69ccf07ed1a1c9d47ab2fba31b64c3002b25ce2bc170d9da"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/errors.py",
+      "sha256": "a5a81eb85a484a65521a450c617b34d8055b566c43d8f3dd48e9bdd9d8125104"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/evaluation/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/evaluation/domain.py",
+      "sha256": "183b9753378cd93b319c08abc55d221796e30bf10395ed3535834c3ccfed93aa"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/evaluation/fixtures/itinerary-proposal-example.json",
+      "sha256": "de062baa33712a33c573659d2e7958cd695342c0454b3f2af294f9d951720014"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/evaluation/itinerary_proposals.py",
+      "sha256": "c40a817f0991ab662600ce953ddf28cee7022e81f2850ae082e94f3e849b2baa"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/federation.py",
+      "sha256": "a5140cee3f38544540623ef728178a9b7257376842d205e3a1bdf7aa5b50bc68"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/itinerary_proposals/__init__.py",
+      "sha256": "f2da2ed8f014cf203ddf6d44a4d5c5faa2c10478d1748c682522c95b125079ce"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/itinerary_proposals/contracts.py",
+      "sha256": "ea6da93c529b6ec6a4f82111188a4823e4fc7be24eb1bac0f83425618b019b58"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/itinerary_proposals/evidence.py",
+      "sha256": "4cbbb11fbe4325e0bcee32789a8aa5617205da544eaaf82838c5fc44f133956e"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/itinerary_proposals/fakes.py",
+      "sha256": "1bd753cf6efd32826fd7c69d54118de90c2249f7c86337cc0f9ae1fdcad8314e"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/itinerary_proposals/repositories.py",
+      "sha256": "b9cabaa0aa2ae273f9a02d11856e3b64abe634fc5b62e38938bd7cdd65c4d997"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/itinerary_proposals/service.py",
+      "sha256": "4d428f478b4bc7372be5e9e2e57461f9932fd6f301471c56ac21df8294482b31"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/main.py",
+      "sha256": "5eee49c59041e6b812a9b84b2d599cb46f0dec2d01b04f6b2f2485d5f2fa8c52"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/mutations/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/mutations/shopping.py",
+      "sha256": "d5c1d055b9492f46dfea1db4d17cda7349afb413a50622b9229692d371ff4fc8"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/persistence/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/persistence/factory.py",
+      "sha256": "37df5ca3d69992a8cb70dc89e8d8bee04b1eb7aea2d49315ff58a8ce6b1fade1"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/persistence/postgres/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/persistence/postgres/capabilities.py",
+      "sha256": "306ce8fee5ada72be3494c3f6eb7abf57520ee9e5d7515491c4a0c3af1d0a335"
+    },
+    {
+      "path": "reference-apps/src/personal_ai_reference_apps/tasks.py",
+      "sha256": "8ff8c71b760f444939804b29ce11923bb9c93d7174bed705c5927edd6f948b97"
+    }
+  ],
+  "removed_paths": [
+    "backend/src/personal_ai/api/booking_extractions.py",
+    "backend/src/personal_ai/api/domains.py",
+    "backend/src/personal_ai/api/itinerary_proposals.py",
+    "backend/src/personal_ai/booking_extractions/__init__.py",
+    "backend/src/personal_ai/booking_extractions/cleanup.py",
+    "backend/src/personal_ai/booking_extractions/contracts.py",
+    "backend/src/personal_ai/booking_extractions/fakes.py",
+    "backend/src/personal_ai/booking_extractions/repositories.py",
+    "backend/src/personal_ai/booking_extractions/service.py",
+    "backend/src/personal_ai/context/finance.py",
+    "backend/src/personal_ai/context/health.py",
+    "backend/src/personal_ai/context/health_federation.py",
+    "backend/src/personal_ai/context/shopping.py",
+    "backend/src/personal_ai/context/travel.py",
+    "backend/src/personal_ai/domains/fixtures.py",
+    "backend/src/personal_ai/domains/providers.py",
+    "backend/src/personal_ai/domains/registry.py",
+    "backend/src/personal_ai/domains/service.py",
+    "backend/src/personal_ai/domains/shopping/__init__.py",
+    "backend/src/personal_ai/domains/shopping/models.py",
+    "backend/src/personal_ai/domains/shopping/module.py",
+    "backend/src/personal_ai/domains/travel/__init__.py",
+    "backend/src/personal_ai/domains/travel/models.py",
+    "backend/src/personal_ai/domains/travel/module.py",
+    "backend/src/personal_ai/evaluation/domain.py",
+    "backend/src/personal_ai/evaluation/itinerary_proposals.py",
+    "backend/src/personal_ai/itinerary_proposals/__init__.py",
+    "backend/src/personal_ai/itinerary_proposals/contracts.py",
+    "backend/src/personal_ai/itinerary_proposals/evidence.py",
+    "backend/src/personal_ai/itinerary_proposals/fakes.py",
+    "backend/src/personal_ai/itinerary_proposals/repositories.py",
+    "backend/src/personal_ai/itinerary_proposals/service.py",
+    "backend/src/personal_ai/mutations/shopping.py",
+    "backend/src/personal_ai/persistence/postgres/capabilities.py"
+  ],
+  "frozen": {
+    "count": 236,
+    "digest_algorithm": "sha256(sorted path + NUL + raw bytes + NUL)",
+    "sha256": "0a247b8447c264f56c6ca6aa1442c9f6c6bbeff4be600fce6c3a042e096734ce",
+    "paths": [
+      "backend/src/personal_ai/contracts/__init__.py",
+      "backend/src/personal_ai/contracts/context_categories.py",
+      "backend/src/personal_ai/contracts/context_references.py",
+      "backend/src/personal_ai/contracts/delegated_tasks.py",
+      "backend/src/personal_ai/contracts/execution.py",
+      "backend/src/personal_ai/contracts/federation.py",
+      "backend/src/personal_ai/contracts/task_control.py",
+      "backend/src/personal_ai/evaluation/fixtures/context/context-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/context-plan-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v10.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v11.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v12.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v13.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v14.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v15.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v16.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v17.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v18.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v2.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v3.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v4.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v5.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v6.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v7.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v8.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v9.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-heldout-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/context/planning-heldout-v2.json",
+      "backend/src/personal_ai/evaluation/fixtures/decisions/decision-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures-v2.json",
+      "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/mem0-cases-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/mem0-cases-v2.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/mem1-consumer-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/mem1-paired-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/mem2-control-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/memory-baseline-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/memory-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/memory/memory-lifecycle-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/research/research-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/research/retrieval-baseline-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/research/retrieval-baseline-v2.json",
+      "backend/src/personal_ai/evaluation/fixtures/research/retrieval-heldout-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/research/retrieval-heldout-v2.json",
+      "backend/src/personal_ai/evaluation/fixtures/routing/adaptive-baseline-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/routing/adaptive-observations-v1.json",
+      "backend/src/personal_ai/evaluation/fixtures/routing/provider-matrix-fixtures.json",
+      "backend/src/personal_ai/evaluation/fixtures/routing/quota-scarcity-fixtures.json",
+      "backend/src/personal_ai/memory/README.md",
+      "backend/src/personal_ai/memory/__init__.py",
+      "backend/src/personal_ai/memory/contracts.py",
+      "backend/src/personal_ai/memory/control_contracts.py",
+      "backend/src/personal_ai/memory/control_repository.py",
+      "backend/src/personal_ai/memory/control_service.py",
+      "backend/src/personal_ai/memory/control_tools.py",
+      "backend/src/personal_ai/memory/deadlines.py",
+      "backend/src/personal_ai/memory/dependencies.py",
+      "backend/src/personal_ai/memory/effects.py",
+      "backend/src/personal_ai/memory/extraction.py",
+      "backend/src/personal_ai/memory/fake.py",
+      "backend/src/personal_ai/memory/freshness.py",
+      "backend/src/personal_ai/memory/inspection.py",
+      "backend/src/personal_ai/memory/knowledge.py",
+      "backend/src/personal_ai/memory/knowledge_repository.py",
+      "backend/src/personal_ai/memory/knowledge_service.py",
+      "backend/src/personal_ai/memory/knowledge_sources.py",
+      "backend/src/personal_ai/memory/lifecycle/__init__.py",
+      "backend/src/personal_ai/memory/lifecycle/contracts.py",
+      "backend/src/personal_ai/memory/lifecycle/jobs.py",
+      "backend/src/personal_ai/memory/lifecycle/policy.py",
+      "backend/src/personal_ai/memory/lifecycle/repositories.py",
+      "backend/src/personal_ai/memory/lifecycle/scoring.py",
+      "backend/src/personal_ai/memory/lifecycle/transition.py",
+      "backend/src/personal_ai/memory/policy.py",
+      "backend/src/personal_ai/memory/recovery.py",
+      "backend/src/personal_ai/memory/repositories.py",
+      "backend/src/personal_ai/memory/semantic.py",
+      "backend/src/personal_ai/memory/services.py",
+      "backend/src/personal_ai/persistence/migrations/001_polyglot_foundation.sql",
+      "backend/src/personal_ai/persistence/migrations/002_event_aggregate_sequences.sql",
+      "backend/src/personal_ai/persistence/migrations/003_research_initial_revisions.sql",
+      "backend/src/personal_ai/persistence/migrations/004_decision_relations.sql",
+      "backend/src/personal_ai/persistence/migrations/005_capability_expiry.sql",
+      "backend/src/personal_ai/persistence/migrations/006_lookup_identity_indexes.sql",
+      "backend/src/personal_ai/persistence/migrations/007_domain_lookup_replay_scope.sql",
+      "backend/src/personal_ai/persistence/migrations/008_storage_migration_control.sql",
+      "backend/src/personal_ai/persistence/migrations/009_derived_source_migration_metadata.sql",
+      "backend/src/personal_ai/persistence/migrations/010_storage_migration_locators.sql",
+      "backend/src/personal_ai/persistence/migrations/011_effect_receipt_migration_payload.sql",
+      "backend/src/personal_ai/persistence/migrations/012_provider_rate_limit_source_payload.sql",
+      "backend/src/personal_ai/persistence/migrations/013_retire_source_migration_state.sql",
+      "backend/src/personal_ai/persistence/migrations/014_usage_budget_expiry_cleanup.sql",
+      "backend/src/personal_ai/persistence/migrations/015_global_profile.sql",
+      "backend/src/personal_ai/persistence/migrations/016_endpoint_registry.sql",
+      "backend/src/personal_ai/persistence/migrations/017_provider_usage_accounting.sql",
+      "backend/src/personal_ai/persistence/migrations/018_provider_usage_profile_versions.sql",
+      "backend/src/personal_ai/persistence/migrations/019_artifact_tier.sql",
+      "backend/src/personal_ai/persistence/migrations/020_routing_decisions.sql",
+      "backend/src/personal_ai/persistence/migrations/021_routing_lifecycle_integrity.sql",
+      "backend/src/personal_ai/persistence/migrations/022_routing_authorities.sql",
+      "backend/src/personal_ai/persistence/migrations/023_provider_matrix_evaluation.sql",
+      "backend/src/personal_ai/persistence/migrations/024_federation_grants.sql",
+      "backend/src/personal_ai/persistence/migrations/025_mutation_proposals.sql",
+      "backend/src/personal_ai/persistence/migrations/026_research_experiments.sql",
+      "backend/src/personal_ai/persistence/migrations/027_memory_dependency_epochs.sql",
+      "backend/src/personal_ai/persistence/migrations/028_verified_memory_knowledge.sql",
+      "backend/src/personal_ai/persistence/migrations/029_knowledge_actor_source_fences.sql",
+      "backend/src/personal_ai/persistence/migrations/030_memory_control.sql",
+      "backend/src/personal_ai/persistence/migrations/031_memory_control_expiry_index.sql",
+      "backend/tests/fixtures/itinerary-proposal-example.json",
+      "backend/tests/fixtures/travel-context-read-v2-reservation.json",
+      "experiments/README.md",
+      "experiments/memory/README.md",
+      "experiments/ranking/README.md",
+      "experiments/search/README.md",
+      "frontend/.dockerignore",
+      "frontend/.env.local.example",
+      "frontend/Dockerfile",
+      "frontend/eslint.config.mjs",
+      "frontend/next-env.d.ts",
+      "frontend/next.config.mjs",
+      "frontend/package.json",
+      "frontend/pnpm-lock.yaml",
+      "frontend/pnpm-workspace.yaml",
+      "frontend/public/.gitkeep",
+      "frontend/src/app/account/page.tsx",
+      "frontend/src/app/api/account/[...path]/route.ts",
+      "frontend/src/app/api/artifacts/[artifactId]/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/context/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/continue/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/external-turns/[...segments]/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/messages/[messageId]/edit-and-retry/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/messages/[messageId]/regenerate/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/messages/route.ts",
+      "frontend/src/app/api/conversations/[conversationId]/route.ts",
+      "frontend/src/app/api/conversations/execution-options/route.ts",
+      "frontend/src/app/api/conversations/route.ts",
+      "frontend/src/app/api/decisions/[decisionId]/inspection/route.ts",
+      "frontend/src/app/api/decisions/[decisionId]/route.ts",
+      "frontend/src/app/api/decisions/route.ts",
+      "frontend/src/app/api/domains/[domainId]/[...path]/route.ts",
+      "frontend/src/app/api/health/route.ts",
+      "frontend/src/app/api/memory/control/[...segments]/route.ts",
+      "frontend/src/app/api/mutations/[...segments]/route.ts",
+      "frontend/src/app/api/mutations/route.ts",
+      "frontend/src/app/api/research/[sessionId]/inspection/route.ts",
+      "frontend/src/app/api/research/[sessionId]/route.ts",
+      "frontend/src/app/api/research/[sessionId]/run/route.ts",
+      "frontend/src/app/api/research/iterative/route.ts",
+      "frontend/src/app/api/research/iterative/runs/[runId]/cancel/route.ts",
+      "frontend/src/app/api/research/iterative/runs/[runId]/events/route.ts",
+      "frontend/src/app/api/research/iterative/runs/[runId]/resume/route.ts",
+      "frontend/src/app/api/research/iterative/runs/[runId]/route.ts",
+      "frontend/src/app/api/research/route.ts",
+      "frontend/src/app/decisions/decision-lookup.tsx",
+      "frontend/src/app/decisions/page.tsx",
+      "frontend/src/app/development/context/inspector.tsx",
+      "frontend/src/app/development/context/page.tsx",
+      "frontend/src/app/development/decisions/page.tsx",
+      "frontend/src/app/globals.css",
+      "frontend/src/app/layout.tsx",
+      "frontend/src/app/memory/page.tsx",
+      "frontend/src/app/page.module.css",
+      "frontend/src/app/page.tsx",
+      "frontend/src/app/research/page.tsx",
+      "frontend/src/app/research/research-panel.tsx",
+      "frontend/src/app/research/research.module.css",
+      "frontend/src/app/shopping/page.tsx",
+      "frontend/src/app/travel/page.tsx",
+      "frontend/src/features/auth/account-panel.tsx",
+      "frontend/src/features/auth/auth-gate.tsx",
+      "frontend/src/features/chat/README.md",
+      "frontend/src/features/chat/attribution-label.ts",
+      "frontend/src/features/chat/chat-state.ts",
+      "frontend/src/features/chat/continuation-sidecar/ConnectedProviderPanel.tsx",
+      "frontend/src/features/chat/continuation-sidecar/ContextPackageSummary.tsx",
+      "frontend/src/features/chat/continuation-sidecar/ContinuationSidecar.tsx",
+      "frontend/src/features/chat/continuation-sidecar/ManualExternalPanel.tsx",
+      "frontend/src/features/chat/continuation-sidecar/MutationProposalPanel.tsx",
+      "frontend/src/features/chat/continuation-sidecar/RecoveryPanel.tsx",
+      "frontend/src/features/chat/continuation-sidecar/bridge-client.ts",
+      "frontend/src/features/chat/continuation-sidecar/continuation-sidecar.module.css",
+      "frontend/src/features/chat/continuation-sidecar/useContinuationSidecar.ts",
+      "frontend/src/features/chat/external-transport.ts",
+      "frontend/src/features/domains/domain-workbench.module.css",
+      "frontend/src/features/domains/domain-workbench.tsx",
+      "frontend/src/features/memory/memory-panel.tsx",
+      "frontend/src/lib/account-api.ts",
+      "frontend/src/lib/api/client.ts",
+      "frontend/src/lib/api/common.ts",
+      "frontend/src/lib/api/conversations.ts",
+      "frontend/src/lib/api/external-turns.ts",
+      "frontend/src/lib/api/index.ts",
+      "frontend/src/lib/api/mutations.ts",
+      "frontend/src/lib/auth.ts",
+      "frontend/src/lib/conversation-proxy.ts",
+      "frontend/src/lib/decision-api.ts",
+      "frontend/src/lib/decision-proxy.ts",
+      "frontend/src/lib/domain-api.ts",
+      "frontend/src/lib/domain-proxy.ts",
+      "frontend/src/lib/iterative-research-api.ts",
+      "frontend/src/lib/research-api.ts",
+      "frontend/src/lib/research-proxy.ts",
+      "frontend/src/lib/sse.ts",
+      "frontend/src/middleware.ts",
+      "frontend/tests/app/api/account/route.test.ts",
+      "frontend/tests/app/api/conversations/[conversationId]/context/route.test.ts",
+      "frontend/tests/app/api/memory/route.test.ts",
+      "frontend/tests/app/decisions/decision-lookup.test.tsx",
+      "frontend/tests/app/development/context/inspector.test.tsx",
+      "frontend/tests/app/page.test.tsx",
+      "frontend/tests/app/research/research-panel.test.tsx",
+      "frontend/tests/features/auth/account-panel.test.tsx",
+      "frontend/tests/features/auth/auth-gate.test.tsx",
+      "frontend/tests/features/chat/attribution-label.test.ts",
+      "frontend/tests/features/chat/continuation-sidecar.test.tsx",
+      "frontend/tests/features/chat/mutation-proposal-panel.test.tsx",
+      "frontend/tests/features/domains/domain-workbench.test.tsx",
+      "frontend/tests/features/memory/memory-panel.test.tsx",
+      "frontend/tests/lib/api.test.ts",
+      "frontend/tests/lib/auth.test.ts",
+      "frontend/tests/lib/conversation-proxy.test.ts",
+      "frontend/tests/lib/decision-proxy.test.ts",
+      "frontend/tests/lib/domain-proxy.test.ts",
+      "frontend/tests/lib/iterative-research-api.test.ts",
+      "frontend/tests/lib/mutation-proxy.test.ts",
+      "frontend/tests/lib/research-api.test.ts",
+      "frontend/tests/lib/research-proxy.test.ts",
+      "frontend/tests/lib/sse.test.ts",
+      "frontend/tests/middleware.test.ts",
+      "frontend/tests/setup.ts",
+      "frontend/tsconfig.json",
+      "frontend/tsconfig.test.json",
+      "frontend/tsconfig.tsbuildinfo",
+      "frontend/vitest.config.ts"
+    ],
+    "git_diff_from_initial": "empty"
+  },
+  "preserved_default_false_settings": [
+    "artifact_gcs_preflight_verified",
+    "artifacts_enabled",
+    "auth_required",
+    "booking_extraction_provider_enabled",
+    "booking_extractions_enabled",
+    "chat_kill_switch_enabled",
+    "cloudflare_adapter_enabled",
+    "cloudflare_free_tier_verified",
+    "cloudflare_privacy_approved",
+    "cloudflare_quota_membership_verified",
+    "cloudflare_structured_output_verified",
+    "context_inspection_enabled",
+    "decision_enabled",
+    "decision_inspection_enabled",
+    "deletion_enabled",
+    "domain_inspection_enabled",
+    "export_enabled",
+    "external_providers_kill_switch_enabled",
+    "external_turn_acceptance_enabled",
+    "finance_context_enabled",
+    "gemini_counter_compatibility_verified",
+    "gemini_free_tier_verified",
+    "gemini_privacy_approved",
+    "gemini_quota_membership_verified",
+    "gemini_structured_output_verified",
+    "groq_adapter_enabled",
+    "groq_free_tier_verified",
+    "groq_privacy_approved",
+    "groq_quota_membership_verified",
+    "groq_structured_output_verified",
+    "health_context_enabled",
+    "health_federation_enabled",
+    "iterative_progress_enabled",
+    "iterative_research_enabled",
+    "itinerary_proposal_provider_enabled",
+    "itinerary_proposals_enabled",
+    "maintenance_enabled",
+    "memory_agent_tools_enabled",
+    "memory_consolidation_enabled",
+    "memory_contradiction_automation_enabled",
+    "memory_enabled",
+    "memory_extraction_enabled",
+    "memory_forgetting_enabled",
+    "memory_inspection_enabled",
+    "memory_knowledge_admission_enabled",
+    "memory_knowledge_selection_enabled",
+    "memory_lifecycle_inspection_enabled",
+    "memory_lifecycle_worker_enabled",
+    "memory_user_management_enabled",
+    "memory_user_mutations_enabled",
+    "p10_cloud_adapters_configured",
+    "provider_usage_inspection_enabled",
+    "research_brave_auto_reload_disabled",
+    "research_brave_no_paid_balance_verified",
+    "research_brave_prepaid_verified",
+    "research_brave_source_rights_verified",
+    "research_enabled",
+    "research_inspection_enabled",
+    "research_kill_switch_enabled",
+    "research_provider_storage_approved",
+    "research_retrieval_experiments_enabled",
+    "routing_shadow_enabled",
+    "shopping_context_enabled",
+    "shopping_enabled",
+    "shopping_provider_policy_approved",
+    "task_delegation_enabled",
+    "task_shopping_enabled",
+    "travel_context_enabled",
+    "travel_enabled",
+    "travel_federation_enabled",
+    "travel_provider_policy_approved",
+    "worker_kill_switch_enabled",
+    "worker_maintenance_auth_required",
+    "worker_push_auth_required"
+  ],
+  "itinerary_fixture_sha256": "de062baa33712a33c573659d2e7958cd695342c0454b3f2af294f9d951720014",
+  "artifacts": [
+    {
+      "path": "backend/dist/personal_ai_backend-0.1.0-py3-none-any.whl",
+      "sha256": "e39046124f27bbbc7b1bfefceb0495c0c4dffdc1b1088e18ec32291813f3edba"
+    },
+    {
+      "path": "backend/dist/personal_ai_backend-0.1.0.tar.gz",
+      "sha256": "524143b74bd014f91e9fa9150b344ca7fae011669948768c21debc88320ae9c8"
+    },
+    {
+      "path": "reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl",
+      "sha256": "bb9fafa59490908d8489fac2834c8f58b764b3603e658470b01a3308f61041fb"
+    },
+    {
+      "path": "reference-apps/dist/personal_ai_reference_apps-0.1.0.tar.gz",
+      "sha256": "fcb1a2787dddb3fb0109bc4673d35ed8508a4ee6c5a5dcbd3b9aa8a77ec1cb55"
+    }
+  ]
+}

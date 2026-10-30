@@ -6,18 +6,10 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from pydantic import ValidationError
-
-from personal_ai.applications.contracts import ApplicationContextRequest
-from personal_ai.applications.registry import default_application_registry
-from personal_ai.auth.scope import ApplicationScope, RequestScope
-from personal_ai.context.assembler import ContextAssembler
-from personal_ai.context.authorization import (
-    apply_item_policy,
-    make_context_inference_context,
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
 )
-from personal_ai.context.builder import ContextBuildItem
-from personal_ai.context.finance import (
+from personal_ai_reference_apps.context.finance import (
     FINANCE_ACCOUNT_PROVIDER_ID,
     FINANCE_BUDGET_EXPORT_PROVIDER_ID,
     FINANCE_EVIDENCE_PROVIDER_ID,
@@ -35,9 +27,19 @@ from personal_ai.context.finance import (
     configured_finance_context_contribution,
     finance_context_planning_rules,
 )
-from personal_ai.context.finance import (
+from personal_ai_reference_apps.context.finance import (
     FinanceContextEntityReference as FinanceWireEntityReference,
 )
+from pydantic import ValidationError
+
+from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.scope import ApplicationScope, RequestScope
+from personal_ai.context.assembler import ContextAssembler
+from personal_ai.context.authorization import (
+    apply_item_policy,
+    make_context_inference_context,
+)
+from personal_ai.context.builder import ContextBuildItem
 from personal_ai.context.planner import ContextPlanner
 from personal_ai.context.providers import (
     ContextEntityReference,
@@ -245,7 +247,7 @@ def test_http_client_separates_service_and_verified_user_tokens(
         return httpx.Response(200, content=body, headers={"content-type": "application/json"})
 
     monkeypatch.setattr(
-        "personal_ai.context.finance.current_verified_user_identity_token",
+        "personal_ai_reference_apps.context.finance.current_verified_user_identity_token",
         lambda: "verified-user-id-token",
     )
     client = FinanceContextHTTPClient(
@@ -290,7 +292,7 @@ def test_http_client_separates_service_and_verified_user_tokens(
 def test_http_client_fails_closed_when_service_identity_uses_the_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from personal_ai.context import finance as finance_module
+    from personal_ai_reference_apps.context import finance as finance_module
 
     now = [100.0]
     deadlines: list[float] = []
@@ -792,7 +794,7 @@ def test_calendar_effective_date_preserves_precision_without_inventing_an_instan
     """Finance's date-only records remain dates at the wire boundary."""
     from datetime import date
 
-    from personal_ai.context.finance import FinanceContextRecord
+    from personal_ai_reference_apps.context.finance import FinanceContextRecord
 
     record = FinanceContextRecord.model_validate_json("""{
         "entity_type":"discretionary_budget","entity_id":"synthetic-budget",

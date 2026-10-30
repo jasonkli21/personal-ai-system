@@ -9,8 +9,24 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.context.shopping import (
+    SHOPPING_CATALOG_PROVIDER_ID,
+    SHOPPING_CONTEXT_PATH,
+    SHOPPING_CONTEXT_PROVIDER_ID,
+    SHOPPING_CONTEXT_SCHEMA,
+    ShoppingCatalogSearchProvider,
+    ShoppingContextHTTPClient,
+    ShoppingContextPermissionRevalidator,
+    ShoppingContextProvider,
+    ShoppingContextReadRequest,
+    ShoppingContextReadResponse,
+    ShoppingContextRecord,
+    configured_shopping_context_contribution,
+)
 
-from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import (
     ApplicationScope,
     RequestScope,
@@ -24,20 +40,6 @@ from personal_ai.context.providers import (
     ContextPreparationError,
     ContextProviderError,
     ContextSelection,
-)
-from personal_ai.context.shopping import (
-    SHOPPING_CATALOG_PROVIDER_ID,
-    SHOPPING_CONTEXT_PATH,
-    SHOPPING_CONTEXT_PROVIDER_ID,
-    SHOPPING_CONTEXT_SCHEMA,
-    ShoppingCatalogSearchProvider,
-    ShoppingContextHTTPClient,
-    ShoppingContextPermissionRevalidator,
-    ShoppingContextProvider,
-    ShoppingContextReadRequest,
-    ShoppingContextReadResponse,
-    ShoppingContextRecord,
-    configured_shopping_context_contribution,
 )
 from personal_ai.settings import Settings
 
@@ -408,7 +410,7 @@ def test_shopping_token_fetch_uses_provider_deadline_and_stops_before_http(monke
     token_arguments = {}
     requests = []
     clock_values = iter((100.0, 100.8))
-    monkeypatch.setattr("personal_ai.context.shopping.monotonic", lambda: next(clock_values))
+    monkeypatch.setattr("personal_ai_reference_apps.context.shopping.monotonic", lambda: next(clock_values))
 
     def fetch_token(**kwargs):
         token_arguments.update(kwargs)

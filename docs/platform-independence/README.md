@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -24,6 +24,13 @@ The owning repo's `AGENTS.md`, code/tests/migrations, [`docs/current-state.md`](
 - [Implementation evidence](pi-0-implementation-report.md) — source identity, preservation, executed checks and remaining review.
 - [Independent review remediation](pi-0-independent-review-remediation-2026-10-30.md) — R01–R03 dispositions, updated guard evidence and residual limits.
 
-Future PI-1/PI-2 plans and evidence will be linked here when created; the roadmap and exit contract specify their gates now. This index does not supersede memory security or production acceptance.
+## PI-1 candidate
+
+- [Detailed plan](pi-1-detailed-implementation-plan.md) and [pre-implementation hardening](pi-1-plan-hardening.md).
+- [Implementation report](pi-1-implementation-report.md), [current import inventory](pi-1-dependency-inventory.json), and [verification commands](pi-1-verification-commands.md).
+- [Independent-review instructions](pi-1-independent-review-prompt.md); no verdict supplied by the implementer.
+- [Optional package operations](../../reference-apps/README.md).
+
+PI-0 independent acceptance remains pending. The roadmap and exit contract retain all gates. This index does not supersede memory security or production acceptance.
 
 Do not move or duplicate the historical MEM/Chapter2 evidence into this folder. Link to those records and preserve their version and provenance.

@@ -4,6 +4,9 @@ import json
 
 import httpx
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
 
 from personal_ai.context.assembler import SUMMARY_INSTRUCTION, summary_request
 from personal_ai.evaluation.context import build_fixture, fixture_settings, load_fixtures
@@ -104,7 +107,6 @@ def test_provider_count_failure_is_translated_without_response_disclosure():
 
 def test_context_assembler_counts_with_provider_gateway_and_bounded_batches():
     from personal_ai.applications.contracts import ApplicationContextRequest
-    from personal_ai.applications.registry import default_application_registry
     from personal_ai.auth.scope import RequestScope
     from personal_ai.context import ContextAssembler
 

@@ -17,13 +17,11 @@ if TYPE_CHECKING:
     from personal_ai.auth.account_data import AccountDataRepository
     from personal_ai.auth.directory import PrincipalDirectory
     from personal_ai.auth.safeguards import SafeguardStore
-    from personal_ai.booking_extractions.repositories import BookingExtractionRepository
     from personal_ai.context.contracts import ConversationSummaryRepository
     from personal_ai.context.profile import GlobalProfileRepository
     from personal_ai.context.traces import ContextTraceRepository
     from personal_ai.decisions.repositories import DecisionRepository
     from personal_ai.domains.repositories import DomainRepository
-    from personal_ai.itinerary_proposals.repositories import ItineraryProposalRepository
     from personal_ai.memory.contracts import MemoryRepository
     from personal_ai.memory.lifecycle.contracts import MemoryLifecycleRepository
     from personal_ai.storage.repositories import ConversationRepository, MessageRepository
@@ -46,8 +44,6 @@ class PersistenceFactory(Protocol):
     def iterative_research_repository(self) -> IterativeResearchRepository: ...
     def decision_repository(self) -> DecisionRepository: ...
     def domain_repository(self) -> DomainRepository: ...
-    def itinerary_proposal_repository(self) -> ItineraryProposalRepository: ...
-    def booking_extraction_repository(self) -> BookingExtractionRepository: ...
     def principal_directory(self) -> PrincipalDirectory: ...
     def account_data_repository(self) -> AccountDataRepository: ...
     def safeguard_store(self) -> SafeguardStore: ...
@@ -227,20 +223,6 @@ class PostgresDynamoPersistenceFactory:
         from personal_ai.persistence.postgres.domains import PostgresDomainRepository
 
         return PostgresDomainRepository(self.database)
-
-    def itinerary_proposal_repository(self):
-        from personal_ai.persistence.postgres.capabilities import (
-            PostgresItineraryProposalRepository,
-        )
-
-        return PostgresItineraryProposalRepository(self.database)
-
-    def booking_extraction_repository(self):
-        from personal_ai.persistence.postgres.capabilities import (
-            PostgresBookingExtractionRepository,
-        )
-
-        return PostgresBookingExtractionRepository(self.database)
 
     def principal_directory(self):
         from personal_ai.persistence.postgres.auth import PostgresPrincipalDirectory

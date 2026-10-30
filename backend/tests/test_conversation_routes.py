@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from personal_ai_reference_apps.main import app
 
 from personal_ai.api.dependencies import (
     get_context_assembler,
@@ -30,7 +31,6 @@ from personal_ai.entities import (
     MessageStatus,
 )
 from personal_ai.llm import ChatMessage, FakeLLMClient, LLMTimeoutError
-from personal_ai.main import app
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage import InMemoryConversationRepository, InMemoryMessageRepository
 from personal_ai.storage.errors import StorageUnavailableError

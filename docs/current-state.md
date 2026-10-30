@@ -36,8 +36,11 @@ outcomes. Tasks do not invoke model providers or automate purchases.
 architecture/documentation/dependency-diagnostic baseline with no runtime change;
 the [2026-10-30 review remediation](platform-independence/pi-0-independent-review-remediation-2026-10-30.md)
 adds explicit facade-import diagnostics and strict waiver validation. Independent
-PI-0 acceptance remains pending. [PI-1 through PI-8](platform-independence/README.md)
-are not delivered. The user-directed memory feature freeze stops at MEM-2:
+PI-0 acceptance remains pending. [PI-1](platform-independence/pi-1-implementation-report.md) is a user-directed
+implementation candidate pending independent review: separately built core and
+optional reference distributions, explicit catalog selection, core HTTP/lifespan
+physical-absence probes and retained-task startup refusal. PI-2 through PI-8
+remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 

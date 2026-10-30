@@ -234,3 +234,14 @@ physical erasure/backup recovery and cost gates. Forget receipts grow permanentl
 source fences retain a separate 1,024 cap. Proposal cleanup has a maintenance hook
 but deployed/native deletion acceptance remains open. No PI inventory edge or local
 fake closes these gates.
+
+## PI-1 candidate follow-up — 2026-10-30
+
+The counts and line anchors above remain the historical PI-0 baseline. The
+[PI-1 candidate inventory](pi-1-dependency-inventory.json) now records zero core
+implementation/facade edges, and the executable exact waiver file has zero entries.
+The guard also classifies the disjoint reference namespace and detects removed
+legacy submodules imported through their parent packages. See the
+[PI-1 report](pi-1-implementation-report.md) for real wheel/sdist, entry-point,
+installed physical-absence and runtime proofs; none is inferred from AST alone.
+PI-0 and PI-1 independent acceptance remain pending.

@@ -4,6 +4,10 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.main import app
 
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
@@ -21,14 +25,12 @@ from personal_ai.api.dependencies import (
     get_summary_repository,
 )
 from personal_ai.applications.contracts import ApplicationContextRequest
-from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.planner import ContextPlan, ContextPlanDecision
 from personal_ai.context.providers import ContextSelection
 from personal_ai.entities import Conversation
 from personal_ai.llm.context import GeminiConversationSummarizer
 from personal_ai.llm.litellm import LiteLLMTokenCounter
-from personal_ai.main import app
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import Settings

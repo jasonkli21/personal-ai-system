@@ -6,14 +6,10 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from pydantic import ValidationError
-
-from personal_ai.applications.contracts import ApplicationContextRequest
-from personal_ai.applications.registry import default_application_registry
-from personal_ai.auth.scope import RequestScope
-from personal_ai.context.assembler import ContextAssembler
-from personal_ai.context.builder import ContextBuildItem
-from personal_ai.context.health import (
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.context.health import (
     HEALTH_CONTEXT_SCHEMA,
     HEALTH_DAILY_FIELDS,
     HEALTH_MAX_WINDOW,
@@ -31,6 +27,12 @@ from personal_ai.context.health import (
     configured_health_context_contribution,
     health_context_planning_rules,
 )
+from pydantic import ValidationError
+
+from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.scope import RequestScope
+from personal_ai.context.assembler import ContextAssembler
+from personal_ai.context.builder import ContextBuildItem
 from personal_ai.context.planner import ContextPlanner
 from personal_ai.context.providers import (
     ContextFieldSensitivity,
@@ -114,7 +116,7 @@ def _record(
         for field in fields
     )
     source_id = uuid4()
-    from personal_ai.context.health import HealthContextFieldSensitivity
+    from personal_ai_reference_apps.context.health import HealthContextFieldSensitivity
 
     return HealthContextRecord(
         object_id=selected_id,

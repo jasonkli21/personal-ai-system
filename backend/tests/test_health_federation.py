@@ -3,14 +3,7 @@ from time import monotonic
 from uuid import UUID, uuid4
 
 import pytest
-
-from personal_ai.auth.scope import (
-    ApplicationScope,
-    RequestScope,
-    bind_request_scope,
-    reset_request_scope,
-)
-from personal_ai.context.health_federation import (
+from personal_ai_reference_apps.context.health_federation import (
     HEALTH_DIETARY_TO_TRAVEL_PROVIDER_ID,
     HEALTH_ERGONOMIC_TO_SHOPPING_PROVIDER_ID,
     HealthDietaryPayload,
@@ -21,6 +14,13 @@ from personal_ai.context.health_federation import (
     HealthFederationRequest,
     HealthFederationResponse,
     HealthFederationSourceReference,
+)
+
+from personal_ai.auth.scope import (
+    ApplicationScope,
+    RequestScope,
+    bind_request_scope,
+    reset_request_scope,
 )
 from personal_ai.context.providers import ContextEntityReference, ContextPreparationError
 from personal_ai.contracts.federation import FederationContextChoice, FederationSelection
@@ -253,7 +253,8 @@ def test_health_permission_revalidator_rechecks_the_same_complete_dependency() -
 
 
 def test_health_federation_stays_unregistered_when_identity_gate_is_off() -> None:
-    from personal_ai.context.health import configured_health_context_contribution
+    from personal_ai_reference_apps.context.health import configured_health_context_contribution
+
     from personal_ai.settings import Settings
 
     contribution = configured_health_context_contribution(

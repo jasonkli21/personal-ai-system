@@ -12,6 +12,10 @@ from time import monotonic
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
+from personal_ai_reference_apps.persistence.postgres.capabilities import (
+    PostgresBookingExtractionRepository,
+    PostgresItineraryProposalRepository,
+)
 
 from personal_ai.auth.safeguards import SafeguardDenied
 from personal_ai.auth.scope import ApplicationScope, application_scope_context
@@ -51,10 +55,6 @@ from personal_ai.persistence.postgres import (
     PostgresDatabase,
     PostgresPayloadRepository,
     _ensure_namespace,
-)
-from personal_ai.persistence.postgres.capabilities import (
-    PostgresBookingExtractionRepository,
-    PostgresItineraryProposalRepository,
 )
 from personal_ai.persistence.postgres.context import PostgresGlobalProfileRepository
 from personal_ai.persistence.postgres.decisions import PostgresDecisionRepository
@@ -440,12 +440,15 @@ def test_postgres_proposal_replay_and_terminal_write_contract(postgres_database)
     import json
     from pathlib import Path
 
-    from personal_ai.itinerary_proposals.contracts import ItineraryProposalResult, ProposalError
-    from personal_ai.itinerary_proposals.repositories import proposal_id_for
+    from personal_ai_reference_apps.itinerary_proposals.contracts import (
+        ItineraryProposalResult,
+        ProposalError,
+    )
+    from personal_ai_reference_apps.itinerary_proposals.repositories import proposal_id_for
 
     fixture_path = Path(__file__).parent.parent / "fixtures" / "itinerary-proposal-example.json"
     payload = json.loads(fixture_path.read_text())
-    from personal_ai.itinerary_proposals.contracts import ItineraryProposalRequest
+    from personal_ai_reference_apps.itinerary_proposals.contracts import ItineraryProposalRequest
 
     request = ItineraryProposalRequest.model_validate(payload["request"])
     repo = PostgresItineraryProposalRepository(postgres_database)
@@ -480,7 +483,7 @@ def test_postgres_proposal_replay_and_terminal_write_contract(postgres_database)
 
 
 def test_postgres_extraction_replay_and_deletion_tombstone_contract(postgres_database):
-    from personal_ai.booking_extractions.repositories import ExtractionError
+    from personal_ai_reference_apps.booking_extractions.repositories import ExtractionError
 
     repository = PostgresBookingExtractionRepository(postgres_database)
     key = uuid4()
@@ -508,8 +511,8 @@ def test_postgres_extraction_concurrent_replay_checks_losing_fingerprint(
 ):
     from threading import Barrier, Lock
 
-    import personal_ai.persistence.postgres.capabilities as adapter
-    from personal_ai.booking_extractions.repositories import ExtractionError
+    import personal_ai_reference_apps.persistence.postgres.capabilities as adapter
+    from personal_ai_reference_apps.booking_extractions.repositories import ExtractionError
 
     repository = PostgresBookingExtractionRepository(postgres_database)
     key = uuid4()
@@ -564,9 +567,10 @@ def test_postgres_extraction_concurrent_replay_checks_losing_fingerprint(
 
 
 def test_postgres_domain_snapshot_registration_and_lookup_fence_contract(postgres_database):
+    from personal_ai_reference_apps.domains.fixtures import FIXTURE_NOW, fixture_registry
+    from personal_ai_reference_apps.domains.service import DomainService
+
     from personal_ai.domains.contracts import DomainLookupReservation
-    from personal_ai.domains.fixtures import FIXTURE_NOW, fixture_registry
-    from personal_ai.domains.service import DomainService
     from personal_ai.settings import Settings
 
     settings = Settings(

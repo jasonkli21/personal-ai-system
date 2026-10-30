@@ -9,6 +9,7 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from personal_ai_reference_apps.main import app
 
 from personal_ai.api.dependencies import (
     get_conversation_repository,
@@ -25,7 +26,6 @@ from personal_ai.auth.verification import (
     principal_from_google_token,
 )
 from personal_ai.context.profile import InMemoryGlobalProfileRepository
-from personal_ai.main import app
 from personal_ai.persistence.postgres import PersistenceConflict, PersistenceUnavailable
 from personal_ai.settings import Settings
 from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMessageRepository
@@ -257,7 +257,7 @@ def test_booking_extraction_rejects_missing_and_forged_identity_before_body_or_s
     )
     storage_calls: list[str] = []
     monkeypatch.setattr(
-        "personal_ai.api.booking_extractions.extraction_repository",
+        "personal_ai_reference_apps.api.booking_extractions.extraction_repository",
         lambda *_args, **_kwargs: (
             storage_calls.append("storage")
             or (_ for _ in ()).throw(AssertionError("storage was accessed before authentication"))

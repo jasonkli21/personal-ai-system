@@ -11,33 +11,39 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
-from starlette.requests import Request
-
-from personal_ai.api.dependencies import get_settings
-from personal_ai.api.itinerary_proposals import proposal_service as proposal_service_dependency
-from personal_ai.applications.contracts import ApplicationContextRequest
-from personal_ai.applications.registry import default_application_registry
-from personal_ai.auth.scope import RequestScope
-from personal_ai.context.assembler import ContextAssembler
-from personal_ai.context.contracts import TokenCount
-from personal_ai.context.providers import ContextPreparationError
-from personal_ai.context.tokens import EstimatedTokenCounter
-from personal_ai.evaluation.itinerary_proposals import evaluate as evaluate_itinerary_proposals
-from personal_ai.evaluation.research import build_fixture, load_fixtures
-from personal_ai.itinerary_proposals.contracts import (
+from personal_ai_reference_apps.api.itinerary_proposals import (
+    proposal_service as proposal_service_dependency,
+)
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.evaluation.itinerary_proposals import (
+    evaluate as evaluate_itinerary_proposals,
+)
+from personal_ai_reference_apps.itinerary_proposals.contracts import (
     ItineraryProposalRequest,
     ItineraryProposalResult,
     ModelProposal,
     ProposalError,
 )
-from personal_ai.itinerary_proposals.fakes import FakeItineraryProposalLLMClient
-from personal_ai.itinerary_proposals.repositories import (
+from personal_ai_reference_apps.itinerary_proposals.fakes import FakeItineraryProposalLLMClient
+from personal_ai_reference_apps.itinerary_proposals.repositories import (
     InMemoryItineraryProposalRepository,
     proposal_id_for,
 )
-from personal_ai.itinerary_proposals.service import ItineraryProposalService
-from personal_ai.main import app
+from personal_ai_reference_apps.itinerary_proposals.service import ItineraryProposalService
+from personal_ai_reference_apps.main import app
+from pydantic import ValidationError
+from starlette.requests import Request
+
+from personal_ai.api.dependencies import get_settings
+from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.scope import RequestScope
+from personal_ai.context.assembler import ContextAssembler
+from personal_ai.context.contracts import TokenCount
+from personal_ai.context.providers import ContextPreparationError
+from personal_ai.context.tokens import EstimatedTokenCounter
+from personal_ai.evaluation.research import build_fixture, load_fixtures
 from personal_ai.settings import Settings
 from personal_ai.storage.errors import StorageUnavailableError
 

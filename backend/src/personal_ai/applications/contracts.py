@@ -153,22 +153,7 @@ def _default_context_provider_policies() -> tuple[ContextProviderPolicy, ...]:
                 sensitivity="sensitive",
             ),),
         ),
-        ContextProviderPolicy(
-            provider_id="booking.document_extraction",
-            operations=(ContextOperationPolicy(
-                operation="current",
-                fields=fields(("document_text", "media_type"), "sensitive"),
-                sensitivity="sensitive",
-            ),),
-        ),
-        ContextProviderPolicy(
-            provider_id="travel.itinerary_context",
-            operations=(ContextOperationPolicy(
-                operation="current",
-                fields=fields(("itinerary_context",), "sensitive"),
-                sensitivity="sensitive",
-            ),),
-        ),
+
     )
 
 

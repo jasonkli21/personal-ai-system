@@ -14,6 +14,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_PREFIXES = (
+    "personal_ai_reference_apps",
+    "personal_ai.domains.providers",
+    "personal_ai.domains.service",
+    "personal_ai.persistence.postgres.capabilities",
     "personal_ai.api.booking_extractions",
     "personal_ai.api.itinerary_proposals",
     "personal_ai.booking_extractions",
@@ -85,6 +89,7 @@ def inventory(source_root: Path) -> dict:
                     f"{base}.{alias.name}"
                     for alias in node.names
                     if f"{base}.{alias.name}" in modules
+                    or f"{base}.{alias.name}" in (*EXAMPLE_PREFIXES, *EXAMPLE_FACADE_PREFIXES)
                 )
             for target in targets:
                 if is_example_facade(target):

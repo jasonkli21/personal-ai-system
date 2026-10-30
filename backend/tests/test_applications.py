@@ -4,6 +4,9 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
 from pydantic import ValidationError
 
 from personal_ai.applications.contracts import (
@@ -19,7 +22,6 @@ from personal_ai.applications.contracts import (
 from personal_ai.applications.registry import (
     ApplicationNotRegisteredError,
     ApplicationRegistry,
-    default_application_registry,
 )
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context import ContextAssembler

@@ -13,11 +13,7 @@ from personal_ai.applications.contracts import (
     ApplicationSidecarPolicy,
     CapabilityKind,
     CapabilityRegistration,
-    ContextFieldPolicy,
-    ContextOperationPolicy,
     ContextProviderPolicy,
-    ContextSensitivity,
-    ExternalDisclosurePolicy,
 )
 from personal_ai.auth.scope import WorkspaceAuthorizer
 
@@ -42,6 +38,10 @@ class ApplicationContribution:
     capabilities: tuple[CapabilityRegistration, ...] = ()
     comparison_modules: Mapping[str, _ComparisonModule] | None = None
     workspace_authorizers: Mapping[str, WorkspaceAuthorizer] | None = None
+    # Trusted composition only: all routes retain the platform auth middleware.
+    routers: tuple[object, ...] = ()
+    exception_handlers: Mapping[type[Exception], object] | None = None
+    context_policy_extensions: Mapping[str, tuple[ContextProviderPolicy, ...]] | None = None
 
 
 class ApplicationContributionCatalog:
@@ -55,9 +55,14 @@ class ApplicationContributionCatalog:
             self.register(name, factory)
 
     @classmethod
-    def from_entry_points(cls):
-        points = sorted(entry_points(group=cls.ENTRY_POINT_GROUP), key=lambda point: point.name)
-        return cls((point.name, point.load()) for point in points)
+    def from_entry_points(cls, *, selected=None):
+        from personal_ai.applications.selection import (
+            load_selected_entry_points,
+            selected_contribution_names,
+        )
+
+        names = selected_contribution_names() if selected is None else selected
+        return cls(load_selected_entry_points(entry_points(group=cls.ENTRY_POINT_GROUP), names))
 
     def register(self, name: str, factory) -> None:
         if (
@@ -68,16 +73,22 @@ class ApplicationContributionCatalog:
         ):
             raise ValueError("application_contribution_registration_invalid")
         self._registrations[name] = factory
+        self._contributions = None
 
     @property
     def registration_names(self) -> tuple[str, ...]:
         return tuple(sorted(self._registrations))
 
+    def contributions(self) -> tuple[ApplicationContribution, ...]:
+        if getattr(self, "_contributions", None) is None:
+            contributions = tuple(self._registrations[name]() for name in self.registration_names)
+            if any(not isinstance(value, ApplicationContribution) for value in contributions):
+                raise ValueError("application_contribution_invalid")
+            self._contributions = contributions
+        return self._contributions
+
     def extend(self, base: "ApplicationRegistry") -> "ApplicationRegistry":
-        contributions = tuple(self._registrations[name]() for name in self.registration_names)
-        if any(not isinstance(value, ApplicationContribution) for value in contributions):
-            raise ValueError("application_contribution_invalid")
-        return base.with_contributions(*contributions)
+        return base.with_contributions(*self.contributions())
 
 
 class ApplicationNotRegisteredError(ApplicationRegistryError):
@@ -300,6 +311,22 @@ class ApplicationRegistry:
             if workspace_authorizers.keys() & contributed_authorizers.keys():
                 raise ApplicationRegistryError("workspace_authorizer_duplicate")
             workspace_authorizers.update(contributed_authorizers)
+            for application_id, policies in (contribution.context_policy_extensions or {}).items():
+                if application_id not in {item.application_id for item in definitions}:
+                    raise ApplicationRegistryError("application_policy_extension_unknown")
+                updated = []
+                for definition in definitions:
+                    if definition.application_id == application_id:
+                        policy = definition.context_policy
+                        policy = ApplicationContextPolicy.model_validate(
+                            {
+                                **policy.model_dump(),
+                                "provider_policies": (*policy.provider_policies, *policies),
+                            }
+                        )
+                        definition = definition.model_copy(update={"context_policy": policy})
+                    updated.append(definition)
+                definitions = updated
         return ApplicationRegistry(
             definitions,
             capabilities,
@@ -333,491 +360,36 @@ class ApplicationRegistry:
         return self._capabilities[(kind, capability_id)]
 
 
-def _capability(
-    capability_id: str,
-    kind: CapabilityKind,
-    *,
-    available: bool = False,
-    feature_gate: str | None = None,
-    reason: str = "application_integration_not_implemented",
-) -> CapabilityRegistration:
-    return CapabilityRegistration(
-        capability_id=capability_id,
-        kind=kind,
-        available=available,
-        feature_gate=feature_gate,
-        unavailable_reason=None if available else reason,
-    )
-
-
-def _domain_context_policy(
-    version: str,
-    declarations: tuple[ContextProviderPolicy, ...],
-    *,
-    sidecar: ApplicationSidecarPolicy | None = None,
-    maximum_model_sensitivity: ContextSensitivity | None = None,
-) -> ApplicationContextPolicy:
-    """Compose explicit app-owned source rules with shared context policies."""
-    shared = ApplicationContextPolicy()
-    return ApplicationContextPolicy(
-        version=version,
-        provider_policies=(*shared.provider_policies, *declarations),
-        maximum_model_sensitivity=(maximum_model_sensitivity or shared.maximum_model_sensitivity),
-        cross_application="deny",
-        sidecar=sidecar or ApplicationSidecarPolicy(),
-    )
-
-
-def _field_policy(
-    name: str, *, sensitivity: str = "sensitive", model_disclosure: bool = True
-) -> ContextFieldPolicy:
-    return ContextFieldPolicy(
-        field=name, sensitivity=sensitivity, model_disclosure=model_disclosure
-    )
-
-
-def _operation_policy(
-    operation: str,
-    fields: tuple[str, ...],
-    *,
-    restricted_fields: tuple[str, ...] = (),
-    sensitivity: ContextSensitivity = "sensitive",
-) -> ContextOperationPolicy:
-    return ContextOperationPolicy(
-        operation=operation,
-        fields=tuple(
-            _field_policy(
-                field,
-                sensitivity=("restricted" if field in restricted_fields else sensitivity),
-                model_disclosure=field not in restricted_fields,
-            )
-            for field in fields
-        ),
-        sensitivity=sensitivity,
-    )
-
-
 def default_application_registry(
     *, contribution_catalog: ApplicationContributionCatalog | None = None
 ) -> ApplicationRegistry:
-    """Build initial manifests with common chat context and comparison modules."""
-    from personal_ai.domains.registry import registry as domain_registry
-
-    comparison_modules = domain_registry()
-    capabilities = (
-        _capability("conversation_history", "context_provider", available=True),
-        _capability(
-            "ai_memory",
-            "context_provider",
-            available=True,
-            feature_gate="memory_enabled",
-        ),
-        _capability("global_profile", "context_provider", available=True),
-        _capability("client_context", "context_provider", available=True),
-        _capability("external_research", "context_provider", available=True),
-        _capability(
-            "travel.trip_context",
-            "context_provider",
-            available=True,
-            feature_gate="travel_context_enabled",
-        ),
-        _capability("travel.itinerary_action", "tool", reason="travel_actions_unavailable"),
-        _capability(
-            "shopping.product_context",
-            "context_provider",
-            available=True,
-            feature_gate="shopping_context_enabled",
-        ),
-        _capability(
-            "shopping.catalog_search",
-            "context_provider",
-            available=True,
-            feature_gate="shopping_context_enabled",
-        ),
-        _capability("shopping.product_action", "tool", reason="shopping_actions_unavailable"),
-        _capability(
-            "finance.account_context",
-            "context_provider",
-            available=True,
-            feature_gate="finance_context_enabled",
-        ),
-        _capability(
-            "finance.portfolio_context",
-            "context_provider",
-            available=True,
-            feature_gate="finance_context_enabled",
-        ),
-        _capability(
-            "finance.research_context",
-            "context_provider",
-            available=True,
-            feature_gate="finance_context_enabled",
-        ),
-        _capability(
-            "finance.research_evidence",
-            "context_provider",
-            available=True,
-            feature_gate="finance_context_enabled",
-        ),
-        _capability("finance.account_action", "tool", reason="finance_actions_unavailable"),
-        *(
-            _capability(
-                provider_id,
-                "context_provider",
-                available=False,
-                reason="health_delegated_identity_contract_unavailable",
-            )
-            for provider_id in (
-                "health.profile_background_context",
-                "health.profile_constraints_context",
-                "health.profile_preferences_context",
-                "health.measurements_context",
-                "health.nutrition_context",
-                "health.exercise_context",
-                "health.sleep_context",
-                "health.symptoms_context",
-            )
-        ),
-        _capability("health.record_action", "tool", reason="health_actions_unavailable"),
+    """Builtin standalone consumer; installed code requires explicit selection."""
+    registry = ApplicationRegistry(
+        (
+            ApplicationDefinition(
+                application_id="personal_ai",
+                display_name="Personal AI",
+                workspace_kind="optional",
+                memory_namespace="personal_ai",
+                context_policy=ApplicationContextPolicy(
+                    version="personal-ai-context-policy-v2",
+                    external_execution_modes=("connected_provider", "manual_external"),
+                    maximum_model_sensitivity="sensitive",
+                    sidecar=ApplicationSidecarPolicy(
+                        manual_import_reuse={"allowed": True},
+                        copy_allowed=True,
+                        draft_insert_target_ids=("personal_ai.message_composer",),
+                    ),
+                ),
+            ),
+        )
     )
-    definitions = (
-        ApplicationDefinition(
-            application_id="personal_ai",
-            display_name="Personal AI",
-            workspace_kind="optional",
-            memory_namespace="personal_ai",
-            context_policy=ApplicationContextPolicy(
-                version="personal-ai-context-policy-v2",
-                external_execution_modes=("connected_provider", "manual_external"),
-                maximum_model_sensitivity="sensitive",
-                sidecar=ApplicationSidecarPolicy(
-                    manual_import_reuse={"allowed": True},
-                    copy_allowed=True,
-                    draft_insert_target_ids=("personal_ai.message_composer",),
-                ),
-            ),
-        ),
-        ApplicationDefinition(
-            application_id="travel",
-            display_name="Travel",
-            workspace_kind="optional",
-            context_provider_ids=("travel.trip_context",),
-            tool_ids=("travel.itinerary_action",),
-            memory_namespace="travel",
-            sensitivity_defaults={
-                "conversation": "personal",
-                "memory": "personal",
-                "domain_context": "sensitive",
-                "client_context": "personal",
-            },
-            context_policy=_domain_context_policy(
-                "travel-context-policy-v1",
-                (
-                    ContextProviderPolicy(
-                        provider_id="travel.trip_context",
-                        operations=(
-                            _operation_policy(
-                                "current",
-                                (
-                                    "trip_title",
-                                    "start_date",
-                                    "end_date",
-                                    "timezone",
-                                    "itinerary_overview",
-                                    "trip_revision",
-                                ),
-                            ),
-                            _operation_policy(
-                                "entity",
-                                (
-                                    "day_date",
-                                    "day_title",
-                                    "item_title",
-                                    "item_type",
-                                    "item_status",
-                                    "item_schedule",
-                                    "place_name",
-                                    "place_category",
-                                    "place_address",
-                                    "place_source",
-                                    "place_attribution",
-                                    "reservation_summary",
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-                sidecar=ApplicationSidecarPolicy(
-                    copy_allowed=True,
-                    draft_insert_target_ids=("travel.message_composer",),
-                ),
-            ),
-            comparison_domain_ids=("travel",),
-        ),
-        ApplicationDefinition(
-            application_id="shopping",
-            display_name="Shopping",
-            workspace_kind="optional",
-            context_provider_ids=("shopping.product_context", "shopping.catalog_search"),
-            tool_ids=("shopping.product_action",),
-            memory_namespace="shopping",
-            sensitivity_defaults={
-                "conversation": "personal",
-                "memory": "personal",
-                "domain_context": "sensitive",
-                "client_context": "personal",
-            },
-            context_policy=_domain_context_policy(
-                "shopping-context-policy-v1",
-                (
-                    ContextProviderPolicy(
-                        provider_id="shopping.product_context",
-                        operations=(
-                            _operation_policy(
-                                "current",
-                                (
-                                    "project_title",
-                                    "project_goal",
-                                    "category",
-                                    "requirements",
-                                    "budget_target",
-                                    "budget_maximum",
-                                    "budget_currency",
-                                    "project_notes",
-                                    "project_revision",
-                                    "selected_products",
-                                ),
-                            ),
-                        ),
-                    ),
-                    ContextProviderPolicy(
-                        provider_id="shopping.catalog_search",
-                        operations=(
-                            _operation_policy(
-                                "search",
-                                ("catalog_observations",),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-            comparison_domain_ids=("shopping",),
-        ),
-        ApplicationDefinition(
-            application_id="finance",
-            display_name="Finance",
-            workspace_kind="optional",
-            context_provider_ids=(
-                "finance.account_context",
-                "finance.portfolio_context",
-                "finance.research_context",
-                "finance.research_evidence",
-            ),
-            tool_ids=("finance.account_action",),
-            memory_namespace="finance",
-            sensitivity_defaults={
-                "conversation": "sensitive",
-                "memory": "sensitive",
-                "domain_context": "restricted",
-                "client_context": "sensitive",
-            },
-            context_policy=_domain_context_policy(
-                "finance-context-policy-v1",
-                (
-                    ContextProviderPolicy(
-                        provider_id="finance.account_context",
-                        operations=(
-                            _operation_policy(
-                                "current",
-                                ("account_summary", "balance_summary"),
-                                sensitivity="restricted",
-                            ),
-                        ),
-                    ),
-                    ContextProviderPolicy(
-                        provider_id="finance.portfolio_context",
-                        operations=(
-                            _operation_policy(
-                                "current",
-                                (
-                                    "account_summary",
-                                    "balance_summary",
-                                    "security_summary",
-                                    "position_summary",
-                                ),
-                                sensitivity="restricted",
-                            ),
-                        ),
-                    ),
-                    ContextProviderPolicy(
-                        provider_id="finance.research_context",
-                        operations=(
-                            _operation_policy(
-                                "current",
-                                ("research_thesis",),
-                                sensitivity="restricted",
-                            ),
-                        ),
-                    ),
-                    ContextProviderPolicy(
-                        provider_id="finance.research_evidence",
-                        operations=(
-                            _operation_policy(
-                                "current",
-                                ("research_fact",),
-                                sensitivity="restricted",
-                            ),
-                        ),
-                    ),
-                ),
-                sidecar=ApplicationSidecarPolicy(
-                    connected_provider_disclosure=ExternalDisclosurePolicy(
-                        allowed=False,
-                        maximum_sensitivity="restricted",
-                    ),
-                    manual_external_disclosure=ExternalDisclosurePolicy(
-                        allowed=False,
-                        maximum_sensitivity="restricted",
-                    ),
-                    manual_import_reuse={"allowed": False},
-                    copy_allowed=True,
-                ),
-                maximum_model_sensitivity="restricted",
-            ),
-        ),
-        ApplicationDefinition(
-            application_id="health",
-            display_name="Health",
-            workspace_kind="optional",
-            context_provider_ids=(
-                "health.profile_background_context",
-                "health.profile_constraints_context",
-                "health.profile_preferences_context",
-                "health.measurements_context",
-                "health.nutrition_context",
-                "health.exercise_context",
-                "health.sleep_context",
-                "health.symptoms_context",
-            ),
-            tool_ids=("health.record_action",),
-            memory_namespace="health",
-            sensitivity_defaults={
-                "conversation": "sensitive",
-                "memory": "sensitive",
-                "domain_context": "restricted",
-                "client_context": "sensitive",
-            },
-            context_policy=_domain_context_policy(
-                "health-context-policy-v2",
-                tuple(
-                    ContextProviderPolicy(
-                        provider_id=provider_id,
-                        operations=(
-                            _operation_policy(
-                                operation,
-                                fields,
-                                sensitivity="restricted",
-                            ),
-                        ),
-                    )
-                    for provider_id, operation, fields in (
-                        (
-                            "health.profile_background_context",
-                            "profile",
-                            (
-                                "record",
-                                "notes",
-                                "source_kind",
-                                "confirmation_status",
-                                "validity",
-                            ),
-                        ),
-                        (
-                            "health.profile_constraints_context",
-                            "profile",
-                            (
-                                "record",
-                                "notes",
-                                "source_kind",
-                                "confirmation_status",
-                                "validity",
-                            ),
-                        ),
-                        (
-                            "health.profile_preferences_context",
-                            "profile",
-                            (
-                                "record",
-                                "notes",
-                                "source_kind",
-                                "confirmation_status",
-                                "validity",
-                            ),
-                        ),
-                        (
-                            "health.measurements_context",
-                            "history",
-                            (
-                                "record",
-                                "domain",
-                                "notes",
-                                "time",
-                                "interval_end",
-                                "units",
-                                "source_kind",
-                                "confirmation_status",
-                                "quality",
-                                "uncertainty",
-                            ),
-                        ),
-                        *(
-                            (
-                                provider_id,
-                                "history",
-                                (
-                                    "record",
-                                    "domain",
-                                    "notes",
-                                    "time",
-                                    "interval_end",
-                                    "units",
-                                    "source_kind",
-                                    "confirmation_status",
-                                    "quality",
-                                    "uncertainty",
-                                ),
-                            )
-                            for provider_id in (
-                                "health.nutrition_context",
-                                "health.exercise_context",
-                                "health.sleep_context",
-                                "health.symptoms_context",
-                            )
-                        ),
-                    )
-                ),
-                sidecar=ApplicationSidecarPolicy(
-                    connected_provider_disclosure=ExternalDisclosurePolicy(
-                        allowed=False,
-                        maximum_sensitivity="restricted",
-                    ),
-                    manual_external_disclosure=ExternalDisclosurePolicy(
-                        allowed=False,
-                        maximum_sensitivity="restricted",
-                    ),
-                    manual_import_reuse={"allowed": False},
-                    copy_allowed=True,
-                ),
-                maximum_model_sensitivity="restricted",
-            ),
-        ),
+    catalog = (
+        ApplicationContributionCatalog.from_entry_points()
+        if contribution_catalog is None
+        else contribution_catalog
     )
-    from personal_ai.federation.deployment import install_federation_metadata
-
-    definitions, capabilities = install_federation_metadata(definitions, capabilities)
-    registry = ApplicationRegistry(definitions, capabilities, comparison_modules=comparison_modules)
-    catalog = contribution_catalog or ApplicationContributionCatalog.from_entry_points()
-    return catalog.extend(registry) if catalog.registration_names else registry
+    return catalog.extend(registry)
 
 
 def application_registry_for(request) -> ApplicationRegistry:

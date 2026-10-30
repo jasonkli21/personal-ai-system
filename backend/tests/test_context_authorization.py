@@ -5,6 +5,9 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
 from pydantic import BaseModel
 
 from personal_ai.applications.contracts import (
@@ -16,7 +19,6 @@ from personal_ai.applications.contracts import (
     ContextOperationPolicy,
     ContextProviderPolicy,
 )
-from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.context.assembler import ContextAssembler
 from personal_ai.context.authorization import authorize_context_selections

@@ -9,33 +9,27 @@ from fastapi.responses import JSONResponse
 from personal_ai.agents.research.contracts import ResearchError
 from personal_ai.api.account import router as account_router
 from personal_ai.api.artifacts import router as artifacts_router
-from personal_ai.api.booking_extractions import router as booking_extractions_router
 from personal_ai.api.decisions import router as decisions_router
-from personal_ai.api.domains import router as domains_router
 from personal_ai.api.external_turns import router as external_turns_router
 from personal_ai.api.federation import router as federation_router
 from personal_ai.api.iterative_research import router as iterative_research_router
-from personal_ai.api.itinerary_proposals import router as itinerary_proposals_router
 from personal_ai.api.memory_control import router as memory_control_router
 from personal_ai.api.mutations import router as mutations_router
 from personal_ai.api.profile import router as profile_router
 from personal_ai.api.provider_usage import router as provider_usage_router
 from personal_ai.api.research import router as research_router
 from personal_ai.api.routes import router as conversations_router
+from personal_ai.applications.http import attach_contribution_routes
 from personal_ai.applications.registry import (
     ApplicationContributionCatalog,
     default_application_registry,
 )
 from personal_ai.auth.account_data import AccountDataUnavailable
 from personal_ai.auth.middleware import AuthenticationMiddleware
-from personal_ai.booking_extractions.repositories import ExtractionError
 from personal_ai.context import ContextError
 from personal_ai.context.deployment import configured_context_runtime
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.decisions.repositories import DecisionError
-from personal_ai.domains.contracts import DomainContractError
-from personal_ai.domains.providers import DomainProviderError
-from personal_ai.itinerary_proposals.contracts import ProposalError
 from personal_ai.llm.errors import LLMError
 from personal_ai.persistence.factory import close_persistence_clients
 from personal_ai.services import InvalidRetryTargetError
@@ -50,32 +44,37 @@ from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     validate_startup_configuration()
-    settings_provider = application.dependency_overrides.get(get_settings, get_settings)
-    contribution_catalog = getattr(application.state, "context_runtime_catalog", None)
-    application.state.context_runtime_registry = configured_context_runtime(
-        settings_provider(), catalog=contribution_catalog
-    )
-    from personal_ai.federation.deployment import reconcile_federation_runtime_metadata
-
-    application.state.application_registry = reconcile_federation_runtime_metadata(
-        application.state.application_registry, application.state.context_runtime_registry
-    )
-    from personal_ai.mutations.deployment import install_task_metadata
-
-    application.state.application_registry = install_task_metadata(
-        application.state.application_registry, settings_provider(),
-        application.state.context_runtime_registry,
-    )
-    # Old confirmation/effect bindings remain inspectable until their owning
-    # proposal metadata is purged. Refuse a deployment that drops their resolver.
-    from personal_ai.mutations.compatibility import require_reconciliation_compatibility
-    from personal_ai.persistence.factory import persistence_factory
-
-    mutation_repository = persistence_factory(settings_provider()).mutation_repository()
-    require_reconciliation_compatibility(
-        mutation_repository, application.state.context_runtime_registry
-    )
     try:
+        settings_provider = application.dependency_overrides.get(get_settings, get_settings)
+        if getattr(application.state, "selection_from_environment", False):
+            configured_names = tuple(sorted(settings_provider().application_contributions))
+            if configured_names != application.state.contribution_selection:
+                raise ValueError("contribution_selection_requires_process_environment")
+        contribution_catalog = getattr(application.state, "context_runtime_catalog", None)
+        application.state.context_runtime_registry = configured_context_runtime(
+            settings_provider(), catalog=contribution_catalog
+        )
+        from personal_ai.federation.deployment import reconcile_federation_runtime_metadata
+
+        application.state.application_registry = reconcile_federation_runtime_metadata(
+            application.state.application_registry, application.state.context_runtime_registry
+        )
+        from personal_ai.mutations.deployment import install_task_metadata
+
+        application.state.application_registry = install_task_metadata(
+            application.state.application_registry,
+            settings_provider(),
+            application.state.context_runtime_registry,
+        )
+        # Old confirmation/effect bindings remain inspectable until their owning
+        # proposal metadata is purged. Refuse a deployment that drops their resolver.
+        from personal_ai.mutations.compatibility import require_reconciliation_compatibility
+        from personal_ai.persistence.factory import persistence_factory
+
+        mutation_repository = persistence_factory(settings_provider()).mutation_repository()
+        require_reconciliation_compatibility(
+            mutation_repository, application.state.context_runtime_registry
+        )
         yield
     finally:
         close_persistence_clients()
@@ -85,9 +84,30 @@ def create_app(
     *,
     application_catalog: ApplicationContributionCatalog | None = None,
     context_runtime_catalog=None,
+    selected_contributions=None,
 ) -> FastAPI:
     """Build the production API with registered application and context contributions."""
+    from personal_ai.applications.selection import selected_contribution_names, validate_selection
+
+    selection_from_environment = (
+        selected_contributions is None
+        and application_catalog is None
+        and context_runtime_catalog is None
+    )
+    names = (
+        selected_contribution_names()
+        if selected_contributions is None
+        else validate_selection(selected_contributions)
+    )
+    if application_catalog is None:
+        application_catalog = ApplicationContributionCatalog.from_entry_points(selected=names)
+    if context_runtime_catalog is None:
+        from personal_ai.context.deployment import default_context_runtime_catalog
+
+        context_runtime_catalog = default_context_runtime_catalog(names)
     application = FastAPI(title="Personal AI System", version="0.1.0", lifespan=lifespan)
+    application.state.selection_from_environment = selection_from_environment
+    application.state.contribution_selection = names
     application.state.application_registry = default_application_registry(
         contribution_catalog=application_catalog
     )
@@ -102,20 +122,18 @@ def create_app(
         conversations_router,
         research_router,
         iterative_research_router,
-        itinerary_proposals_router,
-        booking_extractions_router,
         decisions_router,
-        domains_router,
         account_router,
         artifacts_router,
         profile_router,
         provider_usage_router,
     ):
         application.include_router(router)
+    application.add_api_route("/health", health, methods=["GET"])
+    for error_type, handler in CORE_EXCEPTION_HANDLERS:
+        application.add_exception_handler(error_type, handler)
+    attach_contribution_routes(application, application_catalog.contributions())
     return application
-
-
-app = create_app()
 
 
 def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
@@ -125,13 +143,11 @@ def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
     )
 
 
-@app.exception_handler(RequestValidationError)
 async def request_validation_error(_: Request, __: RequestValidationError) -> JSONResponse:
     """Avoid exposing framework validation internals to API clients."""
     return _error_response(422, "validation_error", "Request validation failed.")
 
 
-@app.exception_handler(HTTPException)
 async def http_exception(_: Request, error: HTTPException) -> JSONResponse:
     code = error.detail if isinstance(error.detail, str) else "request_rejected"
     message = {
@@ -148,13 +164,11 @@ async def http_exception(_: Request, error: HTTPException) -> JSONResponse:
     )
 
 
-@app.exception_handler(ResourceNotFoundError)
 async def resource_not_found(_: Request, __: ResourceNotFoundError) -> JSONResponse:
     """Map missing or foreign owner-scoped records to a safe 404."""
     return _error_response(404, "not_found", "The requested resource was not found.")
 
 
-@app.exception_handler(ConversationConflictError)
 async def conversation_conflict(_: Request, error: ConversationConflictError) -> JSONResponse:
     """Report concurrent conversation mutations without exposing store details."""
     if str(error) == "idempotency_input_changed":
@@ -168,31 +182,26 @@ async def conversation_conflict(_: Request, error: ConversationConflictError) ->
     )
 
 
-@app.exception_handler(StorageError)
 async def storage_error(_: Request, __: StorageError) -> JSONResponse:
     """Map storage failures without disclosing provider-specific details."""
     return _error_response(503, "storage_unavailable", "Storage is temporarily unavailable.")
 
 
-@app.exception_handler(AccountDataUnavailable)
 async def account_data_unavailable(_: Request, __: AccountDataUnavailable) -> JSONResponse:
     return _error_response(
         503, "account_data_unavailable", "Account data is temporarily unavailable."
     )
 
 
-@app.exception_handler(InvalidRetryTargetError)
 async def invalid_retry_target(_: Request, __: InvalidRetryTargetError) -> JSONResponse:
     return _error_response(422, "invalid_retry_target", "This message cannot be retried.")
 
 
-@app.get("/health")
 async def health() -> dict[str, str]:
     """Minimal readiness endpoint used by Cloud Run and deployment checks."""
     return {"status": "ok", "service": "api"}
 
 
-@app.exception_handler(ContextError)
 async def context_error(_: Request, error: ContextError) -> JSONResponse:
     if error.code == "context_message_too_large":
         return _error_response(
@@ -205,7 +214,6 @@ async def context_error(_: Request, error: ContextError) -> JSONResponse:
     return _error_response(422, error.code, "Required context could not be prepared.")
 
 
-@app.exception_handler(ContextPreparationError)
 async def context_preparation_error(_: Request, error: ContextPreparationError) -> JSONResponse:
     status = (
         422
@@ -220,17 +228,14 @@ async def context_preparation_error(_: Request, error: ContextPreparationError) 
     return _error_response(status, error.code, "Context preparation could not complete.")
 
 
-@app.exception_handler(LLMError)
 async def preparation_provider_error(_: Request, error: LLMError) -> JSONResponse:
     return _error_response(503, error.code, "Context preparation is unavailable. Please retry.")
 
 
-@app.exception_handler(ContextBudgetInvalidError)
 async def context_configuration_error(_: Request, __: ContextBudgetInvalidError) -> JSONResponse:
     return _error_response(503, "context_budget_invalid", "The context budget is invalid.")
 
 
-@app.exception_handler(ResearchError)
 async def research_error(_: Request, error: ResearchError) -> JSONResponse:
     return _error_response(
         error.status,
@@ -239,25 +244,6 @@ async def research_error(_: Request, error: ResearchError) -> JSONResponse:
     )
 
 
-@app.exception_handler(ProposalError)
-async def itinerary_proposal_error(_: Request, error: ProposalError) -> JSONResponse:
-    return _error_response(
-        error.status,
-        error.code,
-        "The itinerary proposal could not be completed. Check its status or submit a new request.",
-    )
-
-
-@app.exception_handler(ExtractionError)
-async def booking_extraction_error(_: Request, error: ExtractionError) -> JSONResponse:
-    return _error_response(
-        error.status,
-        error.code,
-        "The booking extraction could not be completed. Check its status or submit a new request.",
-    )
-
-
-@app.exception_handler(DecisionError)
 async def decision_error(_: Request, error: DecisionError) -> JSONResponse:
     return _error_response(
         error.status,
@@ -266,17 +252,21 @@ async def decision_error(_: Request, error: DecisionError) -> JSONResponse:
     )
 
 
-@app.exception_handler(DomainContractError)
-async def domain_contract_error(_: Request, error: DomainContractError) -> JSONResponse:
-    return _error_response(
-        error.status,
-        error.code,
-        "The domain comparison could not be completed. Check its constraints and source evidence.",
-    )
+CORE_EXCEPTION_HANDLERS = (
+    (RequestValidationError, request_validation_error),
+    (HTTPException, http_exception),
+    (ResourceNotFoundError, resource_not_found),
+    (ConversationConflictError, conversation_conflict),
+    (StorageError, storage_error),
+    (AccountDataUnavailable, account_data_unavailable),
+    (InvalidRetryTargetError, invalid_retry_target),
+    (ContextError, context_error),
+    (ContextPreparationError, context_preparation_error),
+    (LLMError, preparation_provider_error),
+    (ContextBudgetInvalidError, context_configuration_error),
+    (ResearchError, research_error),
+    (DecisionError, decision_error),
+)
 
 
-@app.exception_handler(DomainProviderError)
-async def domain_provider_error(_: Request, error: DomainProviderError) -> JSONResponse:
-    return _error_response(
-        error.status, error.code, "The configured source is unavailable or declined the request."
-    )
+app = create_app()

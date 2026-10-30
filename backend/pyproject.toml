@@ -29,11 +29,8 @@ dev = [
   "httpx>=0.27,<1.0",
 ]
 
-[project.entry-points."personal_ai.context_contributions"]
-travel = "personal_ai.context.travel:configured_travel_context_contribution"
-shopping = "personal_ai.context.shopping:configured_shopping_context_contribution"
-finance = "personal_ai.context.finance:configured_finance_context_contribution"
-health = "personal_ai.context.health:configured_health_context_contribution"
+[tool.hatch.build.targets.sdist]
+include = ["/src/personal_ai", "/pyproject.toml", "/uv.lock"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/personal_ai"]
@@ -54,7 +51,7 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "../reference-apps/src"]
 markers = [
   "persistence_integration: requires local Postgres/pgvector and DynamoDB Local",
   "cloud_smoke: explicit opt-in against already-provisioned cloud resources",

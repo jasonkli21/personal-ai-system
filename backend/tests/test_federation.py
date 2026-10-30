@@ -6,9 +6,12 @@ from time import monotonic
 from uuid import uuid4
 
 import pytest
+from personal_ai_reference_apps.applications import (
+    reference_application_registry as default_application_registry,
+)
+from personal_ai_reference_apps.federation import INITIAL_FEDERATION_CASES
 from pydantic import BaseModel, ValidationError
 
-from personal_ai.applications.registry import default_application_registry
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import (
     ApplicationScope,
@@ -36,7 +39,6 @@ from personal_ai.federation.broker import (
     federation_contribution,
 )
 from personal_ai.federation.contracts import FederationGrant
-from personal_ai.federation.deployment import INITIAL_FEDERATION_CASES
 from personal_ai.federation.service import FederationPermissionAuthority
 from personal_ai.persistence.postgres.database import PersistenceConflict
 
@@ -543,7 +545,8 @@ def test_production_composition_keeps_all_four_exports_unavailable():
     from personal_ai.settings import Settings
 
     runtime = configured_context_runtime(
-        Settings(_env_file=None, ai_provider="fake", ai_model="fake")
+        Settings(_env_file=None, ai_provider="fake", ai_model="fake"),
+        catalog=__import__("personal_ai_reference_apps.deployment", fromlist=["reference_context_catalog"]).reference_context_catalog(),
     )
     registry = default_application_registry()
     for case in INITIAL_FEDERATION_CASES:
