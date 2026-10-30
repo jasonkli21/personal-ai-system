@@ -4,9 +4,10 @@ from contextlib import contextmanager
 
 from personal_ai.memory.control_contracts import OperationReceipt, OperationResult, PendingProposal
 from personal_ai.memory.control_repository import (
+    NON_FORGET_RECEIPT_CAP,
     PROPOSAL_CAP,
-    RECEIPT_CAP,
     decide,
+    legacy_operation_fingerprint,
     operation_fingerprint,
     replay,
 )
@@ -43,7 +44,18 @@ class PostgresControlRepository:
     def reconcile(self, scope, project, intent, now):
         with self._transaction(scope) as (connection, sid, actor):
             receipt = self._receipt(connection, sid, actor, intent.operation_id)
-            return replay(receipt, operation_fingerprint(project, intent), now) if receipt else None
+            return (
+                replay(
+                    receipt,
+                    operation_fingerprint(project, intent),
+                    now,
+                    legacy_fingerprint=legacy_operation_fingerprint(project, intent),
+                    project_id=project.project_id,
+                    intent=intent,
+                )
+                if receipt
+                else None
+            )
 
     def list_pending(self, scope, project, now):
         with self._transaction(scope) as (connection, sid, actor):
@@ -61,20 +73,29 @@ class PostgresControlRepository:
         with self._transaction(scope) as (connection, sid, actor):
             old = self._receipt(connection, sid, actor, intent.operation_id)
             if old:
-                return replay(old, operation_fingerprint(project, intent), now)
+                return replay(
+                    old,
+                    operation_fingerprint(project, intent),
+                    now,
+                    legacy_fingerprint=legacy_operation_fingerprint(project, intent),
+                    project_id=project.project_id,
+                    intent=intent,
+                )
             connection.execute(
                 "DELETE FROM memory_control_proposals WHERE scope_id=%s AND actor_key=%s AND expires_at<=%s",
                 (sid, actor, now),
             )
             count = connection.execute(
-                "SELECT count(*) FROM memory_control_operations WHERE scope_id=%s AND actor_key=%s",
+                "SELECT count(*) FROM memory_control_operations WHERE scope_id=%s AND actor_key=%s AND payload->>'action' IS DISTINCT FROM 'forget'",
                 (sid, actor),
             ).fetchone()[0]
             proposals = connection.execute(
                 "SELECT count(*) FROM memory_control_proposals WHERE scope_id=%s AND actor_key=%s",
                 (sid, actor),
             ).fetchone()[0]
-            if count >= RECEIPT_CAP or (intent.action == "propose" and proposals >= PROPOSAL_CAP):
+            if (intent.action != "forget" and count >= NON_FORGET_RECEIPT_CAP) or (
+                intent.action == "propose" and proposals >= PROPOSAL_CAP
+            ):
                 return OperationResult(status="limit_exceeded", reason="control_capacity")
             state, pending = None, None
             if intent.action == "forget":
@@ -85,10 +106,8 @@ class PostgresControlRepository:
                 if not row:
                     raise ResourceNotFoundError("target_unavailable")
                 record = KnowledgeRecord.model_validate(row[0])
-                if record.project != project or not self.memories._knowledge_sources_current_tx(
-                    connection, record, sid
-                ):
-                    return OperationResult(status="stale_evidence", reason="source_changed")
+                if record.project.project_id != project.project_id:
+                    raise ResourceNotFoundError("target_unavailable")
                 state, _ = self.lifecycle._read_state(
                     connection, scope.owner_id, intent.target_id, scope, lock=True
                 )
@@ -140,3 +159,20 @@ class PostgresControlRepository:
                     f"DELETE FROM {table} c USING scope_namespaces n WHERE c.scope_id=n.scope_id AND n.owner_id=%s",
                     (owner_id,),
                 )
+
+    def purge_expired_proposals(self, *, as_of, limit=100):
+        """Erase expired proposal bodies in bounded batches; receipts are untouched."""
+        if not 1 <= limit <= 100:
+            raise ValueError("control_purge_limit_invalid")
+        with self.database.connection(timeout_seconds=2) as connection:
+            rows = connection.execute(
+                "WITH expired AS ("
+                "SELECT scope_id,actor_key,record_id FROM memory_control_proposals "
+                "WHERE expires_at<=%s ORDER BY expires_at,scope_id,actor_key,record_id "
+                "LIMIT %s FOR UPDATE SKIP LOCKED) "
+                "DELETE FROM memory_control_proposals p USING expired e "
+                "WHERE p.scope_id=e.scope_id AND p.actor_key=e.actor_key "
+                "AND p.record_id=e.record_id RETURNING 1",
+                (as_of, limit),
+            ).fetchall()
+        return len(rows)

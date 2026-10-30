@@ -159,7 +159,7 @@ async def receive_memory_task(request: Request) -> Response:
 
 @app.post("/tasks/maintenance")
 async def run_scheduled_maintenance(request: Request) -> Response:
-    """Run bounded, authenticated maintenance without physically deleting records."""
+    """Run bounded, authenticated retention and lifecycle maintenance."""
     settings = get_settings()
     if settings.worker_maintenance_auth_required:
         authorization = request.headers.get("authorization", "")
@@ -209,12 +209,21 @@ async def run_scheduled_maintenance(request: Request) -> Response:
                 limit=settings.maintenance_batch_size,
             )
         )
+        control_repository = await anyio.to_thread.run_sync(factory.memory_control_repository)
+        expired_memory_proposals = await anyio.to_thread.run_sync(
+            partial(
+                control_repository.purge_expired_proposals,
+                as_of=datetime.now(UTC),
+                limit=min(settings.maintenance_batch_size, 100),
+            )
+        )
         directory = factory.principal_directory()
         owner_ids = await anyio.to_thread.run_sync(partial(directory.active_owner_ids, limit=2))
         if not owner_ids:
             logger.info(
-                "Scheduled maintenance completed reason=no_active_owner expired_budgets=%d",
-                expired_budgets,
+                "Scheduled maintenance completed reason=no_active_owner expired_budgets=%d "
+                "expired_memory_proposals=%d",
+                expired_budgets, expired_memory_proposals,
             )
             return Response(status_code=204)
         if len(owner_ids) != 1:
@@ -251,9 +260,9 @@ async def run_scheduled_maintenance(request: Request) -> Response:
     logger.info(
         "Scheduled maintenance completed republished=%d expired_sessions=%d expired_budgets=%d "
         "provider_attempts_resolved=%d provider_events_synced=%d provider_usage_expired=%d "
-        "routing_decisions_expired=%d",
+        "routing_decisions_expired=%d memory_proposals_expired=%d",
         published, expired, expired_budgets, stale_attempts, synchronized_events,
-        expired_provider_usage, expired_routing_decisions,
+        expired_provider_usage, expired_routing_decisions, expired_memory_proposals,
     )
     return Response(
         content=json.dumps({
@@ -263,6 +272,7 @@ async def run_scheduled_maintenance(request: Request) -> Response:
             "expired_sessions": expired,
             "expired_research_experiments": expired_experiments,
             "expired_usage_budgets": expired_budgets,
+            "expired_memory_proposals": expired_memory_proposals,
             "provider_attempts_resolved": stale_attempts,
             "provider_events_synchronized": synchronized_events,
             "expired_provider_usage_records": expired_provider_usage,

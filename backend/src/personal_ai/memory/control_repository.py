@@ -11,10 +11,17 @@ from personal_ai.memory.lifecycle.repositories import event_idempotency_id
 from personal_ai.memory.lifecycle.transition import transition
 
 PROPOSAL_CAP = 32
-RECEIPT_CAP = 256
+NON_FORGET_RECEIPT_CAP = 256
 
 
 def operation_fingerprint(project, intent):
+    return digest(
+        {"project_id": project.project_id, "intent": intent.model_dump(mode="json")}
+    )
+
+
+def legacy_operation_fingerprint(project, intent):
+    """Fingerprint written by migration 030 before project revision was separated."""
     return digest(
         {"project": project.model_dump(mode="json"), "intent": intent.model_dump(mode="json")}
     )
@@ -24,8 +31,19 @@ def operation_key(scope, identifier):
     return (*actor_namespace(scope), identifier)
 
 
-def replay(receipt, fingerprint, now):
-    if receipt.fingerprint != fingerprint:
+def replay(receipt, fingerprint, now, *, legacy_fingerprint=None, project_id=None, intent=None):
+    same_project_intent = (
+        receipt.project_id is not None
+        and receipt.project_id == project_id
+        and intent is not None
+        and receipt.operation_id == intent.operation_id
+        and receipt.action == intent.action
+        and receipt.actor == intent.actor
+        and intent.action != "propose"
+        and receipt.target_id == intent.target_id
+        and receipt.expected_version == intent.expected_version
+    )
+    if receipt.fingerprint != fingerprint and receipt.fingerprint != legacy_fingerprint and not same_project_intent:
         return OperationResult(
             status="conflict", reason="operation_id_reused", operation_id=receipt.operation_id
         )
@@ -129,6 +147,7 @@ def decide(scope, project, intent, now, *, pending=None, state=None):
         expected_version=intent.expected_version,
         result=result,
         created_at=now,
+        project_id=project.project_id,
         expires_at=now
         + (timedelta(hours=24) if intent.action == "propose" else timedelta(days=30)),
     )
@@ -153,7 +172,18 @@ class InMemoryControlRepository:
         self._check(scope)
         with self.memories.knowledge_consumption_guard(scope):
             receipt = self.memories.control_receipts.get(operation_key(scope, intent.operation_id))
-            return replay(receipt, operation_fingerprint(project, intent), now) if receipt else None
+            return (
+                replay(
+                    receipt,
+                    operation_fingerprint(project, intent),
+                    now,
+                    legacy_fingerprint=legacy_operation_fingerprint(project, intent),
+                    project_id=project.project_id,
+                    intent=intent,
+                )
+                if receipt
+                else None
+            )
 
     def list_pending(self, scope, project, now):
         self._check(scope)
@@ -177,9 +207,15 @@ class InMemoryControlRepository:
             for key, value in list(proposals.items()):
                 if key[:4] == ns and value.expires_at <= now:
                     del proposals[key]
-            if sum(key[:4] == ns for key in receipts) >= RECEIPT_CAP or (
-                intent.action == "propose"
-                and sum(key[:4] == ns for key in proposals) >= PROPOSAL_CAP
+            if (
+                intent.action != "forget"
+                and sum(
+                    key[:4] == ns and receipt.action != "forget"
+                    for key, receipt in receipts.items()
+                )
+                >= NON_FORGET_RECEIPT_CAP
+            ) or (
+                intent.action == "propose" and sum(key[:4] == ns for key in proposals) >= PROPOSAL_CAP
             ):
                 return OperationResult(status="limit_exceeded", reason="control_capacity")
             state = None
@@ -187,8 +223,10 @@ class InMemoryControlRepository:
                 record = self.memories.get_knowledge(
                     owner_id=scope.owner_id, memory_id=intent.target_id
                 )
-                if record.project != project or not self.memories.knowledge_sources_current(record):
-                    return OperationResult(status="stale_evidence", reason="source_changed")
+                if record.project.project_id != project.project_id:
+                    return OperationResult(
+                        status="forbidden_or_not_found", reason="target_unavailable"
+                    )
                 state = self.lifecycle.get_state(owner_id=scope.owner_id, memory_id=record.id)
             pending = proposals.get(operation_key(scope, intent.target_id))
             result, pending, change, receipt = decide(
@@ -219,3 +257,20 @@ class InMemoryControlRepository:
                 for key in list(mapping):
                     if key[0] == owner_id:
                         del mapping[key]
+
+    def purge_expired_proposals(self, *, as_of, limit=100):
+        """Erase expired pending content in bounded batches, including idle actors."""
+        if not 1 <= limit <= 100:
+            raise ValueError("control_purge_limit_invalid")
+        with self.memories._lock:
+            expired = sorted(
+                (
+                    (key, proposal)
+                    for key, proposal in self.memories.control_proposals.items()
+                    if proposal.expires_at <= as_of
+                ),
+                key=lambda item: (item[1].expires_at, item[0]),
+            )[:limit]
+            for key, _ in expired:
+                del self.memories.control_proposals[key]
+            return len(expired)

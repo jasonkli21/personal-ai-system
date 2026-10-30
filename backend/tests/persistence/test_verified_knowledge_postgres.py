@@ -97,11 +97,13 @@ def test_actor_fence_migration_preserves_rows_and_scopes_revoke(
     try:
         with monkeypatch.context() as patch:
             patch.setattr(
-                migrations, "files", lambda _: FilteredPackage({"028_", "029_", "030_"})
+                migrations, "files", lambda _: FilteredPackage({"028_", "029_", "030_", "031_"})
             )
             assert max(database.migrate()) == 27
         with monkeypatch.context() as patch:
-            patch.setattr(migrations, "files", lambda _: FilteredPackage({"029_", "030_"}))
+            patch.setattr(
+                migrations, "files", lambda _: FilteredPackage({"029_", "030_", "031_"})
+            )
             assert database.migrate() == (28,)
 
         scope = RequestScope(

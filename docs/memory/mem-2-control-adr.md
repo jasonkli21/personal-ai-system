@@ -41,18 +41,24 @@ no admit-then-supersede transaction is offered.
 
 ## Transactions and reconciliation
 
-Migration 030 adds scoped proposals and content-free operation receipts. All writes
+Migration 030 adds scoped proposals and content-free operation receipts; migration 031
+adds the bounded proposal-expiry cleanup index and backfills stable project IDs for
+legacy receipts whose targets remain. All writes
 lock owner fence, knowledge namespace, then actor namespace in existing order.
-Forget checks exact actor/target/project and expected lifecycle version, invokes
+Forget checks exact actor/target and the currently authorized project identity plus
+expected lifecycle version, invokes
 canonical transition with a narrow `verified_user` actor, and commits event,
 projection and operation receipt in one transaction. Raw lifecycle entry points
 reject this actor; only the control transaction may use it. Fake uses shared locks
 and a staged transition before any dictionary mutation. Review CAS and receipt
-also commit together. All mutations reauthorize under the source lease; source
-fences and owner fence are checked inside the database transaction.
+also commit together. The owner fence and current project authorization are checked
+for each mutation. Forget intentionally does not require source-fence currentness:
+an authorized owner may suppress stale historical data without restoring its
+readability.
 
-An actor-scoped UUID operation key binds operation, target, expected version and
-canonical intent digest. Same intent replays its original receipt; changed intent
+An actor-scoped UUID operation key binds immutable project ID, operation, target,
+expected version and canonical intent digest. Project revision drift does not change
+historical receipt identity. Same intent replays its original receipt; changed intent
 conflicts. On any uncertain storage outcome reconcile that exact key/digest;
 otherwise return unknown_commit. Never issue a new identity automatically.
 Cancellation/deadline checked before commit begins. Once a transaction starts,
@@ -61,21 +67,31 @@ unknown until reconciled. Unsupported revision does not create receipts or state
 
 ## Bounds, retention and erasure
 
-Reads inspect at most 32 candidates for one host-resolved project, return at most
+Reads inspect at most 32 recent candidates for one host-resolved project, return at most
 8 records, accept 200 query characters and have a 2-second cooperative deadline.
+When more candidates exist, the response is explicitly truncated instead of denying
+the whole read or implying that the checked subset is complete.
 Tool runs allow 10 calls/10 seconds; cancellation denies subsequent calls. External
 UUID misses and inaccessible targets collapse to forbidden_or_not_found. Exceptions
 are normalized and never include IDs/content from denied rows. No unscoped totals.
 Resolver calls must honor the host's bounded lease contract; synchronous adapters
 cannot be forcibly interrupted safely. A blocking/unbounded resolver is unsupported.
 
-Each exact owner/app/workspace/actor namespace retains at most 32 proposals (24-hour content TTL) and 256 operation
-receipts. Receipts retain digest, actor category, target, versions, time and safe
-reason only. After 30 days, a key returns expired and cannot be reused. Receipts
-are never pruned to free quota: exhaustion fails closed until owner erasure. This
-bounded anti-replay strategy deliberately sacrifices sustained availability; safe
-compaction needs a separately accepted epoch/issuance protocol. Proposal expiry
-redacts content during bounded control transactions; no scheduler is added.
+Each exact owner/app/workspace/actor namespace retains at most 32 pending proposals
+(24-hour content TTL) and at most 256 non-forget operation receipts. User forget
+receipts are excluded from that quota so failed or unrelated review/proposal history
+cannot disable erasure. All operation receipts remain durable and are never pruned;
+the separate 1,024 source-fence cap still has no safe compaction protocol. Proposal
+expiry hides content immediately, and the existing authenticated scheduled-maintenance
+pass physically purges expired proposal bodies in bounded batches. Backup and replica
+physical deletion remain unverified.
+
+Receipt fingerprints bind the immutable project ID and intent, not the project's
+mutable current revision. Exact retries can reconcile an earlier committed result
+after revision drift while still requiring current owner/actor/project authorization.
+An authorized owner may forget same-project historical data after evidence expiry or
+source revocation; this does not make stale data readable. Lost project membership
+still requires a separate owner-authorized erasure path.
 Account export/deletion includes both tables. Existing source fences and their
 1,024 cap remain unchanged. Logical forget advances validity epoch, invalidating
 existing permission dependencies through final packing/history/summary/send checks.

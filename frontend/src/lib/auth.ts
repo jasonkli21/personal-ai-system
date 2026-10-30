@@ -29,6 +29,22 @@ export function getAuthTokenSnapshot() {
   return googleIdToken;
 }
 
+/** A non-secret browser-storage binding; the server still verifies every request token. */
+export function getAuthIdentityKey() {
+  if (!googleIdToken || expiresAtMs <= Date.now()) return null;
+  try {
+    const payload = JSON.parse(atob(googleIdToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as {
+      iss?: unknown;
+      sub?: unknown;
+    };
+    return typeof payload.iss === "string" && typeof payload.sub === "string"
+      ? `${payload.iss}|${payload.sub}`
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getAuthTokenServerSnapshot() {
   return null;
 }

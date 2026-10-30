@@ -98,8 +98,8 @@ class MemoryControlService:
                         limit=33,
                         timeout=2,
                     )
-                if len(rows) > 32:
-                    return ReadResult(status="limit_exceeded")
+                candidates_truncated = len(rows) > 32
+                rows = rows[:32]
                 eligible = []
                 terms = query.query.casefold().split()
                 for row in rows:
@@ -125,12 +125,12 @@ class MemoryControlService:
                     return ReadResult(
                         status="found",
                         topics=tuple(sorted({v.kind for v in items})),
-                        truncated=len(eligible) > query.limit,
+                        truncated=candidates_truncated or len(eligible) > query.limit,
                     )
                 return ReadResult(
                     status="found" if not memory_id or items else "forbidden_or_not_found",
                     items=items,
-                    truncated=len(eligible) > query.limit,
+                    truncated=candidates_truncated or len(eligible) > query.limit,
                 )
         except ResourceNotFoundError:
             return ReadResult(status="forbidden_or_not_found")
@@ -205,7 +205,10 @@ class MemoryControlService:
                     record = self.knowledge.repository.get_knowledge(
                         owner_id=self.scope.owner_id, memory_id=intent.target_id
                     )
-                    if self.knowledge.reason(record, self.scope) not in (None, "lifecycle_changed"):
+                    if (
+                        not same_actor(record, self.scope)
+                        or record.project.project_id != project.project_id
+                    ):
                         return OperationResult(
                             status="forbidden_or_not_found", reason="target_unavailable"
                         )

@@ -41,6 +41,7 @@ class PersistenceFactory(Protocol):
     def memory_lifecycle_repository(
         self, memories: MemoryRepository, messages: MessageRepository
     ) -> MemoryLifecycleRepository: ...
+    def memory_control_repository(self): ...
     def research_repository(self) -> ResearchRepository: ...
     def iterative_research_repository(self) -> IterativeResearchRepository: ...
     def decision_repository(self) -> DecisionRepository: ...
@@ -194,6 +195,13 @@ class PostgresDynamoPersistenceFactory:
         return PostgresMemoryLifecycleRepository(
             memories, messages, DynamoDBMemoryJobRepository(self.runtime_table)
         )
+
+    def memory_control_repository(self):
+        from personal_ai.persistence.postgres.control import PostgresControlRepository
+
+        memories = self.memory_repository()
+        lifecycle = self.memory_lifecycle_repository(memories, self.message_repository())
+        return PostgresControlRepository(memories, lifecycle)
 
     def research_repository(self):
         from personal_ai.persistence.postgres.research import PostgresResearchRepository

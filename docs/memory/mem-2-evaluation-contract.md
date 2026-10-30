@@ -1,6 +1,6 @@
 # MEM-2 synthetic control evaluation contract
 
-Date: 2026-10-29. Version `mem2-control-v1`; independent fixture assessment pending.
+Date: 2026-10-30 remediation addendum. Version `mem2-control-v1`; independent fixture assessment pending.
 This is deterministic control correctness evidence, not LLM utility or deployment
 acceptance. Existing MEM-0/MEM-1 fixtures and historical reports stay immutable.
 
@@ -25,10 +25,12 @@ assert knowledge count unchanged. Unsupported revision is an explicit abstention
 
 Supplemental tests are separate from the 36-case denominator: HTTP middleware,
 recent-auth and strict intent; user actor rejection at raw lifecycle entry points;
-thread and native process/session CAS races; source revocation at transaction entry;
-receipt-insert failure rollback; final packing and provider handoff; queue and replay
-key exhaustion/retention; account export and fenced operator erasure; UI explicit
-confirmation, no optimistic success and exact-intent retries. Revision/revision and
+thread and native process/session CAS races; source revocation during a user forget
+still permits suppression under current project authorization; receipt-insert failure
+rollback; final packing and provider handoff; proposal/review quota and durable forget
+reconciliation; idle proposal-content erasure; account export and fenced operator
+erasure; UI explicit confirmation, no optimistic success and exact-intent retries
+across reload with actor-bound, tab-scoped metadata. Revision/revision and
 revision/forget races cannot execute because every revision is unsupported: no
 replacement, lineage or receipt is written. No successful correction sequence is
 claimed. Real production authority and physical-send serialization remain gates.
@@ -42,13 +44,21 @@ Latency includes synthetic host setup/seed; it is not isolated database latency.
 Native resource probes separately report N=0/1/32/128, application SQL calls, read
 outcome/latency, and proposal/receipt bytes without claiming a performance SLA.
 
-Limits: one bound project; 32 candidates (33rd sentinel denies whole read), eight
-returned records, 200 query characters, two-second cooperative operation deadline;
-ten calls/ten seconds per explicit tool run, 4,096-byte JSON input. Pending content
-expires at 24 hours; 32 retained proposals and 256 receipt keys per exact actor
-namespace. Receipt keys retire after 24 hours for proposals and 30 days otherwise,
-remain quota-counted and cannot be reused. Content is erased on the next bounded
-write or fenced account purge; idle namespaces have no automatic physical eraser.
+Limits: one bound project; the first 32 recent candidates are checked and larger sets
+return `truncated=true`; eight returned records, 200 query characters, two-second
+cooperative operation deadline; ten calls/ten seconds per explicit tool run, 4,096-byte
+JSON input. Pending content expires at 24 hours; 32 retained proposals and 256
+non-forget receipt keys per exact actor namespace. Forget receipts do not consume this
+quota and remain durable; no receipt is pruned or compacted. Proposal keys retire after
+24 hours and other keys after 30 days. The authenticated scheduled-maintenance path
+purges expired proposal bodies in bounded batches; backup/replica erasure is unverified.
+
+The evaluator reports `unauthorized_active_knowledge_mutations`,
+`unauthorized_pending_proposal_mutations` and
+`unauthorized_control_receipt_mutations` separately. These synthetic counters do not
+assert all source/lineage or native SQL effects. Six public tagged cases are not blind
+holdouts; neither the corpus nor these checks establish real-model utility, native
+transactional acceptance, or production security.
 Known false positives: conservative ASCII/sensitive-term/instruction policy rejects
 legitimate non-ASCII text, discussion of verification/receipts and some ordinary
 technical vocabulary. No semantic relevance or model task-quality lift is measured.

@@ -135,19 +135,25 @@ none is installed by default. The `/memory` UI uses the existing authenticated p
 and a separate `MEMORY_USER_MANAGEMENT_ENABLED=false` server gate.
 
 Authenticated recent-user forget uses canonical lifecycle CAS/validity epochs and
-one atomic receipt transaction. Model tools cannot forget. Review/reject changes
-only pending status. Revision always returns `unsupported_evidence_source` until
-an actual confirmation issuer and atomic replacement design are supplied. There
-is no in-place claim edit, lineage mutation, scheduler or new embedding index.
+one atomic receipt transaction. Current owner/actor/project authorization remains
+required, but expired or source-revoked historical knowledge may still be suppressed
+without becoming readable. Model tools cannot forget. Review/reject changes only
+pending status. Revision always returns `unsupported_evidence_source` until an actual
+confirmation issuer and atomic replacement design are supplied. Before registering a
+model tool dispatcher, define durable host-owned run/tool-call invocation identity and
+same-key recovery; model-supplied IDs remain disallowed.
 
-Pending content expires after 24 hours (erased by subsequent bounded writes);
-32 proposals and 256 non-prunable receipt keys per exact actor namespace enforce
-bounded storage. Retired keys never execute again. Owner inventory/export includes
-both tables; `PostgresControlRepository.erase_owner` requires the existing owner
-fence for operator erasure. No automatic physical account eraser is introduced.
+Pending content expires after 24 hours and the authenticated scheduled-maintenance
+pass purges expired bodies in bounded batches. The actor namespace retains at most
+32 pending proposals and 256 non-forget operation receipts; forget receipts do not
+consume that quota. All operation keys remain durable and are never pruned, so storage
+growth and a safe compaction epoch remain operational concerns. Owner inventory/export
+includes both tables; `PostgresControlRepository.erase_owner` requires the existing
+owner fence for operator erasure. Cloud/backup physical deletion remains unverified.
 See the [control ADR](../../../../docs/memory/mem-2-control-adr.md),
-[report](../../../../docs/memory/mem-2-implementation-report.md) and
+[report](../../../../docs/memory/mem-2-implementation-report.md),
+[review remediation](../../../../docs/memory/mem-2-review-remediation-2026-10-30.md) and
 [independent review handoff](../../../../docs/memory/mem-2-independent-review-handoff.md).
 Run `make memory-control-eval`, `test_memory_control*.py` and opt-in native
 `tests/persistence/test_memory_control_postgres.py`. Synthetic checks do not close
-issuer/identity, physical-send, deletion, replay-capacity or live-model gates.
+issuer/identity, physical-send, backup deletion, operation-ledger growth or live-model gates.

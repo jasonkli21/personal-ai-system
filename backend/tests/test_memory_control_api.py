@@ -1,6 +1,5 @@
 """Real middleware identity, feature gates and explicit user intent for MEM-2."""
 
-import time
 from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -20,14 +19,16 @@ from personal_ai.settings import get_settings
 
 @pytest.fixture
 def api(monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr("personal_ai.evaluation.knowledge_runtime.NOW", now)
     rt = ControlRuntime()
     rt.scope = rt.scope.model_copy(update={"workspace_id": None})
     rt.authority = HermeticKnowledgeAuthority(rt.scope)
     rt.knowledge.resolver = rt.authority
     rt.service = rt.for_scope(rt.scope)
-    # Source observation remains fixed synthetic time; verified authentication uses current time.
-    rt.principal = replace(rt.principal, authenticated_at=int(time.time()))
-    rt.now = datetime.now(UTC)
+    # Keep the request clock aligned with the synthetic source and principal.
+    rt.principal = replace(rt.principal, authenticated_at=int(now.timestamp()))
+    rt.now = now
     with rt.user():
         record = rt.seed()
         proposal = rt.service.propose(candidate())
@@ -108,7 +109,7 @@ def test_stale_principal_injected_authority_and_agent_body_rejected(api):
     body = mutation().model_dump(mode="json")
     rt.principal = replace(rt.principal, authenticated_at=0)
     assert client.post(url, headers=headers, json=body).status_code == 401
-    rt.principal = replace(rt.principal, authenticated_at=int(time.time()))
+    rt.principal = replace(rt.principal, authenticated_at=int(rt.now.timestamp()))
     for extra in (
         {"owner_id": "other"},
         {"acting_user_id": rt.scope.acting_user_id},

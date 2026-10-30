@@ -101,6 +101,12 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
             calls.append(("purge", limit))
             return 4
 
+    class MemoryControls:
+        def purge_expired_proposals(self, *, as_of, limit):
+            assert as_of.tzinfo is not None
+            calls.append(("purge_memory_proposals", limit))
+            return 7
+
     class ProviderUsage:
         def resolve_stale_attempts(self, *, limit):
             calls.append(("resolve_stale", limit))
@@ -160,6 +166,9 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
         def safeguard_store(self):
             return Safeguards()
 
+        def memory_control_repository(self):
+            return MemoryControls()
+
         def principal_directory(self):
             return Directory()
 
@@ -196,7 +205,7 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
         b'{"artifact_reconciliation": {"checked": 2, "deleted": 1}, '
         b'"artifact_storage": {"gcs": {"live_body_bytes": 0}}, '
         b'"republished_jobs": 1, "expired_sessions": 2, "expired_research_experiments": 1, '
-        b'"expired_usage_budgets": 4, '
+        b'"expired_usage_budgets": 4, "expired_memory_proposals": 7, '
         b'"provider_attempts_resolved": 3, "provider_events_synchronized": 2, '
         b'"expired_provider_usage_records": 5, "expired_routing_decisions": 6}'
     )
@@ -204,6 +213,7 @@ def test_scheduled_maintenance_runs_bounded_usage_budget_cleanup(monkeypatch) ->
         ("resolve_stale", 3), ("sync_events", 3), ("purge_provider_usage", 3),
         ("purge_routing_decisions", 3),
         ("artifact_reconcile", 3), ("purge", 3),
+        ("purge_memory_proposals", 3),
         ("republish", configured.memory_job_candidate_limit), ("research_experiments", 3), ("research", 3),
     ]
 

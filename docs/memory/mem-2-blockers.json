@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-29",
-  "entry_revision": "7c8f2671ffc163f803e781b9b34d6c81d466e8fa",
+  "date": "2026-10-30",
+  "entry_revision": "c0add2b15ec7dc6b4879bafdb0ec01e1b0eb68d6",
   "full_phase_implementation_complete": false,
   "narrowed_slice_implemented": true,
   "independently_accepted": false,
@@ -32,9 +32,9 @@
     },
     {
       "id": "MEM2-REPLAY-CAPACITY",
-      "priority": "P2",
-      "status": "blocked",
-      "remaining_work": "1,024 source fences and 256 operation keys remain permanent quota-counted replay guards; no safe compaction."
+      "priority": "P1",
+      "status": "pending_native_review",
+      "remaining_work": "Forget receipts now bypass the 256 non-forget receipt quota and all keys remain durable, but operation-ledger growth, physical capacity, restore behavior and replay safety still need isolated native churn/recovery verification before promotion; the 1,024 source-fence cap also has no safe compaction."
     },
     {
       "id": "MEM2-READ-COST",
@@ -44,15 +44,21 @@
     },
     {
       "id": "MEM2-IDLE-ERASURE",
-      "priority": "P2",
-      "status": "unverified",
-      "remaining_work": "Expired content hidden; next-write/operator erasure only, no scheduled idle eraser or cloud physical evidence."
+      "priority": "P1",
+      "status": "pending_native_review",
+      "remaining_work": "A bounded scheduled-maintenance purge and expiry index now remove idle expired proposal bodies locally; native idle-GC/concurrency and deployed scheduler, replica and backup deletion evidence remain unverified."
     },
     {
       "id": "MEM2-BROWSER-RECOVERY",
       "priority": "P2",
-      "status": "open",
-      "remaining_work": "Unknown intent survives in component state only; reload loses its reconciliation handle."
+      "status": "pending_frontend_review",
+      "remaining_work": "Exact operation path/body and non-secret actor binding are now held in tab-scoped session storage and cleared on terminal outcome or actor change; frontend tests and browser authentication behavior still require review."
+    },
+    {
+      "id": "MEM2-TOOL-RETRY-IDENTITY",
+      "priority": "P2",
+      "status": "blocked",
+      "remaining_work": "No production dispatcher is installed. Before registration, define trusted run/tool-call/attempt identity, persist the operation key before dispatch, and test crash-before-ack recovery; model-supplied IDs remain disallowed."
     },
     {
       "id": "MEM2-UTILITY",

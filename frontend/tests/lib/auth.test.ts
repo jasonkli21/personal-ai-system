@@ -5,6 +5,7 @@ import {
   authorizationHeaders,
   clearGoogleIdToken,
   configureAuth,
+  getAuthIdentityKey,
   getAuthTokenSnapshot,
   setGoogleIdToken,
 } from "../../src/lib/auth";
@@ -12,7 +13,7 @@ import {
 function tokenWithExpiry(exp: number) {
   const encode = (value: object) =>
     btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  return `${encode({ alg: "none" })}.${encode({ exp })}.synthetic-signature`;
+  return `${encode({ alg: "none" })}.${encode({ exp, iss: "https://issuer", sub: "actor-a" })}.synthetic-signature`;
 }
 
 describe("memory-only Google authentication", () => {
@@ -33,6 +34,7 @@ describe("memory-only Google authentication", () => {
     const token = tokenWithExpiry(Date.now() / 1000 + 3600);
     expect(setGoogleIdToken(token)).toBe(true);
     expect(getAuthTokenSnapshot()).toBe(token);
+    expect(getAuthIdentityKey()).toBe("https://issuer|actor-a");
 
     const headers = authorizationHeaders({ "Content-Type": "application/json" });
     expect(headers.get("Authorization")).toBe(`Bearer ${token}`);

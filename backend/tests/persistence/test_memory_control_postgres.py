@@ -29,7 +29,7 @@ def native(isolated_postgres_dsn):
     rt = ControlRuntime()
     database = PostgresDatabase(isolated_postgres_dsn, environment="test")
     applied = database.migrate()
-    assert applied[-1] == 30
+    assert applied[-1] == 31
     assert database.migrate() == ()
     rt.memories = PostgresMemoryRepository(database, object())
     rt.lifecycle = PostgresMemoryLifecycleRepository(rt.memories, object(), None)
@@ -234,6 +234,16 @@ def test_native_commit_then_lost_ack_reconciles_exact_operation(
             rt.knowledge, rt.repository, rt.scope, "repo-alpha", clock=lambda: rt.now
         )
         assert rt.service.mutate("forget", record.id, req).replayed
+        key = (
+            rt.scope.owner_id,
+            rt.scope.application_id,
+            rt.scope.workspace_id,
+            rt.scope.acting_user_id,
+        )
+        rt.authority.projects[(key, "repo-alpha")] = record.project.model_copy(
+            update={"revision": "rev-after-commit"}
+        )
+        assert rt.service.mutate("forget", record.id, req).replayed
         assert (
             rt.service.mutate("forget", record.id, mutation(9, req.operation_id)).status
             == "conflict"
@@ -241,7 +251,7 @@ def test_native_commit_then_lost_ack_reconciles_exact_operation(
         assert counts(database) == (0, 1, 1, 1)
 
 
-def test_native_source_revoked_after_check_blocks_atomic_forget(native, monkeypatch):
+def test_native_source_revoked_after_check_still_allows_user_suppression(native, monkeypatch):
     database, rt = native
     with rt.user():
         record = rt.seed()
@@ -258,8 +268,49 @@ def test_native_source_revoked_after_check_blocks_atomic_forget(native, monkeypa
             return original(*args)
 
         monkeypatch.setattr(rt.repository, "execute", revoke)
-        assert rt.service.mutate("forget", record.id, mutation()).status == "stale_evidence"
-        assert counts(database) == (0, 0, 0, 0)
+        assert rt.service.mutate("forget", record.id, mutation()).status == "applied"
+        assert counts(database) == (0, 1, 1, 1)
+
+
+def test_native_idle_proposal_gc_erases_content_and_preserves_operation_key(native):
+    database, rt = native
+    with rt.user():
+        operation_id = uuid4()
+        proposal = rt.service.propose(candidate(), operation_id=operation_id)
+        rt.now += timedelta(days=2)
+        assert not rt.service.proposals().proposals
+        with database.connection() as connection:
+            assert connection.execute("SELECT count(*) FROM memory_control_proposals").fetchone()[0] == 1
+        assert rt.repository.purge_expired_proposals(as_of=rt.now, limit=10) == 1
+        assert counts(database)[0] == 0
+        assert rt.service.propose(candidate(), operation_id=operation_id).status == "expired"
+        assert counts(database)[1] == 1
+        assert proposal.target_id is not None
+
+
+def test_native_forget_survives_256_conflict_receipts(native):
+    database, rt = native
+    with rt.user():
+        record = rt.seed()
+        for _ in range(256):
+            assert rt.service.mutate("forget", record.id, mutation(999)).status == "conflict"
+        assert counts(database)[1] == 256
+        operation = mutation()
+        assert rt.service.mutate("forget", record.id, operation).status == "applied"
+        assert rt.service.mutate("forget", record.id, operation).replayed
+        assert counts(database) == (0, 257, 1, 1)
+
+
+def test_native_expired_knowledge_can_be_forgotten_by_current_actor(native):
+    database, rt = native
+    with rt.user():
+        record = rt.seed()
+        rt.now += timedelta(days=31)
+        principal = replace(rt.principal, authenticated_at=int(rt.now.timestamp()))
+        with rt.user(principal=principal):
+            assert rt.service.mutate("forget", record.id, mutation()).status == "applied"
+            assert not rt.service.read(SearchInput(), memory_id=record.id).items
+            assert counts(database)[2:] == (1, 1)
 
 
 def test_native_ttl_quota_export_and_fenced_owner_erasure(native):

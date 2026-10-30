@@ -114,6 +114,7 @@ class OperationResult(Strict):
 
 class OperationReceipt(Strict):
     operation_id: UUID
+    project_id: str | None = Field(default=None, max_length=100)
     fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
     actor: Literal["agent_proposal", "verified_user"]
     action: Literal["propose", "reviewed", "rejected", "forget"]

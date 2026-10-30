@@ -11,8 +11,15 @@ import pytest
 
 from personal_ai.evaluation.control_runtime import ControlRuntime
 from personal_ai.evaluation.knowledge_runtime import request
-from personal_ai.evaluation.memory_control import candidate, load_corpus, mutation, run_probe
-from personal_ai.memory.control_contracts import ReviewInput, SearchInput
+from personal_ai.evaluation.memory_control import (
+    candidate,
+    evaluate,
+    load_corpus,
+    mutation,
+    run_probe,
+)
+from personal_ai.memory.control_contracts import ControlIntent, ReviewInput, SearchInput
+from personal_ai.memory.control_repository import legacy_operation_fingerprint, operation_key
 from personal_ai.memory.control_tools import MemoryToolRun, tool_definitions
 from personal_ai.memory.lifecycle import MemoryLifecycleEvent
 from personal_ai.memory.lifecycle.repositories import event_idempotency_id
@@ -22,6 +29,18 @@ from personal_ai.settings import Settings
 @pytest.mark.parametrize("case", load_corpus()[0].cases, ids=lambda c: c.id)
 def test_versioned_control_corpus(case):
     assert run_probe(case.input) == case.expected
+
+
+def test_evaluator_uses_precise_write_metrics_and_discloses_public_scenarios():
+    result = evaluate()
+    assert result["classification"].startswith("author-visible synthetic/offline")
+    assert result["safety"] == {
+        "unauthorized_reads": 0,
+        "unauthorized_active_knowledge_mutations": 0,
+        "unauthorized_pending_proposal_mutations": 0,
+        "unauthorized_control_receipt_mutations": 0,
+        "false_successes": 0,
+    }
 
 
 def test_model_schemas_have_no_authority_or_mutation_fields():
@@ -156,7 +175,7 @@ def test_raw_lifecycle_cannot_use_verified_user_actor():
         assert rt.lifecycle.apply_event(event).reason == "control_transaction_required"
 
 
-def test_source_revocation_between_service_check_and_atomic_forget_denies(monkeypatch):
+def test_source_revocation_between_service_check_still_allows_user_forget(monkeypatch):
     rt = ControlRuntime()
     with rt.user():
         record = rt.seed()
@@ -173,12 +192,12 @@ def test_source_revocation_between_service_check_and_atomic_forget_denies(monkey
             return original(*args)
 
         monkeypatch.setattr(rt.repository, "execute", revoke)
-        assert rt.service.mutate("forget", record.id, mutation()).status == "stale_evidence"
+        assert rt.service.mutate("forget", record.id, mutation()).status == "applied"
         assert (
             rt.lifecycle.get_state(owner_id=rt.scope.owner_id, memory_id=record.id).state_version
-            == 0
+            == 1
         )
-        assert not rt.memories.control_receipts
+        assert len(rt.memories.control_receipts) == 1
 
 
 def test_expired_operation_never_reexecutes_and_new_intent_cannot_reuse_key():
@@ -198,6 +217,53 @@ def test_expired_operation_never_reexecutes_and_new_intent_cannot_reuse_key():
         )
 
 
+def test_exact_forget_replay_survives_project_revision_drift():
+    rt = ControlRuntime()
+    with rt.user():
+        record = rt.seed()
+        req = mutation()
+        assert rt.service.mutate("forget", record.id, req).status == "applied"
+        receipt_key = operation_key(rt.scope, req.operation_id)
+        receipt = rt.memories.control_receipts[receipt_key]
+        rt.memories.control_receipts[receipt_key] = receipt.model_copy(
+            update={
+                "fingerprint": legacy_operation_fingerprint(
+                    record.project,
+                    ControlIntent(
+                        operation_id=req.operation_id,
+                        action="forget",
+                        target_id=record.id,
+                        expected_version=req.expected_version,
+                        actor="verified_user",
+                    ),
+                ),
+                "project_id": record.project.project_id,
+            }
+        )
+        key = (rt.scope.owner_id, rt.scope.application_id, rt.scope.workspace_id, rt.scope.acting_user_id)
+        rt.authority.projects[(key, "repo-alpha")] = record.project.model_copy(
+            update={"revision": "rev-after-commit"}
+        )
+        assert rt.service.mutate("forget", record.id, req).replayed
+        altered = mutation(version=1, operation_id=req.operation_id)
+        assert rt.service.mutate("forget", record.id, altered).reason == "operation_id_reused"
+
+
+def test_authenticated_user_can_forget_expired_or_revoked_history():
+    rt = ControlRuntime()
+    with rt.user():
+        record = rt.seed()
+        rt.now += timedelta(days=31)
+        principal = replace(rt.principal, authenticated_at=int(rt.now.timestamp()))
+        with rt.user(principal=principal):
+            assert rt.service.mutate("forget", record.id, mutation()).status == "applied"
+            assert not rt.service.read(SearchInput(), memory_id=record.id).items
+            assert (
+                rt.lifecycle.get_state(owner_id=rt.scope.owner_id, memory_id=record.id).state_version
+                == 1
+            )
+
+
 def test_proposal_ttl_erases_content_on_next_write_but_preserves_replay_key():
     rt = ControlRuntime()
     with rt.user():
@@ -211,15 +277,45 @@ def test_proposal_ttl_erases_content_on_next_write_but_preserves_replay_key():
         assert len(rt.memories.control_receipts) == 2
 
 
+def test_idle_proposal_gc_physically_erases_expired_content_and_keeps_key():
+    rt = ControlRuntime()
+    with rt.user():
+        key = uuid4()
+        result = rt.service.propose(candidate(), operation_id=key)
+        rt.now += timedelta(days=3)
+        assert result.target_id in {p.id for p in rt.memories.control_proposals.values()}
+        assert rt.repository.purge_expired_proposals(as_of=rt.now, limit=1) == 1
+        assert not rt.memories.control_proposals
+        assert rt.service.propose(candidate(), operation_id=key).status == "expired"
+
+
 def test_receipt_capacity_never_prunes_expired_keys():
     rt = ControlRuntime()
     with rt.user():
+        record = rt.seed()
         for index in range(256):
             rt.now += timedelta(days=2)
             result = rt.service.propose(candidate())
             assert result.status == "proposed_for_review", index
         assert rt.service.propose(candidate()).status == "limit_exceeded"
         assert len(rt.memories.control_receipts) == 256
+        principal = replace(rt.principal, authenticated_at=int(rt.now.timestamp()))
+        with rt.user(principal=principal):
+            assert rt.service.mutate("forget", record.id, mutation()).status == "applied"
+        assert len(rt.memories.control_receipts) == 257
+
+
+def test_forget_remains_available_after_256_conflict_receipts():
+    rt = ControlRuntime()
+    with rt.user():
+        record = rt.seed()
+        for _ in range(256):
+            assert rt.service.mutate("forget", record.id, mutation(version=999)).status == "conflict"
+        assert len(rt.memories.control_receipts) == 256
+        request = mutation()
+        assert rt.service.mutate("forget", record.id, request).status == "applied"
+        assert rt.service.mutate("forget", record.id, request).replayed
+        assert len(rt.memories.control_receipts) == 257
 
 
 def test_candidate_limit_and_zero_record_negative_control():
@@ -228,8 +324,10 @@ def test_candidate_limit_and_zero_record_negative_control():
         assert rt.service.read(SearchInput()).items == ()
         for index in range(33):
             rt.seed(f"run-{index}")
-        assert rt.service.read(SearchInput()).status == "limit_exceeded"
-        assert rt.service.read(SearchInput()).items == ()
+        result = rt.service.read(SearchInput(query="backend-lint"))
+        assert result.status == "found"
+        assert len(result.items) == 8
+        assert result.truncated
 
 
 def test_final_release_revalidation_removes_concurrent_revocation(monkeypatch):

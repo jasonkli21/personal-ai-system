@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { authenticatedFetch } from "../../lib/auth";
+import { authenticatedFetch, getAuthIdentityKey, subscribeAuth } from "../../lib/auth";
 
 type Memory = {
   application_id: string; workspace_id: string | null;
@@ -17,6 +17,45 @@ type Proposal = {
 };
 type Outcome = { status: string; replayed?: boolean };
 type Intent = { path: string; body: { operation_id: string; expected_version: number; confirm: true; decision?: string } };
+type StoredIntent = { version: 1; actor: string; intent: Intent };
+const PENDING_INTENT_KEY = "memory-control.pending-operation.v1";
+
+function validIntent(value: unknown): value is Intent {
+  if (!value || typeof value !== "object") return false;
+  const intent = value as Partial<Intent>;
+  if (typeof intent.path !== "string" || !intent.body || typeof intent.body !== "object") return false;
+  const { operation_id, expected_version, confirm, decision } = intent.body;
+  const target = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+  const pathIsSafe = new RegExp(`^(knowledge/${target}/forget|proposals/${target}/decision)$`, "i")
+    .test(intent.path);
+  return pathIsSafe
+    && /^[0-9a-f-]{36}$/i.test(operation_id)
+    && Number.isSafeInteger(expected_version)
+    && expected_version >= 0
+    && confirm === true
+    && (decision === undefined || decision === "reviewed" || decision === "rejected");
+}
+
+function readStoredIntent(): StoredIntent | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_INTENT_KEY);
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as Partial<StoredIntent>;
+    return stored.version === 1 && typeof stored.actor === "string" && validIntent(stored.intent)
+      ? stored as StoredIntent
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function removeStoredIntent() {
+  try {
+    sessionStorage.removeItem(PENDING_INTENT_KEY);
+  } catch {
+    // Storage is optional; it contains no durable application data.
+  }
+}
 
 async function request<T>(path: string, body?: Intent["body"]): Promise<T> {
   const response = await authenticatedFetch(`/api/memory/control/${path}`, {
@@ -35,6 +74,49 @@ export function MemoryPanel() {
   const [uncertain, setUncertain] = useState<Intent | null>(null);
   const [confirmed, setConfirmed] = useState<string | null>(null);
 
+  useEffect(() => {
+    function restorePendingIntent() {
+      const stored = readStoredIntent();
+      if (!stored) {
+        removeStoredIntent();
+        return;
+      }
+      const actor = getAuthIdentityKey();
+      if (!actor) return;
+      if (stored.actor !== actor) {
+        removeStoredIntent();
+        setUncertain(null);
+        return;
+      }
+      setUncertain(stored.intent);
+      setMessage(
+        "A previous operation has an unknown outcome. Reconcile this same operation before another action.",
+      );
+    }
+    restorePendingIntent();
+    const unsubscribe = subscribeAuth(restorePendingIntent);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  function keepPendingIntent(intent: Intent) {
+    setUncertain(intent);
+    const actor = getAuthIdentityKey();
+    if (!actor) return;
+    try {
+      const stored: StoredIntent = { version: 1, actor, intent };
+      sessionStorage.setItem(PENDING_INTENT_KEY, JSON.stringify(stored));
+    } catch {
+      // Keep the in-memory handle; browser storage can be unavailable in private modes.
+    }
+  }
+
+  function clearPendingIntent() {
+    setUncertain(null);
+    removeStoredIntent();
+  }
+
   async function refresh() {
     setBusy(true);
     setItems([]); setProposals([]);
@@ -47,7 +129,9 @@ export function MemoryPanel() {
         setMessage("Memory inspection is unavailable. Narrowing or current authorization may be required.");
       } else {
         setItems(knowledge.items); setProposals(pending.proposals);
-        setMessage(knowledge.truncated ? "Showing the first eight eligible records." : "Inspection refreshed.");
+        setMessage(knowledge.truncated
+          ? "Results are incomplete: only a bounded set of recent records was checked."
+          : "Inspection refreshed.");
       }
     } catch (error) { setMessage((error as Error).message); }
     finally { setBusy(false); }
@@ -56,13 +140,15 @@ export function MemoryPanel() {
   async function apply(intent: Intent) {
     setBusy(true); setItems([]); setProposals([]); setConfirmed(null);
     // Keep the exact intent until a durable result is known; transport failure is uncertain.
-    setUncertain(intent);
+    keepPendingIntent(intent);
     try {
       const result = await request<Outcome>(intent.path, intent.body);
       setMessage(result.status === "applied"
         ? "Forgotten for future use. Input already sent to a provider cannot be recalled."
         : `Memory operation: ${result.status}${result.replayed ? " (reconciled)" : ""}.`);
-      if (result.status !== "unknown_commit" && result.status !== "temporarily_unavailable") setUncertain(null);
+      if (result.status !== "unknown_commit" && result.status !== "temporarily_unavailable") {
+        clearPendingIntent();
+      }
     } catch { setMessage("Outcome unknown. Reconcile this same operation before another action."); }
     finally { setBusy(false); }
   }

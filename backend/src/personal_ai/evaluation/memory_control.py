@@ -244,8 +244,18 @@ def evaluate():
         for r, c in zip(results, corpus.cases, strict=True)
         if c.family == "authorization"
     )
-    unauthorized_writes = sum(
+    unauthorized_active_knowledge_mutations = sum(
         r["observed"]["state_version"] + max(0, r["observed"]["knowledge_count"] - 1)
+        for r, c in zip(results, corpus.cases, strict=True)
+        if c.family in {"authorization", "proposal_injection"}
+    )
+    unauthorized_pending_proposal_mutations = sum(
+        r["observed"]["pending_count"]
+        for r, c in zip(results, corpus.cases, strict=True)
+        if c.family in {"authorization", "proposal_injection"}
+    )
+    unauthorized_control_receipt_mutations = sum(
+        r["observed"]["receipts"]
         for r, c in zip(results, corpus.cases, strict=True)
         if c.family in {"authorization", "proposal_injection"}
     )
@@ -255,12 +265,17 @@ def evaluate():
     )
     return {
         "version": corpus.version,
-        "classification": "synthetic/offline; no model utility evidence",
+        "classification": (
+            "author-visible synthetic/offline; six tagged holdout cases are not blind; "
+            "no model utility evidence"
+        ),
         "checksum": checksum,
         "cases": len(results),
         "safety": {
             "unauthorized_reads": unauthorized_reads,
-            "unauthorized_writes": unauthorized_writes,
+            "unauthorized_active_knowledge_mutations": unauthorized_active_knowledge_mutations,
+            "unauthorized_pending_proposal_mutations": unauthorized_pending_proposal_mutations,
+            "unauthorized_control_receipt_mutations": unauthorized_control_receipt_mutations,
             "false_successes": false_successes,
         },
         "unsupported_revision_abstentions": sum(

@@ -22,7 +22,9 @@ Repository adapters may coordinate multiple writes inside one transaction when t
 ## MEM-2 migration and operator notes
 
 Migration 030 adds only actor-scoped pending proposals and content-free operation
-receipts under the existing Postgres memory owner. It follows 027–029 without
+receipts under the existing Postgres memory owner. Migration 031 adds the global
+expiry index used by bounded idle cleanup and backfills stable project IDs onto
+legacy receipts where their target rows remain. These follow 027–029 without
 rewriting earlier migrations, schema-3 records or lifecycle history. The control
 repository locks owner fence → existing knowledge namespace → actor namespace,
 then applies canonical lifecycle event/projection plus receipt in one transaction.
@@ -30,9 +32,9 @@ Queue review and receipt also share a transaction. User actors are rejected by r
 lifecycle `apply_event`; the narrow control transaction is the only user-write seam.
 
 Rollback disables the three MEM-2 flags and the frontend management gate. Do not
-roll back migration 030, undo forget, prune source fences or recycle receipt keys.
-TTL hides expired proposals; the next bounded write erases expired content. No
-background eraser is installed. An operator performing account erasure must retain
+roll back migrations 030/031, undo forget, prune source fences or recycle receipt keys.
+TTL hides expired proposals; the bounded scheduled-maintenance pass and later writes
+erase expired content. An operator performing account erasure must retain
 the owner fence and invoke `PostgresControlRepository.erase_owner(owner_id)` for
 both control tables in every scope; it refuses an unfenced owner. Account inventory
 and export cover both tables. This is a local SQL erasure seam, not proof of cloud
