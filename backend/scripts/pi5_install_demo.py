@@ -4,6 +4,7 @@ import argparse
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+from uuid import uuid4
 
 from personal_ai.retrieval.installation import Access, Installation, LocalDocument
 
@@ -24,7 +25,8 @@ access = Access(
 now = datetime.now(UTC)
 text = "Atlas is a synthetic catalog entry for demonstrating authorized local retrieval."
 value = Installation(
-    schema_version="retrieval-installation-v1",
+    schema_version="retrieval-installation-v2",
+    issuer_id=uuid4(),
     enabled=True,
     tool_enabled=True,
     access=(access,),

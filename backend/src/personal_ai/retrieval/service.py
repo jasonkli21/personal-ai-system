@@ -10,7 +10,7 @@ import anyio
 from personal_ai.auth.application_clients import require_current_client_authority
 from personal_ai.retrieval.contracts import RetrievalOutcome
 from personal_ai.retrieval.external import ExternalBridge
-from personal_ai.retrieval.installation import LexicalIndex, load_snapshot
+from personal_ai.retrieval.installation import LexicalIndex, legacy_issuer_id, load_snapshot
 from personal_ai.retrieval.journal import AttemptJournal, IntentConflict
 from personal_ai.search.contracts import SearchDispatch
 
@@ -98,7 +98,12 @@ class RetrievalService:
         if "local" in query.sources:
             # Access filtering happens before building index statistics or examining text.
             docs = tuple(d for d in snapshot.installation.documents if d.allows(self.scope, now))
-            found, excluded = LexicalIndex(docs).search(query, self.scope, now)
+            issuer_id = snapshot.installation.issuer_id or legacy_issuer_id(
+                self.settings.retrieval_installation_file
+            )
+            found, excluded = LexicalIndex(docs, issuer_id=str(issuer_id)).search(
+                query, self.scope, now
+            )
             items.extend(found)
             reasons.extend(excluded)
         if "external" in query.sources:
@@ -121,10 +126,16 @@ class RetrievalService:
                     )
                     guard()
                     journal = AttemptJournal(self.settings.retrieval_attempt_journal_file)
-                    denial = journal.reserve(self.scope, query)
+                    deadline = now + timedelta(seconds=self.settings.retrieval_timeout_seconds)
+                    operation = bridge.prepare(query, deadline)
+                    if operation is not None:
+                        denial = journal.reserve(self.scope, query)
+                    else:
+                        # A contradictory deterministic domain filter cannot dispatch.
+                        denial = None
                     if denial:
                         reasons.append(denial)
-                    else:
+                    elif operation is not None:
                         final_guard = lambda: self.guard(
                             snapshot,
                             bridge,
@@ -132,9 +143,12 @@ class RetrievalService:
                             tool_guard=tool_guard,
                             deadline_at=deadline_at,
                         )
-                        deadline = now + timedelta(seconds=self.settings.retrieval_timeout_seconds)
                         found, excluded, dispatch = await bridge.search(
-                            query, deadline, final_guard, journal.scope_key(self.scope)
+                            query,
+                            deadline,
+                            final_guard,
+                            journal.scope_key(self.scope),
+                            operation=operation,
                         )
                         final_guard()
                         items.extend(found)

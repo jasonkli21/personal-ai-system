@@ -337,3 +337,13 @@ intentionally unavailable; live Brave/P19, distributed authority/attempt storage
 restore and production gates remain open. A17/A18 full acceptance and independent
 PI-0–5 acceptance are not claimed. The original roadmap gates and MEM-3+ freeze
 remain in force. PI-6–8 are not delivered.
+
+The 2026-10-31 independent review remediation fixes deterministic no-dispatch
+receipt exhaustion, cross-scope quota starvation, Brave failure-attempt references,
+local citation authority collisions, and title-only body citations. The journal now
+caps retained attempts per authenticated scope and never prunes receipts; aggregate
+storage across scopes remains unbounded, so external use stays local/test-only.
+F01/F02 remain P1 blockers. F06 remains a P2 gap because the candidate has one fixed
+tool executable rather than the roadmap's general operator-installed registry; its
+manifest remains non-executable. F08's source plan is preserved untracked and excluded
+from the remediation commit. See the [dated review evidence](pi-5-independent-review-remediation-2026-10-31.md).

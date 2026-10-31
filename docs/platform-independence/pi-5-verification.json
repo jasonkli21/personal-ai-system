@@ -438,7 +438,7 @@
     },
     "P5-03": {
       "disposition": "pass",
-      "evidence": "Real operator-file lexical index, independent Fern corpus, deterministic bounded exact quotes."
+      "evidence": "Real operator-file lexical index; title-only hits with no matched body token are omitted; exact body offsets and quotes remain bounded."
     },
     "P5-04": {
       "disposition": "blocked",
@@ -450,7 +450,7 @@
     },
     "P5-06": {
       "disposition": "pass",
-      "evidence": "Source-neutral local and mock-external observation/citation fidelity, rights and freshness metadata; live origin acceptance remains P5-04."
+      "evidence": "Source-neutral local/mock-external attribution; local citation authority binds operator issuer and authenticated scope. Live origin acceptance remains P5-04."
     },
     "P5-07": {
       "disposition": "pass",
@@ -486,15 +486,15 @@
     },
     "P5-15": {
       "disposition": "pass",
-      "evidence": "Literal local offsets/quote hash and IDs bind origin/provider/URL/source/revision/rights authority; external normalization is explicit."
+      "evidence": "Literal offsets and quote hashes; citation IDs bind issuer namespace, authenticated scope, source revision and rights authority."
     },
     "P5-16": {
       "disposition": "pass",
       "evidence": "Malicious instructions/tool names remain literal source data; no model/memory/mutation execution."
     },
     "P5-17": {
-      "disposition": "pass",
-      "evidence": "Operator selection + installed app metadata + closed executable mapping; unknown/disabled/duplicate denied."
+      "disposition": "partial",
+      "evidence": "One fixed executable read-only tool is closed and tested. Generic operator-installed capability registration remains deferred; manifests cannot execute code."
     },
     "P5-18": {
       "disposition": "pass",
@@ -506,15 +506,15 @@
     },
     "P5-20": {
       "disposition": "pass",
-      "evidence": "Single-host reserve/unknown/completed fences across concurrency/cancellation/restart/provider switch; no body replay/resend."
+      "evidence": "Single-host original-intent fences across concurrency/cancellation/restart/provider switch; deterministic no-dispatch filters reserve no receipt and the lifetime cap is per authenticated scope."
     },
     "P5-21": {
       "disposition": "pass",
       "evidence": "Bounded complete/partial/unavailable distinctions for no match, missing admission, 429/quota, timeout, stale source and unknown attempt."
     },
     "P5-22": {
-      "disposition": "pass",
-      "evidence": "Whole request bytes, query/source/doc/item/quote/token/deadline/process concurrency and lifetime receipt bounds."
+      "disposition": "partial",
+      "evidence": "Per-scope lifetime receipt cap prevents cross-scope starvation; aggregate retained SQLite growth across distinct scopes is unbounded and external execution remains local/test-only."
     },
     "P5-23": {
       "disposition": "pass",
@@ -525,20 +525,20 @@
       "evidence": "Conversation/auth/inference/profile compatibility exercised, but inherited provider-matrix/Phase36 regressions remain red."
     },
     "P5-25": {
-      "disposition": "fail",
-      "evidence": "Original research/retrieval evaluations pass; intermittent 30 ms inherited research quota test failed in broad/focused runs. No assertion/timeout weakened."
+      "disposition": "partial",
+      "evidence": "The current offline PI-5 target passed 124 native and 27 signed HTTP tests; synthetic research/retrieval evaluations exited 0. The earlier 30 ms quota failure did not recur, its cause is unproven, and retrieval remains not_promoted with live answer quality/quota unmeasured."
     },
     "P5-26": {
       "disposition": "blocked",
       "evidence": "Independent installed client gets local and mock external snippets. Mock Brave/P19 does not prove eligible live external source."
     },
     "P5-27": {
-      "disposition": "pass",
-      "evidence": "Feature/tool flags deny future disclosure; original receipts retained with no pruning/reset migration."
+      "disposition": "partial",
+      "evidence": "Feature flags and retained per-scope receipts support local rollback; aggregate journal storage is unbounded across scopes, and restore anti-rollback/production recovery remain open."
     },
     "P5-28": {
-      "disposition": "pass",
-      "evidence": "Entry SHA, final runtime digest/artifact hashes/commands/counts/known gaps recorded. Final commit resolved by report path."
+      "disposition": "partial",
+      "evidence": "Review remediation evidence and tested source hashes are recorded. The original detailed plan remains an untracked preserved input, SHA-256 3f5f3bd83390c4681037e282652bc7230983ae43c572e0be17d75b3db72c3af5."
     }
   },
   "schema_version": "pi5-verification-v1",
@@ -992,5 +992,108 @@
     "live Brave eligibility/billing/privacy",
     "distributed source and intent authority",
     "production restore/physical deletion acceptance"
-  ]
+  ],
+  "review_remediation": {
+    "date": "2026-10-31",
+    "review_target": "851a60d46c1b90d20a4992c19ec5801f26a9c403",
+    "entry_parent": "e5412a85e58fdf0a9d7b58d1361a23b37e477190",
+    "plan_input": {
+      "path": "docs/platform-independence/pi-5-detailed-implementation-plan.md",
+      "git_status": "pre-existing untracked file; preserved and excluded from remediation commit",
+      "sha256": "3f5f3bd83390c4681037e282652bc7230983ae43c572e0be17d75b3db72c3af5"
+    },
+    "findings": {
+      "F01": "deferred P1: no governed context/count/send/derived-output/replay integration",
+      "F02": "deferred P1: no live external eligibility, deployed identity/IAM, native storage or restore/deletion acceptance",
+      "F03": "fixed: deterministic no-dispatch preflight and per-scope lifetime attempt capacity; aggregate local journal growth remains unbounded",
+      "F04": "fixed: Brave failure responses preserve P19 invocation and reserved attempt IDs; pre-reservation denial returns no attempt ID",
+      "F05": "fixed: local citation authority binds operator issuer namespace and authenticated scope; v1 legacy installations use a configured-path hash",
+      "F06": "deferred P2: one fixed closed tool remains; generic executable capability registry is not delivered",
+      "F07": "fixed: title-only matches do not return unmatched body passages",
+      "F08": "recorded P2 evidence gap: detailed plan remains untracked and excluded"
+    },
+    "checks": [
+      {
+        "command": "backend/.venv/bin/python backend/scripts/pi5_checks.py --only test_pi5_retrieval.py",
+        "result": "pass",
+        "summaries": [
+          "66 retrieval unit tests passed",
+          "27 signed HTTP tests passed"
+        ],
+        "network_markers": [
+          "PI3_NATIVE_IPV4_IPV6_UNIX_DENIAL=passed",
+          "PI3_FORBIDDEN_PYTHON_NETWORK_ATTEMPTS=0 cases=[]",
+          "PI2_FORBIDDEN_NETWORK_ATTEMPTS=0 events=[]"
+        ],
+        "warnings": "Two Python 3.11 support FutureWarnings per test stage."
+      },
+      {
+        "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make pi5-check",
+        "result": "pass",
+        "summaries": [
+          "PI2_CONSUMER_CONTRACT=PASS",
+          "124 native PI-5 tests passed",
+          "27 signed HTTP tests passed after fixing an intermediate test-fixture NameError."
+        ],
+        "network_markers": [
+          "PI3_NATIVE_IPV4_IPV6_UNIX_DENIAL=passed",
+          "PI3_FORBIDDEN_PYTHON_NETWORK_ATTEMPTS=0 cases=[]",
+          "PI2_FORBIDDEN_NETWORK_ATTEMPTS=0 events=[]"
+        ],
+        "warnings": "Two Python 3.11 support FutureWarnings per test stage. Previously recorded 30 ms research quota failure did not recur; no cause is claimed."
+      },
+      {
+        "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-lint",
+        "result": "pass",
+        "summaries": [
+          "Repository-wide Ruff check passed."
+        ]
+      },
+      {
+        "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make research-eval",
+        "result": "pass",
+        "summaries": [
+          "Synthetic offline evaluation passed; no live provider evidence."
+        ]
+      },
+      {
+        "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make retrieval-eval",
+        "result": "pass",
+        "summaries": [
+          "Synthetic paired evaluation exited 0; candidate remains not_promoted, live quality/quota unmeasured."
+        ]
+      },
+      {
+        "command": "git diff --check",
+        "result": "pass",
+        "summaries": [
+          "No whitespace errors."
+        ]
+      },
+      {
+        "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make pi5-check (first rerun after adding positive P19 ID assertion)",
+        "result": "failed_then_fixed",
+        "summaries": [
+          "124 native tests passed",
+          "1 signed HTTP test failed with NameError because the test fixture did not retain its Accounting instance; test fixture corrected and the later full rerun passed 124 + 27."
+        ],
+        "network_markers": [
+          "PI3_NATIVE_IPV4_IPV6_UNIX_DENIAL=passed",
+          "PI3_FORBIDDEN_PYTHON_NETWORK_ATTEMPTS=0 cases=[]",
+          "PI2_FORBIDDEN_NETWORK_ATTEMPTS=0 events=[]"
+        ]
+      }
+    ],
+    "source_sha256": {
+      "backend/src/personal_ai/retrieval/journal.py": "d495e7dcf91c177c1be92d00035400f4b9b835c59b9b31111e03d3222c87d9fb",
+      "backend/src/personal_ai/retrieval/external.py": "6aa0a47c82a75614a70b7343503284aa4d25476923915c44b2e70e44abf58d41",
+      "backend/src/personal_ai/retrieval/service.py": "e22836482cc9577b71e2f3ee45bd95e94287e7710492d6e6bb010b475d62717b",
+      "backend/src/personal_ai/retrieval/installation.py": "7a92c8345c8a2cbd84e919cf12e09917acc5eaa284bfc1824556fa1528f77242",
+      "backend/src/personal_ai/search/providers/brave.py": "878b64407bd2fb4e052cf3fe2863bbf98b1f2e626bb0cdcfc056d5695a8f27d8",
+      "backend/scripts/pi5_install_demo.py": "81563b9627a46913c62f1c0b212eeb0afc3cd710d70ab107ddd4773b4a6f570d",
+      "backend/tests/test_pi5_retrieval.py": "52ce16bdaa2197ceb1b0d0b34cac4627c6512a3f5526ba1b6f7ee5640190b4e2",
+      "backend/tests/test_pi5_http.py": "41ae463512f83fbb0fadd106c2d0ca977969f55a81b7350cf20ecddfec4d882a"
+    },
+    "acceptance": "Incomplete standalone retrieval/tool candidate; independent PI-5 and production acceptance remain open."
+  }
 }

@@ -96,12 +96,18 @@ No independent acceptance or production readiness is claimed. MEM-3+ remains fro
   [external consumer v1.1.0](consumer-v1.md) and generated OpenAPI.
 
 Real bounded lexical corpus, exact source grants, source-neutral citation metadata,
-a registered read-only tool and signed unrelated-consumer HTTP are implemented
-locally. Retrieval has no general model/context, summary/history or memory
-integration. The Brave bridge retains existing closed strict-free admission;
-mock transport/P19 ports are not live acceptance. Original-intent receipts are
-single-host and bounded for life, never pruned. Distributed authority, restore,
-real identity/provider/billing and production acceptance remain open. v24 is a
-source-only non-promoting planner rebind; all historical locks remain intact.
-PI-5 mandatory acceptance is incomplete; independent PI-0–5 review remains pending.
-MEM-3+ stays frozen.
+a single registered read-only tool and signed unrelated-consumer HTTP are implemented
+locally. The 2026-10-31 review remediation binds local citation authority to an
+operator issuer and authenticated scope, declines title-only body citations, preserves
+P19 attempt IDs on Brave failures, preflights deterministic no-dispatch filters, and
+limits receipts per scope. Aggregate receipt storage across scopes remains unbounded.
+Retrieval has no general model/context, summary/history or memory integration. A generic
+operator-extensible tool registry remains a roadmap goal; v1 has one fixed executable.
+The Brave bridge retains existing closed strict-free admission; mock transport/P19 ports
+are not live acceptance. Receipts are single-host, durable and never pruned. Distributed
+authority, restore, real identity/provider/billing and production acceptance remain open.
+The detailed PI-5 plan remains an untracked preserved input, identified by hash in the
+[review remediation evidence](pi-5-independent-review-remediation-2026-10-31.md). v24 is
+a source-only non-promoting planner rebind; all historical locks remain intact. PI-5
+mandatory acceptance is incomplete; independent PI-0–5 review remains pending. MEM-3+
+stays frozen.

@@ -37,8 +37,11 @@ plan/prompt) were preserved unchanged and left unstaged.
 - Single-host SQLite original-intent receipts for local/test external attempts:
   reserve before dispatch, concurrent/restarted/cancelled retries do not resend,
   changed input conflicts, unknown stays unknown, completed retries return no cached
-  external bodies. No automatic retry/rekey/provider fallback. Receipts are private,
-  content-free and never pruned; 4,096 lifetime capacity refuses new attempts.
+  external bodies. Contradictory typed/literal domain restrictions are rejected
+  before receipt reservation. Each authenticated scope has a 4,096 lifetime cap,
+  preventing one scope from consuming another scope's quota. No automatic retry/
+  rekey/provider fallback. Receipts are private, content-free and never pruned;
+  aggregate storage across distinct scopes is unbounded and remains local/test-only.
 - One actual executable tool binding `retrieval.query.v1`. A fixed implementation
   registry, matching application read-only metadata and operator source/tool grants
   are all required. Closed schemas reject dynamic imports, arbitrary URLs/paths,
@@ -53,6 +56,11 @@ plan/prompt) were preserved unchanged and left unstaged.
   corrupting the corpus denies all in-flight bodies. Builtin and external owner
   deactivation both deny. Whole-request item/quote/serialized-evidence byte token,
   deadline and process-slot bounds apply. Source text remains inert quoted data.
+- Local citation authority IDs bind an operator issuer namespace, authenticated
+  owner/actor/app/workspace and source ID through an opaque hash. New v2 operator
+  installations carry a stable issuer UUID; v1 installations remain readable with
+  a trusted configured-path-derived namespace. Title-only matches no longer return
+  body text without a matching token.
 
 See [pre-code hardening](pi-5-plan-hardening.md) for the authority graph, eight
 questions, flaws/deferrals and revised sequence, and [wire/operator instructions](retrieval-v1.md)
@@ -85,6 +93,32 @@ Accordingly P5-04, P5-11, P5-14, P5-19 and P5-26 remain blocked in their full
 mandatory form. A17/A18 full acceptance and PI-5 full completion are not claimed.
 The machine matrix records individual dispositions and evidence; it does not
 convert absent integration or synthetic provider ports into passes.
+
+## 2026-10-31 independent-review remediation
+
+The review remediation fixes F03's no-dispatch receipt consumption and cross-scope
+quota starvation, F04's lost P19 invocation/attempt IDs on Brave failure responses,
+F05's local citation authority collision, and F07's title-only unrelated body quote.
+The per-scope receipt cap intentionally leaves aggregate SQLite growth across many
+scopes unbounded; safe indefinite replay fencing cannot be pruned. External operation
+remains default-off and local/test-only, with production storage acceptance open.
+
+F01 remains a P1 acceptance blocker: retrieval has no governed model context, count,
+physical-send, derived-answer, SSE/history/replay/export provenance or revocation
+fence. It stays disconnected from chat, memory, and summaries. F02 remains a P1
+acceptance blocker: Brave strict-free/P19 eligibility, real identity/IAM, native
+storage, restore, physical deletion and deployed source rights were not exercised.
+F06 remains a P2 product limitation: v1 has one fixed executable read-only tool;
+the broader operator-extensible capability registry is not delivered. F08 remains
+a P2 evidence limitation: the original detailed plan is present as an untracked,
+preserved user input and was not included in this commit. Its SHA-256 and status are
+recorded in [dated remediation evidence](pi-5-independent-review-remediation-2026-10-31.md).
+
+The focused remediation suite passed 66 PI-5 retrieval tests. The normal network-fenced
+runner was attempted but its temporary local socket bind was denied by the enclosing
+sandbox before tests started. No signed HTTP, installed-package, inherited PI-3/4,
+full backend, native storage, cloud, or live provider checks were rerun for this
+remediation. Prior counts below remain historical evidence at their recorded source.
 
 ## Self-review and fixes
 

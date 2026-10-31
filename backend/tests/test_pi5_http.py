@@ -289,12 +289,16 @@ def test_pi5_independent_http_brave_mock_transport_with_p19_test_port(http_platf
     reservations, requests = [], []
 
     class Accounting:
+        def __init__(self):
+            self.invocations = []
+
         def begin_invocation(self, invocation):
             assert (
                 invocation.application_id == "reading_logbook"
                 and invocation.workspace_id == "shelf"
             )
             assert invocation.endpoint.execution_mode == "STRICT_FREE"
+            self.invocations.append(invocation)
 
         def reserve_attempt(self, invocation, attempt, *, max_attempts):
             reservations.append(attempt.attempt_id)
@@ -305,6 +309,8 @@ def test_pi5_independent_http_brave_mock_transport_with_p19_test_port(http_platf
 
         def complete_invocation(self, *args, **kwargs):
             pass
+
+    accounting = Accounting()
 
     def transport(request):
         requests.append(request)
@@ -337,7 +343,7 @@ def test_pi5_independent_http_brave_mock_transport_with_p19_test_port(http_platf
 
     def service(request):
         return RetrievalService(
-            settings, get_request_scope(request), lambda: Accounting(), registrations=registrations
+            settings, get_request_scope(request), lambda: accounting, registrations=registrations
         )
 
     # Keep real middleware and all client/workspace scope; only provider IO/storage ports are synthetic.
@@ -356,6 +362,8 @@ def test_pi5_independent_http_brave_mock_transport_with_p19_test_port(http_platf
     assert remote["quote_basis"] == "normalized_provider_snippet" and remote[
         "rights_authority_id"
     ].startswith("brave:")
+    assert result["usage_invocation_id"] == str(accounting.invocations[0].invocation_id)
+    assert result["usage_attempt_id"] == str(reservations[0])
     replay = h.client.retrieve("Atlas", key, sources=("local", "external"))
     assert replay["state"] == "partial" and replay["reasons"] == ["external_already_attempted"]
     assert len(reservations) == len(requests) == 1 and not h.llm.requests

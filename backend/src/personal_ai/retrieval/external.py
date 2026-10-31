@@ -68,7 +68,8 @@ class ExternalBridge:
         except Exception:  # noqa: BLE001 - unprovable rights deny
             return False
 
-    async def search(self, query, deadline, guard, namespace):
+    def prepare(self, query, deadline):
+        """Build and validate deterministic request constraints before journaling."""
         literal_allowed, literal_excluded = domains_from_question(query.query)
         operation = SearchOperation(
             operation_id=sha256(query.model_dump_json().encode()).hexdigest(),
@@ -88,9 +89,18 @@ class ExternalBridge:
         )
         allowed = effective_allowed_domains(operation)
         if (query.allowed_domains or literal_allowed) and not allowed:
-            return (), (), None
+            return None
         if not self.current():
-            return (), ("source_authority_changed",), None
+            raise ValueError("source_authority_changed")
+        preflight = getattr(self.adapter, "preflight", None)
+        if callable(preflight):
+            preflight(operation)
+        return operation
+
+    async def search(self, query, deadline, guard, namespace, *, operation=None):
+        operation = operation or self.prepare(query, deadline)
+        if operation is None:
+            return (), (), None
         guard()
         with (
             bind_disclosure_guard(guard),
@@ -107,6 +117,7 @@ class ExternalBridge:
             dispatch.usage_attempt_id is None or dispatch.usage_invocation_id is None
         ):
             raise ValueError("external_attempt_identity_required")
+        allowed = effective_allowed_domains(operation)
         items, reasons = [], []
         now = datetime.now(UTC)
         rights = self.initial_rights

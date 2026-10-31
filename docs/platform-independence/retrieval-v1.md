@@ -15,8 +15,10 @@ Two exact authenticated operations are available when `RETRIEVAL_ENABLED=true`:
 Both use the existing Google user-token/client/app/workspace middleware,
 owner-rate admission, no-store and bounded correlation. No generic tool dispatch,
 discovery, research inspection, account access or memory controls are exposed.
-Unknown tools cannot execute. The tool additionally needs an installed application
-capability with ID `retrieval.query.v1`, kind `tool`, `available=true`,
+Unknown tools cannot execute. V1 deliberately contains one fixed executable
+mapping; the generic operator-installed read-only capability registry in the
+roadmap remains undelivered. A manifest entry alone cannot add executable code.
+The tool additionally needs an installed application capability with ID `retrieval.query.v1`, kind `tool`, `available=true`,
 `read_only_context=true`, exact `result_fields=["retrieval"]` and
 `max_result_bytes=32768`. Metadata alone cannot register executable code.
 
@@ -45,7 +47,11 @@ snippet extractor and explicitly say `normalized_provider_snippet`. When the
 provider supplies no revision, `revision_basis=observation_hash` identifies the
 snippet observation, not a live upstream revision or proof the page still exists.
 Publication time is null when unknown; an observation timestamp does not prove
-publication freshness. Result URLs are attribution only and are never fetched.
+publication freshness. Local source authority IDs are opaque hashes bound to the
+operator issuer namespace, exact authenticated scope and source ID. A local body
+passage is returned only when it contains a matched query token; a title-only
+match does not cite an unrelated body excerpt. Result URLs are attribution only
+and are never fetched.
 
 Outcomes are `complete`, `partial` or `unavailable`. No eligible match is complete
 with empty items and `no_matches`. Foreign documents reveal no title, ID or
@@ -76,7 +82,13 @@ an unrelated edit conservatively invalidates an in-flight response. No response
 body cache, persistent passages or stale snapshot reuse exists across requests.
 File deletion/corruption denies. Atomic replacement is required for availability.
 
-The executable schema is `retrieval/installation.py`. Installation-level `access`
+The executable schema is `retrieval/installation.py`. New installations use
+`retrieval-installation-v2` and include a stable operator-generated UUID `issuer_id`.
+Keep that issuer for revisions of the same authority and assign a new one to an
+independent installation. Legacy `retrieval-installation-v1` files remain readable;
+their authority namespace is a hash of the trusted configured file path. Moving a
+legacy file changes its citation authority. Neither issuer is accepted from an API
+request. Installation-level `access`
 admits an exact owner/actor/application/workspace/purpose. Every document has its
 own independently exact `access` list plus `quote_allowed`, `enabled`, source ID,
 revision, rights epoch/reference, license, title/text, SHA-256 of full text,
@@ -125,14 +137,19 @@ use mock HTTP and fake P19 storage and do not prove live eligibility or billing.
 New operator-installed factories can be supplied to the existing registration
 mapping; core does not load Python named in client requests or corpus JSON.
 
-External execution is limited to local/test environments with an explicit absolute
+Deterministic no-dispatch checks, including an empty intersection between typed and
+literal `site:` domains, run before an attempt receipt is reserved. They do not consume
+receipt capacity. External execution is limited to local/test environments with an explicit absolute
 `RETRIEVAL_ATTEMPT_JOURNAL_FILE` in a trusted local directory. SQLite uses private
-0600 files, immediate transactions, 50 ms lock waits, and 4,096 lifetime receipts.
+0600 files, immediate transactions, 50 ms lock waits, and at most 4,096 lifetime
+receipts per exact authenticated owner/actor/application/workspace scope.
 The receipt contains only hashed scope/request identities, key and state; no query,
 source body or credentials. Reservation commits before external dispatch. No
-receipt pruning, key reuse or automatic retries exist. Exhaustion refuses new
-attempts; it is a known operational capacity limit. Native P19 storage, multi-host
-coordination and production deployment are separate gates.
+receipt pruning, key reuse or automatic retries exist. One scope reaching its cap
+does not consume another scope's allowance. Aggregate journal growth across distinct
+scopes is unbounded; local/test operation therefore remains operator-controlled and
+is not a production storage design. Native P19 storage, multi-host coordination,
+restore anti-rollback and production deployment are separate gates.
 
 Retain the original UUID and full body. Local-only calls recompute under current
 rights and are stateless. For external requests, the same key/body never issues a

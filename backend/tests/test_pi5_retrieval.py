@@ -9,12 +9,13 @@ from hashlib import sha256
 from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
 from personal_ai.auth.scope import RequestScope
 from personal_ai.retrieval.contracts import RetrievalItem, RetrievalQuery
-from personal_ai.retrieval.installation import LexicalIndex, load_snapshot
+from personal_ai.retrieval.installation import LexicalIndex, legacy_issuer_id, load_snapshot
 from personal_ai.retrieval.journal import AttemptJournal, IntentConflict
 from personal_ai.retrieval.service import RetrievalService
 from personal_ai.search.contracts import FakeSearchAdapter, SearchResult
@@ -29,14 +30,15 @@ def anyio_backend():
 
 
 def scope(**changes):
-    return RequestScope(
-        owner_id="owner",
-        acting_user_id="actor",
-        application_id="reader",
-        workspace_id="shelf",
-        request_id="request",
-        **changes,
-    )
+    values = {
+        "owner_id": "owner",
+        "acting_user_id": "actor",
+        "application_id": "reader",
+        "workspace_id": "shelf",
+        "request_id": "request",
+    }
+    values.update(changes)
+    return RequestScope(**values)
 
 
 def access(s=None):
@@ -70,7 +72,8 @@ def document(**changes):
 
 def install(path, *, documents=None, **changes):
     value = {
-        "schema_version": "retrieval-installation-v1",
+        "schema_version": "retrieval-installation-v2",
+        "issuer_id": str(uuid4()),
         "enabled": True,
         "tool_enabled": True,
         "access": [access()],
@@ -269,6 +272,15 @@ def test_malformed_contracts(changes):
         query(**changes)
 
 
+def test_legacy_operator_installations_get_stable_path_bound_issuer(tmp_path):
+    first_path = tmp_path / "legacy-one.json"
+    install(first_path, schema_version="retrieval-installation-v1", issuer_id=None)
+    loaded = load_snapshot(str(first_path))
+    assert loaded.installation.issuer_id is None
+    assert legacy_issuer_id(first_path) == legacy_issuer_id(first_path)
+    assert legacy_issuer_id(first_path) != legacy_issuer_id(tmp_path / "legacy-two.json")
+
+
 @pytest.mark.anyio
 async def test_tampered_attribution_denied(runtime):
     value = (await runtime.service.query(query())).items[0].model_dump()
@@ -298,6 +310,8 @@ def test_durable_reserve_concurrency_restart_conflict_and_capacity(tmp_path):
     assert AttemptJournal(filename).reserve(scope(), q) == "external_already_attempted"
     journal.CAPACITY = 1
     assert journal.reserve(scope(), query()) == "quota"
+    other_scope = scope(owner_id="other-owner")
+    assert journal.reserve(other_scope, query()) is None
     with sqlite3.connect(filename) as db:
         raw = repr(db.execute("SELECT * FROM retrieval_attempts").fetchall())
     assert "Atlas" not in raw and "owner" not in raw and "actor" not in raw
@@ -327,7 +341,11 @@ async def test_external_registered_adapter_attribution_and_no_repeat(runtime):
     service = RetrievalService(r.settings, scope(), lambda: None, registrations=catalog(adapter))
     q = query(sources=("local", "external"))
     first = await service.query(q)
-    assert first.state == "complete" and {i.origin for i in first.items} == {"local", "synthetic"}
+    assert first.state == "complete" and {i.origin for i in first.items} == {"local", "synthetic"}, (
+        first.state,
+        first.reasons,
+        [item.origin for item in first.items],
+    )
     external = first.items[1]
     assert (
         external.quote == "Atlas external snippet ." and external.url == "https://example.org/atlas"
@@ -365,6 +383,241 @@ async def test_partial_external_errors_are_safe_and_not_retried(runtime, code, r
     assert result.state == "partial" and result.reasons == (reason,)
     assert (await service.query(q)).reasons == ("external_outcome_unknown",)
     assert len(adapter.calls) == 1
+
+
+@pytest.mark.anyio
+async def test_domain_noop_does_not_consume_other_scopes_attempt_capacity(runtime, monkeypatch):
+    r = runtime
+    monkeypatch.setattr(AttemptJournal, "CAPACITY", 1)
+    other = scope(owner_id="other-owner")
+    install(
+        r.path,
+        access=[access(), access(other)],
+        external_query_access=[access(), access(other)],
+        documents=[document(access=[access(), access(other)])],
+    )
+    adapter = FakeSearchAdapter(
+        [SearchResult(url="https://example.org/atlas", text="Atlas external snippet")]
+    )
+    r.settings.research_search_adapter = "independent"
+
+    async def service_for(request_scope):
+        return RetrievalService(
+            r.settings, request_scope, lambda: None, registrations=catalog(adapter)
+        )
+
+    journal = AttemptJournal(r.settings.retrieval_attempt_journal_file)
+    no_op = query(
+        query="Atlas site:other.org",
+        allowed_domains=("example.org",),
+        sources=("external",),
+    )
+    result = await (await service_for(scope())).query(no_op)
+    assert result.state == "complete" and result.reasons == ("no_matches",)
+    assert not adapter.calls
+    with sqlite3.connect(journal.filename) as db:
+        assert db.execute("SELECT count(*) FROM retrieval_attempts").fetchone()[0] == 0
+
+    first_scope_attempt = await (await service_for(scope())).query(
+        query(sources=("external",))
+    )
+    assert first_scope_attempt.state == "complete" and len(adapter.calls) == 1, (
+        first_scope_attempt.state,
+        first_scope_attempt.reasons,
+        len(adapter.calls),
+    )
+    assert (
+        await (await service_for(scope())).query(query(query="second", sources=("external",)))
+    ).reasons == ("quota",)
+    other_scope_attempt = await (await service_for(other)).query(
+        query(sources=("external",))
+    )
+    assert other_scope_attempt.state == "complete" and len(adapter.calls) == 2
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "failure,reason,settlement,error_code",
+    [
+        ("429", "quota", "rate_limited", "search_quota"),
+        ("timeout", "timeout", "timeout", "search_timeout"),
+        ("transport", "external_outcome_unknown", "unknown", "search_unavailable"),
+        ("malformed", "invalid_source", "failure", "search_invalid_response"),
+        ("unexpected", "external_outcome_unknown", "unknown", "search_unavailable"),
+    ],
+)
+async def test_brave_failures_keep_p19_ids_in_retrieval_outcome(
+    runtime, failure, reason, settlement, error_code
+):
+    from personal_ai.search.providers.brave import BraveSearchAdapter
+    from personal_ai.search.runtime import SearchAdapterRegistration
+
+    r = runtime
+    from .test_research_provider import adapter as make_brave_adapter
+
+    brave_settings = make_brave_adapter(httpx.Response(200, json={})).settings
+    brave_settings.research_brave_rights_epoch = "1"
+    for name in type(r.settings).model_fields:
+        if name.startswith("research_"):
+            setattr(r.settings, name, getattr(brave_settings, name))
+    r.settings.research_search_adapter = "brave"
+    r.settings.research_min_request_interval_seconds = 0
+    requests = []
+
+    def transport(request):
+        requests.append(request)
+        if failure == "429":
+            return httpx.Response(429)
+        if failure == "timeout":
+            raise httpx.ReadTimeout("synthetic timeout")
+        if failure == "transport":
+            raise httpx.ConnectError("synthetic connection failure")
+        if failure == "malformed":
+            return httpx.Response(
+                200, content="{", headers={"content-type": "application/json"}
+            )
+        raise RuntimeError("synthetic provider failure")
+
+    class Accounting:
+        def __init__(self):
+            self.invocations = []
+            self.attempts = []
+            self.settlements = []
+
+        def begin_invocation(self, invocation):
+            self.invocations.append(invocation)
+
+        def reserve_attempt(self, invocation, attempt, *, max_attempts):
+            self.attempts.append(attempt)
+            return attempt
+
+        def settle_attempt(self, invocation, attempt, result):
+            self.settlements.append(result)
+
+        def complete_invocation(self, *args, **kwargs):
+            pass
+
+    accounting = Accounting()
+
+    def factory(settings, usage):
+        return BraveSearchAdapter(
+            settings,
+            transport=httpx.MockTransport(transport),
+            usage_accounting=usage,
+        )
+
+    registrations = {
+        "brave": SearchAdapterRegistration(factory, cost_profile_factory=lambda _: BraveSearchAdapter.cost_profile)
+    }
+    service = RetrievalService(
+        r.settings, scope(), lambda: accounting, registrations=registrations
+    )
+    q = query(sources=("external",))
+    result = await service.query(q)
+    assert result.reasons == (reason,)
+    assert result.usage_invocation_id == accounting.invocations[0].invocation_id
+    assert len(accounting.attempts) == len(accounting.settlements) == len(requests) == 1
+    assert result.usage_attempt_id == accounting.attempts[0].attempt_id
+    assert accounting.settlements[0].outcome == settlement
+    assert accounting.settlements[0].error_code == error_code
+    replay = await service.query(q)
+    assert replay.reasons == ("external_outcome_unknown",)
+    assert len(requests) == 1
+
+
+@pytest.mark.anyio
+async def test_brave_admission_denial_has_invocation_but_no_attempt_id(runtime):
+    from personal_ai.search.providers.brave import BraveSearchAdapter
+    from personal_ai.search.runtime import SearchAdapterRegistration
+    from personal_ai.usage.contracts import UsageAdmissionDenied
+
+    from .test_research_provider import adapter as make_brave_adapter
+
+    r = runtime
+    brave_settings = make_brave_adapter(httpx.Response(200, json={})).settings
+    brave_settings.research_brave_rights_epoch = "1"
+    for name in type(r.settings).model_fields:
+        if name.startswith("research_"):
+            setattr(r.settings, name, getattr(brave_settings, name))
+    r.settings.research_search_adapter = "brave"
+    r.settings.research_min_request_interval_seconds = 0
+    requests = []
+
+    class Accounting:
+        def __init__(self):
+            self.invocations = []
+
+        def begin_invocation(self, invocation):
+            self.invocations.append(invocation)
+
+        def reserve_attempt(self, invocation, attempt, *, max_attempts):
+            raise UsageAdmissionDenied("provider_quota_exhausted")
+
+        def settle_attempt(self, *args, **kwargs):
+            pytest.fail("an admission denied before reservation cannot be settled as a send")
+
+        def complete_invocation(self, *args, **kwargs):
+            pass
+
+    accounting = Accounting()
+
+    def factory(settings, usage):
+        return BraveSearchAdapter(
+            settings,
+            transport=httpx.MockTransport(lambda request: requests.append(request)),
+            usage_accounting=usage,
+        )
+
+    registrations = {
+        "brave": SearchAdapterRegistration(factory, cost_profile_factory=lambda _: BraveSearchAdapter.cost_profile)
+    }
+    service = RetrievalService(
+        r.settings, scope(), lambda: accounting, registrations=registrations
+    )
+    result = await service.query(query(sources=("external",)))
+    assert result.reasons == ("quota",)
+    assert result.usage_invocation_id == accounting.invocations[0].invocation_id
+    assert result.usage_attempt_id is None and not requests
+
+
+@pytest.mark.anyio
+async def test_title_only_match_does_not_return_unmatched_body(runtime):
+    text = "Unrelated botanical notes."
+    install(
+        runtime.path,
+        documents=[
+            document(title="Atlas", text=text, content_sha256=sha256(text.encode()).hexdigest())
+        ],
+    )
+    result = await runtime.service.query(query(query="Atlas"))
+    assert result.state == "complete" and result.reasons == ("no_matches",)
+    assert not result.items
+
+
+@pytest.mark.anyio
+async def test_local_citation_authority_is_bound_to_trusted_issuer_and_scope(runtime, tmp_path):
+    second = scope(owner_id="another-owner", application_id="another_app")
+    first_result = await runtime.service.query(query())
+    second_path = tmp_path / "another-installation.json"
+    install(second_path, access=[access(second)], documents=[document(access=[access(second)])])
+    second_settings = runtime.settings.model_copy(
+        update={"retrieval_installation_file": str(second_path)}
+    )
+    second_result = await RetrievalService(second_settings, second, lambda: None).query(query())
+    first_item, second_item = first_result.items[0], second_result.items[0]
+    assert first_item.passage_id == second_item.passage_id
+    assert first_item.rights_authority_id != second_item.rights_authority_id
+    assert first_item.citation_id != second_item.citation_id
+
+    original = json.loads(runtime.path.read_text())
+    original["documents"][0]["revision"] = "2"
+    original["documents"][0]["rights_epoch"] = "2"
+    original["documents"][0]["rights_reference"] = "operator-excerpt-v2"
+    runtime.path.write_text(json.dumps(original))
+    revised = (await runtime.service.query(query())).items[0]
+    assert revised.rights_authority_id == first_item.rights_authority_id
+    assert revised.passage_id != first_item.passage_id
+    assert revised.citation_id != first_item.citation_id
 
 
 @pytest.mark.anyio

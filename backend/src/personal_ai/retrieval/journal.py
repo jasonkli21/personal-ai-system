@@ -70,7 +70,11 @@ class AttemptJournal:
                     if row[1] == "completed"
                     else "external_outcome_unknown"
                 )
-            if db.execute("SELECT count(*) FROM retrieval_attempts").fetchone()[0] >= self.CAPACITY:
+            # Capacity is scoped to one authenticated owner/actor/app/workspace tuple.
+            # One scope must not consume the lifetime allowance of every other scope.
+            if db.execute(
+                "SELECT count(*) FROM retrieval_attempts WHERE scope=?", (namespace,)
+            ).fetchone()[0] >= self.CAPACITY:
                 return "quota"
             db.execute(
                 "INSERT INTO retrieval_attempts VALUES (?, ?, ?, 'unknown')",

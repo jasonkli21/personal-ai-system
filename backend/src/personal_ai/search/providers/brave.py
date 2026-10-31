@@ -91,7 +91,7 @@ class BraveSearchAdapter:
             reference=reference,
         )
 
-    async def search(self, operation: SearchOperation):
+    def preflight(self, operation: SearchOperation):
         self.authorize_snippets()
         if not isinstance(operation, SearchOperation):
             raise SearchError("search_invalid_request")
@@ -113,6 +113,10 @@ class BraveSearchAdapter:
         timeout = min(self.settings.research_provider_timeout_seconds, remaining)
         if not query.strip() or len(query) > 500 or not 1 <= limit <= 12 or timeout <= 0:
             raise SearchError("search_invalid_request")
+        return query, limit, timeout
+
+    async def search(self, operation: SearchOperation):
+        query, limit, timeout = self.preflight(operation)
         usage_call = None
         if self.usage_accounting is not None:
             endpoint = endpoint_for_operation(
@@ -241,16 +245,39 @@ class BraveSearchAdapter:
             raise
         except httpx.TimeoutException as error:
             outcome, error_code = "timeout", "search_timeout"
-            raise SearchError("search_timeout") from error
+            raise SearchError(
+                "search_timeout",
+                usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),
+                usage_attempt_id=(usage_call.attempt.attempt_id if usage_call and usage_call.attempt else None),
+            ) from error
         except TimeoutError as error:
             outcome, error_code = "timeout", "search_timeout"
-            raise SearchError("search_timeout") from error
+            raise SearchError(
+                "search_timeout",
+                usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),
+                usage_attempt_id=(usage_call.attempt.attempt_id if usage_call and usage_call.attempt else None),
+            ) from error
         except httpx.TransportError as error:
             outcome, error_code = "unknown", "search_unavailable"
-            raise SearchError("search_unavailable") from error
+            raise SearchError(
+                "search_unavailable",
+                usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),
+                usage_attempt_id=(usage_call.attempt.attempt_id if usage_call and usage_call.attempt else None),
+            ) from error
         except (ValueError, KeyError, TypeError, ValidationError) as error:
             outcome, error_code = "failure", "search_invalid_response"
-            raise SearchError("search_invalid_response") from error
+            raise SearchError(
+                "search_invalid_response",
+                usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),
+                usage_attempt_id=(usage_call.attempt.attempt_id if usage_call and usage_call.attempt else None),
+            ) from error
+        except Exception as error:
+            outcome, error_code = "unknown", "search_unavailable"
+            raise SearchError(
+                "search_unavailable",
+                usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),
+                usage_attempt_id=(usage_call.attempt.attempt_id if usage_call and usage_call.attempt else None),
+            ) from error
         finally:
             if usage_call is not None:
                 with anyio.CancelScope(shield=True):

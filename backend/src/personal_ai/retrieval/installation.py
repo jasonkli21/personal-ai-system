@@ -1,5 +1,6 @@
 """Bounded operator snapshot authority and real deterministic lexical index."""
 
+import json
 import os
 import re
 import stat
@@ -8,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, model_validator
 
@@ -69,7 +71,10 @@ class LocalDocument(ResearchRecord):
 
 
 class Installation(ResearchRecord):
-    schema_version: Literal["retrieval-installation-v1"]
+    schema_version: Literal["retrieval-installation-v1", "retrieval-installation-v2"]
+    # v2 makes this operator-selected issuer stable across content revisions.
+    # v1 remains readable and receives a trusted path-derived namespace.
+    issuer_id: UUID | None = None
     enabled: bool = Field(default=False, strict=True)
     tool_enabled: bool = Field(default=False, strict=True)
     access: tuple[Access, ...] = Field(default=(), max_length=32)
@@ -79,6 +84,8 @@ class Installation(ResearchRecord):
 
     @model_validator(mode="after")
     def unique(self):
+        if (self.schema_version == "retrieval-installation-v2") != (self.issuer_id is not None):
+            raise ValueError("installation_issuer_invalid")
         ids = [d.source_id for d in self.documents]
         if len(ids) != len(set(ids)):
             raise ValueError("duplicate_source")
@@ -114,6 +121,29 @@ def load_snapshot(filename):
     return Snapshot(Installation.model_validate_json(raw), sha256(raw).hexdigest())
 
 
+def legacy_issuer_id(filename):
+    """Opaque stable fallback for existing v1 operator files."""
+    identity = sha256(str(Path(filename)).encode()).hexdigest()
+    return "legacy-path:" + identity
+
+
+def local_rights_authority_id(issuer_id, scope, source_id):
+    """Bind a local source authority to trusted issuer and authenticated scope."""
+    identity = json.dumps(
+        [
+            str(issuer_id),
+            scope.owner_id,
+            scope.acting_user_id,
+            scope.application_id,
+            scope.workspace_id,
+            source_id,
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return "local:" + sha256(identity.encode()).hexdigest()
+
+
 def terms(text):
     return set(re.findall(r"\w{2,80}", text.casefold()))
 
@@ -121,8 +151,9 @@ def terms(text):
 class LexicalIndex:
     """Inverted index built only from authorized records; no hidden-corpus statistics."""
 
-    def __init__(self, documents):
+    def __init__(self, documents, *, issuer_id="legacy-path:direct-index"):
         self.documents = {doc.source_id: doc for doc in documents}
+        self.issuer_id = issuer_id
         self.postings = {}
         for doc in documents:
             for term in terms(doc.title + " " + doc.text):
@@ -155,7 +186,10 @@ class LexicalIndex:
             match = next(
                 (m for m in re.finditer(r"\w+", doc.text) if m[0].casefold() in query_terms), None
             )
-            start = max(0, match.start() - 100) if match else 0
+            # Title-only hits do not justify attributing an unrelated body passage.
+            if match is None:
+                continue
+            start = max(0, match.start() - 100)
             quote = doc.text[start : start + 1000]
             while len(quote.encode()) > 1000:
                 quote = quote[:-1]
@@ -171,7 +205,9 @@ class LexicalIndex:
                     provider="local_lexical_v1",
                     quote_basis="literal_document",
                     revision_basis="operator_revision",
-                    rights_authority_id="local:" + doc.source_id,
+                    rights_authority_id=local_rights_authority_id(
+                        self.issuer_id, scope, doc.source_id
+                    ),
                     rights_reference=doc.rights_reference,
                     license=doc.license,
                     sensitivity=doc.sensitivity,
