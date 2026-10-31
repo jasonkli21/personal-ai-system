@@ -15,6 +15,8 @@ class IntentConflict(ValueError):
 
 class AttemptJournal:
     CAPACITY = 4096
+    MAX_SCOPES = 32
+    MAX_PAGES = 32768  # 128 MiB at the required 4 KiB SQLite page size.
 
     def __init__(self, filename):
         path = Path(filename)
@@ -36,9 +38,32 @@ class AttemptJournal:
                 "scope TEXT NOT NULL, key TEXT NOT NULL, fingerprint TEXT NOT NULL, "
                 "state TEXT NOT NULL, PRIMARY KEY(scope, key))"
             )
+            db.execute("CREATE TABLE IF NOT EXISTS retrieval_scopes (scope TEXT PRIMARY KEY)")
+            db.execute("INSERT OR IGNORE INTO retrieval_scopes SELECT DISTINCT scope FROM retrieval_attempts")
+
+    def admit_scopes(self, scopes):
+        """Reserve equal lifetime allocations for all operator-configured scopes.
+
+        Previously admitted scopes remain allocated after grant removal. Operators
+        cannot recycle identities by editing a manifest or deleting receipts.
+        """
+        namespaces = {self.scope_key(scope) for scope in scopes}
+        with closing(self.connect()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            retained = {row[0] for row in db.execute("SELECT scope FROM retrieval_scopes")}
+            if len(retained | namespaces) > self.MAX_SCOPES:
+                return False
+            db.executemany("INSERT OR IGNORE INTO retrieval_scopes VALUES (?)",
+                           [(namespace,) for namespace in sorted(namespaces)])
+        return True
 
     def connect(self):
-        return sqlite3.connect(self.filename, timeout=0.05)
+        db = sqlite3.connect(self.filename, timeout=0.05)
+        if db.execute("PRAGMA page_size").fetchone()[0] != 4096:
+            db.close()
+            raise ValueError("journal_page_size_invalid")
+        db.execute(f"PRAGMA max_page_count={self.MAX_PAGES}")
+        return db
 
     @staticmethod
     def scope_key(scope):
@@ -70,6 +95,11 @@ class AttemptJournal:
                     if row[1] == "completed"
                     else "external_outcome_unknown"
                 )
+            admitted = db.execute("SELECT 1 FROM retrieval_scopes WHERE scope=?", (namespace,)).fetchone()
+            if not admitted:
+                if db.execute("SELECT count(*) FROM retrieval_scopes").fetchone()[0] >= self.MAX_SCOPES:
+                    return "quota"
+                db.execute("INSERT INTO retrieval_scopes VALUES (?)", (namespace,))
             # Capacity is scoped to one authenticated owner/actor/app/workspace tuple.
             # One scope must not consume the lifetime allowance of every other scope.
             if db.execute(

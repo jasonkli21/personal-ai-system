@@ -8,6 +8,7 @@ from pi3_checks import main
 
 FILES = [
     "test_pi5_retrieval.py",
+    "test_pi5_context.py",
     "test_research_provider.py",
     "test_research_pipeline.py",
     "test_retrieval_phase33.py",

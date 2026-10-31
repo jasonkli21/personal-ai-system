@@ -127,6 +127,7 @@ class ContinuationRequest(BaseModel):
     # Host launch data is advisory and is re-bound to the authenticated request scope.
     launch_context: ApplicationLaunchContext | None = None
     # Bounded source-class narrowing. This can only remove planner-selected sources.
+    retrieval_context: bool = Field(default=False, strict=True)
     excluded_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
 
     @model_validator(mode="after")
@@ -137,7 +138,12 @@ class ContinuationRequest(BaseModel):
 
     @property
     def explicit_context_selections(self):
-        return tuple(choice.context_selection() for choice in self.federation_context)
+        from personal_ai.retrieval.context import context_selection
+
+        return (
+            *tuple(choice.context_selection() for choice in self.federation_context),
+            *((context_selection(),) if self.retrieval_context else ()),
+        )
 
     @property
     def entity_refs(self) -> tuple[ContextEntityReference, ...]:
@@ -154,6 +160,8 @@ class ContinuationRequest(BaseModel):
             payload.pop("federation_context", None)
         if self.launch_context is None:
             payload.pop("launch_context", None)
+        if not self.retrieval_context:
+            payload.pop("retrieval_context", None)
         canonical = json.dumps(
             payload,
             sort_keys=True,
@@ -173,6 +181,7 @@ class ContinuationRequestPayload(BaseModel):
     federation_choice_ids: tuple[str, ...] = Field(default=(), max_length=4)
     candidate_message_ids: tuple[UUID, ...] | None = Field(default=None, max_length=10000)
     launch_context: ApplicationLaunchContext | None = None
+    retrieval_context: bool = Field(default=False, strict=True)
     excluded_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
 
     @model_validator(mode="after")
@@ -190,6 +199,7 @@ class ContinuationRequestPayload(BaseModel):
     def to_internal_request(self, federation_context=()) -> ContinuationRequest:
         return ContinuationRequest(
             content=self.content,
+            retrieval_context=self.retrieval_context,
             idempotency_key=self.idempotency_key,
             choice=self.choice,
             federation_context=tuple(federation_context),

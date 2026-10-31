@@ -196,7 +196,7 @@ def test_pi5_tool_metadata_is_not_execution_authority(http_platform, tmp_path, m
 
     h = http_platform
     configure(h, tmp_path)
-    monkeypatch.setattr(tools, "EXECUTABLE_TOOLS", {})
+    monkeypatch.setattr(tools, "DEFAULT_TOOLS", tools.ReadOnlyToolRegistry(()))
     response = h.raw.post(
         "/v1/tools/retrieval.query.v1/invoke",
         headers=h.headers,
@@ -424,3 +424,65 @@ def test_pi5_builtin_body_deadline_uses_retrieval_safe_error(http_platform, tmp_
     assert response.status_code == 408
     assert response.json()["error"]["code"] == "request_body_timeout"
     assert not h.llm.requests
+
+
+def context_runtime(h, tmp_path):
+    """Use the real request-bound assembler and neutral exact offline execution pair."""
+    from personal_ai.api import dependencies as deps
+    from personal_ai.llm.execution import compose_pair
+
+    path, scope, settings = configure(h, tmp_path)
+    value = json.loads(path.read_text())
+    value["model_context_access"] = [access(scope)]
+    value["documents"][0]["model_context_allowed"] = True
+    path.write_text(json.dumps(value))
+    settings.retrieval_context_enabled = True
+    pair = compose_pair(settings)
+    h.app.dependency_overrides.pop(deps.get_context_assembler)
+    h.app.dependency_overrides.pop(deps.get_llm_client)
+    h.app.dependency_overrides[deps.get_provider_usage_accounting] = lambda: None
+    h.app.dependency_overrides[deps.get_inference_execution] = lambda: pair
+    return path, scope, settings, pair
+
+
+def test_pi5_context_signed_exact_model_path_then_revoke_detail_replay(http_platform, tmp_path):
+    h = http_platform
+    path, _, _, pair = context_runtime(h, tmp_path)
+    conversation = h.client.start("Source context", uuid4())["id"]
+    key = uuid4()
+    body = {"content": "Atlas", "idempotency_key": str(key), "retrieval_context": True}
+    # Independent stdlib-only client uses the public HTTP body, no private context API.
+    completed = h.client.ask(conversation, body)
+    assert completed["status"] == "completed"
+    assert "Atlas is a book" in str(pair.generator.delegate.requests[0])
+    assert len(pair.generator.delegate.requests) == 1
+    assert h.client.conversation(conversation)["messages"][-1]["content"]
+    path.unlink()
+    detail = h.raw.get(f"/v1/conversations/{conversation}", headers=h.headers)
+    assert detail.status_code == 409 and "Atlas" not in detail.text
+    replay = h.raw.post(f"/v1/conversations/{conversation}/continue", headers=h.headers, json=body)
+    assert "response.error" in replay.text and "Atlas" not in replay.text
+    assert len(pair.generator.delegate.requests) == 1
+    assert h.client.status(conversation, key)["state"] == "completed"
+
+
+@pytest.mark.parametrize("change", ["owner", "workspace", "app", "document", "model_grant", "kill"])
+def test_pi5_context_signed_denied_before_model_send(http_platform, tmp_path, change):
+    h = http_platform
+    path, _, settings, pair = context_runtime(h, tmp_path)
+    value = json.loads(path.read_text())
+    if change in {"owner", "workspace", "app"}:
+        field = {"owner": "owner_id", "workspace": "workspace_id", "app": "application_id"}[change]
+        value["model_context_access"][0][field] = "foreign"
+    elif change == "document":
+        value["documents"][0]["model_context_allowed"] = False
+    elif change == "model_grant":
+        value["model_context_access"] = []
+    else:
+        settings.retrieval_context_enabled = False
+    path.write_text(json.dumps(value))
+    conversation = h.client.start("Denied", uuid4())["id"]
+    response = h.raw.post(f"/v1/conversations/{conversation}/continue", headers=h.headers,
+                         json={"content": "Atlas", "idempotency_key": str(uuid4()), "retrieval_context": True})
+    assert response.status_code in {422, 503}
+    assert "Atlas is a book" not in response.text and not pair.generator.delegate.requests

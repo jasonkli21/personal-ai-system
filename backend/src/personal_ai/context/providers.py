@@ -365,6 +365,7 @@ class ContextProviderInputs:
     retrieval: RetrievalResult | None = None
     evidence_records: tuple[Any, ...] = ()
     tool_results: Mapping[str, Any] | None = None
+    pending_message: Any | None = None
 
 
 class ContextProvider(Protocol):

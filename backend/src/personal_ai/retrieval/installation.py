@@ -33,6 +33,10 @@ class Access(ResearchRecord):
         )
 
 
+class ModelContextAccess(Access):
+    purpose: Literal["assist_response_with_local_excerpt"] = "assist_response_with_local_excerpt"
+
+
 class LocalDocument(ResearchRecord):
     source_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,79}$")
     revision: str = Field(min_length=1, max_length=100)
@@ -48,6 +52,7 @@ class LocalDocument(ResearchRecord):
     expires_at: datetime
     enabled: bool = Field(default=True, strict=True)
     quote_allowed: bool = Field(default=False, strict=True)
+    model_context_allowed: bool = Field(default=False, strict=True)
     access: tuple[Access, ...] = Field(min_length=1, max_length=32)
 
     @model_validator(mode="after")
@@ -80,6 +85,8 @@ class Installation(ResearchRecord):
     access: tuple[Access, ...] = Field(default=(), max_length=32)
     # This is explicit permission to disclose the submitted query to the selected search source.
     external_query_access: tuple[Access, ...] = Field(default=(), max_length=32)
+    # Independent explicit permission to disclose local excerpts to a model.
+    model_context_access: tuple[ModelContextAccess, ...] = Field(default=(), max_length=32)
     documents: tuple[LocalDocument, ...] = Field(default=(), max_length=128)
 
     @model_validator(mode="after")

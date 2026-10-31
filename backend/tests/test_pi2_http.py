@@ -49,6 +49,8 @@ pytestmark = pytest.mark.loopback_http
 
 @pytest.fixture
 def http_platform(tmp_path, monkeypatch, request):
+    if request.node.name.startswith("test_pi5_context_"):
+        monkeypatch.setenv("READING_LOGBOOK_RETRIEVAL_CONTEXT_ENABLED", "true")
     if request.node.name.startswith("test_pi5_"):
         monkeypatch.setenv("READING_LOGBOOK_RETRIEVAL_ENABLED", "true")
     if request.node.name.startswith("test_pi4_signed_http_profile_consent_installed_unrelated_consumer"):

@@ -42,6 +42,15 @@ def source_snapshots_current(snapshots: Iterable, revalidator, *, now) -> bool:
 
 def source_snapshot_authority_complete(snapshot):
     """A shared-profile source can never become untainted through missing metadata."""
+    if snapshot.provider_id == "retrieval_context":
+        return bool(snapshot.expires_at) and any(
+            dep.permission_id.startswith("retrieval_context:")
+            and dep.owner_id == snapshot.owner_id and dep.entity_ref is not None
+            and dep.source_scope is not None and dep.acting_user_id is not None
+            and dep.source_scope.application_id == snapshot.application_id
+            and dep.source_scope.workspace_id == snapshot.workspace_id
+            for dep in snapshot.permission_dependencies
+        )
     if snapshot.provider_id == "global_profile" or "global_profile" in snapshot.source_classes:
         return any(
             dep.permission_id.startswith("global_profile_share:")

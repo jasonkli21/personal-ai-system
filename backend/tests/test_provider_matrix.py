@@ -132,6 +132,20 @@ class _FakeArtifactService:
         return SimpleNamespace(artifact_id=outcome)
 
 
+class _MatrixClockRepository(MemoryRepository):
+    """Evaluation uses the same advancing clock as physical permit expiry.
+
+    Routing unit tests deliberately freeze MemoryRepository.now to drive state
+    transitions. An entire multi-case evaluation cannot reuse that fixed instant:
+    later cases otherwise receive already-expired root deadlines/dispatch permits.
+    This emulates PostgreSQL clock_timestamp(), not a relaxed expiry policy.
+    """
+
+    def execute(self, sql):
+        assert sql == "SELECT clock_timestamp()"
+        return SimpleNamespace(fetchone=lambda: (datetime.now(UTC),))
+
+
 def _matrix(*, include_blocked=True):
     profiles = [
         _profile(
@@ -185,7 +199,7 @@ def _matrix(*, include_blocked=True):
     )
     suite_id, suite_version, _, _, suite_digest = evaluation_suite_identity(fixtures)
     run_repository = InMemoryEvaluationRunRepository()
-    observations = MemoryRepository()
+    observations = _MatrixClockRepository()
     registry = EndpointRegistry(tuple(profiles))
     usage = Usage(observations)
     authorization = Authorization()
@@ -884,3 +898,29 @@ def test_provider_matrix_requires_persistent_gate_authority():
     runner, repository, observations, _executor, _profiles, _fixtures, _task = _matrix()
     assert runner.repository is repository
     assert observations is runner.routing_service.observations
+
+
+def test_matrix_clock_does_not_reuse_construction_time_for_later_permits():
+    from datetime import timedelta
+
+    runner, _repository, observations, _executor, profiles, fixtures, task = _matrix(
+        include_blocked=False
+    )
+    # No sleeps, deadline extensions or dispatch-clock patches: prove each new
+    # transaction observes current UTC even when the inherited construction marker
+    # is older than the real 30-second physical-permit TTL.
+    observations.now = datetime.now(UTC) - timedelta(minutes=2)
+    before = datetime.now(UTC)
+    selected = fixtures[:1]
+    suite_id, suite_version, _, _, suite_digest = evaluation_suite_identity(selected)
+    runner.approved_evaluation_suites = {(suite_id, suite_version): suite_digest}
+    summary, cases, _ = runner.run(
+        evaluation_run_id=uuid4(), fixtures=selected, task=task,
+        policy_version=fixtures[0].policy_version,
+    )
+    assert summary.synthetic_cases == len(profiles)
+    assert all(case.status == "synthetic_baseline" for case in cases)
+    assert all(record.decision.created_at >= before for record in observations.records.values())
+    permits = [event.permit for record in observations.records.values()
+               for event in record.events if event.permit is not None]
+    assert permits and all(permit.expires_at > before for permit in permits)

@@ -111,3 +111,18 @@ The detailed PI-5 plan remains an untracked preserved input, identified by hash 
 a source-only non-promoting planner rebind; all historical locks remain intact. PI-5
 mandatory acceptance is incomplete; independent PI-0–5 review remains pending. MEM-3+
 stays frozen.
+
+
+## PI-5 completion candidate — acceptance blocked
+
+- [Pre-code design and source-identity migration](pi-5-completion-plan-hardening.md).
+- [Implementation and self-review](pi-5-completion-implementation-report.md),
+  [scenario/command evidence](pi-5-completion-verification.json) and
+  [mandatory entry gate for PI-6](pi-5-completion-gate.md).
+- [Self-contained completion review handoff](pi-5-completion-review-handoff.md).
+
+Explicit local source-to-normal-model context is now implemented with separate
+model disclosure grants and retained authority. External source-to-model, export
+consent, distributed source/attempt storage, real eligibility/IAM/restore/delete
+acceptance remain incomplete. PI-6 has not started. Older standalone-only records
+above retain their historical scope; the living boundary is current-state.

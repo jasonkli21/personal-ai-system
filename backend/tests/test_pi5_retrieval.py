@@ -921,3 +921,62 @@ def test_journal_closes_connections_after_committed_operations(runtime):
     for connection in opened:
         with pytest.raises(sqlite3.ProgrammingError, match="closed"):
             connection.execute("SELECT 1")
+
+
+def test_journal_operator_reserves_equal_lifetime_scopes_and_restart(tmp_path):
+    journal = AttemptJournal(tmp_path / "intent.sqlite3")
+    journal.MAX_SCOPES = 2
+    journal.CAPACITY = 2
+    first, second, third = scope(), scope(application_id="second"), scope(application_id="third")
+    assert journal.admit_scopes((first, second))
+    q = query()
+    assert journal.reserve(first, q) is None
+    assert journal.reserve(first, query()) is None
+    assert journal.reserve(first, query()) == "quota"
+    assert journal.reserve(second, query()) is None
+    assert not journal.admit_scopes((third,))
+    assert journal.reserve(third, query()) == "quota"
+    restarted = AttemptJournal(tmp_path / "intent.sqlite3")
+    assert restarted.reserve(first, q) == "external_outcome_unknown"
+    with restarted.connect() as db:
+        assert db.execute("SELECT count(*) FROM retrieval_attempts").fetchone()[0] == 3
+        assert db.execute("PRAGMA max_page_count").fetchone()[0] == journal.MAX_PAGES
+
+
+@pytest.mark.anyio
+async def test_operator_read_only_registry_closed_schema_and_second_registration(runtime):
+    from dataclasses import FrozenInstanceError, replace
+
+    from personal_ai.applications.contracts import CapabilityRegistration
+    from personal_ai.retrieval.tools import (
+        DEFAULT_TOOLS,
+        ReadOnlyToolRegistry,
+        ToolOutcome,
+    )
+
+    original = DEFAULT_TOOLS.registrations["retrieval.query.v1"]
+    second = replace(original, tool_id="catalog.query.v1")
+    tools = ReadOnlyToolRegistry((original, second))
+    metadata = CapabilityRegistration(
+        capability_id=second.tool_id, kind="tool", available=True, read_only_context=True,
+        result_fields=("retrieval",), max_result_bytes=32768,
+    )
+
+    class Registry:
+        def capability(self, application_id, tool_id, *, kind):
+            assert (application_id, tool_id, kind) == ("reader", second.tool_id, "tool")
+            return metadata
+
+    invoke = tools.require(Registry(), "reader", second.tool_id)
+    result = await invoke(runtime.service, query(), lambda: None)
+    assert isinstance(result, ToolOutcome) and result.retrieval.items
+    with pytest.raises(ValidationError):
+        await invoke(runtime.service, {"arbitrary_import": "os.system"}, lambda: None)
+    with pytest.raises(ValueError, match="duplicate"):
+        ReadOnlyToolRegistry((original, original))
+    with pytest.raises(ValueError, match="invalid"):
+        replace(original, effect="mutation")
+    with pytest.raises(TypeError):
+        tools.registrations[second.tool_id] = original
+    with pytest.raises(FrozenInstanceError):
+        tools.registrations = {}

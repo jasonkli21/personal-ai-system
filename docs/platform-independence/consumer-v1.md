@@ -1,4 +1,4 @@
-# External consumer HTTP contract v1.1.0
+# External consumer HTTP contract v1.2.0
 
 PI-2 local implementation candidate, 2026-10-30. Independent review and deployed
 identity/provider/storage acceptance remain open. The [generated OpenAPI subset](consumer-v1.openapi.json)
@@ -139,7 +139,7 @@ safe generation/context codes, not raw provider exceptions. A revocation during
 preparation produces `context_client_authority_changed`; it cannot recall data
 already sent to a model. Cancellation/lost acknowledgment does not prove no send.
 
-Version `1.1.0` is independently versioned from host Python contracts. Within v1,
+Version `1.2.0` is independently versioned from host Python contracts. Within v1,
 additive optional fields/operations and new safe error codes may appear. Clients
 ignore unknown object fields and nonterminal future events while enforcing the
 completion protocol; they do not infer success from unknown events. Removing or
@@ -155,7 +155,9 @@ The exact POST routes `/v1/retrieval/query` and
 `/v1/tools/retrieval.query.v1/invoke` are default-off additions in v1.1.0. See the
 [retrieval-v1 wire and operator contract](retrieval-v1.md) for closed schemas, exact
 source grants, citation semantics, partial/unavailable states, original-key
-attempt fences and intentional lack of model-context integration. The tool
+attempt fences. Optional v1.2.0 `retrieval_context` requests use separately
+authorized local/test model context; external snippets remain unavailable for
+model context. The tool
 requires both installed read-only capability metadata and a closed executable
 binding. These additions expose no raw research, memory controls or generic tool
 dispatch. The Reading Logbook client can make explicit retrieval calls; its local

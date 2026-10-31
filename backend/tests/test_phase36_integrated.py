@@ -503,10 +503,12 @@ def test_provider_task_evaluation_and_validator_use_production_routing_factory(m
     from tests.test_cascade_phase24 import (
         test_custom_domain_validator_can_register_without_coordinator_changes as validate_cascade,
     )
-    from tests.test_provider_matrix import _matrix
+    from tests.test_provider_matrix import _matrix, _MatrixClockRepository
 
     runner, evaluation_repo, _, executor, profiles, fixtures, task_profile = _matrix()
-    f, observations, usage = factory(monkeypatch, profiles)
+    f, observations, usage = factory(
+        monkeypatch, profiles, observation_repository=_MatrixClockRepository()
+    )
     runner.routing_service = f.routing_service(
         settings(),
         authorization=Authorization(),

@@ -8,6 +8,9 @@ from personal_ai.applications.contracts import (
     ApplicationContextPolicy,
     ApplicationDefinition,
     CapabilityRegistration,
+    ContextFieldPolicy,
+    ContextOperationPolicy,
+    ContextProviderPolicy,
 )
 from personal_ai.applications.registry import ApplicationContribution
 from personal_ai.context.runtime import ContextRuntimeContribution
@@ -19,5 +22,8 @@ __all__ = [
     "ApplicationContribution",
     "ApplicationDefinition",
     "CapabilityRegistration",
+    "ContextFieldPolicy",
+    "ContextOperationPolicy",
+    "ContextProviderPolicy",
     "ContextRuntimeContribution",
 ]

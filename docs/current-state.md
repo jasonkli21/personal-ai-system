@@ -83,29 +83,23 @@ its source-only digest was refreshed; no count assertion or held-out lock change
 The final offline PI-2 consumer check passed its contract, installed core,
 reference, retained-task and HTTP/client probes. These PI-4 matrix failures
 remain verification gaps; see the [remediation evidence](platform-independence/pi-4-independent-review-remediation-2026-10-30.md).
-[PI-5](platform-independence/pi-5-implementation-report.md) adds a user-directed,
-**incomplete local candidate**: default-off standalone retrieval-v1 and one closed
-read-only tool, operator-installed lexical corpus with exact owner/actor/app/workspace
-rights, issuer- and scope-bound source citations, final snapshot/client checks, and a
-selected snippet bridge with single-host content-free original-attempt fences.
-Contradictory domain filters are preflighted before journaling, and the 4,096 receipt
-limit applies to each authenticated scope. Receipts remain unpruned; aggregate SQLite
-growth across scopes has no global ceiling, so external use stays local/test-only and
-operator-controlled. The additive HTTP/Reading Logbook contract is v1.1.0. No source
-is automatically attached to model context, summaries, SSE, assistant history or
-memory; that mandatory integration remains unavailable. Brave retains closed strict-free
-admission; mock HTTP and fake P19 storage prove no live eligibility, billing or provider
-acceptance. Generic executable tool registration, distributed source authority, durable
-production attempt storage, restore anti-rollback and physical deletion remain open.
-See the [wire/operator contract](platform-independence/retrieval-v1.md), [PI-5 review
-remediation](platform-independence/pi-5-independent-review-remediation-2026-10-31.md)
-and [P5-01–28 verification](platform-independence/pi-5-verification.json). The 2026-10-31
-network-fenced retrieval run passed 66 unit and 27 signed HTTP tests; the broader PI-5
-target passed 124 native and 27 signed HTTP tests. Both reported zero forbidden network
-attempts. The earlier recorded 30 ms research quota failure did not recur; its cause
-remains unproven. PI-3/4 and full-backend historical checkpoints retain provider-matrix/
-Phase36, adaptive label and cold-start timeout gaps. This does not close independent or
-production acceptance.
+[PI-5](platform-independence/pi-5-implementation-report.md) remains an incomplete
+local candidate. The [completion candidate](platform-independence/pi-5-completion-implementation-report.md)
+adds explicit local/test retrieval through normal context packing/counting/model
+turns, retained source dependencies and subsequent SSE/history/summary/detail/replay
+checks. Separate model-purpose scope grants and document permissions default-deny;
+external source-to-model attachment and retrieval-derived account export remain
+unavailable. An immutable trusted read-only tool registry and bounded lifetime
+journal allocations replace the prior fixed binding/unbounded aggregate growth.
+Consumer v1.2.0 preserves original continuation identity when the optional selection
+is absent. No automatic tool loop or memory capture is added. The local file
+authority is not a distributed atomic lease; native source/P19 durability, real
+external eligibility/IAM, restore/delete anti-rollback and independent acceptance
+remain mandatory blockers. See the [gate](platform-independence/pi-5-completion-gate.md)
+and [verification](platform-independence/pi-5-completion-verification.json) for
+actual final checks and all P5-01–28 dispositions. Historical failures and evidence
+remain in their original reports. v25 is an explicit source-identity migration;
+v10–v24, corpus/scoring/threshold bytes and non-promotion remain preserved.
 PI-6 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.

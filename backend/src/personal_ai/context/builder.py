@@ -387,7 +387,7 @@ class ContextBuilder:
         def revalidate_count():
             now = self.clock().astimezone(UTC)
             for item in disclosure_items:
-                if not any(dep.permission_id.startswith("global_profile_share:")
+                if not any(dep.permission_id.startswith(("global_profile_share:", "retrieval_context:"))
                            for dep in item.permission_dependencies):
                     continue
                 if (item.expires_at is not None and now >= item.expires_at

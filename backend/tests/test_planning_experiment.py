@@ -866,12 +866,24 @@ def test_v23_pi4_source_rebind_preserves_v22_and_non_promotion():
 
 
 def test_v24_pi5_source_rebind_preserves_v23_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V24_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V23_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v24"
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "e5412a85e58fdf0a9d7b58d1361a23b37e477190"
-    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert current["source_identity_digest"] == "2130c652bb8a723a605730eca5eedfe733d923f1903816269670ac7979af9a58"
     for key in ("configuration_digest", "evaluator_version", "corpus_digest",
                 "fixture_dependency_digest", "promotion_decision"):
         assert current[key] == previous[key]
+
+
+def test_v25_source_binding_preserves_v24_corpus_rubric_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V24_FREEZE_PATH.read_text())
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v25"
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    for field in ("baseline_version", "configuration_digest", "corpus_digest",
+                  "counter_identity", "evaluator_version", "fixture_dependency_digest",
+                  "promotion_decision"):
+        assert current[field] == previous[field]
+    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]

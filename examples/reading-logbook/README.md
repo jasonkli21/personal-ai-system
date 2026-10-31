@@ -152,3 +152,13 @@ profile opt-in. Retrieval does not upload book records or attach results to chat
 External retries retain the original key and never resend an already reserved
 attempt. Synthetic/mock provider checks are labeled; live Brave is not approved.
 See [the wire/operator contract](../../docs/platform-independence/retrieval-v1.md).
+
+
+The optional PI-5 completion candidate also accepts `retrieval_context: true` in
+the original continuation body passed to `PlatformClient.ask`. Enable
+`READING_LOGBOOK_RETRIEVAL_CONTEXT_ENABLED=true` on the trusted host and the
+server's separate `RETRIEVAL_CONTEXT_ENABLED` gate, with exact model-context
+installation/document grants. This is local/test-only; standalone retrieval
+permission alone cannot authorize model disclosure. Retain the original body/key
+on retry. Revocation makes detail/replay fail without another model send. See
+[the source authority and blocked production gates](../../docs/platform-independence/retrieval-v1.md).

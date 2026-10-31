@@ -11,7 +11,7 @@ from personal_ai.api.schemas import (
     SSEResponseError,
 )
 
-CONSUMER_API_VERSION = "1.1.0"
+CONSUMER_API_VERSION = "1.2.0"
 OPERATIONS = {
     "/v1/retrieval/query": ("post",),
     "/v1/tools/retrieval.query.v1/invoke": ("post",),

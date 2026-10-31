@@ -923,6 +923,7 @@ class ChatTurnService:
             # Keep creation events inside the protected lifecycle. A disconnect
             # while sending either event must fail the already-persisted turn.
             for message in turn.created:
+                await self._require_output_authority(turn.source_snapshots)
                 yield TurnMessageCreated(message)
             def revalidate_send():
                 require_current_client_authority()
@@ -1063,17 +1064,18 @@ class ChatTurnService:
                 usage.output_tokens if usage else None,
                 usage.confidence if usage else "unavailable",
             )
+            await self._require_output_authority(turn.source_snapshots)
             yield TurnCompleted(message=completed)
         except asyncio.CancelledError:
             if not terminal:
-                await self._fail(turn.assistant, "client_cancelled", "".join(parts))
+                await self._fail(turn.assistant, "client_cancelled", "" if turn.source_snapshots else "".join(parts))
             logger.info(
                 "Chat stream cancelled request_id=%s error_class=CancelledError", turn.request_id
             )
             raise
         except GeneratorExit:
             if not terminal:
-                await self._fail(turn.assistant, "client_cancelled", "".join(parts))
+                await self._fail(turn.assistant, "client_cancelled", "" if turn.source_snapshots else "".join(parts))
                 logger.info("Chat stream closed request_id=%s", turn.request_id)
             raise
         except ContextPreparationError as error:
@@ -1086,14 +1088,14 @@ class ChatTurnService:
                 turn.request_id,
                 type(error).__name__,
             )
-            event = await self._error_event(turn.assistant, error.code, "".join(parts))
+            event = await self._error_event(turn.assistant, error.code, "" if turn.source_snapshots else "".join(parts))
             terminal = True
             yield event
         except Exception:  # noqa: BLE001
             logger.error(
                 "Chat stream failed request_id=%s error_class=UnexpectedError", turn.request_id
             )
-            event = await self._error_event(turn.assistant, "llm_unavailable", "".join(parts))
+            event = await self._error_event(turn.assistant, "llm_unavailable", "" if turn.source_snapshots else "".join(parts))
             terminal = True
             yield event
 
@@ -1226,7 +1228,10 @@ class ChatTurnService:
         ):
             raise ContextPreparationError("context_source_authority_changed")
         if not is_external_client_request() and not any(
-            snapshot.provider_id == "global_profile" or "global_profile" in snapshot.source_classes
+            snapshot.provider_id in {"global_profile", "retrieval_context"}
+            or "global_profile" in snapshot.source_classes
+            or any(dep.permission_id.startswith("retrieval_context:")
+                   for dep in snapshot.permission_dependencies)
             for snapshot in snapshots
         ):
             return

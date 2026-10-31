@@ -117,6 +117,16 @@ class ConversationService:
         messages = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
         )
+        retrieval_snapshots = tuple(
+            snapshot for message in messages for snapshot in source_snapshots_for_message(message)
+            if snapshot.provider_id == "retrieval_context"
+            or any(dep.permission_id.startswith("retrieval_context:")
+                   for dep in snapshot.permission_dependencies)
+        )
+        if retrieval_snapshots and not source_snapshots_current(
+            retrieval_snapshots, permission_revalidator, now=datetime.now(UTC),
+        ):
+            raise ExternalHistoryDisclosureDenied
         if is_external_client_request():
             # Middleware authorizes the request at ingress; recheck immediately
             # before returning persisted output so a revoked client/workspace

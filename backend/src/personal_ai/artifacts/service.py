@@ -391,6 +391,9 @@ class ArtifactService:
 
     def freeze_export(self, exported, *, owner_id, scope, identity, max_records, max_bytes):
         """Freeze exact generations from the declared DB snapshot; no partial success."""
+        from personal_ai.retrieval.export import require_export_safe
+
+        require_export_safe(exported)
         namespace = hashlib.sha256(
             json.dumps(
                 [owner_id, scope.application_id, scope.workspace_id], separators=(",", ":")

@@ -250,6 +250,7 @@ def _build_context_permission_revalidator(
     messages: MessageRepository,
     registry: ApplicationRegistry,
     authority,
+    request=None,
 ) -> ContextPermissionRevalidatorRegistry:
     memories = (
         persistence_factory(settings).memory_repository() if settings.memory_enabled else None
@@ -268,8 +269,23 @@ def _build_context_permission_revalidator(
                 settings, memories, messages, lifecycle, application_registry=registry
             ),
             ResearchSourceRightsRevalidator(settings),
+            _retrieval_context_authority(settings, request),
             *runtime.permission_revalidators,
         )
+    )
+
+
+def _retrieval_context_authority(settings, request):
+    from personal_ai.retrieval.context import RetrievalContextAuthority
+
+    scope = getattr(request.state, "request_scope", None) if request is not None else None
+    return RetrievalContextAuthority(
+        settings, scope=scope,
+        authority=getattr(request.state, "source_authority", None) if request is not None else None,
+        context=(lambda: get_application_context(scope, application_registry_for(request)))
+            if request is not None else None,
+        current_settings=request.app.dependency_overrides.get(get_settings, get_settings)
+            if request is not None else None,
     )
 
 
@@ -284,7 +300,7 @@ def get_context_permission_revalidator(
     """Build request-bound source validators without composing inference ports."""
     authority = getattr(request.state, "profile_share_authority", None)
     return _build_context_permission_revalidator(
-        runtime, settings, profile_repository, messages, registry, authority
+        runtime, settings, profile_repository, messages, registry, authority, request
     )
 
 
@@ -306,7 +322,7 @@ def get_context_assembler(
     authority = getattr(request.state, "profile_share_authority", None) if request is not None else None
     if permission_revalidator is _CONTEXT_PERMISSION_REVALIDATOR_UNSET:
         permission_revalidator = _build_context_permission_revalidator(
-            runtime, settings, profile_repository, messages, registry, authority
+            runtime, settings, profile_repository, messages, registry, authority, request
         )
     built_in_providers = {
         "ai_memory": MemoryContextProviderFactory(settings),
@@ -315,6 +331,11 @@ def get_context_assembler(
         "external_research": ResearchEvidenceContextProviderFactory(research_repository),
         "global_profile": GlobalProfileContextProviderFactory(profile_repository, settings, registry, authority),
     }
+    from personal_ai.retrieval.context import RetrievalContextProviderFactory
+
+    built_in_providers["retrieval_context"] = RetrievalContextProviderFactory(
+        _retrieval_context_authority(settings, request)
+    )
     overlap = set(built_in_providers).intersection(runtime.provider_factories)
     if overlap:
         raise ValueError("context_runtime_provider_conflicts_with_builtin")

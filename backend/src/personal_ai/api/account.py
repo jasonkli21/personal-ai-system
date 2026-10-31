@@ -71,6 +71,9 @@ def export_account(
             max_records=settings.export_max_records,
             max_bytes=settings.export_max_bytes,
         )
+        from personal_ai.retrieval.export import require_export_safe
+
+        require_export_safe(exported)
         from personal_ai.context.authority import permission_dependencies_current
         from personal_ai.search.authority import (
             ResearchSourceRightsRevalidator,

@@ -50,8 +50,17 @@ async def invoke_retrieval(
     request: Request,
     service: Annotated[RetrievalService, Depends(retrieval_service)],
 ):
+    from personal_ai.retrieval import tools
+
+    installed = getattr(request.app.state, "read_only_tools", tools.DEFAULT_TOOLS)
+
     def guard():
-        return require_tool(application_registry_for(request), service.scope.application_id)
+        if getattr(request.app.state, "read_only_tools", tools.DEFAULT_TOOLS) is not installed:
+            raise ValueError("tool_unavailable")
+        return require_tool(
+            application_registry_for(request), service.scope.application_id,
+            tools=installed,
+        )
 
     try:
         return await guard()(service, body, guard)

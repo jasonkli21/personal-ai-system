@@ -313,8 +313,9 @@ class Settings(BaseSettings):
     memory_job_candidate_limit: int = Field(default=40, ge=1, le=100)
 
     research_storage: str = Field(default="postgres", pattern=r"^(postgres|memory)$")
-    # PI-5 is standalone; no automatic chat/context/memory registration.
+    # PI-5 selection is explicit; model-context access is independently default-off.
     retrieval_enabled: bool = False
+    retrieval_context_enabled: bool = False
     retrieval_external_enabled: bool = False
     retrieval_installation_file: str = Field(default="", max_length=4096)
     retrieval_attempt_journal_file: str = Field(default="", max_length=4096)

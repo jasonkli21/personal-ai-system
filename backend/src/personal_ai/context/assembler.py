@@ -371,6 +371,7 @@ class ContextAssembler:
                             retrieval=retrieval,
                             evidence_records=tuple(evidence_records),
                             tool_results=tool_results,
+                            pending_message=pending_user_message,
                         ),
                         deadline=deadline,
                     )

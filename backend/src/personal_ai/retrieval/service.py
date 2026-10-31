@@ -129,7 +129,11 @@ class RetrievalService:
                     deadline = now + timedelta(seconds=self.settings.retrieval_timeout_seconds)
                     operation = bridge.prepare(query, deadline)
                     if operation is not None:
-                        denial = journal.reserve(self.scope, query)
+                        denial = (
+                            journal.reserve(self.scope, query)
+                            if journal.admit_scopes(snapshot.installation.external_query_access)
+                            else "quota"
+                        )
                     else:
                         # A contradictory deterministic domain filter cannot dispatch.
                         denial = None

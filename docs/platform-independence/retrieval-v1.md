@@ -182,3 +182,72 @@ cloud/security acceptance remain unproven. Past transmissions cannot be recalled
 checks do not make revocation atomic with a network send. See the
 [implementation report](pi-5-implementation-report.md) and
 [scenario evidence](pi-5-verification.json).
+
+## Explicit local model context (completion candidate, 2026-10-31)
+
+Consumer v1.2.0 adds optional `retrieval_context: true` to preview/continuation.
+Absent/false preserves old intent digests and defaults. This does not accept a
+client-supplied passage or reuse a retrieval response. It makes a fresh local
+lexical search from the first 400 characters of the whitespace-normalized user
+question, with at most eight items, 32 KiB provider results and 8,192 selection
+tokens inside the unchanged shared source/global budget. Required source failure
+or no eligible passage denies preparation. The standalone outcome's
+`context_integration: unavailable` still means that result cannot be attached by
+its client; the new explicit operation is separate.
+
+All of these must hold: `APP_ENVIRONMENT=local|test`, `RETRIEVAL_ENABLED=true`,
+`RETRIEVAL_CONTEXT_ENABLED=true`, registered `retrieval_context` context-provider
+capability, an app `search` policy allowing the `excerpt` field/model disclosure
+at an appropriate sensitivity, and an operator installation with separate
+`model_context_access` plus document `model_context_allowed: true`. Both additions
+are default-deny; old installations keep standalone retrieval only. Model grants
+bind exact owner/actor/application/workspace and purpose
+`assist_response_with_local_excerpt`. Interactive quote rights and PI-4 profile
+consent cannot grant model disclosure. The Reading Logbook host independently
+opts in with `READING_LOGBOOK_RETRIEVAL_CONTEXT_ENABLED=true`; its separate HTTP
+client passes the optional field in its already-journaled original body.
+
+The normal context coordinator/packer and neutral generation/counter path carry
+exact quote/citation/revision/rights/expiry metadata. A payload-free dependency
+binds the whole installation digest, issuer-qualified source, actor/scope and
+revision. Current owner/client/membership, app capability/field policy, installation
+and document permission are rechecked before source counts, final send, each SSE
+emission and stored detail/replay. All installation edits conservatively invalidate
+old derived outputs, even edits to another document. Missing validators deny.
+Assistant history and lossy summaries inherit dependencies; new retrieval-derived
+content is excluded from durable memory extraction. Failed source-bearing turns
+discard partial bodies rather than retain them without provenance. New source
+metadata is retained on successful canonical assistant records using the existing
+snapshot schema. Old unattributed external assistant history remains quarantined.
+
+Account export containing retrieval-derived records is unavailable until separate
+export-purpose authority is implemented. The check includes inactive/failed
+messages and artifact snapshots. No external snippets can enter this model
+provider. There is no live eligibility, atomic distributed source lease, stale
+backup protection or physical-erasure claim: check-to-wire races and restoration
+of an old installation remain acceptance blockers. Generated answer factuality
+and whether a model invents citation text are not established by synthetic tests.
+
+## Local journal capacity and installed tools
+
+The journal retains at most 32 lifetime scopes with equal 4,096-intent allocations.
+All scopes in the operator external-query grant list are allocated together before
+attempt admission. Removed scopes keep their allocation and irreversible original
+keys; there is no pruning/recycling. SQLite uses 4 KiB pages and a 32,768-page
+future allocation ceiling (128 MiB). Existing larger/over-capacity journals are not
+silently erased or repaired. Changing a grant list beyond retained capacity denies
+new dispatch; inspect and provision an independently reviewed durable ledger.
+Replay of old receipts never authorizes another physical attempt. Restore from a
+stale backup remains unsafe and must not be enabled for external execution.
+
+`ReadOnlyToolRegistry` accepts at most 32 unique, versioned registrations from
+trusted startup Python only. Input/output models are closed `ResearchRecord`
+schemas; each binding declares result fields, bytes, timeout and read-only effect.
+Current application metadata is required before and after execution. The exact
+retrieval HTTP route can use an operator-installed `app.state.read_only_tools`
+registry; replacing it while an invocation runs denies the old result. Other
+trusted registrations require their own reviewed typed route. There is no generic
+public executor, dynamic import, client-defined handler or model-selected loop.
+This is a trusted code contract, not a sandbox for arbitrary third-party code;
+operators must review a handler's rights, cost and side effects before installing.
+The existing retrieval handler preserves P19 admission and one-attempt fences.

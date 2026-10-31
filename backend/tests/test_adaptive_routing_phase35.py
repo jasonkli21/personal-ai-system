@@ -93,11 +93,11 @@ def artifact(v, **changes):
     return AdaptiveArtifact(**{**facts, **changes})
 
 
-def factory(monkeypatch, profiles=None):
+def factory(monkeypatch, profiles=None, *, observation_repository=None):
     # Only stores/current authority are substituted; inherited production
     # routing_service owns registry/strategy/accounting composition.
     f = PostgresDynamoPersistenceFactory(object(), object())
-    repo = MemoryRepository()
+    repo = observation_repository if observation_repository is not None else MemoryRepository()
     repo.now = datetime.now(UTC)
     registry = EndpointRegistry(profiles or (_profile("allowed"),))
     usage = Usage(repo)
