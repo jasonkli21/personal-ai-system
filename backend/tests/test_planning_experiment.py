@@ -854,11 +854,23 @@ def test_v22_pi3_source_rebind_preserves_v21_and_non_promotion():
 
 
 def test_v23_pi4_source_rebind_preserves_v22_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V23_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V22_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v23"
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "00359b3e4941b3d0ff31575070aed083c77c98f8"
+    assert current["source_identity_digest"] == "937aca44fa80cace27a7fe54d7cf06d1a1deb7b847309f5dd858b571fa0232fb"
+    for key in ("configuration_digest", "evaluator_version", "corpus_digest",
+                "fixture_dependency_digest", "promotion_decision"):
+        assert current[key] == previous[key]
+
+
+def test_v24_pi5_source_rebind_preserves_v23_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V23_FREEZE_PATH.read_text())
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v24"
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_revision"] == "e5412a85e58fdf0a9d7b58d1361a23b37e477190"
     assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
     for key in ("configuration_digest", "evaluator_version", "corpus_digest",
                 "fixture_dependency_digest", "promotion_decision"):

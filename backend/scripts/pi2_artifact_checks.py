@@ -137,7 +137,10 @@ tests.mkdir(parents=True)
 (test_root / "pytest.ini").write_text(
     "[pytest]\nmarkers =\n    loopback_http: synthetic loopback HTTP fixture\n"
 )
-for name in ("conftest.py", "test_pi2_http.py", "test_pi2_client.py"):
+for name in (
+    "__init__.py", "conftest.py", "test_pi2_http.py", "test_pi2_client.py",
+    "test_pi5_http.py", "test_pi5_retrieval.py", "test_research_provider.py",
+):
     shutil.copyfile(ROOT / "backend/tests" / name, tests / name)
 doc = workspace / "docs/platform-independence"
 doc.mkdir(parents=True)

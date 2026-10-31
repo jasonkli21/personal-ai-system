@@ -7,6 +7,7 @@ workspace membership, source access or model disclosure authority.
 from personal_ai.applications.contracts import (
     ApplicationContextPolicy,
     ApplicationDefinition,
+    CapabilityRegistration,
 )
 from personal_ai.applications.registry import ApplicationContribution
 from personal_ai.context.runtime import ContextRuntimeContribution
@@ -17,5 +18,6 @@ __all__ = [
     "ApplicationContextPolicy",
     "ApplicationContribution",
     "ApplicationDefinition",
+    "CapabilityRegistration",
     "ContextRuntimeContribution",
 ]

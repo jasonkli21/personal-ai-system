@@ -313,6 +313,12 @@ class Settings(BaseSettings):
     memory_job_candidate_limit: int = Field(default=40, ge=1, le=100)
 
     research_storage: str = Field(default="postgres", pattern=r"^(postgres|memory)$")
+    # PI-5 is standalone; no automatic chat/context/memory registration.
+    retrieval_enabled: bool = False
+    retrieval_external_enabled: bool = False
+    retrieval_installation_file: str = Field(default="", max_length=4096)
+    retrieval_attempt_journal_file: str = Field(default="", max_length=4096)
+    retrieval_timeout_seconds: float = Field(default=3, gt=0, le=10)
     research_enabled: bool = False
     research_inspection_enabled: bool = False
     research_search_adapter: str = Field(default="fake", pattern=r"^[a-z][a-z0-9_-]{0,99}$")

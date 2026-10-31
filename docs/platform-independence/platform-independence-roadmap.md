@@ -324,3 +324,16 @@ This does not rewrite the roadmap's entry/exit gates: PI-0–4 independent accep
 is still pending. Exact-record memory sharing is explicitly unavailable without
 original source issuer/lease authority; browser consent UX remains incomplete.
 MEM-3+ stays frozen. PI-5–8 and production readiness remain undelivered.
+
+
+## 2026-10-30 PI-5 candidate reconciliation
+
+The user separately authorized a one-session, one-commit PI-5 implementation
+without subagents despite pending prior independent acceptance. The
+[pre-code hardening](pi-5-plan-hardening.md), [report](pi-5-implementation-report.md)
+and [scenario matrix](pi-5-verification.json) describe an **incomplete** standalone
+retrieval/read-only-tool candidate. General model-context integration is
+intentionally unavailable; live Brave/P19, distributed authority/attempt storage,
+restore and production gates remain open. A17/A18 full acceptance and independent
+PI-0–5 acceptance are not claimed. The original roadmap gates and MEM-3+ freeze
+remain in force. PI-6–8 are not delivered.

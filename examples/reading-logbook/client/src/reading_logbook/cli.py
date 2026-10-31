@@ -40,6 +40,11 @@ def main(argv=None):
             help="Only this text is sent; copy a local note explicitly if desired",
         )
         command.add_argument("--key")
+    retrieve = sub.add_parser("retrieve")
+    retrieve.add_argument("query")
+    retrieve.add_argument("--key", required=True)
+    retrieve.add_argument("--external", action="store_true")
+    retrieve.add_argument("--tool", action="store_true")
     recover = sub.add_parser("recover")
     recover.add_argument("key")
     args = parser.parse_args(argv)
@@ -62,7 +67,13 @@ def main(argv=None):
             namespace = json.dumps(
                 [client.base_url, client.application, client.workspace]
             )
-            if args.command == "list":
+            if args.command == "retrieve":
+                result = client.retrieve(
+                    args.query, args.key,
+                    sources=("local", "external") if args.external else ("local",),
+                    tool=args.tool,
+                )
+            elif args.command == "list":
                 result = client.conversations()
             elif args.command == "get":
                 result = client.conversation(args.conversation_id)

@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -85,3 +85,23 @@ from real OAuth/provider/cloud/erasure acceptance. The exact-record memory view 
 explicitly unavailable; browser management UX is incomplete. Historical v10–v22
 locks and corpus bytes are preserved; v23 is a source-only non-promoting rebind.
 No independent acceptance or production readiness is claimed. MEM-3+ remains frozen.
+
+
+## PI-5 standalone retrieval/tool candidate (incomplete)
+
+- [Pre-code review and hardening](pi-5-plan-hardening.md).
+- [Implementation/self-review report](pi-5-implementation-report.md) and
+  [P5-01–P5-28 machine evidence](pi-5-verification.json).
+- [Retrieval-v1 API/operator contract](retrieval-v1.md), additive
+  [external consumer v1.1.0](consumer-v1.md) and generated OpenAPI.
+
+Real bounded lexical corpus, exact source grants, source-neutral citation metadata,
+a registered read-only tool and signed unrelated-consumer HTTP are implemented
+locally. Retrieval has no general model/context, summary/history or memory
+integration. The Brave bridge retains existing closed strict-free admission;
+mock transport/P19 ports are not live acceptance. Original-intent receipts are
+single-host and bounded for life, never pruned. Distributed authority, restore,
+real identity/provider/billing and production acceptance remain open. v24 is a
+source-only non-promoting planner rebind; all historical locks remain intact.
+PI-5 mandatory acceptance is incomplete; independent PI-0–5 review remains pending.
+MEM-3+ stays frozen.

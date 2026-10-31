@@ -108,6 +108,8 @@ def require_client_application(principal, settings, application_id: str) -> bool
 
 
 def external_operation_allowed(method: str, path: str) -> bool:
+    if path in {"/v1/retrieval/query", "/v1/tools/retrieval.query.v1/invoke"}:
+        return method == "POST"
     if path == "/v1/conversations":
         return method in {"GET", "POST"}
     root = r"/v1/conversations/[0-9a-fA-F-]{36}"

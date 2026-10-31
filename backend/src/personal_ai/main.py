@@ -18,6 +18,7 @@ from personal_ai.api.mutations import router as mutations_router
 from personal_ai.api.profile import router as profile_router
 from personal_ai.api.provider_usage import router as provider_usage_router
 from personal_ai.api.research import router as research_router
+from personal_ai.api.retrieval import router as retrieval_router
 from personal_ai.api.routes import router as conversations_router
 from personal_ai.applications.http import attach_contribution_routes
 from personal_ai.applications.registry import (
@@ -121,6 +122,7 @@ def create_app(
         external_turns_router,
         conversations_router,
         research_router,
+        retrieval_router,
         iterative_research_router,
         decisions_router,
         account_router,

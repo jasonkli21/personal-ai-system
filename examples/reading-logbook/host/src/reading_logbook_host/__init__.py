@@ -10,6 +10,7 @@ from personal_ai.extensions.v1 import (
     ApplicationContextPolicy,
     ApplicationContribution,
     ApplicationDefinition,
+    CapabilityRegistration,
     ContextRuntimeContribution,
 )
 
@@ -67,6 +68,7 @@ def application():
     if HOST_CONTRACT_VERSION != "personal-ai-host-v1":
         raise ValueError("host_contract_incompatible")
     profile_enabled = os.environ.get("READING_LOGBOOK_PROFILE_ENABLED", "false") == "true"
+    retrieval_enabled = os.environ.get("READING_LOGBOOK_RETRIEVAL_ENABLED", "false") == "true"
     history = tuple(
         p
         for p in ApplicationContextPolicy().provider_policies
@@ -80,12 +82,17 @@ def application():
                 display_name="Reading Logbook",
                 memory_namespace="reading_logbook",
                 workspace_kind="required",
+                tool_ids=("retrieval.query.v1",) if retrieval_enabled else (),
                 context_policy=ApplicationContextPolicy(
                     version="reading-logbook-profile-v1" if profile_enabled else "reading-logbook-history-v1",
                     provider_policies=history,
                 ),
             ),
         ),
+        capabilities=(CapabilityRegistration(
+            capability_id="retrieval.query.v1", kind="tool", available=True,
+            read_only_context=True, result_fields=("retrieval",), max_result_bytes=32768,
+        ),) if retrieval_enabled else (),
         workspace_authorizers={"reading_logbook": Membership()},
     )
 

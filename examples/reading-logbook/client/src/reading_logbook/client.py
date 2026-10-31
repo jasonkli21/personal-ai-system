@@ -189,6 +189,14 @@ class PlatformClient:
                 "json_response_unknown; retain the original key"
             ) from error
 
+    def retrieve(self, query, key, *, sources=("local",), tool=False):
+        """Explicit standalone read. Never upload local records or attach to chat."""
+        path = "/v1/tools/retrieval.query.v1/invoke" if tool else "/v1/retrieval/query"
+        return self.json("POST", path, {
+            "schema_version": "retrieval-v1", "query": query,
+            "idempotency_key": str(UUID(str(key))), "sources": list(sources),
+        })
+
     def start(self, title, key):
         return self.json(
             "POST",

@@ -552,6 +552,7 @@ async def authenticate_request(request: Request) -> Response | None:
                 raise ClientApplicationDenied
             return application_registry_for(request)
 
+        request.state.source_authority = current_source_authority
         request.state.profile_share_authority = current_profile_share_authority
         if external_lane:
             request.state.client_authority = current_source_authority
@@ -639,6 +640,7 @@ class AuthenticationMiddleware:
             and scope.get("method") == "POST"
             and (
                 getattr(request.state, "external_client", False)
+                or scope.get("path") in {"/v1/retrieval/query", "/v1/tools/retrieval.query.v1/invoke"}
                 or scope.get("path")
                 in {
                     "/v1/travel/itinerary-proposals",
@@ -651,6 +653,7 @@ class AuthenticationMiddleware:
             body_limit = (
                 131_072
                 if getattr(request.state, "external_client", False)
+                or scope.get("path") in {"/v1/retrieval/query", "/v1/tools/retrieval.query.v1/invoke"}
                 else MAX_BOOKING_EXTRACTION_REQUEST_BYTES
                 if scope.get("path") == "/v1/travel/booking-extractions"
                 else MAX_ITINERARY_PROPOSAL_REQUEST_BYTES
@@ -669,6 +672,7 @@ class AuthenticationMiddleware:
             operation_timeout = (
                 10.0
                 if getattr(request.state, "external_client", False)
+                or scope.get("path") in {"/v1/retrieval/query", "/v1/tools/retrieval.query.v1/invoke"}
                 else settings.booking_extraction_timeout_seconds
                 if is_extraction_request
                 else settings.itinerary_proposal_timeout_seconds
@@ -715,6 +719,7 @@ class AuthenticationMiddleware:
                     408,
                     "request_body_timeout"
                     if getattr(request.state, "external_client", False)
+                    or scope.get("path") in {"/v1/retrieval/query", "/v1/tools/retrieval.query.v1/invoke"}
                     else "booking_extraction_deadline_exceeded",
                     "The request exceeded its total time limit.",
                     request=request,

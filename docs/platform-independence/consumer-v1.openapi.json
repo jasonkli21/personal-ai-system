@@ -1320,6 +1320,409 @@
         "title": "MessageStatus",
         "type": "string"
       },
+      "RetrievalItem": {
+        "additionalProperties": false,
+        "properties": {
+          "citation_id": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Citation Id",
+            "type": "string"
+          },
+          "content_fingerprint": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Fingerprint",
+            "type": "string"
+          },
+          "end": {
+            "minimum": 1.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "freshness_basis": {
+            "enum": [
+              "observation_only",
+              "publication"
+            ],
+            "title": "Freshness Basis",
+            "type": "string"
+          },
+          "license": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "License",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "local",
+              "external",
+              "synthetic"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "passage_id": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Passage Id",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "quote": {
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          },
+          "quote_basis": {
+            "enum": [
+              "literal_document",
+              "normalized_provider_snippet"
+            ],
+            "title": "Quote Basis",
+            "type": "string"
+          },
+          "revision_basis": {
+            "enum": [
+              "operator_revision",
+              "provider_revision",
+              "observation_hash"
+            ],
+            "title": "Revision Basis",
+            "type": "string"
+          },
+          "rights_authority_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Rights Authority Id",
+            "type": "string"
+          },
+          "rights_epoch": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Rights Epoch",
+            "type": "string"
+          },
+          "rights_reference": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Rights Reference",
+            "type": "string"
+          },
+          "sensitivity": {
+            "enum": [
+              "public",
+              "personal",
+              "sensitive",
+              "restricted"
+            ],
+            "title": "Sensitivity",
+            "type": "string"
+          },
+          "source_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_revision": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source Revision",
+            "type": "string"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "source_id",
+          "passage_id",
+          "citation_id",
+          "origin",
+          "provider",
+          "quote_basis",
+          "revision_basis",
+          "rights_authority_id",
+          "title",
+          "quote",
+          "source_revision",
+          "content_fingerprint",
+          "rights_epoch",
+          "rights_reference",
+          "license",
+          "sensitivity",
+          "observed_at",
+          "expires_at",
+          "freshness_basis",
+          "start",
+          "end"
+        ],
+        "title": "RetrievalItem",
+        "type": "object"
+      },
+      "RetrievalOutcome": {
+        "additionalProperties": false,
+        "properties": {
+          "context_integration": {
+            "const": "unavailable",
+            "default": "unavailable",
+            "title": "Context Integration",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RetrievalItem"
+            },
+            "maxItems": 8,
+            "title": "Items",
+            "type": "array"
+          },
+          "quote_bytes": {
+            "default": 0,
+            "maximum": 8192.0,
+            "minimum": 0.0,
+            "title": "Quote Bytes",
+            "type": "integer"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "enum": [
+                "no_matches",
+                "source_unavailable",
+                "source_authority_changed",
+                "external_unconfigured",
+                "external_not_admitted",
+                "external_outcome_unknown",
+                "external_already_attempted",
+                "quota",
+                "timeout",
+                "invalid_source",
+                "freshness_unverified",
+                "budget",
+                "busy"
+              ],
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Reasons",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "retrieval-v1",
+            "default": "retrieval-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "token_upper_bound": {
+            "default": 0,
+            "maximum": 16384.0,
+            "minimum": 0.0,
+            "title": "Token Upper Bound",
+            "type": "integer"
+          },
+          "usage_attempt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage Attempt Id"
+          },
+          "usage_invocation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage Invocation Id"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "state"
+        ],
+        "title": "RetrievalOutcome",
+        "type": "object"
+      },
+      "RetrievalQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "excluded_domains": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Excluded Domains",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "default": 86400,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Max Age Seconds",
+            "type": "integer"
+          },
+          "max_items": {
+            "default": 5,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Items",
+            "type": "integer"
+          },
+          "max_quote_bytes": {
+            "default": 4096,
+            "maximum": 8192.0,
+            "minimum": 64.0,
+            "title": "Max Quote Bytes",
+            "type": "integer"
+          },
+          "max_tokens": {
+            "default": 8192,
+            "maximum": 16384.0,
+            "minimum": 64.0,
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "published_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published After"
+          },
+          "purpose": {
+            "const": "interactive_retrieval",
+            "default": "interactive_retrieval",
+            "title": "Purpose",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "retrieval-v1",
+            "default": "retrieval-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "sources": {
+            "default": [
+              "local"
+            ],
+            "items": {
+              "enum": [
+                "local",
+                "external"
+              ],
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "query"
+        ],
+        "title": "RetrievalQuery",
+        "type": "object"
+      },
       "SSEMessageCreated": {
         "additionalProperties": false,
         "description": "Payload for a ``message.created`` SSE event.",
@@ -1400,6 +1803,25 @@
           "message"
         ],
         "title": "SSEResponseError",
+        "type": "object"
+      },
+      "ToolOutcome": {
+        "additionalProperties": false,
+        "properties": {
+          "retrieval": {
+            "$ref": "#/components/schemas/RetrievalOutcome"
+          },
+          "schema_version": {
+            "const": "read-only-tool-v1",
+            "default": "read-only-tool-v1",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "retrieval"
+        ],
+        "title": "ToolOutcome",
         "type": "object"
       },
       "TurnAttribution": {
@@ -1904,7 +2326,7 @@
   },
   "info": {
     "title": "Personal AI external consumer",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2858,6 +3280,316 @@
         "summary": "Continue Conversation Turn",
         "tags": [
           "conversations"
+        ]
+      }
+    },
+    "/v1/retrieval/query": {
+      "post": {
+        "operationId": "query_retrieval_v1_retrieval_query_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalOutcome"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Query Retrieval",
+        "tags": [
+          "retrieval-v1"
+        ]
+      }
+    },
+    "/v1/tools/retrieval.query.v1/invoke": {
+      "post": {
+        "operationId": "invoke_retrieval_v1_tools_retrieval_query_v1_invoke_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Application-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when the installed application requires workspace scope; membership is server-owned.",
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolOutcome"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe middleware/service error; see consumer-v1.md"
+          }
+        },
+        "security": [
+          {
+            "GoogleUserIDToken": []
+          }
+        ],
+        "summary": "Invoke Retrieval",
+        "tags": [
+          "retrieval-v1"
         ]
       }
     }

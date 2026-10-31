@@ -140,3 +140,15 @@ installed core/host/client wheels with reference packages physically absent.
 Revocation suppresses later model reuse and completed-key replay; retain the
 original journal key after a denied or uncertain replay. Past provider sends
 cannot be recalled. Browser controls and production acceptance remain unverified.
+
+
+## Optional standalone retrieval (PI-5 candidate)
+
+The dependency-free client supports `retrieve QUERY --key UUID [--tool] [--external]`
+and `PlatformClient.retrieve`. The server must opt into retrieval and install exact
+source grants; the host separately needs `READING_LOGBOOK_RETRIEVAL_ENABLED=true`
+for tool invocation. This does not change the host's history-only model context or
+profile opt-in. Retrieval does not upload book records or attach results to chat.
+External retries retain the original key and never resend an already reserved
+attempt. Synthetic/mock provider checks are labeled; live Brave is not approved.
+See [the wire/operator contract](../../docs/platform-independence/retrieval-v1.md).

@@ -42,6 +42,15 @@ are required. `make pi2-check` builds and tests the installed profiles offline o
 synthetic loopback HTTP. This candidate does not close independent review or
 real identity/provider/cloud acceptance.
 
+## Standalone retrieval candidate
+
+Default-off source-neutral lexical retrieval and a registered read-only retrieval
+tool are available through the additive v1.1 HTTP consumer contract. See
+[the PI-5 API/operator guide](docs/platform-independence/retrieval-v1.md).
+General model-context integration, live Brave eligibility and production
+acceptance remain incomplete; retrieved passages never automatically enter chat
+or memory. `make pi5-check` runs bounded offline and signed loopback tests.
+
 ## What it does
 
 The system provides reusable AI capabilities that can be used directly through its web UI or consumed by domain applications such as travel and shopping.

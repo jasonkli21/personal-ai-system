@@ -140,6 +140,12 @@ class BraveSearchAdapter:
             await asyncio.sleep(max(0, slot - monotonic()))
             if usage_call is not None:
                 await usage_call.reserve()
+            # Owning use case supplies source/client checks; repeat after rate wait
+            # and P19 reservation immediately before the physical request.
+            from personal_ai.llm.disclosure import revalidate_disclosure
+
+            revalidate_disclosure()
+            self.authorize_snippets()
             async with (
                 httpx.AsyncClient(
                     timeout=timeout,

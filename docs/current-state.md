@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-10-30. This is the living implementation boundary. Code, contracts,
+Updated 2026-10-31. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance. The
 [suite handoff](../stabilization/FRESH-REVIEW-HANDOFF.md) records this change and its
 verification. Independent final review and external acceptance remain open.
@@ -83,7 +83,26 @@ its source-only digest was refreshed; no count assertion or held-out lock change
 The final offline PI-2 consumer check passed its contract, installed core,
 reference, retained-task and HTTP/client probes. These PI-4 matrix failures
 remain verification gaps; see the [remediation evidence](platform-independence/pi-4-independent-review-remediation-2026-10-30.md).
-PI-5 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+[PI-5](platform-independence/pi-5-implementation-report.md) adds a user-directed,
+**incomplete local candidate**: default-off standalone retrieval-v1 and a closed
+read-only tool, operator-installed lexical corpus with exact owner/actor/app/workspace
+rights, source-neutral citations and final snapshot/client checks, and a selected
+snippet bridge with single-host content-free original-attempt fences. The additive
+HTTP/Reading Logbook contract is v1.1.0. No source is automatically attached to
+model context, summaries, SSE, assistant history or memory; that mandatory integration
+remains unavailable. Brave retains closed strict-free admission; mock HTTP and fake
+P19 storage prove no live eligibility, billing or provider acceptance. Distributed
+source authority, durable production attempt storage, restore anti-rollback and
+physical deletion remain open. See the [wire/operator contract](platform-independence/retrieval-v1.md)
+and [P5-01–28 verification](platform-independence/pi-5-verification.json).
+Final local PI-5 feature checks: 56 unit and 27 signed HTTP passed; final offline
+installed proof: core 137, reference 190, retained-task 56, HTTP/client/provider
+172 passed / 1 existing skip, all with zero forbidden network attempts. The
+expanded PI-5 target retains one intermittent 30 ms inherited research failure;
+PI-3/4 and full-backend checkpoints retain provider-matrix/Phase36, adaptive label
+and cold-start timeout gaps, with exact counts and entry comparisons in the report.
+This does not close independent or production acceptance.
+PI-6 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
@@ -256,7 +275,10 @@ current-or-direct-child source guard remains; production replay still rejects
 source, runtime and unrelated revision changes. PI-4 appends source-only v23,
 retaining the original planner configuration/corpus/fixture bytes and all v10–v22
 history; synthetic profile fixtures now issue explicit grants and bind the actor.
-Portable tests use an explicitly
+PI-5 appends source-only v24, preserving v10–v23 lock bytes and the original
+planner configuration, held-out corpus, fixture dependencies and non-promotion.
+The v23 preservation test now checks its historical file; v24 has its own current
+source guard. Portable tests use an explicitly
 test-only lock. Nothing is promoted from this freeze. See the
 [PI-2 review remediation evidence](platform-independence/pi-2-review-remediation-2026-10-30.md)
 for the external creation and streaming disclosure fixes and local verification.
@@ -270,7 +292,8 @@ off until their owning acceptance evidence is complete. Provider SDK mocks,
 synthetic IAM and JS bundles do not establish deployed security, live identity,
 native device behavior or production readiness. No cloud deployment was run.
 The prior suite authorization covered its dated five-repository patch set.
-PI-4 authorizes one local commit only, without push, merge or deployment. Hosted CI outcomes
+The user separately authorized PI-5 implementation in one session and one local
+commit, without push, merge, live provider requests or deployment. Hosted CI outcomes
 remain separate evidence and are never inferred from local checks.
 
 ## Minimum context and history
