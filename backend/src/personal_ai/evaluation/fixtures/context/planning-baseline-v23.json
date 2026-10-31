@@ -19,7 +19,7 @@
   "runtime_distribution_count": 94,
   "runtime_profile": "core-only with explicit synthetic reference fixture rules",
   "source_change_summary": "PI-4 explicit revision-bound profile consent and disclosure revalidation. Same planner configuration, original corpus/fixture bytes and non-promotion. Synthetic profile fixtures now issue explicit consent.",
-  "source_identity_digest": "392b746e6b4880577434dea061e16024bbc4c2f50924f67055fb254f58f01fbb",
+  "source_identity_digest": "937aca44fa80cace27a7fe54d7cf06d1a1deb7b847309f5dd858b571fa0232fb",
   "source_revision": "00359b3e4941b3d0ff31575070aed083c77c98f8",
   "source_revision_binding": "PI-4 entry base plus implementation source identity; strict current-or-direct-child guard unchanged",
   "supersedes": "planning-baseline-lock-v22"

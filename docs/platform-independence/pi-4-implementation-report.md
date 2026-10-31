@@ -6,8 +6,10 @@ The user explicitly authorized one-session implementation and a single local
 commit, with no subagents. No push, merge, deployment, credential download,
 real provider or personal-data use was performed. Sixteen pre-existing untracked
 planning/review files, including the supplied plan/prompt, are preserved and
-excluded. The final commit is the single child of that entry revision containing
-this report; resolve it with:
+excluded. The original PI-4 implementation commit was the single child of that
+entry revision. The separate review-remediation commit is a child of that target;
+its evidence is recorded in the [remediation report](pi-4-independent-review-remediation-2026-10-30.md).
+Resolve the original implementation commit with:
 
 ```sh
 git log -1 --format=%H -- docs/platform-independence/pi-4-implementation-report.md
@@ -18,6 +20,21 @@ The final user handoff supplies the SHA. The report cannot embed its own Git has
 source/fixture/artifact identities, exact commands and P4-01–P4-24 dispositions.
 [Pre-code hardening](pi-4-plan-hardening.md) was written before runtime changes.
 [API/operations](profile-sharing-v1.md) owns examples, CAS/error recovery and rollout.
+
+## Independent review remediation
+
+The 2026-10-30 independent review found external conversation detail could
+redisclose persisted profile-derived assistant text after consent changed. The
+[review remediation evidence](pi-4-independent-review-remediation-2026-10-30.md)
+records a pre-fix signed HTTP failure, the external detail/replay quarantine,
+11 signed authority variants plus builtin-owner history, and remaining
+verification gaps. The original implementation recorded 890 passed / 3 failed;
+the post-remediation full run records 891 passed / 2 failed in the same
+provider-matrix and Phase 36 evaluator area. A focused rerun reproduced three
+reviewed matrix/resume failures; varying synthetic counts remain unexplained.
+The final offline PI-2 installed consumer contract and core/reference/task/HTTP
+probes pass. Browser consent UX remains partial, the 32-lifetime-grant ceiling
+remains documented, and independent acceptance is still pending.
 
 ## Implemented boundary and inventory
 
@@ -34,7 +51,7 @@ and recipient headers are not consent. `cross_application='deny'` remains unchan
 | `persistence/postgres/context.py`, migration `032_profile_consents.sql` | Canonical owner aggregate, native CAS/atomic receipts, owner->consent->profile lock order, bounded reads/writes, legacy archive/clear/old-writer SQL constraint, fenced operator purge |
 | `api/profile.py`, `api/dependencies.py`, `auth/middleware.py`, settings/env | Thin recent-auth builtin-owner list/grant/revoke; current identity/client/recipient policy/flag authority; explicit legacy PUT rejection; default-off composition |
 | `context/{authority,history,assembler,builder,deadline}.py`, `llm/disclosure.py` | Complete dependency requirement, per-boundary deduplication, inherited summary/history fencing, composed guards across every relevant count/summary/physical reservation; per-invocation guard state |
-| Chat/external-turn services, `memory/services.py` | Existing SSE/key paths retained, revoked profile output/replay denied, shared-profile taint refused before automatic extraction/embedding |
+| Conversation and chat services, `memory/services.py` | External detail and completed-key replay recheck current client/source authority; revoked or unattributed external output is denied without changing canonical messages; shared-profile taint is refused before automatic extraction/embedding |
 | Owner/export inventory and persistence README | New consent/archive/receipt family exported through existing payload-family path; explicit fenced erasure seam; physical backup/cloud erasure unclaimed |
 | Reading Logbook host | Separate default-off `READING_LOGBOOK_PROFILE_ENABLED` recipient policy; client remains HTTP-only and cannot manage consent |
 | Tests, scripts, Makefile | PI-4 fenced regression target, native migration/CAS/rollback/ACK probes, signed HTTP sharing test and installed core test inclusion |
@@ -99,10 +116,11 @@ oracles, capacity denial of revoke, simultaneous stale create/revoke, field and
 workspace substitution, policy/sensitivity downgrade, legacy version skew,
 flag rollback, physical-send races and restore. No claim of atomicity between
 PostgreSQL and an external wire is made. A final check cannot recall an in-flight
-send. Historical user-visible conversation records remain; only future model
-reuse/replay is suppressed. Legacy records without attributable source metadata
-cannot be retroactively proven untainted; production migration/review must account
-for that provenance limitation. No live source issuer or backup-restore fence was
+send. Canonical owner history and message records remain unchanged. External
+detail and completed-key replay deny stale profile dependencies; fully
+unattributed external messages are quarantined. Historical text with no profile
+marker or attributable provenance cannot be retroactively classified and remains
+a deployment quarantine gate. No live source issuer or backup-restore fence was
 invented to conceal a missing production prerequisite.
 
 ## Verification environment and observed checks

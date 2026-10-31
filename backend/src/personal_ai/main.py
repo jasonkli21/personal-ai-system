@@ -32,7 +32,7 @@ from personal_ai.context.providers import ContextPreparationError
 from personal_ai.decisions.repositories import DecisionError
 from personal_ai.llm.errors import LLMError
 from personal_ai.persistence.factory import close_persistence_clients
-from personal_ai.services import InvalidRetryTargetError
+from personal_ai.services import ExternalHistoryDisclosureDenied, InvalidRetryTargetError
 from personal_ai.settings import (
     ContextBudgetInvalidError,
     get_settings,
@@ -197,6 +197,16 @@ async def invalid_retry_target(_: Request, __: InvalidRetryTargetError) -> JSONR
     return _error_response(422, "invalid_retry_target", "This message cannot be retried.")
 
 
+async def external_history_disclosure_denied(
+    _: Request, __: ExternalHistoryDisclosureDenied
+) -> JSONResponse:
+    return _error_response(
+        409,
+        "conversation_source_authority_changed",
+        "Current source permission could not be confirmed for this conversation.",
+    )
+
+
 async def health() -> dict[str, str]:
     """Minimal readiness endpoint used by Cloud Run and deployment checks."""
     return {"status": "ok", "service": "api"}
@@ -257,6 +267,7 @@ CORE_EXCEPTION_HANDLERS = (
     (HTTPException, http_exception),
     (ResourceNotFoundError, resource_not_found),
     (ConversationConflictError, conversation_conflict),
+    (ExternalHistoryDisclosureDenied, external_history_disclosure_denied),
     (StorageError, storage_error),
     (AccountDataUnavailable, account_data_unavailable),
     (InvalidRetryTargetError, invalid_retry_target),

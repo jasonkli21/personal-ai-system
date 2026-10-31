@@ -2,7 +2,7 @@
 
 import base64
 import time
-from typing import Annotated
+from typing import Annotated, Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import Depends, HTTPException, Request
@@ -54,6 +54,8 @@ from personal_ai.services.external_turns.authority import PrincipalBoundExternal
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 from personal_ai.usage.contracts import ProviderUsageAccounting
+
+_CONTEXT_PERMISSION_REVALIDATOR_UNSET = object()
 
 
 def get_current_owner_id(request: Request) -> str:
@@ -241,6 +243,51 @@ def get_context_research_repository(settings: Annotated[Settings, Depends(get_se
     return persistence_factory(settings).research_repository()
 
 
+def _build_context_permission_revalidator(
+    runtime: ContextRuntimeRegistry,
+    settings: Settings,
+    profile_repository,
+    messages: MessageRepository,
+    registry: ApplicationRegistry,
+    authority,
+) -> ContextPermissionRevalidatorRegistry:
+    memories = (
+        persistence_factory(settings).memory_repository() if settings.memory_enabled else None
+    )
+    lifecycle = (
+        persistence_factory(settings).memory_lifecycle_repository(memories, messages)
+        if memories is not None
+        else None
+    )
+    return ContextPermissionRevalidatorRegistry(
+        (
+            BuiltInContextPermissionRevalidator(
+                settings, profile_repository, registry, authority
+            ),
+            MemoryPermissionRevalidator(
+                settings, memories, messages, lifecycle, application_registry=registry
+            ),
+            ResearchSourceRightsRevalidator(settings),
+            *runtime.permission_revalidators,
+        )
+    )
+
+
+def get_context_permission_revalidator(
+    runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    profile_repository: Annotated[object, Depends(get_global_profile_repository)],
+    messages: Annotated[MessageRepository, Depends(get_message_repository)],
+    registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
+    request: Request,
+) -> ContextPermissionRevalidatorRegistry:
+    """Build request-bound source validators without composing inference ports."""
+    authority = getattr(request.state, "profile_share_authority", None)
+    return _build_context_permission_revalidator(
+        runtime, settings, profile_repository, messages, registry, authority
+    )
+
+
 def get_context_assembler(
     runtime: Annotated[ContextRuntimeRegistry, Depends(get_context_runtime_registry)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -250,18 +297,17 @@ def get_context_assembler(
     research_repository: Annotated[object, Depends(get_context_research_repository)],
     messages: Annotated[MessageRepository, Depends(get_message_repository)],
     registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
+    permission_revalidator: Annotated[Any, Depends(get_context_permission_revalidator)] = (
+        _CONTEXT_PERMISSION_REVALIDATOR_UNSET
+    ),
     execution: Annotated[ExecutionPair | None, Depends(get_inference_execution)] = None,
     request: Request = None,
 ) -> ContextAssembler:
     authority = getattr(request.state, "profile_share_authority", None) if request is not None else None
-    memories = (
-        persistence_factory(settings).memory_repository() if settings.memory_enabled else None
-    )
-    lifecycle = (
-        persistence_factory(settings).memory_lifecycle_repository(memories, messages)
-        if memories is not None
-        else None
-    )
+    if permission_revalidator is _CONTEXT_PERMISSION_REVALIDATOR_UNSET:
+        permission_revalidator = _build_context_permission_revalidator(
+            runtime, settings, profile_repository, messages, registry, authority
+        )
     built_in_providers = {
         "ai_memory": MemoryContextProviderFactory(settings),
         "client_context": ClientContextProviderFactory(),
@@ -290,16 +336,7 @@ def get_context_assembler(
         compose_summary(settings, pair),
         context_provider_coordinator=providers,
         context_planner=ContextPlanner(runtime.planning_rules),
-        permission_revalidator=ContextPermissionRevalidatorRegistry(
-            (
-                BuiltInContextPermissionRevalidator(settings, profile_repository, registry, authority),
-                MemoryPermissionRevalidator(
-                    settings, memories, messages, lifecycle, application_registry=registry
-                ),
-                ResearchSourceRightsRevalidator(settings),
-                *runtime.permission_revalidators,
-            )
-        ),
+        permission_revalidator=permission_revalidator,
     )
 
 

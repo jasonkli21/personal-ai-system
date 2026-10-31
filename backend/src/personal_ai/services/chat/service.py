@@ -1182,7 +1182,7 @@ class ChatTurnService:
             user = self.get_message(conversation_id, uuid5(assistant.id, "user"))
             for message in (user, assistant):
                 try:
-                    await self._require_output_authority(snapshots)
+                    await self._require_output_authority(snapshots, message=assistant)
                 except ContextPreparationError as error:
                     yield TurnFailed(
                         message_id=assistant.id,
@@ -1192,7 +1192,7 @@ class ChatTurnService:
                     return
                 yield TurnMessageCreated(message)
             try:
-                await self._require_output_authority(snapshots)
+                await self._require_output_authority(snapshots, message=assistant)
             except ContextPreparationError as error:
                 yield TurnFailed(
                     message_id=assistant.id,
@@ -1202,7 +1202,7 @@ class ChatTurnService:
                 return
             yield TurnDelta(message_id=assistant.id, delta=assistant.content)
             try:
-                await self._require_output_authority(snapshots)
+                await self._require_output_authority(snapshots, message=assistant)
             except ContextPreparationError as error:
                 yield TurnFailed(
                     message_id=assistant.id,
@@ -1214,8 +1214,17 @@ class ChatTurnService:
 
         return replay()
 
-    async def _require_output_authority(self, snapshots) -> None:
+    async def _require_output_authority(self, snapshots, *, message: Message | None = None) -> None:
         """Recheck external identity and source rights immediately before disclosure."""
+        if (
+            is_external_client_request()
+            and message is not None
+            and message.role is MessageRole.ASSISTANT
+            and message.content
+            and message.attribution is None
+            and message.execution is None
+        ):
+            raise ContextPreparationError("context_source_authority_changed")
         if not is_external_client_request() and not any(
             snapshot.provider_id == "global_profile" or "global_profile" in snapshot.source_classes
             for snapshot in snapshots

@@ -74,11 +74,12 @@ memory-vector portability.
 
 - [Pre-code plan hardening](pi-4-plan-hardening.md), same-session security decisions.
 - [Implementation/self-review report](pi-4-implementation-report.md) and [P4-01–P4-24 machine evidence](pi-4-verification.json).
+- [2026-10-30 independent-review remediation](pi-4-independent-review-remediation-2026-10-30.md) — external detail/replay quarantine, signed HTTP evidence, and remaining gates.
 - [Owner API, operator instructions and rollback](profile-sharing-v1.md).
 
 Default-off exact-value/revision grants feed the existing planner/packer/provider
 path and carry original source authority through counts, summaries, assistant
-history, physical reservation and external SSE/replay checks. Legacy allowlists
+history, physical reservation, external SSE/replay and detail checks. Legacy allowlists
 require re-consent. Local native PG and installed synthetic checks are distinguished
 from real OAuth/provider/cloud/erasure acceptance. The exact-record memory view is
 explicitly unavailable; browser management UX is incomplete. Historical v10–v22

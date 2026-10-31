@@ -113,8 +113,18 @@ and physical reservation recheck current authority. External streaming checks
 before each delta and completed-key replay. Original continuation UUIDs/status
 remain authoritative; there is no automatic new-key/provider fallback.
 
-Historical conversation display is retained; this is suppression of future
-model use/replay, not retroactive deletion of history or recall of prior sends.
+Canonical messages and owner history remain unchanged after revocation. Before an
+external client receives conversation detail, the service rechecks its current
+client/workspace authority and every retained `global_profile` source dependency.
+Expired, revoked, disabled, stale-revision, legacy/incomplete or unavailable
+authority returns a content-free `409 conversation_source_authority_changed` for
+the whole detail response. Fully unattributed assistant records are quarantined
+from new external detail responses because their source cannot be classified.
+This does not recall a provider send or bytes already delivered. It also cannot
+identify profile use in historical assistant text that has neither a profile
+source marker nor attributable provenance; deployments must keep those legacy
+external histories quarantined until reviewed before enabling profile sharing.
+
 There is still a race between the last check and an external wire operation. No
 atomic distributed source lease or production transport-revocation claim is made.
 

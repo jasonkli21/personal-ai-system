@@ -14,6 +14,7 @@ from personal_ai.api.chat_stream import sse_frames
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
     get_context_assembler,
+    get_context_permission_revalidator,
     get_context_runtime_registry,
     get_context_trace_repository,
     get_conversation_service,
@@ -88,9 +89,12 @@ def list_conversations(
 def get_conversation(
     conversation_id: UUID,
     service: Annotated[ConversationService, Depends(get_conversation_service)],
+    permission_revalidator: Annotated[object, Depends(get_context_permission_revalidator)],
 ) -> ConversationDetailResponse:
     """Retrieve a conversation and its selected active message path."""
-    conversation, messages = service.get_conversation(conversation_id)
+    conversation, messages = service.get_conversation(
+        conversation_id, permission_revalidator=permission_revalidator
+    )
     return ConversationDetailResponse(conversation=conversation, messages=messages)
 
 

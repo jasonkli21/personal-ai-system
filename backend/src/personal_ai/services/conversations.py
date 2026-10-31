@@ -6,13 +6,23 @@ from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.application_clients import (
+    is_external_client_request,
+    require_current_client_authority,
+)
 from personal_ai.auth.scope import ApplicationScope
+from personal_ai.context.authority import source_snapshots_current
+from personal_ai.context.history import source_snapshots_for_message
 from personal_ai.contracts.execution import continuation_message_id
-from personal_ai.entities import Conversation, Message
+from personal_ai.entities import Conversation, Message, MessageRole
 from personal_ai.storage.errors import ConversationConflictError, ResourceNotFoundError
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 
 DEFAULT_CONVERSATION_TITLE = "New conversation"
+
+
+class ExternalHistoryDisclosureDenied(Exception):
+    """Current source authority cannot be proven for external conversation history."""
 
 
 class ConversationService:
@@ -97,7 +107,9 @@ class ConversationService:
         """Return the current owner's conversations in repository-defined order."""
         return self._conversations.list(owner_id=self._owner_id)
 
-    def get_conversation(self, conversation_id: UUID) -> tuple[Conversation, list[Message]]:
+    def get_conversation(
+        self, conversation_id: UUID, *, permission_revalidator=None
+    ) -> tuple[Conversation, list[Message]]:
         """Return a conversation and only its active message path."""
         conversation = self._conversations.get(
             owner_id=self._owner_id, conversation_id=conversation_id
@@ -105,6 +117,36 @@ class ConversationService:
         messages = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
         )
+        if is_external_client_request():
+            # Middleware authorizes the request at ingress; recheck immediately
+            # before returning persisted output so a revoked client/workspace
+            # cannot rely on that earlier decision.
+            require_current_client_authority()
+            assistant_messages = tuple(
+                message
+                for message in messages
+                if message.role is MessageRole.ASSISTANT and message.content
+            )
+            if any(
+                message.attribution is None and message.execution is None
+                for message in assistant_messages
+            ):
+                # Old external output with no provenance cannot be classified as
+                # profile-free, so quarantine it from new external responses.
+                raise ExternalHistoryDisclosureDenied
+            profile_snapshots = tuple(
+                snapshot
+                for message in assistant_messages
+                for snapshot in source_snapshots_for_message(message)
+                if snapshot.provider_id == "global_profile"
+                or "global_profile" in snapshot.source_classes
+            )
+            if profile_snapshots and not source_snapshots_current(
+                profile_snapshots,
+                permission_revalidator,
+                now=datetime.now(UTC),
+            ):
+                raise ExternalHistoryDisclosureDenied
         return conversation, messages
 
     def continuation_status(self, conversation_id: UUID, key: UUID) -> dict:

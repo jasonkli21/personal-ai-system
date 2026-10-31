@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import jwt
@@ -49,8 +49,9 @@ pytestmark = pytest.mark.loopback_http
 
 @pytest.fixture
 def http_platform(tmp_path, monkeypatch, request):
-    if request.node.name == "test_pi4_signed_http_profile_consent_installed_unrelated_consumer":
+    if request.node.name.startswith("test_pi4_signed_http_profile_consent_installed_unrelated_consumer"):
         monkeypatch.setenv("READING_LOGBOOK_PROFILE_ENABLED", "true")
+    from personal_ai.context.profile import InMemoryGlobalProfileRepository
     from personal_ai.persistence import factory as persistence
 
     class ClosedFactory:
@@ -201,6 +202,7 @@ def http_platform(tmp_path, monkeypatch, request):
         )
     conversations = InMemoryConversationRepository()
     messages = InMemoryMessageRepository(conversations)
+    profile = InMemoryGlobalProfileRepository()
     summaries = InMemorySummaryRepository()
     traces = InMemoryContextTraceRepository()
     hook = SimpleNamespace(count=lambda: None)
@@ -233,6 +235,7 @@ def http_platform(tmp_path, monkeypatch, request):
         deps.get_context_trace_repository: lambda: traces,
         deps.get_context_assembler: lambda: assembler,
         deps.get_llm_client: lambda: llm,
+        deps.get_global_profile_repository: lambda: profile,
     }
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", 0))
@@ -278,9 +281,11 @@ def http_platform(tmp_path, monkeypatch, request):
             traces=traces,
             conversations=conversations,
             messages=messages,
+            profile=profile,
             policy=policy,
             write_policy=write_policy,
             members=members,
+            memberships=memberships,
             hook=hook,
             started=started,
             release=release,
@@ -957,15 +962,31 @@ def test_client_timeout_retains_original_key_and_never_resends(http_platform):
     assert conflict.value.status == 409 and len(h.llm.requests) == 1
 
 
-def test_pi4_signed_http_profile_consent_installed_unrelated_consumer(http_platform):
+@pytest.mark.parametrize(
+    "invalidation",
+    [
+        "revoke",
+        "profile_edit",
+        "expiry",
+        "disabled",
+        "source_unavailable",
+        "owner_deletion_fence",
+        "legacy_dependency",
+        "unattributed_legacy",
+        "missing_revalidator",
+        "workspace_loss",
+        "client_binding_loss",
+    ],
+)
+def test_pi4_signed_http_profile_consent_installed_unrelated_consumer(
+    http_platform, invalidation, monkeypatch
+):
     """Real JWT/middleware, installed host/client and production assembler DI."""
     from datetime import UTC, datetime, timedelta
 
-    from personal_ai.context.profile import InMemoryGlobalProfileRepository
-
     h = http_platform
     settings = h.app.dependency_overrides[get_settings]().model_copy(update={"profile_sharing_enabled": True})
-    profile = InMemoryGlobalProfileRepository()
+    profile = h.profile
     h.app.dependency_overrides[get_settings] = lambda: settings
     h.app.dependency_overrides[deps.get_global_profile_repository] = lambda: profile
     h.app.dependency_overrides[deps.get_provider_usage_accounting] = lambda: None
@@ -986,16 +1007,194 @@ def test_pi4_signed_http_profile_consent_installed_unrelated_consumer(http_platf
     assert h.raw.post("/v1/profile/shares", headers={**h.headers, "If-Match": '"0"'}, json=body).status_code == 403
     assert h.raw.post("/v1/profile/shares", headers={**ui, "If-Match": '"0"'}, json=body).status_code == 200
     cid = h.client.start("PI4 independent reader", uuid4())["id"]
+    h.llm.deltas = ("Your preferred units are metric.",)
     request = turn("What units do I prefer?")
     h.client.ask(cid, request)
     assert "metric" in " ".join(m.content for m in h.llm.requests[0])
     assert "en-GB" not in " ".join(m.content for m in h.llm.requests[0])
-    revoked = {**body, "operation_id": str(uuid4()), "operation": "revoke", "expected_revision": 1}
-    assert h.raw.post("/v1/profile/shares", headers={**ui, "If-Match": '"1"'}, json=revoked).status_code == 200
-    # Original completed key cannot disclose the old answer or trigger another send.
-    with pytest.raises((APIError, UncertainTurn)):
-        h.client.ask(cid, request)
+    assistant = next(
+        item
+        for item in h.raw.get(f"/v1/conversations/{cid}", headers=h.headers).json()["messages"]
+        if item["role"] == "assistant"
+    )
+    assert assistant["content"] == "Your preferred units are metric."
+    assert any(
+        snapshot["provider_id"] == "global_profile"
+        for snapshot in assistant["attribution"]["source_snapshots"]
+    )
+    if invalidation == "revoke":
+        revoked = {
+            **body,
+            "operation_id": str(uuid4()),
+            "operation": "revoke",
+            "expected_revision": 1,
+        }
+        assert h.raw.post(
+            "/v1/profile/shares", headers={**ui, "If-Match": '"1"'}, json=revoked
+        ).status_code == 200
+    elif invalidation == "profile_edit":
+        response = h.raw.put(
+            "/v1/profile",
+            headers=ui,
+            json={"fields": [{"field": "preferred_units", "value": "imperial"}]},
+        )
+        assert response.status_code == 200, response.text
+    elif invalidation == "expiry":
+        profile._clock = lambda: datetime.now(UTC) + timedelta(days=2)
+    elif invalidation == "disabled":
+        settings = settings.model_copy(update={"profile_sharing_enabled": False})
+        h.app.dependency_overrides[get_settings] = lambda: settings
+    elif invalidation == "source_unavailable":
+        def unavailable(*args, **kwargs):
+            raise RuntimeError("synthetic profile source failure")
+
+        profile.authorized_fields = unavailable
+    elif invalidation == "owner_deletion_fence":
+        profile.fenced_owners.update(profile.records)
+    elif invalidation == "legacy_dependency":
+        from personal_ai.contracts.context_references import ContextPermissionDependency
+
+        stored = h.messages._messages[UUID(assistant["id"])]
+        legacy_dependency = ContextPermissionDependency(
+            permission_id="global_profile_share:preferred_units:reading_logbook",
+            version="global-profile-v1",
+            purpose="user-authorized field sharing",
+        )
+        snapshots = tuple(
+            snapshot.model_copy(update={"permission_dependencies": (legacy_dependency,)})
+            if snapshot.provider_id == "global_profile"
+            or "global_profile" in snapshot.source_classes
+            else snapshot
+            for snapshot in stored.attribution.source_snapshots
+        )
+        h.messages._messages[stored.id] = stored.model_copy(
+            update={
+                "attribution": stored.attribution.model_copy(
+                    update={"source_snapshots": snapshots}
+                )
+            }
+        )
+    elif invalidation == "unattributed_legacy":
+        stored = h.messages._messages[UUID(assistant["id"])]
+        h.messages._messages[stored.id] = stored.model_copy(update={"attribution": None})
+    elif invalidation == "missing_revalidator":
+        h.app.dependency_overrides[deps.get_context_permission_revalidator] = lambda: None
+    else:
+        original_list_active = h.messages.list_active
+
+        def revoke_request_scope(*args, **kwargs):
+            result = original_list_active(*args, **kwargs)
+            if invalidation == "workspace_loss":
+                h.members.write_text(
+                    json.dumps({"schema_version": "reading-logbook-membership-v1", "memberships": []})
+                )
+            else:
+                h.write_policy(enabled=False)
+            h.messages.list_active = original_list_active
+            return result
+
+        h.messages.list_active = revoke_request_scope
+    stale_detail = h.raw.get(f"/v1/conversations/{cid}", headers=h.headers)
+    expected_status = 422 if invalidation in {"workspace_loss", "client_binding_loss"} else 409
+    assert stale_detail.status_code == expected_status, stale_detail.text
+    assert "Your preferred units are metric." not in stale_detail.text
+    original_key = request["idempotency_key"]
+    if invalidation == "workspace_loss":
+        h.members.write_text(
+            json.dumps(
+                {
+                    "schema_version": "reading-logbook-membership-v1",
+                    "memberships": h.memberships,
+                }
+            )
+        )
+    elif invalidation == "client_binding_loss":
+        h.write_policy()
+    status_before_retry = h.raw.get(
+        f"/v1/conversations/{cid}/continuations/{original_key}", headers=h.headers
+    )
+    assert status_before_retry.status_code == 200
+    assert status_before_retry.json() == {
+        "state": "completed",
+        "message_id": assistant["id"],
+    }
+    # A permanently invalid source cannot replay; a transient client/workspace
+    # loss is tested after authority is restored and must not send again.
+    if invalidation in {"workspace_loss", "client_binding_loss"}:
+        assert h.client.ask(cid, request)["content"] == assistant["content"]
+    else:
+        with pytest.raises((APIError, UncertainTurn)):
+            h.client.ask(cid, request)
     assert len(h.llm.requests) == 1
-    h.client.ask(cid, turn("Please continue"))
-    assert "metric" not in " ".join(m.content for m in h.llm.requests[-1])
-    assert len(h.llm.requests) == 2
+    if invalidation == "revoke":
+        h.client.ask(cid, turn("Please continue"))
+        assert "metric" not in " ".join(m.content for m in h.llm.requests[-1])
+        assert len(h.llm.requests) == 2
+
+
+def test_builtin_owner_history_stays_visible_after_profile_revoke(http_platform):
+    from datetime import UTC, datetime, timedelta
+
+    h = http_platform
+    settings = h.app.dependency_overrides[get_settings]().model_copy(
+        update={"profile_sharing_enabled": True}
+    )
+    h.app.dependency_overrides[get_settings] = lambda: settings
+    h.app.dependency_overrides[deps.get_global_profile_repository] = lambda: h.profile
+    h.app.dependency_overrides[deps.get_provider_usage_accounting] = lambda: None
+    h.app.dependency_overrides[deps.get_context_research_repository] = lambda: None
+    h.app.dependency_overrides.pop(deps.get_context_assembler)
+    ui = {"Authorization": "Bearer " + h.token(aud="builtin-web-client", azp="builtin-web-client")}
+    profile_response = h.raw.put(
+        "/v1/profile",
+        headers=ui,
+        json={"fields": [{"field": "preferred_units", "value": "metric"}]},
+    )
+    assert profile_response.status_code == 200, profile_response.text
+    grant = {
+        "operation_id": str(uuid4()),
+        "operation": "grant",
+        "grant_id": str(uuid4()),
+        "expected_revision": 0,
+        "expected_profile_revision": 1,
+        "field": "preferred_units",
+        "destination": {"application_id": "personal_ai", "workspace_id": None},
+        "purpose": "assist_response",
+        "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+    }
+    assert h.raw.post(
+        "/v1/profile/shares", headers={**ui, "If-Match": '"0"'}, json=grant
+    ).status_code == 200
+    created = h.raw.post("/v1/conversations", headers=ui, json={})
+    assert created.status_code == 201, created.text
+    conversation_id = created.json()["id"]
+    h.llm.deltas = ("Metric owner history.",)
+    turn_body = turn("What units do I prefer?")
+    completion = h.raw.post(
+        f"/v1/conversations/{conversation_id}/continue", headers=ui, json=turn_body
+    )
+    assert completion.status_code == 200 and "response.completed" in completion.text
+    assert "Metric owner history." in completion.text
+    assert "metric" in " ".join(message.content for message in h.llm.requests[0])
+    initial_history = h.raw.get(f"/v1/conversations/{conversation_id}", headers=ui)
+    assert initial_history.status_code == 200
+    assistant = next(
+        item for item in initial_history.json()["messages"] if item["role"] == "assistant"
+    )
+    assert any(
+        snapshot["provider_id"] == "global_profile"
+        for snapshot in assistant["attribution"]["source_snapshots"]
+    )
+
+    revoked = {
+        **grant,
+        "operation_id": str(uuid4()),
+        "operation": "revoke",
+        "expected_revision": 1,
+    }
+    assert h.raw.post(
+        "/v1/profile/shares", headers={**ui, "If-Match": '"1"'}, json=revoked
+    ).status_code == 200
+    history = h.raw.get(f"/v1/conversations/{conversation_id}", headers=ui)
+    assert history.status_code == 200
+    assert "Metric owner history." in history.text

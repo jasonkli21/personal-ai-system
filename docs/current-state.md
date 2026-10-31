@@ -60,17 +60,30 @@ acceptance remain open. [PI-4](platform-independence/pi-4-implementation-report.
 local candidate: default-off owner/actor/destination/purpose/expiry and whole-profile
 revision/value-bound grants, native PG/in-memory CAS and retained original-key
 receipts, legacy re-consent migration, canonical projection and inherited
-count/summary/history/reservation/SSE/replay denial. The unrelated Reading Logbook
+count/summary/history/reservation/SSE/replay and external detail denial. The unrelated Reading Logbook
 recipient has a separate opt-in manifest policy. Exact-record memory sharing is
 explicitly unavailable and browser consent UX remains incomplete. Native synthetic
 SQL and installed synthetic identity/provider checks do not establish cloud,
 physical erasure/restore anti-rollback, live identity/provider or independent
-acceptance. See the [consent API/operations](platform-independence/profile-sharing-v1.md).
-Local verification: 243 focused tests, installed core/reference/task/HTTP groups
-and six native PG profile/consent checks passed. The broad target retained three
-inherited provider-matrix/Phase36 failures (890 passed); the owning files passed
-24 in isolation, without establishing a root-cause fix. This remains an acceptance
-gap. PI-5 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+acceptance. External detail rechecks current client/workspace authority and
+profile source snapshots before serialization; stale or unprovable output receives
+a content-free 409, and fully unattributed external assistant history is
+quarantined. Unmarked legacy text still cannot be classified and must remain
+quarantined during rollout until reviewed. Built-in owner history remains visible.
+See the [consent API/operations](platform-independence/profile-sharing-v1.md) and
+[review remediation evidence](platform-independence/pi-4-independent-review-remediation-2026-10-30.md).
+Local verification: 12 signed HTTP cases passed for revoke, profile revision,
+expiry, kill switch, source failure, owner deletion fence, old/missing provenance,
+missing validator, workspace/client loss, stable continuation status, no second
+send, and builtin-owner display. The post-remediation full PI-4 run reports
+891 passed / 2 failed: provider-matrix and Phase 36 synthetic counts are 73
+instead of 80. A focused provider-matrix/Phase 36 run had 21 passed / 3 failed,
+including the reviewed resume-count failure. The v23 planning check passes after
+its source-only digest was refreshed; no count assertion or held-out lock changed.
+The final offline PI-2 consumer check passed its contract, installed core,
+reference, retained-task and HTTP/client probes. These PI-4 matrix failures
+remain verification gaps; see the [remediation evidence](platform-independence/pi-4-independent-review-remediation-2026-10-30.md).
+PI-5 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,

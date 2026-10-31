@@ -59,6 +59,15 @@ manual/connected dispatch, non-idempotent `/messages`, tasks, account operations
 profile administration, raw context inspection and memory controls are unavailable
 to this external lane. Existing builtin callers retain their current APIs/gates.
 
+External conversation detail rechecks current client/workspace authority and
+retained profile source dependencies immediately before returning stored assistant
+content. If any profile-derived output has expired, been revoked, become stale or
+cannot be verified, the server returns the content-free `409 conversation_source_authority_changed`
+for the whole response; canonical messages and the successful v1 detail shape
+are unchanged. Fully unattributed old assistant messages are quarantined.
+Historical content with no source marker or provenance cannot be classified
+automatically and must remain quarantined operationally until reviewed.
+
 Example create body (generate and journal UUID once before sending):
 
 ```json
@@ -120,7 +129,7 @@ human messages or retain credentials in logs. Representative rules:
 | 403 | `application_client_denied`, `client_identity_override_denied`, `client_operation_denied`, `workspace_not_authorized`, `access_denied`, `origin_denied` |
 | 404 | `not_found`, `application_not_registered`; foreign UUIDs reveal no record |
 | 408/413 | `request_body_timeout`, `request_body_too_large` |
-| 409 | `conversation_conflict` for changed input; `conversation_busy` for in-progress or non-resumable state; reconcile original key |
+| 409 | `conversation_conflict` for changed input; `conversation_busy` for in-progress or non-resumable state; `conversation_source_authority_changed` for detail reads whose profile source rights cannot be confirmed; reconcile the original key where applicable |
 | 422 | `validation_error`, context/source/launch/federation denial; correct intent explicitly |
 | 429 | Safety/request limits, with `Retry-After`; no automatic new key |
 | 503 | `authentication_unavailable`, `application_client_policy_unavailable`, `workspace_authority_unavailable`, `storage_unavailable`, provider/context/safety unavailable |
