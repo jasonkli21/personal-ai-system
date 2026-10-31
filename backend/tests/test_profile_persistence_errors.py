@@ -14,7 +14,7 @@ def test_profile_repository_maps_exhausted_initial_insert_retries(monkeypatch):
 
     class Database:
         @contextmanager
-        def transaction(self):
+        def transaction(self, **kwargs):
             yield object()
 
     attempts = []
@@ -29,6 +29,7 @@ def test_profile_repository_maps_exhausted_initial_insert_retries(monkeypatch):
         "_is_unique_violation",
         lambda error: isinstance(error, UniqueViolation),
     )
+    monkeypatch.setattr(PostgresGlobalProfileRepository, "_lock_owner", lambda *a: None)
     repository = PostgresGlobalProfileRepository(Database())
     update = GlobalProfileUpdate(
         fields=(GlobalProfileFieldUpdate(field="locale", value="en-GB"),)

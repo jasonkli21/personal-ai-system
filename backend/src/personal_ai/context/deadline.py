@@ -2,6 +2,7 @@
 
 from time import monotonic
 
+from personal_ai.llm.disclosure import revalidate_disclosure
 from personal_ai.llm.errors import LLMInvalidRequestError, LLMTimeoutError
 
 
@@ -36,6 +37,7 @@ class DeadlineCounter:
                 else min(call_deadline, requested_deadline)
             )
         seconds = remaining(call_deadline)
+        revalidate_disclosure()
         timed = getattr(self.counter, "count_with_timeout", None)
         if getattr(self.counter, "requires_inference_context", False):
             if timed:
@@ -67,6 +69,7 @@ class DeadlineSummarizer:
 
     def summarize(self, source, prior, *, inference_context=None):
         seconds = remaining(self.deadline)
+        revalidate_disclosure()
         timed = getattr(self.summarizer, "summarize_with_timeout", None)
         if timed:
             result = (

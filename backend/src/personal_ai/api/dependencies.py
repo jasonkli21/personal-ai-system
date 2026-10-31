@@ -251,7 +251,9 @@ def get_context_assembler(
     messages: Annotated[MessageRepository, Depends(get_message_repository)],
     registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
     execution: Annotated[ExecutionPair | None, Depends(get_inference_execution)] = None,
+    request: Request = None,
 ) -> ContextAssembler:
+    authority = getattr(request.state, "profile_share_authority", None) if request is not None else None
     memories = (
         persistence_factory(settings).memory_repository() if settings.memory_enabled else None
     )
@@ -265,7 +267,7 @@ def get_context_assembler(
         "client_context": ClientContextProviderFactory(),
         "conversation_history": ConversationContextProviderFactory(),
         "external_research": ResearchEvidenceContextProviderFactory(research_repository),
-        "global_profile": GlobalProfileContextProviderFactory(profile_repository),
+        "global_profile": GlobalProfileContextProviderFactory(profile_repository, settings, registry, authority),
     }
     overlap = set(built_in_providers).intersection(runtime.provider_factories)
     if overlap:
@@ -290,7 +292,7 @@ def get_context_assembler(
         context_planner=ContextPlanner(runtime.planning_rules),
         permission_revalidator=ContextPermissionRevalidatorRegistry(
             (
-                BuiltInContextPermissionRevalidator(settings, profile_repository),
+                BuiltInContextPermissionRevalidator(settings, profile_repository, registry, authority),
                 MemoryPermissionRevalidator(
                     settings, memories, messages, lifecycle, application_registry=registry
                 ),

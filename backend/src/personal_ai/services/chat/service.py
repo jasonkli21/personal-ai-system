@@ -1216,7 +1216,10 @@ class ChatTurnService:
 
     async def _require_output_authority(self, snapshots) -> None:
         """Recheck external identity and source rights immediately before disclosure."""
-        if not is_external_client_request():
+        if not is_external_client_request() and not any(
+            snapshot.provider_id == "global_profile" or "global_profile" in snapshot.source_classes
+            for snapshot in snapshots
+        ):
             return
 
         def current():

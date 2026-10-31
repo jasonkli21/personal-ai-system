@@ -22,7 +22,14 @@ from personal_ai.applications.contracts import (
     ContextProviderPolicy,
 )
 from personal_ai.applications.registry import default_application_registry
-from personal_ai.auth.scope import RequestScope, bind_request_scope, reset_request_scope
+from personal_ai.auth.contracts import AuthenticatedPrincipal
+from personal_ai.auth.scope import (
+    RequestScope,
+    bind_request_scope,
+    bind_verified_principal,
+    reset_request_scope,
+    reset_verified_principal,
+)
 from personal_ai.context.adapters import (
     BuiltInContextPermissionRevalidator,
     MemoryContextProviderFactory,
@@ -244,9 +251,14 @@ def _builtin_memory_runtime(scope, settings):
             }
         )
         record, _ = memories.create(record)
+        token = bind_request_scope(scope)
+        try:
+            dependencies = record_dependencies(record, memories, None)
+        finally:
+            reset_request_scope(token)
         retrieval = RetrievalResult(
             selected=(ScoredMemory(record, 0.95),),
-            permission_dependencies=((record.id, record_dependencies(record, memories, None)),),
+            permission_dependencies=((record.id, dependencies),),
         )
     return retrieval, MemoryPermissionRevalidator(settings, memories, messages)
 
@@ -266,12 +278,21 @@ def _builtin_profile_repository(scope, shared_fields) -> InMemoryGlobalProfileRe
                 GlobalProfileFieldUpdate(
                     field=field,
                     value=values[field],
-                    shared_with_applications=("personal_ai",) if field in shared_fields else (),
                 )
                 for field in values
             )
         ),
     )
+    from personal_ai.context.profile_consent import ProfileShareIntent
+
+    for field in sorted(shared_fields):
+        repository.mutate_consent(scope.owner_id, scope.acting_user_id, ProfileShareIntent(
+            operation_id=uuid5(NAMESPACE_URL, f"pi4-fixture:{scope.owner_id}:{field}:operation"),
+            operation="grant", grant_id=uuid5(NAMESPACE_URL, f"pi4-fixture:{scope.owner_id}:{field}:grant"), field=field,
+            destination=scope.model_dump(include={"application_id", "workspace_id"}),
+            expected_revision=repository.get_consents(scope.owner_id).revision,
+            expected_profile_revision=1, expires_at=NOW + timedelta(hours=1),
+        ))
     return repository
 
 
@@ -374,6 +395,7 @@ def _run_fixture(
     )
     scope = RequestScope(
         owner_id="synthetic-owner",
+        acting_user_id="https://accounts.google.com|synthetic-planner-owner",
         request_id=f"evaluation-{fixture['name']}",
         application_id=fixture["application_id"],
         workspace_id=fixture.get("workspace_id", "synthetic-workspace"),
@@ -405,6 +427,7 @@ def _run_fixture(
         summary_trigger_tokens=min(1_000, available_context_tokens),
         max_summary_tokens=min(512, available_context_tokens - 1),
         memory_enabled=True,
+        profile_sharing_enabled=True,
         memory_embedding_model="phase13-offline-fixture",
         memory_embedding_dimensions=2,
         memory_max_context_tokens=min(512, max(1, available_context_tokens)),
@@ -551,6 +574,24 @@ def _run_fixture(
             except ContextPreparationError:
                 continue
             authorized_candidate_ids.append(provider_id)
+    # Explicit synthetic consent/identity, not production source authority.
+    from personal_ai.applications.registry import ApplicationRegistry
+
+    class FixtureMembership:
+        def is_member(self, principal, app, workspace):
+            return app == scope.application_id and workspace == scope.workspace_id
+
+    registry = ApplicationRegistry(
+        (definition,), capabilities,
+        workspace_authorizers={scope.application_id: FixtureMembership()},
+    )
+    if profile_repository is not None:
+        factory = factories["global_profile"].factory
+        factory.settings, factory.registry, factory.authority = settings, registry, lambda: None
+    principal = AuthenticatedPrincipal(
+        issuer="https://accounts.google.com", subject="synthetic-planner-owner",
+        owner_id=scope.owner_id, email=None, issued_at=0, authenticated=True,
+    )
     assembler = ContextAssembler(
         settings,
         counter or _EnvelopeTokenCounter(),
@@ -558,7 +599,7 @@ def _run_fixture(
         context_planner=planner,
         permission_revalidator=ContextPermissionRevalidatorRegistry(
             (
-                BuiltInContextPermissionRevalidator(settings, profile_repository),
+                BuiltInContextPermissionRevalidator(settings, profile_repository, registry, lambda: None),
                 *((memory_validator,) if memory_validator is not None else ()),
             )
         ),
@@ -595,6 +636,7 @@ def _run_fixture(
         plan = assembler.validate_context_proposal(envelope, proposal, context, now=NOW)
     planning_latency_ms = (time.perf_counter() - started) * 1000
     scope_token = bind_request_scope(scope)
+    principal_token = bind_verified_principal(principal)
     try:
         assembled = assembler.assemble(
             (),
@@ -603,8 +645,10 @@ def _run_fixture(
             application_context=context,
             context_plan=plan,
             refresh=False,
+            clock=lambda: NOW,
         )
     finally:
+        reset_verified_principal(principal_token)
         reset_request_scope(scope_token)
     latency_ms = (time.perf_counter() - started) * 1000
 

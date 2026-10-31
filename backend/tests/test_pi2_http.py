@@ -48,7 +48,9 @@ pytestmark = pytest.mark.loopback_http
 
 
 @pytest.fixture
-def http_platform(tmp_path, monkeypatch):
+def http_platform(tmp_path, monkeypatch, request):
+    if request.node.name == "test_pi4_signed_http_profile_consent_installed_unrelated_consumer":
+        monkeypatch.setenv("READING_LOGBOOK_PROFILE_ENABLED", "true")
     from personal_ai.persistence import factory as persistence
 
     class ClosedFactory:
@@ -953,3 +955,47 @@ def test_client_timeout_retains_original_key_and_never_resends(http_platform):
     with pytest.raises(APIError) as conflict:
         h.client.ask(cid, body)
     assert conflict.value.status == 409 and len(h.llm.requests) == 1
+
+
+def test_pi4_signed_http_profile_consent_installed_unrelated_consumer(http_platform):
+    """Real JWT/middleware, installed host/client and production assembler DI."""
+    from datetime import UTC, datetime, timedelta
+
+    from personal_ai.context.profile import InMemoryGlobalProfileRepository
+
+    h = http_platform
+    settings = h.app.dependency_overrides[get_settings]().model_copy(update={"profile_sharing_enabled": True})
+    profile = InMemoryGlobalProfileRepository()
+    h.app.dependency_overrides[get_settings] = lambda: settings
+    h.app.dependency_overrides[deps.get_global_profile_repository] = lambda: profile
+    h.app.dependency_overrides[deps.get_provider_usage_accounting] = lambda: None
+    h.app.dependency_overrides[deps.get_context_research_repository] = lambda: None
+    h.app.dependency_overrides.pop(deps.get_context_assembler)
+    ui = {"Authorization": "Bearer " + h.token(aud="builtin-web-client", azp="builtin-web-client")}
+    response = h.raw.put("/v1/profile", headers=ui, json={"fields": [
+        {"field": "preferred_units", "value": "metric"},
+        {"field": "locale", "value": "en-GB"},
+    ]})
+    assert response.status_code == 200, response.text
+    body = {
+        "operation_id": str(uuid4()), "operation": "grant", "grant_id": str(uuid4()),
+        "expected_revision": 0, "expected_profile_revision": 1, "field": "preferred_units",
+        "destination": {"application_id": "reading_logbook", "workspace_id": "shelf"},
+        "purpose": "assist_response", "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+    }
+    assert h.raw.post("/v1/profile/shares", headers={**h.headers, "If-Match": '"0"'}, json=body).status_code == 403
+    assert h.raw.post("/v1/profile/shares", headers={**ui, "If-Match": '"0"'}, json=body).status_code == 200
+    cid = h.client.start("PI4 independent reader", uuid4())["id"]
+    request = turn("What units do I prefer?")
+    h.client.ask(cid, request)
+    assert "metric" in " ".join(m.content for m in h.llm.requests[0])
+    assert "en-GB" not in " ".join(m.content for m in h.llm.requests[0])
+    revoked = {**body, "operation_id": str(uuid4()), "operation": "revoke", "expected_revision": 1}
+    assert h.raw.post("/v1/profile/shares", headers={**ui, "If-Match": '"1"'}, json=revoked).status_code == 200
+    # Original completed key cannot disclose the old answer or trigger another send.
+    with pytest.raises((APIError, UncertainTurn)):
+        h.client.ask(cid, request)
+    assert len(h.llm.requests) == 1
+    h.client.ask(cid, turn("Please continue"))
+    assert "metric" not in " ".join(m.content for m in h.llm.requests[-1])
+    assert len(h.llm.requests) == 2

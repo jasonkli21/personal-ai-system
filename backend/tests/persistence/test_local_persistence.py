@@ -18,7 +18,7 @@ from personal_ai_reference_apps.persistence.postgres.capabilities import (
 )
 
 from personal_ai.auth.safeguards import SafeguardDenied
-from personal_ai.auth.scope import ApplicationScope, application_scope_context
+from personal_ai.auth.scope import ApplicationScope, RequestScope, application_scope_context
 from personal_ai.context.contracts import ConversationSummary, fingerprint
 from personal_ai.context.profile import (
     GlobalProfileFieldUpdate,
@@ -679,7 +679,6 @@ def test_postgres_dynamodb_portable_export_preserves_logical_records_and_coverag
                     GlobalProfileFieldUpdate(
                         field="preferred_units",
                         value="metric",
-                        shared_with_applications=("travel",),
                     ),
                 )
             ),
@@ -730,7 +729,6 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
             GlobalProfileFieldUpdate(
                 field="preferred_units",
                 value="metric",
-                shared_with_applications=("travel",),
             ),
             GlobalProfileFieldUpdate(field="locale", value="en-GB"),
         )
@@ -756,7 +754,6 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
                     GlobalProfileFieldUpdate(
                         field="response_style",
                         value="concise",
-                        shared_with_applications=("travel", "shopping"),
                     ),
                 )
             ),
@@ -768,7 +765,6 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
                 GlobalProfileFieldUpdate(
                     field="response_style",
                     value="concise",
-                    shared_with_applications=("travel", "shopping"),
                 ),
             )
         ),
@@ -785,7 +781,7 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
         (item.field, item.value, item.shared_with_applications) for _, item in records
     )
     assert projection(pg_shared) == projection(memory_shared)
-    assert [item.field for _, item in pg_shared] == ["preferred_units", "response_style"]
+    assert pg_shared == ()  # Legacy sharing requires fresh PI-4 consent.
     assert repository.shared_fields(owner_id, "shopping", ("preferred_units",)) == ()
 
     revoked = repository.update(
@@ -823,7 +819,6 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
                 GlobalProfileFieldUpdate(
                     field="preferred_units",
                     value="metric",
-                    shared_with_applications=("travel",),
                 ),
             )
         ),
@@ -872,8 +867,9 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
     }
 
     with pytest.raises(TimeoutError, match="postgres operation deadline exceeded"):
-        repository.shared_fields(
-            owner_id, "travel", ("preferred_units",), deadline=monotonic() - 1
+        repository.authorized_fields(
+            RequestScope(owner_id=owner_id, request_id="deadline", application_id="travel"),
+            ("preferred_units",), deadline=monotonic() - 1
         )
 
 

@@ -314,3 +314,13 @@ relevant inherited acceptance first. PI-0 rollback removes diagnostics and new
 routing/status notes only. PI-8 audit rollback withholds readiness, returns to the
 last accepted profile and retains deletion/replay evidence; it never reinterprets
 old records. No roadmap phase is itself permission for paid/provider/cloud action.
+
+## 2026-10-30 PI-4 candidate reconciliation
+
+The user separately authorized PI-4 despite pending earlier independent acceptance.
+The [implementation report](pi-4-implementation-report.md) records the bounded
+profile-consent candidate and [verification matrix](pi-4-verification.json).
+This does not rewrite the roadmap's entry/exit gates: PI-0–4 independent acceptance
+is still pending. Exact-record memory sharing is explicitly unavailable without
+original source issuer/lease authority; browser consent UX remains incomplete.
+MEM-3+ stays frozen. PI-5–8 and production readiness remain undelivered.

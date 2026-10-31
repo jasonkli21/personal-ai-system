@@ -51,7 +51,7 @@ Core capabilities include:
 - streamed conversational chat;
 - persistent conversation history;
 - token-budgeted context building across conversation, memory, and deterministically planned eligible sources, with provenance and sensitivity manifests;
-- an owner-managed AI profile with explicit per-field application sharing;
+- an owner-managed AI profile with default-off, revision-bound field consent;
 - a versioned federation grant API and shared broker with gated Travel, Finance, and Health exports; destination-product acceptance remains open;
 - attributable long-term memory with retrieval;
 - bounded memory retrieval/compaction and lifecycle experiments, with original provenance and source revalidation;
@@ -537,3 +537,15 @@ docs/decisions/
 ## License
 
 No license is currently specified. Add an explicit `LICENSE` file before treating the repository as generally reusable open-source software.
+
+## Governed profile consent candidate
+
+PI-4 adds default-off explicit owner grants for the four existing user-set profile
+fields. Old allowlists require re-consent; value edits, expiry and revocation fence
+future model use, including sourced history and replay. Read the
+[owner API/operator instructions](docs/platform-independence/profile-sharing-v1.md)
+and [local evidence](docs/platform-independence/pi-4-implementation-report.md).
+`make pi4-check` runs the inspected OS/Python-fenced offline regression; `make
+pi2-check` also verifies installed profiles and the signed unrelated-consumer path.
+Browser controls, exact-record memory sharing and production acceptance remain
+unavailable/incomplete. All memory defaults and the MEM-2 freeze remain in force.

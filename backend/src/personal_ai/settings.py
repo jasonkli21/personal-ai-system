@@ -269,6 +269,9 @@ class Settings(BaseSettings):
     summary_trigger_tokens: int = Field(default=12_000, gt=0)
     max_summary_tokens: int = Field(default=2_048, gt=0)
     context_inspection_enabled: bool = False
+    # Explicit owner consent is separate from destination/provider policy.
+    profile_sharing_enabled: bool = False
+
     memory_enabled: bool = False
     memory_extraction_enabled: bool = False
     memory_inspection_enabled: bool = False

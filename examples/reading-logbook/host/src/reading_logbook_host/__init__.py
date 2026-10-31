@@ -66,10 +66,12 @@ class Membership:
 def application():
     if HOST_CONTRACT_VERSION != "personal-ai-host-v1":
         raise ValueError("host_contract_incompatible")
+    profile_enabled = os.environ.get("READING_LOGBOOK_PROFILE_ENABLED", "false") == "true"
     history = tuple(
         p
         for p in ApplicationContextPolicy().provider_policies
         if p.provider_id == "conversation_history"
+        or (profile_enabled and p.provider_id == "global_profile")
     )
     return ApplicationContribution(
         definitions=(
@@ -79,7 +81,7 @@ def application():
                 memory_namespace="reading_logbook",
                 workspace_kind="required",
                 context_policy=ApplicationContextPolicy(
-                    version="reading-logbook-history-v1",
+                    version="reading-logbook-profile-v1" if profile_enabled else "reading-logbook-history-v1",
                     provider_policies=history,
                 ),
             ),

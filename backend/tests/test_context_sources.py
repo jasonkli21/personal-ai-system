@@ -71,6 +71,7 @@ from personal_ai.memory.contracts import (
     normalize,
 )
 from personal_ai.settings import Settings
+from tests.profile_consent_helpers import enable_profile
 
 NOW = datetime.now(UTC)
 
@@ -1732,12 +1733,10 @@ def test_assembler_passes_overall_deadline_to_source_and_profile_caps_sql_deadli
         deadline=cap,
     )
     assert result.failures[0].reason == "empty"
-    assert repository.deadline is not None
-    assert repository.deadline <= cap
-    assert repository.deadline > cap - 0.05
+    assert repository.deadline is None  # PI-4 gate denies before even reading storage.
 
 
-def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure():
+def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure(monkeypatch):
     registry = default_application_registry()
     travel = registry.registration("travel")
     scope = RequestScope(owner_id="owner-1", request_id="request-1", application_id="travel")
@@ -1756,7 +1755,6 @@ def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure():
                 GlobalProfileFieldUpdate(
                     field="preferred_units",
                     value="metric",
-                    shared_with_applications=("travel",),
                 ),
                 GlobalProfileFieldUpdate(field="locale", value="en-GB"),
             )
@@ -1765,8 +1763,10 @@ def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure():
     assert profile.revision == 1
     assert all(item.set_by == "user" and item.set_at == NOW for item in profile.fields)
 
+    factory, context, _validator = enable_profile(monkeypatch, repository, context, ("preferred_units",))
+    scope = context.scope
     coordinator = ContextProviderCoordinator(
-        {"global_profile": GlobalProfileContextProviderFactory(repository)}
+        {"global_profile": factory}
     )
     result = coordinator.prepare(
         context,
@@ -1790,7 +1790,7 @@ def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure():
     assert "shared_with_applications" not in result.items[0].payload.model_dump()
     assert [item.field for _, item in repository.shared_fields(
         "owner-1", "travel", ("preferred_units", "locale")
-    )] == ["preferred_units"]
+    )] == []
 
     removed = repository.update(
         "owner-1", GlobalProfileUpdate(remove_fields=("preferred_units",))
@@ -1800,7 +1800,7 @@ def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure():
 
 
 @pytest.mark.parametrize("max_results,expected", [(1, ("locale",)), (2, ("locale", "preferred_units")), (4, ("locale", "preferred_units"))])
-def test_profile_projection_honors_result_limit_and_requested_order(max_results, expected):
+def test_profile_projection_honors_result_limit_and_requested_order(max_results, expected, monkeypatch):
     registry = default_application_registry()
     travel = registry.registration("travel")
     scope = RequestScope(owner_id="owner-profile", request_id="request-profile", application_id="travel")
@@ -1816,16 +1816,18 @@ def test_profile_projection_honors_result_limit_and_requested_order(max_results,
         GlobalProfileUpdate(
             fields=(
                 GlobalProfileFieldUpdate(
-                    field="preferred_units", value="metric", shared_with_applications=("travel",)
+                    field="preferred_units", value="metric",
                 ),
                 GlobalProfileFieldUpdate(
-                    field="locale", value="en-GB", shared_with_applications=("travel",)
+                    field="locale", value="en-GB",
                 ),
             )
         ),
     )
+    factory, context, _validator = enable_profile(monkeypatch, repository, context, ("locale", "preferred_units"))
+    scope = context.scope
     coordinator = ContextProviderCoordinator(
-        {"global_profile": GlobalProfileContextProviderFactory(repository)}
+        {"global_profile": factory}
     )
     result = coordinator.prepare(
         context,

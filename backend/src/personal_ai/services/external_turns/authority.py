@@ -10,7 +10,10 @@ from uuid import UUID
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import WorkspaceAuthorizer
-from personal_ai.context.authority import permission_dependencies_current
+from personal_ai.context.authority import (
+    permission_dependencies_current,
+    source_snapshot_authority_complete,
+)
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.contracts.execution import ExecutionChoice
 from personal_ai.entities import MessageStatus
@@ -130,7 +133,8 @@ class PrincipalBoundExternalTurnAuthority:
         now = self.clock()
         for snapshot in source_snapshots:
             if (
-                snapshot.owner_id != scope.owner_id
+                not source_snapshot_authority_complete(snapshot)
+                or snapshot.owner_id != scope.owner_id
                 or snapshot.application_id != scope.application_id
                 or snapshot.workspace_id != scope.workspace_id
                 or (snapshot.expires_at is not None and now >= snapshot.expires_at)

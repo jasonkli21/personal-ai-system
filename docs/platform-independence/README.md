@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 through PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -69,3 +69,18 @@ non-promoting planning rebind; no historical lock or held-out corpus is rewritte
 Independent review and all inherited/live-provider/billing/native/cloud gates stay
 open. This candidate does not establish a live non-Gemini counter or production
 memory-vector portability.
+
+## PI-4 governed profile candidate
+
+- [Pre-code plan hardening](pi-4-plan-hardening.md), same-session security decisions.
+- [Implementation/self-review report](pi-4-implementation-report.md) and [P4-01–P4-24 machine evidence](pi-4-verification.json).
+- [Owner API, operator instructions and rollback](profile-sharing-v1.md).
+
+Default-off exact-value/revision grants feed the existing planner/packer/provider
+path and carry original source authority through counts, summaries, assistant
+history, physical reservation and external SSE/replay checks. Legacy allowlists
+require re-consent. Local native PG and installed synthetic checks are distinguished
+from real OAuth/provider/cloud/erasure acceptance. The exact-record memory view is
+explicitly unavailable; browser management UX is incomplete. Historical v10–v22
+locks and corpus bytes are preserved; v23 is a source-only non-promoting rebind.
+No independent acceptance or production readiness is claimed. MEM-3+ remains frozen.

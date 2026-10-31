@@ -201,7 +201,12 @@ def conversation_context_messages(
             continue
         if not check_source_permissions:
             continue
+        from personal_ai.context.authority import source_snapshot_authority_complete
+
         for snapshot in source_snapshots_for_message(message):
+            if not source_snapshot_authority_complete(snapshot):
+                exclude_turn(message, "source_permission_unverified")
+                break
             if (
                 snapshot.owner_id != message.owner_id
                 or snapshot.application_id != message.application_id

@@ -43,6 +43,7 @@ FAMILY_TABLES = frozenset(
         "audit_events",
         "usage_budgets",
         "global_profiles",
+        "profile_consents",
     }
 )
 

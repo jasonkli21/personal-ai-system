@@ -27,7 +27,8 @@ FILES = [
 ]
 
 
-def main():
+def main(*, files=None, runner=None):
+    allowed_files = files or FILES
     if "--fenced" not in sys.argv:
         if sys.platform != "darwin":
             raise SystemExit("PI3: equivalent native network sandbox required on this OS")
@@ -38,7 +39,7 @@ def main():
                 listener.listen(1)
                 return subprocess.call([
                     "/usr/bin/sandbox-exec", "-p", "(version 1)(allow default)(deny network*)",
-                    sys.executable, __file__, "--fenced", *sys.argv[1:],
+                    sys.executable, runner or __file__, "--fenced", *sys.argv[1:],
                 ], env={**os.environ, "PI3_PROBE_SOCKET": address})
     assert not Path(".env").exists() and not Path("backend/.env").exists()
     # ctypes bypasses Python socket audit hooks: prove native IPv4/IPv6/Unix
@@ -79,10 +80,10 @@ def main():
     os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     import pytest
 
-    chosen = FILES
+    chosen = allowed_files
     if "--only" in sys.argv:
         chosen = sys.argv[sys.argv.index("--only") + 1:]
-        assert chosen and set(chosen) <= set(FILES)
+        assert chosen and set(chosen) <= set(allowed_files)
     result = pytest.main([
         "-p", "anyio.pytest_plugin", "-q", "--tb=short",
         *["backend/tests/" + name for name in chosen],

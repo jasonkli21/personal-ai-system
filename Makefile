@@ -172,3 +172,7 @@ pi2-check: pi2-build
 .PHONY: pi3-check
 pi3-check:
 	$(PLATFORM_PYTHON) backend/scripts/pi3_checks.py
+
+.PHONY: pi4-check
+pi4-check:
+	$(PLATFORM_PYTHON) backend/scripts/pi4_checks.py

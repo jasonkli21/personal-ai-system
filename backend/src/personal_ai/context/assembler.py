@@ -332,49 +332,66 @@ class ContextAssembler:
             self.permission_revalidator,
             self.context_planner,
         )
-        try:
-            result = scoped._assemble(
-                active_messages,
-                pending_user_message,
-                refresh=refresh,
-                application_context=application_context,
-                history_exclusions=history_exclusion_reasons,
-            )
-            if effective_selections:
-                if scoped.context_provider_coordinator is None or application_context is None:
-                    raise ContextPreparationError("context_provider_unavailable")
-                source_result = scoped.context_provider_coordinator.prepare(
-                    application_context,
-                    effective_selections,
-                    ContextProviderInputs(
-                        scope=application_context.scope,
-                        application_context=application_context,
-                        active_messages=tuple(active_messages),
-                        summary=result.summary,
-                        retrieval=retrieval,
-                        evidence_records=tuple(evidence_records),
-                        tool_results=tool_results,
-                    ),
-                    deadline=deadline,
-                )
-                from personal_ai.context.deadline import remaining
+        from personal_ai.context.authority import source_snapshots_current
+        from personal_ai.context.history import source_snapshots_for_message
+        from personal_ai.llm.disclosure import bind_disclosure_guard
 
-                remaining(deadline)
-                result = replace(result, source_items=source_result.items,
-                                 source_failures=source_result.failures)
-            return scoped._build_sources(
-                result,
-                active_messages,
-                pending_user_message,
-                retrieval=retrieval,
-                application_context=application_context,
-                context_selections=effective_selections,
-                context_plan=context_plan,
-                deadline=deadline,
-                manifest_view_kind=manifest_view_kind,
-                clock=clock,
-                emit_manifest=emit_manifest,
-            )
+        snapshots = tuple(
+            snapshot for message in active_messages
+            for snapshot in source_snapshots_for_message(message)
+        )
+
+        def revalidate_history():
+            if not source_snapshots_current(
+                snapshots, self.permission_revalidator,
+                now=clock() if clock is not None else datetime.now(UTC),
+            ):
+                raise ContextPreparationError("context_source_authority_changed")
+
+        try:
+            with bind_disclosure_guard(revalidate_history):
+                result = scoped._assemble(
+                    active_messages,
+                    pending_user_message,
+                    refresh=refresh,
+                    application_context=application_context,
+                    history_exclusions=history_exclusion_reasons,
+                )
+                if effective_selections:
+                    if scoped.context_provider_coordinator is None or application_context is None:
+                        raise ContextPreparationError("context_provider_unavailable")
+                    source_result = scoped.context_provider_coordinator.prepare(
+                        application_context,
+                        effective_selections,
+                        ContextProviderInputs(
+                            scope=application_context.scope,
+                            application_context=application_context,
+                            active_messages=tuple(active_messages),
+                            summary=result.summary,
+                            retrieval=retrieval,
+                            evidence_records=tuple(evidence_records),
+                            tool_results=tool_results,
+                        ),
+                        deadline=deadline,
+                    )
+                    from personal_ai.context.deadline import remaining
+
+                    remaining(deadline)
+                    result = replace(result, source_items=source_result.items,
+                                     source_failures=source_result.failures)
+                return scoped._build_sources(
+                    result,
+                    active_messages,
+                    pending_user_message,
+                    retrieval=retrieval,
+                    application_context=application_context,
+                    context_selections=effective_selections,
+                    context_plan=context_plan,
+                    deadline=deadline,
+                    manifest_view_kind=manifest_view_kind,
+                    clock=clock,
+                    emit_manifest=emit_manifest,
+                )
         finally:
             close = getattr(self.counter, "close", None)
             if close:

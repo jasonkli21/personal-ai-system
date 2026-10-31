@@ -53,6 +53,7 @@ _EXPORT_PATH_GROUPS = {
         "audit_events",
         "identity_mappings",
         "global_profiles",
+        "profile_consents",
     ),
     "postgres.federation": ("federation_grants", "federation_grant_revisions"),
     "postgres.mutation": ("mutation_proposals", "mutation_proposal_revisions"),

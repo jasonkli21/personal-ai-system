@@ -8,7 +8,14 @@ _guard: ContextVar[object] = ContextVar("inference_disclosure_guard", default=No
 
 @contextmanager
 def bind_disclosure_guard(guard):
-    token = _guard.set(guard)
+    outer = _guard.get()
+
+    def combined():
+        if outer is not None:
+            outer()
+        guard()
+
+    token = _guard.set(combined)
     try:
         yield
     finally:

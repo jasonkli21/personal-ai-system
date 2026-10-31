@@ -381,14 +381,14 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
                 {
                     "field": "preferred_units",
                     "value": "metric",
-                    "shared_with_applications": ["travel"],
+                    "shared_with_applications": [],
                 }
             ]
         },
     )
     assert updated.status_code == 200
     assert updated.json()["fields"][0]["set_by"] == "user"
-    assert updated.json()["fields"][0]["shared_with_applications"] == ["travel"]
+    assert updated.json()["fields"][0]["shared_with_applications"] == []
 
     foreign_application = client.get(
         "/v1/profile", headers={**headers, "X-Application-ID": "travel"}

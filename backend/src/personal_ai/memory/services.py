@@ -14,6 +14,7 @@ from personal_ai.context.history import (
     manual_import_is_reusable,
     memory_extraction_context_reason,
     message_context_authority,
+    source_snapshots_for_message,
 )
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.llm.client import EmbeddingResult
@@ -126,6 +127,9 @@ class MemoryExtractionService:
     ):
         if not self.settings.memory_enabled or not self.settings.memory_extraction_enabled:
             return ExtractionResult(reasons=("disabled",))
+        if any("global_profile" in snapshot.source_classes or snapshot.provider_id == "global_profile"
+               for snapshot in source_snapshots_for_message(completed)):
+            return ExtractionResult(reasons=("context_source_not_reusable",))
         # Extraction has no useful outcome without the mandatory document
         # embedding and persistence continuation. Check that chain before an
         # external extractor sees any source turn.

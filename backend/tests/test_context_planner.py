@@ -18,7 +18,6 @@ from personal_ai.applications.contracts import (
 )
 from personal_ai.auth.scope import RequestScope, bind_request_scope, reset_request_scope
 from personal_ai.context.adapters import (
-    BuiltInContextPermissionRevalidator,
     MemoryContextProviderFactory,
 )
 from personal_ai.context.assembler import ContextAssembler
@@ -51,6 +50,7 @@ from personal_ai.llm.fake import FakeLLMClient
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import Settings
 from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMessageRepository
+from tests.profile_consent_helpers import enable_profile
 
 NOW = datetime(2026, 10, 7, 12, tzinfo=UTC)
 
@@ -625,7 +625,7 @@ def test_default_profile_rule_selects_one_shared_field():
         ),
     ],
 )
-def test_merged_profile_rules_fetch_every_shared_field(fields, intent):
+def test_merged_profile_rules_fetch_every_shared_field(fields, intent, monkeypatch):
     values = {
         "preferred_units": "metric",
         "locale": "en-US",
@@ -640,7 +640,6 @@ def test_merged_profile_rules_fetch_every_shared_field(fields, intent):
                 GlobalProfileFieldUpdate(
                     field=field,
                     value=values[field],
-                    shared_with_applications=("personal_ai",),
                 )
                 for field in fields
             )
@@ -657,20 +656,21 @@ def test_merged_profile_rules_fetch_every_shared_field(fields, intent):
         summary_trigger_tokens=1_000,
         max_summary_tokens=512,
     )
+    factory, context, validator = enable_profile(monkeypatch, repository, context, fields, settings)
     assembler = ContextAssembler(
         settings,
         FakeTokenCounter(),
         context_provider_coordinator=ContextProviderCoordinator(
             {"global_profile": factory}
         ),
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings, repository),
+        permission_revalidator=validator,
     )
     plan = assembler.plan_context(intent, context, now=NOW)
     scope_token = bind_request_scope(context.scope)
     try:
         assembled = assembler.assemble(
             (), _pending(context, intent), application_context=context,
-            context_plan=plan, refresh=False,
+            context_plan=plan, refresh=False, clock=lambda: NOW,
         )
     finally:
         reset_request_scope(scope_token)
@@ -688,7 +688,7 @@ def test_merged_profile_rules_fetch_every_shared_field(fields, intent):
     assert all(values[field] in rendered for field in fields)
 
 
-def test_required_profile_field_survives_optional_field_budget_pressure():
+def test_required_profile_field_survives_optional_field_budget_pressure(monkeypatch):
     values = {"preferred_units": "metric", "locale": "en-US"}
     repository = InMemoryGlobalProfileRepository(clock=lambda: NOW)
     repository.update(
@@ -698,7 +698,6 @@ def test_required_profile_field_survives_optional_field_budget_pressure():
                 GlobalProfileFieldUpdate(
                     field=field,
                     value=value,
-                    shared_with_applications=("personal_ai",),
                 )
                 for field, value in values.items()
             )
@@ -724,13 +723,14 @@ def test_required_profile_field_survives_optional_field_budget_pressure():
         max_response_tokens=100, context_safety_margin_tokens=20,
         summary_trigger_tokens=1_000, max_summary_tokens=512,
     )
+    factory, context, validator = enable_profile(monkeypatch, repository, context, tuple(values), settings)
     assembler = ContextAssembler(
         settings,
         FakeTokenCounter(),
         context_provider_coordinator=ContextProviderCoordinator(
             {"global_profile": factory}
         ),
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings, repository),
+        permission_revalidator=validator,
         context_planner=planner,
     )
     plan = assembler.plan_context("profile request", context, now=NOW)
@@ -738,7 +738,7 @@ def test_required_profile_field_survives_optional_field_budget_pressure():
     try:
         assembled = assembler.assemble(
             (), _pending(context, "profile request"), application_context=context,
-            context_plan=plan, refresh=False,
+            context_plan=plan, refresh=False, clock=lambda: NOW,
         )
     finally:
         reset_request_scope(scope_token)
@@ -1310,18 +1310,18 @@ def test_scope_fingerprint_prevents_plan_reuse_across_requests():
         )
 
 
-def test_profile_share_is_rechecked_after_selected_provider_fetch():
+def test_profile_share_is_rechecked_after_selected_provider_fetch(monkeypatch):
     class RevokingProfileRepository(InMemoryGlobalProfileRepository):
         shared_read_count = 0
 
-        def shared_fields(self, owner_id, application_id, fields, *, deadline=None):
-            result = super().shared_fields(
-                owner_id, application_id, fields, deadline=deadline
+        def authorized_fields(self, scope, fields, *, deadline=None):
+            result = super().authorized_fields(
+                scope, fields, deadline=deadline
             )
             self.shared_read_count += 1
             if self.shared_read_count == 1:
                 super().update(
-                    owner_id,
+                    scope.owner_id,
                     GlobalProfileUpdate(remove_fields=("preferred_units",)),
                 )
             return result
@@ -1343,27 +1343,27 @@ def test_profile_share_is_rechecked_after_selected_provider_fetch():
                 GlobalProfileFieldUpdate(
                     field="preferred_units",
                     value="metric",
-                    shared_with_applications=("personal_ai",),
                 ),
             )
         ),
     )
     factory = GlobalProfileContextProviderFactory(repository)
     context = _context(factory, "personal_ai")
+    factory, context, validator = enable_profile(monkeypatch, repository, context, ("preferred_units",), settings)
     assembler = ContextAssembler(
         settings,
         FakeTokenCounter(),
         context_provider_coordinator=ContextProviderCoordinator(
             {"global_profile": factory}
         ),
-        permission_revalidator=BuiltInContextPermissionRevalidator(settings, repository),
+        permission_revalidator=validator,
     )
     plan = assembler.plan_context("What units do I prefer?", context, now=NOW)
     scope_token = bind_request_scope(context.scope)
     try:
         assembled = assembler.assemble(
             (), _pending(context, "What units do I prefer?"),
-            application_context=context, context_plan=plan, refresh=False,
+            application_context=context, context_plan=plan, refresh=False, clock=lambda: NOW,
         )
     finally:
         reset_request_scope(scope_token)

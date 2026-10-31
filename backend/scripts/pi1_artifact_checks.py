@@ -163,6 +163,7 @@ print("CORE_ARTIFACT_PROBE=PASS", flush=True)
 core_tests = workspace / "core-tests/tests"
 core_tests.mkdir(parents=True)
 core_test_files = (
+    "test_profile_consent.py",
     "test_inference_execution.py",
     "test_memory_integration.py",
     "test_memory_disclosure_authorization.py",

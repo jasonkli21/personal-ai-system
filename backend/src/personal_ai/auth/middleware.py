@@ -532,21 +532,29 @@ async def authenticate_request(request: Request) -> Response | None:
                     request=request,
                     correlation_id=correlation_id,
                 )
-        if getattr(request.state, "external_client", False):
+        external_lane = getattr(request.state, "external_client", False)
 
-            def current_client_authority():
-                current_settings = _settings_for_request(request)
-                if not require_client_application(principal, current_settings, application_id):
-                    raise ClientApplicationDenied
-                _ensure_active_principal(request, current_settings, principal, correlation_id)
-                registry = application_registry_for(request)
-                registry.get(application_id)
-                if workspace_id is not None and not registry.workspace_authorizer.is_member(
-                    principal, application_id, workspace_id
-                ):
-                    raise ClientApplicationDenied
+        def current_source_authority():
+            current_settings = _settings_for_request(request)
+            if require_client_application(principal, current_settings, application_id) != external_lane:
+                raise ClientApplicationDenied
+            _ensure_active_principal(request, current_settings, principal, correlation_id)
+            registry = application_registry_for(request)
+            registry.get(application_id)
+            if workspace_id is not None and not registry.workspace_authorizer.is_member(
+                principal, application_id, workspace_id
+            ):
+                raise ClientApplicationDenied
 
-            request.state.client_authority = current_client_authority
+        def current_profile_share_authority():
+            current_source_authority()
+            if not _settings_for_request(request).profile_sharing_enabled:
+                raise ClientApplicationDenied
+            return application_registry_for(request)
+
+        request.state.profile_share_authority = current_profile_share_authority
+        if external_lane:
+            request.state.client_authority = current_source_authority
         request.state.request_scope = request_scope
         if _provider_switch_is_on(request, settings):
             return _safeguard_error(

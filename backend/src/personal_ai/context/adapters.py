@@ -663,9 +663,11 @@ class MemoryContextProviderFactory:
 class BuiltInContextPermissionRevalidator:
     """Recheck built-in memory and explicit profile-share permissions."""
 
-    def __init__(self, settings, profile_repository=None) -> None:
+    def __init__(self, settings, profile_repository=None, application_registry=None, authority=None) -> None:
         self.settings = settings
         self.profile_repository = profile_repository
+        self.application_registry = application_registry
+        self.authority = authority
 
     @staticmethod
     def supports(dependency) -> bool:
@@ -677,28 +679,41 @@ class BuiltInContextPermissionRevalidator:
         if dependency.permission_id == "ai_memory_read" and dependency.version == "memory-v1":
             # Historical flag-only memory snapshots cannot establish current source rights.
             return False
-        parts = dependency.permission_id.split(":")
+        from personal_ai.auth.scope import current_verified_principal
+        from personal_ai.context.profile_consent import destination_allowed, share_dependency
+
+        scope = current_request_scope()
+        principal = current_verified_principal()
         if (
-            dependency.version != "global-profile-v1"
-            or len(parts) != 3
-            or parts[0] != "global_profile_share"
-            or self.profile_repository is None
+            not getattr(self.settings, "profile_sharing_enabled", False)
+            or self.profile_repository is None or scope is None or principal is None
+            or principal.owner_id != scope.owner_id
+            or scope.acting_user_id != f"{principal.issuer}|{principal.subject}"
+            or dependency.owner_id != scope.owner_id
+            or dependency.acting_user_id != scope.acting_user_id
+            or dependency.entity_ref is None
+            or dependency.entity_ref.entity_type != "global_profile_field"
         ):
             return False
-        scope = current_request_scope()
-        field, application_id = parts[1:]
-        if scope is None or scope.application_id != application_id:
+        parts = dependency.permission_id.split(":")
+        if len(parts) != 3 or parts[2] != scope.application_id:
             return False
+        field = parts[1]
         try:
-            return bool(
-                self.profile_repository.shared_fields(
-                    scope.owner_id,
-                    application_id,
-                    (field,),
-                    deadline=monotonic() + 0.25,
+            if self.authority is None:
+                return False
+            registry = self.authority() or self.application_registry
+            if not destination_allowed(registry, principal, ApplicationScope(
+                application_id=scope.application_id, workspace_id=scope.workspace_id
+            ), field):
+                return False
+            return any(
+                share_dependency(scope.owner_id, grant) == dependency
+                for grant, _item in self.profile_repository.authorized_fields(
+                    scope, (field,), deadline=monotonic() + 0.25
                 )
             )
-        except Exception:  # noqa: BLE001 - a failed current-share check fails closed
+        except Exception:  # noqa: BLE001 - unavailable or corrupt authority denies
             return False
 
 

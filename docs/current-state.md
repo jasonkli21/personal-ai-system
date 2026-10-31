@@ -56,7 +56,21 @@ binds source checks through chat assembly and research synthesis, denies in-proc
 credential rotation under an old admission, and reports unavailable memory
 embedding before retrieval/extraction. Initial credential-to-account proof,
 independent PI-3 review, installed Linux/Python 3.12 checks, and provider/cloud
-acceptance remain open. PI-4 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+acceptance remain open. [PI-4](platform-independence/pi-4-implementation-report.md) adds a user-directed
+local candidate: default-off owner/actor/destination/purpose/expiry and whole-profile
+revision/value-bound grants, native PG/in-memory CAS and retained original-key
+receipts, legacy re-consent migration, canonical projection and inherited
+count/summary/history/reservation/SSE/replay denial. The unrelated Reading Logbook
+recipient has a separate opt-in manifest policy. Exact-record memory sharing is
+explicitly unavailable and browser consent UX remains incomplete. Native synthetic
+SQL and installed synthetic identity/provider checks do not establish cloud,
+physical erasure/restore anti-rollback, live identity/provider or independent
+acceptance. See the [consent API/operations](platform-independence/profile-sharing-v1.md).
+Local verification: 243 focused tests, installed core/reference/task/HTTP groups
+and six native PG profile/consent checks passed. The broad target retained three
+inherited provider-matrix/Phase36 failures (890 passed); the owning files passed
+24 in isolation, without establishing a root-cause fix. This remains an acceptance
+gap. PI-5 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
@@ -226,7 +240,10 @@ deterministic planner configuration, 30 held-out cases, corpus and fixture
 dependencies. All prior lock bytes remain unchanged. PI-3 adds active source-only v22 after the inference composition changes, retaining
 all v21 planner/corpus/fixture/configuration bytes and non-promotion. The strict
 current-or-direct-child source guard remains; production replay still rejects
-source, runtime and unrelated revision changes. Portable tests use an explicitly
+source, runtime and unrelated revision changes. PI-4 appends source-only v23,
+retaining the original planner configuration/corpus/fixture bytes and all v10–v22
+history; synthetic profile fixtures now issue explicit grants and bind the actor.
+Portable tests use an explicitly
 test-only lock. Nothing is promoted from this freeze. See the
 [PI-2 review remediation evidence](platform-independence/pi-2-review-remediation-2026-10-30.md)
 for the external creation and streaming disclosure fixes and local verification.
@@ -239,8 +256,8 @@ Keep task, context, connected inference, private ingress and experimental gates
 off until their owning acceptance evidence is complete. Provider SDK mocks,
 synthetic IAM and JS bundles do not establish deployed security, live identity,
 native device behavior or production readiness. No cloud deployment was run.
-The user authorized commits in all five repositories and pushes to each
-repository's remote `main` after the commits are complete. Hosted CI outcomes
+The prior suite authorization covered its dated five-repository patch set.
+PI-4 authorizes one local commit only, without push, merge or deployment. Hosted CI outcomes
 remain separate evidence and are never inferred from local checks.
 
 ## Minimum context and history

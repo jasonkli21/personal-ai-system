@@ -121,3 +121,22 @@ source tombstones; no schema migration or data rekeying is needed. Missing
 historical task reconcilers still refuse startup. Local synthetic results do not
 establish native DB/process crash durability, real identity/IAM, providers or
 independent acceptance. No automatic PI-3+ or memory promotion follows.
+
+## PI-4 optional profile recipient
+
+The host remains history-only by default. `READING_LOGBOOK_PROFILE_ENABLED=true`
+adds the existing `global_profile` disclosure policy to its manifest; it installs
+no data provider or memory intake. The platform additionally needs its separate
+`PROFILE_SHARING_ENABLED` gate and an exact owner grant for `reading_logbook` plus
+the chosen shelf workspace/actor/value revision. Enabling either flag alone
+shares nothing. Client OAuth binding and membership continue to be independent.
+
+Use the builtin owner's [profile consent API](../../docs/platform-independence/profile-sharing-v1.md)
+to review the exact value/recipient/expiry and grant or revoke. The Reading Logbook
+client cannot manage grants. A normal request such as `What units do I prefer?`
+then uses the canonical planner/assembler, with no client profile fetch or private
+imports. The signed synthetic HTTP test runs this opt-in path against separately
+installed core/host/client wheels with reference packages physically absent.
+Revocation suppresses later model reuse and completed-key replay; retain the
+original journal key after a denied or uncertain replay. Past provider sends
+cannot be recalled. Browser controls and production acceptance remain unverified.

@@ -40,7 +40,7 @@ identity for Travel.
 | --- | --- | --- | --- |
 | `GET` | `/health` | — | Existing readiness response: `{"status":"ok","service":"api"}` |
 | `GET` | `/v1/profile` | — | Sparse owner-wide `GlobalProfile` |
-| `PUT` | `/v1/profile` | `GlobalProfileUpdate` with explicit values and per-field application sharing | Updated sparse owner-wide `GlobalProfile` |
+| `PUT` | `/v1/profile` | `GlobalProfileUpdate` with explicit values; nonempty legacy share arrays rejected | Updated sparse owner-wide `GlobalProfile` |
 | `POST` | `/v1/conversations` | Optional `title` | A `Conversation` |
 | `GET` | `/v1/conversations` | — | `{"conversations": [Conversation]}` |
 | `GET` | `/v1/conversations/{conversation_id}` | — | `{"conversation": Conversation, "messages": [Message]}` |
@@ -60,12 +60,19 @@ and AI-owned; it accepts only explicit
 user-set fields: `preferred_units` (`metric` or `imperial`), `locale`,
 `response_style` (`concise`, `balanced`, or `detailed`), and `answer_length`
 (`short`, `standard`, or `expanded`). Each update field has a
-`shared_with_applications` list; omitted values remain absent. `remove_fields`
+legacy `shared_with_applications` list, which must now be empty; a nonempty
+list is rejected and cannot grant PI-4 consent. Omitted values remain absent. `remove_fields`
 removes selected fields. Responses include field-level `set_by: "user"` and
 `set_at` provenance plus a monotonically increasing profile revision.
 
 The `global_profile` context provider returns only fields selected by the
-caller and explicitly shared with the current application. The typed context
+planner and covered by a current, explicit PI-4 grant for the exact actor,
+application/workspace, purpose and profile value/revision. Sharing is default-off.
+`GET/POST /v1/profile/shares` supplies recent-auth builtin-owner list/grant/revoke,
+exact If-Match/CAS and original-key reconciliation; external app clients cannot
+manage it. See the [PI-4 consent contract](platform-independence/profile-sharing-v1.md)
+for request examples, expiry, safe errors, revocation and rollout restrictions.
+The typed context
 provider interfaces also expose bounded selections and normalized items for
 conversation, memory, external evidence, client context, and registered
 read-only tool results. The shared Phase 12 builder fits the conversation,

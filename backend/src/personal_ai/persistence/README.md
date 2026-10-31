@@ -39,3 +39,21 @@ the owner fence and invoke `PostgresControlRepository.erase_owner(owner_id)` for
 both control tables in every scope; it refuses an unfenced owner. Account inventory
 and export cover both tables. This is a local SQL erasure seam, not proof of cloud
 physical deletion, backups, recovery or a complete account-erasure workflow.
+
+## PI-4 profile consent
+
+Migration 032 adds `profile_consents`, a bounded owner aggregate in the existing
+Postgres payload-family inventory, distinct from the unchanged profile schema.
+It archives legacy share arrays without granting permission, clears active arrays
+and rejects old allowlist writers with a SQL constraint. Consent/profile mutation
+locks owner deletion authority -> consent -> profile. At most 32 lifetime grants
+and 64 retained operation receipts fit a 128 KiB payload; no replay-key pruning.
+Value updates invalidate every grant bound to the prior profile revision.
+
+`PostgresGlobalProfileRepository.purge_owner` is an explicit local operator erasure
+seam for both tables and requires a retained owner deletion fence. Exports include
+the consent/archive/receipt payload. Deployed physical deletion, backups/replicas,
+restore anti-rollback and automatic erasure remain separate gates. Drain old
+readers before migration/enablement; rollback keeps strict readers and migration,
+and disables `PROFILE_SHARING_ENABLED` for selection **and** persisted dependency
+reuse. See [API/operations](../../../../docs/platform-independence/profile-sharing-v1.md).
