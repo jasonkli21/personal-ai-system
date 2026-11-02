@@ -279,10 +279,13 @@ def inspect_context(
     memories: Annotated[object, Depends(get_memory_repository)],
     lifecycle: Annotated[object, Depends(get_lifecycle_repository)],
     context_assembler: Annotated[ContextAssembler, Depends(get_context_assembler)],
+    permission_revalidator: Annotated[object, Depends(get_context_permission_revalidator)],
     memory_ids: Annotated[list[UUID] | None, Query(max_length=20)] = None,
 ) -> dict:
     """Read-only planning estimate: never call counting/generation provider APIs."""
-    _, active = service.get_conversation(conversation_id)
+    _, active = service.get_conversation(
+        conversation_id, permission_revalidator=permission_revalidator
+    )
     latest_user = next(
         (
             message

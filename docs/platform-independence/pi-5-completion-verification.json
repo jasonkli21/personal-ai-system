@@ -963,6 +963,40 @@
     "PI-6 independent prerequisite not met; human explicitly overrides sequencing, not evidence or promotion gates"
   ],
   "review_handoff": "pi-5-completion-review-handoff.md",
+  "review_remediation_2026_11_01": {
+    "source_and_evidence_sha256": {
+      "backend/src/personal_ai/api/routes.py": "2752569e899af2400078bf99c52602c6fdcfcf53e334ca3e4b10bbb6aab85ba0",
+      "backend/tests/test_context_routes.py": "b34fbdc275bcea8d0132b6f1392c49868d283f8d6187e664aa27df9466d564d1",
+      "docs/current-state.md": "48f0561724b5c343e743ac8c2960e8f691460a6da6dec14075b222de056a91ba",
+      "docs/platform-independence/pi-5-completion-gate.md": "3bc2b386c8da37bbe9e0a353a8a48730d116eca1ddfd73563efe97cdc1ebbca7",
+      "docs/platform-independence/pi-5-completion-independent-review-remediation-2026-11-01.md": "67d8394ddb3c3a98d69ee9dde54e756cf7a1f6375c21290e80be6aef24bd17bf"
+    },
+    "starting_head": "6056a9c9f18750d2044e2fd47bc5ca67fb16633b",
+    "status": "blocked_unverified",
+    "unrun": [
+      "canonical PI-2 through PI-5 and inherited offline suites",
+      "live provider and deployed IAM/network checks",
+      "native distributed receipt, restore, and physical deletion checks",
+      "separate independent acceptance"
+    ],
+    "verification": [
+      {
+        "class": "local synthetic route tests",
+        "command": "backend/.venv/bin/python -m pytest backend/tests/test_context_routes.py -q --tb=short",
+        "result": "17 passed, 3 warnings in 1.78 s"
+      },
+      {
+        "class": "static",
+        "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-lint",
+        "result": "initial run found import ordering in test_context_routes.py; fixed and reran: All checks passed"
+      },
+      {
+        "class": "documentation/static",
+        "command": "git diff --check",
+        "result": "pending final documentation review"
+      }
+    ]
+  },
   "rollback": "Disable retrieval/context/external/host opt-ins while retaining strict dependency readers and irreversible original keys; no permissive downgrade or stale-backup reactivation.",
   "scenarios": {
     "P5-01": {
@@ -1709,7 +1743,7 @@
     "examples/reading-logbook/client/src/reading_logbook/store.py": "a56b4362137227ca728f9ffae825222d526edebc321af4368ce797c3313863df",
     "examples/reading-logbook/host/src/reading_logbook_host/__init__.py": "73cb5832b9b037ecdcc9adef40dfccd903060bf3c47133c5fdc78265a9a8aef8"
   },
-  "status": "blocked_missing_authority",
+  "status": "blocked_unverified",
   "tested_head": "af233c5672d204e1ad080250a89ad7b921c79716",
   "tested_worktree_manifest_sha256": "7455174e5124937d5562068c78ab02ebd207011df7814d0c90dc1989474646d4",
   "timezone": "America/Los_Angeles"

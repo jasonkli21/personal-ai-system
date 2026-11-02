@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-10-31. This is the living implementation boundary. Code, contracts,
+Updated 2026-11-01. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance. The
 [suite handoff](../stabilization/FRESH-REVIEW-HANDOFF.md) records this change and its
 verification. Independent final review and external acceptance remain open.
@@ -100,6 +100,12 @@ and [verification](platform-independence/pi-5-completion-verification.json) for
 actual final checks and all P5-01–28 dispositions. Historical failures and evidence
 remain in their original reports. v25 is an explicit source-identity migration;
 v10–v24, corpus/scoring/threshold bytes and non-promotion remain preserved.
+The 2026-10-31 independent review's R05 context-inspection denial is fixed by
+passing the request-bound source revalidator through that route. Its local
+regression tests pass; R01–R03 production authority, P5-24 canonical runtime
+verification, and P5-28 input-ownership evidence remain open. PI-5 remains
+`blocked_unverified`; see the [dated remediation](platform-independence/pi-5-completion-independent-review-remediation-2026-11-01.md)
+and [gate](platform-independence/pi-5-completion-gate.md).
 PI-6 through PI-8 remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.

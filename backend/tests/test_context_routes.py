@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from personal_ai.api.dependencies import (
     get_context_assembler,
+    get_context_permission_revalidator,
     get_context_trace_repository,
     get_conversation_repository,
     get_current_owner_id,
@@ -21,6 +22,10 @@ from personal_ai.context.tokens import FakeTokenCounter
 from personal_ai.context.traces import (
     InMemoryContextTraceRepository,
     UnsupportedContextTraceSchemaError,
+)
+from personal_ai.contracts.context_references import (
+    ContextPermissionDependency,
+    ContextSourceSnapshot,
 )
 from personal_ai.entities import Conversation
 from personal_ai.evaluation.context import (
@@ -229,6 +234,66 @@ def test_inspector_disabled_unknown_foreign_and_malformed(environment):
         AssertionError("disabled inspector touched storage")
     )
     assert client.get(path).status_code == 404
+
+
+@pytest.mark.parametrize("authority", ["current", "revoked", "missing"])
+def test_inspector_revalidates_retrieval_derived_history(environment, authority):
+    client, _, messages, _, llm, _ = environment
+    _, pending = install(environment, "short-control")
+    response = client.post(
+        f"/v1/conversations/{pending.conversation_id}/messages",
+        json={"content": pending.content},
+    )
+    assert response.status_code == 200
+    assistant = next(
+        message
+        for message in reversed(
+            messages.list_active(owner_id="local", conversation_id=pending.conversation_id)
+        )
+        if message.role.value == "assistant"
+    )
+    dependency = ContextPermissionDependency(
+        permission_id="retrieval_context:local-document",
+        version="grant-v3",
+        purpose="use local document excerpt in model context",
+        owner_id="local",
+        acting_user_id="test-actor",
+    )
+    snapshot = ContextSourceSnapshot(
+        provider_id="retrieval_context:test",
+        source_id="private-document",
+        source_version="revision-3",
+        item_id="excerpt-1",
+        owner_id="local",
+        application_id="personal_ai",
+        content_fingerprint="a" * 64,
+        permission_dependencies=(dependency,),
+    )
+    messages._messages[assistant.id] = assistant.model_copy(
+        update={
+            "attribution": assistant.attribution.model_copy(
+                update={"source_snapshots": (snapshot,)}
+            )
+        }
+    )
+
+    class Permission:
+        def is_current(self, candidate):
+            assert candidate == dependency
+            return authority == "current"
+
+    app.dependency_overrides[get_context_permission_revalidator] = (
+        (lambda: Permission()) if authority != "missing" else (lambda: None)
+    )
+    inspection = client.get(f"/v1/conversations/{pending.conversation_id}/context")
+    if authority == "current":
+        assert inspection.status_code == 200, inspection.text
+    else:
+        assert inspection.status_code == 409
+        assert inspection.json()["error"]["code"] == "conversation_source_authority_changed"
+        assert "private-document" not in inspection.text
+        assert "bounded answer" not in inspection.text
+    assert len(llm.requests) == 1
 
 
 def test_preparation_reservation_blocks_an_overlapping_send_before_assistant_creation(environment):
