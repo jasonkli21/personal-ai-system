@@ -168,6 +168,12 @@ acceptance remain open.
 
 ## Harness excellence
 
+HXE-1 is a **PARTIAL E1** synthetic development pilot. The optional SDK adapter
+covers bounded stdio and socket-free Streamable HTTP, scoped local PI-5 tool
+disclosure and digest-pinned text preparation. Authenticated installed
+transport, independently deployed clients and peers, and live source
+admission remain open. See the [HXE inventory](harness-excellence/README.md).
+
 HXE-0 remains a local **PARTIAL E1** development candidate with the Python SDK,
 separate Project Checklist consumer and operator-selected host. The generated
 external contract remains v1.2.0. The independent-review remediation fixes all

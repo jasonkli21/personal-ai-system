@@ -243,3 +243,11 @@ hxe0-check:
 .PHONY: hxe0-installed-check
 hxe0-installed-check: hxe0-build
 	$(PLATFORM_PYTHON) backend/scripts/hxe0_artifact_checks.py "$(UV)"
+
+.PHONY: hxe1-check
+HXE1_PYTHON ?= adapters/hxe1/.venv/bin/python
+HXE1_IMPORT_PATH ?= adapters/hxe1/src:backend/src
+hxe1-check:
+	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
+	  PYTHONPATH="$(HXE1_IMPORT_PATH)" $(HXE1_PYTHON) -s backend/scripts/pi1_offline_checks.py \
+	    -q adapters/hxe1/tests

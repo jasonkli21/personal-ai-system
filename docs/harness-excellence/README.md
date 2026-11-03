@@ -1,4 +1,4 @@
-# Harness excellence · HXE-0
+# Harness excellence
 
 The [ownership ADR](../decisions/0023-external-consumer-and-execution-authority.md)
 defines the durable boundaries. Start with the [SDK](../../sdk/python/README.md)
@@ -43,3 +43,15 @@ does not establish egress fencing, server acceptance or trusted build origins.
   and [control](../memory/mem-2-control-adr.md) boundaries. Checklist has no
   installed memory issuer or public memory operation. Its preflight reports
   unavailable.
+
+
+## HXE-1
+
+| Capability | Default and evidence | Before enablement |
+| --- | --- | --- |
+| Outbound MCP fixture | Off. Bounded stdio and in-process Streamable HTTP use the pinned SDK and an exact issuer/document registration. | Verified remote transport, trusted issuer, per-attempt physical-send permit and P19 eligibility. |
+| Inbound retrieval | Off. Local PI-5 retrieval through the selected executable tool, synthetic verified bindings, and modern and legacy SDK clients. | Standalone installed authenticated hosts, recipient grants and independently reproduced native conformance. |
+| Source ingestion | Off. Digest-pinned UTF-8 and Markdown prepare canonical v2 installation inputs. | Current external rights, withdrawal and recovery evidence for real data. |
+
+See the [adapter guide](../../adapters/hxe1/README.md), [plan hardening](hxe-1-plan-hardening.md)
+and [verification receipt](2026-11-03-hxe1-implementation.md).
