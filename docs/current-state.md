@@ -141,7 +141,8 @@ physical erasure remain `blocked_unverified`, and release promotion remains
 `no_go`.
 See the [PI-7 operations runbook](platform-independence/pi-7-operations-runbook.md)
 and [verification ledger](platform-independence/pi-7-verification.json).
-PI-8 remains undelivered. The user-directed memory feature freeze stops at MEM-2:
+PI-8 has a local [audit candidate](platform-independence/pi-8-readiness-assessment.md) with independent acceptance pending and production release no-go.
+The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,

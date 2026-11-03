@@ -214,3 +214,8 @@ pi7-check: pi7-cloud-plan
 	bash -n infrastructure/gcp/deploy.sh
 	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
 	  $(PLATFORM_PYTHON) -E -s backend/scripts/pi2_http_checks.py -q backend/tests/test_pi7_operations.py backend/tests/test_deployment_script.py backend/tests/test_inference_execution.py backend/tests/test_litellm_gateway.py backend/tests/test_phase9_controls.py backend/tests/test_provider_usage.py backend/tests/test_retrieval_phase33.py
+
+.PHONY: pi8-check
+pi8-check:
+	$(PLATFORM_PYTHON) -I backend/scripts/pi8_check.py
+	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_pi8_check.py

@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 has a locally complete scripted offline evaluation and a closed 2026-11-02 remediation review with no further review required at the user's direction; production promotion remains no-go. PI-7 is a synthetic local operations candidate pending independent review. PI-8 remains undelivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 has a locally complete scripted offline evaluation and a closed 2026-11-02 remediation review with no further review required at the user's direction; production promotion remains no-go. PI-7 is a synthetic local operations candidate pending independent review. PI-8 has a local [audit candidate](pi-8-readiness-assessment.md) with independent acceptance pending and production release no-go. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -152,3 +152,9 @@ validation and simulated recovery have separate evidence classes. Hosted apply,
 account/provider caps and cost, deployed source/receipt authority, and native
 recovery and physical erasure remain blocked. PI-5/PI-6 gates and the MEM-2
 freeze continue to apply.
+
+## PI-8 readiness audit
+
+Use the [verification ledger](pi-8-verification.json), [implementation report](pi-8-implementation-report.md)
+and [independent review handoff](pi-8-independent-review-handoff.md).
+`make pi8-check` validates the dated audit and its input hashes.
