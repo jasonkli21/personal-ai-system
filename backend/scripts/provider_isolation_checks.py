@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 FILES = [
+    "test_local_inference.py", "test_real_task_evaluation.py", "test_retrieval_context.py",
     "test_inference_execution.py", "test_chat_stream_lifecycle.py", "test_context_provider.py",
     "test_context_authorization.py", "test_context_builder.py", "test_context_sources.py",
     "test_context_runtime_composition.py", "test_context.py", "test_memory_provider.py",

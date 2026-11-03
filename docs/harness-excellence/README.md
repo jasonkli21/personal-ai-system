@@ -45,6 +45,13 @@ does not establish egress fencing, server acceptance or trusted build origins.
   unavailable.
 
 
+## Private local inference
+
+See the [operator guide](local-inference.md) for the optional, private Unix
+socket profile, exact-token preparation, and the task experiment and trace
+command. The [verification receipt](2026-11-03-local-inference-verification.md)
+tracks the scoped evidence.
+
 ## MCP source adapter
 
 | Capability | Default and evidence | Before enablement |

@@ -30,10 +30,11 @@ from personal_ai.llm.preparation import prepare_bounded_input, require_matching_
 from personal_ai.routing.contracts import CountRequirement, EndpointCandidateRequirements
 from personal_ai.routing.registry import EndpointRegistryError
 from personal_ai.usage.accounting import unit_reservations
+from personal_ai.usage.trace import Event, Reason, State, emit
 
 PROFILE_VERSION = "pi3-execution-v1"
 # Code-reviewed installed factories only. Neither requests nor manifests extend this set.
-PROFILES = frozenset({"offline_fake", "offline_fake_alt", "legacy_gemini"})
+PROFILES = frozenset({"offline_fake", "offline_fake_alt", "legacy_gemini", "local_llama"})
 _send_authority: ContextVar[tuple | None] = ContextVar("pi3_send_authority", default=None)
 
 
@@ -81,7 +82,7 @@ class SendAccounting:
     def __getattr__(self, name):
         return getattr(self.ledger, name)
 
-    def reserve_attempt(self, invocation, attempt, *, max_attempts):
+    def check_send(self, invocation):
         authority = _send_authority.get()
         if authority is None:
             raise LLMInvalidRequestError("inference send authority is required")
@@ -94,6 +95,10 @@ class SendAccounting:
             or invocation.operation not in requirements.required_capabilities
         ):
             raise LLMInvalidRequestError("inference send authority mismatch")
+        return requirements
+
+    def reserve_attempt(self, invocation, attempt, *, max_attempts):
+        requirements = self.check_send(invocation)
         # Reserve the prepared bound, not the transport's character estimate. Count
         # operations reserve the entire approved input ceiling. Unknown outcomes
         # retain P19's existing conservative reservations.
@@ -109,14 +114,27 @@ class SendAccounting:
 
 
 class Admission:
-    def __init__(self, profile, usage, *, credential_getter=None, credential_fingerprint=None):
+    def __init__(self, profile, usage, *, credential_getter=None, credential_fingerprint=None, local=False):
         self.profile = profile
         self.usage = usage
         self.bound = None
+        self.local = local
         self.credential_getter = credential_getter
         self.credential_fingerprint = credential_fingerprint
 
     def check(self, requirements):
+        try:
+            current = self._check(requirements)
+        except Exception:
+            emit(
+                Event.ADMISSION, State.DENIED, reason=Reason.ENDPOINT_POLICY,
+                operation=next(iter(requirements.required_capabilities)),
+            )
+            raise
+        emit(Event.ADMISSION, State.OK, operation=next(iter(requirements.required_capabilities)))
+        return current
+
+    def _check(self, requirements):
         # A mutable Settings object can be rotated after composition. Do not
         # allow the endpoint facts captured for one credential to authorize a
         # later physical count/send using another value. Keep only a one-way
@@ -139,6 +157,17 @@ class Admission:
             exclude={"profile_version"}
         ) or (self.bound is not None and current.ref != self.bound):
             raise LLMInvalidConfigurationError("inference endpoint policy changed")
+        if self.local:
+            try:
+                registry.revalidate_explicit(
+                    current.ref, sensitivity=requirements.sensitivity,
+                    required_capabilities=requirements.required_capabilities,
+                    credential_runtime="none", model_discovery="configured",
+                )
+            except EndpointRegistryError:
+                raise LLMInvalidConfigurationError("local inference endpoint is not admissible") from None
+            self.bound = current.ref
+            return current
         try:
             registry.revalidate_selected(current.ref, requirements)
         except EndpointRegistryError:
@@ -187,7 +216,9 @@ class SelectedCounter:
         self.capabilities.require("token_counting")
         kwargs = {"response_schema": response_schema, "inference_context": inference_context}
         if self.admission is None:
-            return self.delegate.count(messages, **kwargs)
+            result = self.delegate.count(messages, **kwargs)
+            emit(Event.COUNT, State.OK, input_tokens=result.tokens, units="fake_bytes")
+            return result
         profile = self.admission.profile
         schema_id = schema_identity(response_schema)
         requirements = EndpointCandidateRequirements(
@@ -197,7 +228,9 @@ class SelectedCounter:
             count=CountRequirement(structured_schema_id=schema_id),
         )
         with self.admission.authorize(requirements):
-            return self.delegate.count_with_timeout(messages, timeout_seconds, **kwargs)
+            result = self.delegate.count_with_timeout(messages, timeout_seconds, **kwargs)
+        emit(Event.COUNT, State.OK, input_tokens=result.tokens, units="reported")
+        return result
 
 
 class SelectedGeneration:
@@ -239,18 +272,19 @@ class SelectedGeneration:
             timeout_seconds=timeout_seconds, response_schema=schema,
             inference_context=inference_context,
         )
-        return requirements.model_copy(update={"input_tokens": prepared.token_count.tokens})
+        return requirements.model_copy(update={"input_tokens": prepared.token_count.tokens}), prepared
 
     async def stream_events(self, messages, *, max_output_tokens, timeout_seconds, inference_context=None):
         start = monotonic()
-        requirements = await anyio.to_thread.run_sync(partial(
+        requirements, prepared = await anyio.to_thread.run_sync(partial(
             self._prepare, messages, "streaming", max_output_tokens, timeout_seconds, inference_context
         ))
         revalidate_disclosure()
+        extra = {"prepared_input": prepared} if getattr(self.delegate, "uses_prepared_input", False) else {}
         iterator = self.delegate.stream_events(
             messages, max_output_tokens=max_output_tokens,
             timeout_seconds=max(0, timeout_seconds - (monotonic() - start)),
-            inference_context=inference_context,
+            inference_context=inference_context, **extra,
         )
         try:
             while True:
@@ -279,7 +313,7 @@ class SelectedGeneration:
     def _complete(self, messages, *, max_output_tokens, timeout_seconds, inference_context=None, response_schema=None):
         start = monotonic()
         operation = "structured_generation" if response_schema is not None else "bounded_generation"
-        requirements = self._prepare(
+        requirements, prepared = self._prepare(
             messages, operation, max_output_tokens, timeout_seconds, inference_context, response_schema
         )
         kwargs = {
@@ -288,6 +322,8 @@ class SelectedGeneration:
             "inference_context": inference_context,
         }
         revalidate_disclosure()
+        if getattr(self.delegate, "uses_prepared_input", False):
+            kwargs["prepared_input"] = prepared
         method = self.delegate.complete
         if response_schema is not None:
             method = self.delegate.generate_structured
@@ -316,7 +352,7 @@ class ExecutionPair:
 
 def compose_pair(settings, usage=None, *, profile=None):
     selected = profile or settings.inference_profile
-    if settings.inference_cost_mode not in {"offline_fake", "strict_free"}:
+    if settings.inference_cost_mode not in {"offline_fake", "strict_free", "local_only"}:
         raise LLMInvalidConfigurationError("paid dispatch requires enforceable monetary admission")
     if selected not in PROFILES:
         raise LLMInvalidConfigurationError("selected profile has no approved matching counter")
@@ -331,6 +367,22 @@ def compose_pair(settings, usage=None, *, profile=None):
             generator.identity.provider_id, generator.identity.model_id, "pi3-local-json-bytes-v1"
         )
         counter = LocalFakeCounter(generator.identity)
+    elif selected == "local_llama":
+        from personal_ai.llm.local_endpoint import LocalEndpoint, local_profile
+
+        if usage is None or getattr(usage, "endpoint_profile_resolver", None) is None:
+            raise LLMInvalidConfigurationError("canonical inference accounting is required")
+        configured = local_profile(settings)
+        registry = usage.endpoint_profile_resolver.endpoint_registry
+        current = next((item for item in registry.refresh().profiles if item.endpoint_profile_id ==
+                        configured.endpoint_profile_id), None)
+        if current is None or current.model_dump(exclude={"profile_version"}) != configured.model_dump(
+            exclude={"profile_version"}
+        ):
+            raise LLMInvalidConfigurationError("local inference registry configuration mismatch")
+        admission = Admission(current, usage, local=True)
+        admission.bound = current.ref
+        generator = counter = LocalEndpoint(settings, current, SendAccounting(usage))
     else:
         if settings.inference_cost_mode != "strict_free" or settings.ai_provider.lower() != "gemini":
             raise LLMInvalidConfigurationError("legacy profile requires explicit Gemini strict-free selection")

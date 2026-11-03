@@ -5,6 +5,12 @@ JSON fixtures live under `fixtures/<area>/`; output schemas live under `schemas/
 exercise services through synthetic inputs and do not establish provider, cloud, or deployment
 behavior.
 
+`make real-task-eval` runs a separate 12-case synthetic chat experiment across
+direct, selected and eligible history. The digest-pinned corpus covers grounded
+QA, coding continuity, multi-step research and safe denial. Scripted output
+establishes E1 plumbing only. An opt-in local mode uses the same driver and
+exports a content-free trace. See the [operator guide](../../../../docs/harness-excellence/local-inference.md).
+
 memory benchmark adds `make memory-task-eval`: the active v2 corpus has 30 synthetic cases,
 four historical-context arms, action-specific causal traces, keyed effect
 observations, exact diagnostic-derived support, and actual fixed memory

@@ -11,6 +11,7 @@ from uuid import uuid5
 
 import anyio
 
+from personal_ai.llm.client import UsageMetadata
 from personal_ai.llm.metadata import ProviderRateLimitMetadata
 from personal_ai.usage.accounting import new_invocation, unit_reservations
 from personal_ai.usage.context import current_usage_context
@@ -148,10 +149,12 @@ class AsyncProviderCall:
         http_status: int | None = None,
         error_code: str | None = None,
         rate_limits: ProviderRateLimitMetadata | None = None,
-    ) -> None:
+        usage: UsageMetadata | None = None,
+    ) -> bool:
         if self.finalized:
-            return
+            return False
         self.finalized = True
+        recorded = True
         completed_at = datetime.now(UTC)
         if self.attempt is not None:
             latency = int(max(0, monotonic() - (self.started_monotonic or monotonic())) * 1000)
@@ -161,8 +164,11 @@ class AsyncProviderCall:
                 latency_ms=latency,
                 http_status=http_status,
                 error_code=error_code,
-                usage_source="unknown",
-                usage_confidence="unknown",
+                input_tokens=usage.input_tokens if usage else None,
+                output_tokens=usage.output_tokens if usage else None,
+                total_tokens=usage.total_tokens if usage else None,
+                usage_source=usage.source if usage else "unknown",
+                usage_confidence=("exact" if usage.source == "provider" else "derived") if usage else "unknown",
                 rate_limits=rate_limits,
             )
             try:
@@ -172,6 +178,7 @@ class AsyncProviderCall:
                     )
                 )
             except Exception as error:  # noqa: BLE001 - unresolved reserve fences replay
+                recorded = False
                 logger.info(
                     "provider_usage_settlement_pending attempt_id=%s error_class=%s",
                     self.attempt.attempt_id,
@@ -184,8 +191,10 @@ class AsyncProviderCall:
                 )
             )
         except Exception as error:  # noqa: BLE001 - provider result remains unchanged
+            recorded = False
             logger.info(
                 "provider_usage_invocation_completion_pending invocation_id=%s error_class=%s",
                 self.invocation.invocation_id,
                 type(error).__name__,
             )
+        return recorded

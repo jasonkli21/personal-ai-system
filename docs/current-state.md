@@ -169,6 +169,14 @@ acceptance remain open.
 
 ## Harness excellence
 
+The optional [private local inference](harness-excellence/local-inference.md)
+development profile uses a single operator-approved llama.cpp Unix socket,
+exact prepared token IDs and canonical usage reservations. The additive
+synthetic task experiment and privacy-safe trace are local development evidence.
+E2 real-model utility remains open, hosted candidates remain blocked, and the
+frozen planning and PI-6 locks reject the changed runtime source identity.
+See the [dated evidence](harness-excellence/2026-11-03-local-inference-verification.md).
+
 The optional read-only MCP source adapter is a **PARTIAL E1** synthetic development pilot. It
 covers bounded stdio and socket-free Streamable HTTP, scoped local PI-5 tool
 disclosure and digest-pinned text preparation. The remediation adds a separately

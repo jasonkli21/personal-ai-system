@@ -25,6 +25,10 @@ naming-policy-check:
 	$(PLATFORM_PYTHON) -I backend/scripts/naming_policy_check.py
 	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_naming_policy_check.py
 
+.PHONY: real-task-eval
+real-task-eval:
+	$(PLATFORM_PYTHON) -m personal_ai.evaluation.real_tasks $(REAL_TASK_FLAGS)
+
 integrated-verification:
 
 	cd backend && python -m personal_ai.evaluation.verification

@@ -19,8 +19,8 @@ from pydantic import (
 )
 
 Sensitivity = Literal["public", "personal", "sensitive", "restricted"]
-ExecutionMode = Literal["STRICT_FREE", "EXPLICIT_BYOK", "CHATGPT_PLAN"]
-CostClass = Literal["VERIFIED_FREE", "USER_BILLED", "SUBSCRIPTION", "UNKNOWN"]
+ExecutionMode = Literal["STRICT_FREE", "EXPLICIT_BYOK", "CHATGPT_PLAN", "LOCAL_ONLY"]
+CostClass = Literal["VERIFIED_FREE", "USER_BILLED", "SUBSCRIPTION", "UNKNOWN", "LOCAL_NO_CHARGE"]
 CounterConfidence = Literal["authoritative", "reported", "estimated", "unknown"]
 EndpointOperation = Literal[
     "streaming",
@@ -343,6 +343,8 @@ class EndpointProfile(_FrozenContract):
 
     @model_validator(mode="after")
     def validate_profile_contract(self) -> EndpointProfile:
+        if (self.execution_mode == "LOCAL_ONLY") != (self.cost_class == "LOCAL_NO_CHARGE"):
+            raise ValueError("local_execution_cost_mismatch")
         if self.execution_mode == "CHATGPT_PLAN":
             required = ProviderAccessPolicy(
                 auth_mode="oauth_public_client",

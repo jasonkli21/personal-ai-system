@@ -83,3 +83,11 @@ Rollback: stop/drain new sends; disable the selected profile or select a separat
 approved compatible legacy endpoint. Reconcile original continuation/task keys;
 retain unknown reservations, messages/branches, receipts, source fences and vector
 identities. Never reinterpret an uncertain send as a reason to generate a new key.
+
+## Private local inference
+
+The `local_llama` profile is an explicit development-only option. The
+[operator guide](../../../../docs/harness-excellence/local-inference.md) covers
+private socket setup, the pinned native protocol, conservative usage limits,
+and the synthetic evaluation command. The default inference profile remains
+`offline_fake`.

@@ -3,6 +3,8 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+from personal_ai.usage.trace import Event, Reason, State, emit
+
 _guard: ContextVar[object] = ContextVar("inference_disclosure_guard", default=None)
 
 
@@ -13,7 +15,12 @@ def bind_disclosure_guard(guard):
     def combined():
         if outer is not None:
             outer()
-        guard()
+        try:
+            guard()
+        except Exception:
+            emit(Event.SOURCE, State.DENIED, reason=Reason.SOURCE_AUTHORITY)
+            raise
+        emit(Event.SOURCE, State.OK)
 
     token = _guard.set(combined)
     try:

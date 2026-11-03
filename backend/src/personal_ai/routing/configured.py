@@ -22,6 +22,10 @@ def build_initial_endpoint_profiles(settings: Settings) -> tuple[EndpointProfile
     operator evidence references; secret values never cross this boundary.
     """
     profiles: list[EndpointProfile] = []
+    if settings.inference_profile == "local_llama":
+        from personal_ai.llm.local_endpoint import local_profile
+
+        profiles.append(local_profile(settings))
     if settings.ai_provider.lower() == "gemini":
         profiles.append(_gemini_profile(settings))
         profiles.append(_gemini_embedding_profile(settings))

@@ -74,6 +74,7 @@ from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 from personal_ai.usage.context import bind_usage_task
+from personal_ai.usage.trace import Event, Reason, State, emit
 
 logger = logging.getLogger(__name__)
 
@@ -602,6 +603,7 @@ class ChatTurnService:
                 requested = set(candidate_message_ids)
                 eligible = complete_turns(history_for_context)
                 if requested - {m.id for pair in eligible for m in pair}:
+                    emit(Event.SOURCE, State.DENIED, reason=Reason.SOURCE_SCOPE)
                     raise ContextPreparationError("continuation_source_not_active_completed")
                 history_for_context = [
                     m for pair in eligible if any(m.id in requested for m in pair) for m in pair
@@ -720,6 +722,14 @@ class ChatTurnService:
                     ),
                 )
                 revalidate_preparation()
+                emit(
+                    Event.CONTEXT, State.OK, input_tokens=assembled.budget.selected_total,
+                    source_count=len(assembled.source_items),
+                    source_refs=(
+                        tuple(item.item_id for item in assembled.source_items[:32])
+                        + assembled.selected_message_ids[:32]
+                    ),
+                )
             remaining(deadline)
             assistant_id = assistant_id or uuid4()
             if self._context_traces is not None:

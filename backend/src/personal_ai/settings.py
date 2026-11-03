@@ -77,16 +77,20 @@ class Settings(BaseSettings):
     ai_model: str = Field(min_length=1)
     # Operator-only, closed catalog. No HTTP/provider-name override is accepted.
     inference_profile: Literal[
-        "offline_fake", "offline_fake_alt", "legacy_gemini", "groq", "cloudflare_workers_ai"
+        "offline_fake", "offline_fake_alt", "legacy_gemini", "local_llama", "groq", "cloudflare_workers_ai"
     ] = "offline_fake"
     inference_cost_mode: Literal[
-        "offline_fake", "strict_free", "mostly_free_opt_in", "explicit_paid"
+        "offline_fake", "strict_free", "local_only", "mostly_free_opt_in", "explicit_paid"
     ] = "offline_fake"
     inference_summary_profile: Literal[
         "disabled", "offline_fake", "offline_fake_alt", "legacy_gemini"
     ] = "disabled"
     inference_extraction_profile: Literal["disabled", "legacy_gemini"] = "disabled"
     inference_embedding_profile: Literal["disabled", "legacy_gemini"] = "disabled"
+    local_llama_socket: str = Field(default="", max_length=100)
+    local_llama_model_sha256: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
+    local_llama_build: str = Field(default="", pattern=r"^(?:b[0-9]+-[a-f0-9]{7,40})?$")
+    local_llama_approval: str = Field(default="", pattern=r"^[A-Za-z0-9._:/-]{0,160}$")
     ai_api_key: SecretStr = Field(default=SecretStr(""))
     routing_shadow_enabled: bool = False
     routing_shadow_artifact: dict[str, object] = Field(default_factory=dict, max_length=16)
