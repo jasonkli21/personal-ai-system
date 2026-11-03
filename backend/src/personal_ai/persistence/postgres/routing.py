@@ -35,7 +35,7 @@ _RECORD_ID = "endpoint-registry-v1"
 
 
 class PostgresEndpointRegistryRepository:
-    """CAS-persisted registry snapshots using the Phase 10 Postgres boundary."""
+    """CAS-persisted registry snapshots using the persistence boundary Postgres boundary."""
 
     def __init__(self, database: PostgresDatabase) -> None:
         self.database = database

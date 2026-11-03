@@ -89,7 +89,7 @@ class DeterministicScoringStrategy:
 
 class QuotaAwareDeterministicStrategy:
     tie_break_version = "score-then-endpoint-id-version-ascending-v1"
-    """Deterministic scarcity ranking over Phase 19's frozen decision facts.
+    """Deterministic scarcity ranking over provider usage's frozen decision facts.
 
     Capacity is converted to equivalent sends of the current operation before
     scoring, so request, token, neuron, and other declared units are never

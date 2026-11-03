@@ -225,7 +225,7 @@ export default function DomainWorkbench({ domain, adapter }: { domain: DomainId;
 
   return <main className={styles.shell}>
     <header className={styles.intro}>
-      <p className={styles.eyebrow}>Phase 7 · evidence-based comparison</p>
+      <p className={styles.eyebrow}>Evidence-based comparison</p>
       <h1>{heading}</h1>
       <p>Compare sourced candidates against visible requirements. Current prices, stock, opening hours, and travel details can change; the saved observation times and source links stay attached to each fact.</p>
     </header>

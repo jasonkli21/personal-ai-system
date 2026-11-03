@@ -1025,17 +1025,17 @@ def test_v27_pi6_review_rebind_preserves_v26_and_non_promotion():
     assert current["promotion_decision"].startswith("non_promotion")
 
 
-def test_v28_is_preserved_and_v29_binds_remediation_source():
+def test_v29_is_preserved_and_v30_binds_naming_cleanup_source():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V28_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V29_FREEZE_PATH.read_text())
     identity = planning.freeze_identity()
     assert current["baseline_lock_version"] == identity["baseline_lock_version"]
-    assert current["baseline_lock_version"] == "planning-baseline-lock-v29"
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v30"
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["source_revision"] == "9c90c1d844e9126cb494f286e5f0f80e4be9a6a0"
+    assert current["source_revision"] == "55eae00e5efbcce5e7a5eee4e4b2330292c9846c"
     assert current["source_identity_digest"] == identity["source_identity_digest"]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
-    assert previous["baseline_lock_version"] == "planning-baseline-lock-v28"
+    assert previous["baseline_lock_version"] == "planning-baseline-lock-v29"
     for field in (
         "baseline_version",
         "configuration_digest",

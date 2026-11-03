@@ -111,7 +111,7 @@ class ReceiptStatus:
 
 
 class ChatGPTPlanBridge(Protocol):
-    """Consume a prepared signed package, return only Phase 16 normalized events."""
+    """Consume a prepared signed package, return only normalized local events normalized events."""
 
     def execute(
         self,

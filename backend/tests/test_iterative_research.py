@@ -1,4 +1,4 @@
-"""End-to-end Phase 8 state-machine, fencing, and restart tests."""
+"""End-to-end iterative research state-machine, fencing, and restart tests."""
 
 import asyncio
 from datetime import UTC, datetime, timedelta
@@ -215,7 +215,7 @@ async def test_followup_has_parent_gap_domain_fence_and_deduplicates_repeats():
     final, _ = await execute(service, request("Synthetic Widget price?", decision_intent=intent))
     run, session = await service.detail(final.id)
 
-    assert run.state == RunState.INSUFFICIENT  # plain snippets cannot become Phase 6 claims
+    assert run.state == RunState.INSUFFICIENT  # plain snippets cannot become decision service claims
     assert run.decision_state == "research_needed"
     assert len(adapter.calls) == 2  # the deterministic third plan is a repeated query and is suppressed
     assert len(session.queries) == 2
@@ -707,7 +707,7 @@ async def test_expired_citations_are_withheld_after_synthesis():
 
 
 @pytest.mark.anyio
-async def test_cancelled_pending_backing_session_cannot_be_started_by_phase5():
+async def test_cancelled_pending_backing_session_cannot_be_started_by_research():
     service, _, _, sessions, _ = build_service()
     run = await service.create(request())
     session = await service.session(run.id)

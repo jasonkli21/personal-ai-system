@@ -1,4 +1,4 @@
-"""Offline contract tests for the Phase 1 conversation repositories."""
+"""Offline contract tests for the conversation API conversation repositories."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import UUID

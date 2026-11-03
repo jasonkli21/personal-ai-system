@@ -746,7 +746,7 @@ def test_phase_five_research_citations_carry_through_the_domain_comparison():
     assert result.comparison.state == "recommended"
     assert result.provider_observations[0].provider == "fake"
     assert total_price.sources[0].url == "https://example.org/hotel"
-    assert total_price.sources[0].attribution.startswith("Source observed through Phase 5")
+    assert total_price.sources[0].attribution.startswith("Observed from ")
 
 
 def test_brave_domain_sources_require_explicit_storage_rights_gate():

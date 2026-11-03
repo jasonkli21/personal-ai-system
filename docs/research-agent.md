@@ -1,68 +1,36 @@
-# Research-agent model
+# Research, evidence, and decisions
 
-The system is one reusable AI/research substrate. Thin travel and shopping
-intelligence may reuse its capabilities. Future separate applications may own
-authoritative domain records, business rules, and rich UI without forking the
-core research or memory behavior.
+The research service runs a bounded search over configured sources and records
+expiring observations with citations. A research session preserves queries,
+attempts, selected evidence, and the answer under owner scope. It does not make
+domain records authoritative or turn observations into durable memory.
 
-## Delivered Phase 5 boundary
+Decision support accepts validated candidate proposals and attributed evidence.
+It verifies ownership, source, excerpt fingerprints, and freshness; resolves
+entities conservatively; applies hard constraints before preference ranking;
+and stores a decision snapshot with cited results. Decisions do not initiate
+searches.
 
-The gated standalone research request performs one bounded pass over Brave
-search-result snippets, preserves expiring source observations, and returns
-validated literal excerpts with citations. It runs in the direct request/SSE
-path, without chat history, memory hints, publisher-page fetches, entity
-resolution, recommendations, or Pub/Sub research jobs. See the
-[Phase 5 guide](phase-5-implementation-guide.md) and
-[release record](releases/phase-5-source-grounded-research.md).
+Iterative research is an opt-in bounded workflow. It identifies an evidence gap,
+issues a focused follow-up, reuses the same evidence and decision services, and
+stops under an immutable budget. It remains separate from the single-pass
+default and does not run in the background. See the [iterative research design](decisions/0016-bounded-iterative-research.md)
+and [historical implementation guide](phase-8-implementation-guide.md).
 
-## Delivered Phase 6 decision flow
+## Boundaries
 
-Phase 6 consumes the bounded Phase 5 result or other explicitly supplied,
-validated evidence. It does not plan or run new searches as part of a decision.
-The current flow is:
+- Search adapters return source-native results; they do not choose a
+  recommendation.
+- Evidence retains source identity, observation time, expiry, and citation
+  dependencies.
+- Entity resolution requires stable identifiers or sufficiently supported
+  fresh attributes. Name similarity alone cannot select an entity.
+- Application code evaluates executable constraints before ranking eligible
+  candidates.
+- Presentation uses persisted results and source links; it does not add
+  model-written factual claims.
+- Memory-derived preferences are not part of decision ranking.
 
-```text
-validated candidate proposals and evidence
-  -> owner, source, excerpt-fingerprint, and freshness checks
-  -> conservative canonical entity resolution
-  -> immutable claims and conflict/completeness status
-  -> deterministic hard constraints
-  -> preference ranking of eligible candidates
-  -> persisted decision snapshot and cited result view
-```
-
-Phase 8 now adds a separate opt-in bounded loop: assess a named evidence gap,
-create a schema-validated focused follow-up, preserve the Phase 5 provenance,
-re-evaluate explicit decisions through the shared Phase 6 service, and stop
-under an immutable budget. It does not run in the background or change the
-single-pass default. See the [Phase 8 guide](phase-8-implementation-guide.md),
-[plan](phase-8-implementation-plan.md), and
-[release evidence](releases/phase-8-iterative-research.md).
-
-## Shared platform contracts
-
-- **Search adapters** return source-native results; they do not decide recommendations.
-- **Evidence** preserves source URL or provider identity, observation time, and expiry. Phase 6 links claims to these observations without converting them into permanent entity facts.
-- **Entity resolution** accepts unique stable identifiers or a sufficiently supported fresh attribute match; name similarity alone cannot select an entity.
-- **Constraints** are executable requirements such as a budget cap, dates, availability, or dimensions. Application code evaluates them deterministically before ranking.
-- **Ranking** scores explicit preferences only for eligible candidates. Memory-derived preference integration is not part of Phase 6.
-- **Presentation** uses persisted results and source links. It does not add model-written factual claims or elevate prior recommendations into facts.
-
-## Domain modules
-
-`domains/travel` may eventually supply research schemas, adapters, and ranking
-features for places, neighborhoods, hotels, flights, and restaurants;
-`domains/shopping` may do the same for products, merchants, offers,
-specifications, and reviews. An external travel or shopping application owns
-its editable itinerary or purchase state. The core returns attributed research
-candidates and decision support for that application to validate and use.
-
-## Evaluation questions
-
-The scaffold anticipates evaluations such as:
-
-- Does retrieved memory improve a recommendation without overriding current constraints?
-- Are expired prices or availability excluded from an answer?
-- Do variants from different sources resolve to the same entity correctly?
-- Does the ranking satisfy hard constraints before optimizing preferences?
-- Can the agent identify an evidence gap and issue a focused follow-up search?
+Domain applications keep authoritative records and rules. They may validate and
+use attributed research candidates, but the shared service does not own their
+editable itineraries, purchases, or other domain state.

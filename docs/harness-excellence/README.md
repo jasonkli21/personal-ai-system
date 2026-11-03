@@ -16,14 +16,14 @@ approved real-provider or real-source evidence. E4 covers deployed recovery,
 deletion and cost. E5 measures longitudinal utility. An installed client smoke
 does not establish egress fencing, server acceptance or trusted build origins.
 
-| Capability and owner | Public seam and default | HXE-0 evidence and threat tested | Before enablement |
+| Capability and owner | Public seam and default | Local evidence and threat tested | Before enablement |
 | --- | --- | --- | --- |
 | Auth, API and SDK | Provisional consumer v1.2.0. Verified app binding required | E1 generated spec, signed Checklist ASGI and client parser. Spoofed actor, owner, client, workspace and app, ambiguous terminal and changed-body retry | Independently installed signed HTTP, trusted provenance and deployed identity |
 | Trusted host catalog | Operator-selected `personal_ai.extensions.v1`. Checklist opt-in, history only | E1 registered Checklist fixture. Membership and exact client binding evaluated independently | Reviewed installation, issuer and workspace configuration |
 | Provider composition, P19 usage | Internal neutral ports, offline profiles available only by explicit selection | E1 `test_inference_execution.py`. Alternate fake, exact count, strict-free and P19 denial before send | Actual account/counter/cap proof, native multi-worker reservation |
-| PI-5 retrieval and read-only tools | Exact v1 retrieval and tool operations, default off | E1 `test_pi5_retrieval.py` and `test_pi5_context.py`. No implicit source grant, revocation, expiry, stale revision, poison text and closed effects | Trusted issuer, operation-specific rights, send/revoke atomicity |
+| Retrieval and read-only tools | Exact v1 retrieval and tool operations, default off | E1 `test_retrieval_integrations.py` and `test_retrieval_context.py`. No implicit source grant, revocation, expiry, stale revision, poison text and closed effects | Trusted issuer, operation-specific rights, send/revoke atomicity |
 | Retained dependency checks | Canonical history/detail/replay, controlled export | E1 `test_retained_output_detail_replay_history_and_export_deny`. Stale derived data withheld | Legacy provenance and deployed withdrawal across sinks |
-| Governed memory | MEM-1/2 ports and first-party controls, default off. Checklist unavailable | E1 `test_memory_knowledge.py`, `test_memory_control_api.py` and `test_memory_control_context.py`. Default-off, actor/owner/project/source and forget | MEM-2 acceptance and native issuer, restore and erasure |
+| Governed memory | Project knowledge and first-party controls, default off. Checklist unavailable | E1 `test_memory_knowledge.py`, `test_memory_control_api.py` and `test_memory_control_context.py`. Default-off, actor/owner/project/source and forget | Independent acceptance and native issuer, restore and erasure |
 | Canonical attempts | Scoped original-key continuation and status. Future run lifecycle internal | E1 Checklist replay with one fake dispatch, incomplete SDK observations | Native restore and independently monotonic key/forget authority |
 | Packaging and diagnostics | SDK and app offline build, CLI preflight | E2 isolated SDK/app install and local CLI smoke. E0 redacted configuration | Origin-pinned wheelhouse, native-fenced installed server and independent review |
 
@@ -34,7 +34,7 @@ does not establish egress fencing, server acceptance or trusted build origins.
   Each fake profile exercises the shared assembler. Strict-free rejection and P19
   reservation are exercised through the existing admission tests in the same file.
 - Source and tool canary starts with the synthetic `access`, `document` and
-  `install` fixtures in [PI-5 retrieval tests](../../backend/tests/test_pi5_retrieval.py).
+  `install` fixtures in [retrieval integration tests](../../backend/tests/test_retrieval_integrations.py).
   Use exact issuer, actor, workspace, purpose, revision and expiry. The
   [operator retrieval contract](../platform-independence/retrieval-v1.md) defines
   the read-only registry and on-disk schema. Start with synthetic excerpts and
@@ -45,13 +45,13 @@ does not establish egress fencing, server acceptance or trusted build origins.
   unavailable.
 
 
-## HXE-1
+## MCP source adapter
 
 | Capability | Default and evidence | Before enablement |
 | --- | --- | --- |
 | Outbound MCP fixture | Off. Bounded stdio and in-process Streamable HTTP use the pinned SDK and an exact issuer/document registration. | Verified remote transport, trusted issuer, per-attempt physical-send permit and P19 eligibility. |
-| Inbound retrieval | Off. Local PI-5 retrieval through the selected executable tool, synthetic verified bindings, and modern and legacy SDK clients. | Standalone installed authenticated hosts, recipient grants and independently reproduced native conformance. |
+| Inbound retrieval | Off. Local retrieval through the selected executable tool, synthetic verified bindings, and modern and legacy SDK clients. | Standalone installed authenticated hosts, recipient grants and independently reproduced native conformance. |
 | Source ingestion | Off. Digest-pinned UTF-8 and Markdown prepare canonical v2 installation inputs. | Current external rights, withdrawal and recovery evidence for real data. |
 
-See the [adapter guide](../../adapters/hxe1/README.md), [plan hardening](hxe-1-plan-hardening.md)
+See the [adapter guide](../../adapters/mcp_source/README.md), [plan hardening](hxe-1-plan-hardening.md)
 and [verification receipt](2026-11-03-hxe1-implementation.md).

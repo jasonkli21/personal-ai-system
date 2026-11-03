@@ -1,4 +1,4 @@
-"""Phase 11 typed source admission and synthetic provider fixtures."""
+"""profile policy typed source admission and synthetic provider fixtures."""
 
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -1733,7 +1733,7 @@ def test_assembler_passes_overall_deadline_to_source_and_profile_caps_sql_deadli
         deadline=cap,
     )
     assert result.failures[0].reason == "empty"
-    assert repository.deadline is None  # PI-4 gate denies before even reading storage.
+    assert repository.deadline is None  # profile consent gate denies before even reading storage.
 
 
 def test_profile_is_sparse_user_set_and_shared_per_field_before_disclosure(monkeypatch):

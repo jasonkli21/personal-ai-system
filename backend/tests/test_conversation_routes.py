@@ -1,4 +1,4 @@
-"""Route tests for the Phase 1 conversation surface."""
+"""Route tests for the conversation API conversation surface."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime

@@ -15,3 +15,7 @@ Routes and UI stay thin; services and domain modules own behavior. Keep provider
 Put user-facing setup and behavior in the root or owning package README; contracts in `docs/`; current implementation status and verification changes in `docs/current-state.md` and dated evidence; design rationale in an accepted ADR. Keep historical plans historical. Do not append implementation notes to the root README.
 
 Use focused pull requests with a clear summary, rationale, relevant tests, and known limitations. No special support or response-time commitment is offered.
+
+## Naming
+
+Use enduring capability and behavior names in active production code, tests, public developer commands, current module READMEs, and user-visible strings. Keep implementation-phase IDs in historical plans and reports or in verified immutable/persisted compatibility identifiers only. Comments should explain the invariant or reason; tests should name the behavior they protect.

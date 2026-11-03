@@ -1,6 +1,6 @@
 # Reading Logbook independent consumer
 
-PI-2 candidate. Books/notes and the operation journal live in local SQLite. The
+Books, notes and the operation journal live in local SQLite. The
 client has **zero runtime dependencies**, uses only HTTP, and imports neither
 platform nor reference code. The separate host distribution runs trusted server
 code and imports only `personal_ai.extensions.v1`.
@@ -10,11 +10,11 @@ code and imports only `personal_ai.extensions.v1`.
 With the root README's existing build dependencies installed:
 
 ```sh
-UV_OFFLINE=true UV_CACHE_DIR=/tmp/pi2-uv-cache make pi2-check
+UV_OFFLINE=true UV_CACHE_DIR=/tmp/consumer-uv-cache make consumer-contract-check
 ```
 
 This builds core/reference/client/host wheels **from their sdists**, inspects
-metadata/members, exercises PI-1 profiles, then installs the fifth host/client
+metadata/members, exercises profile isolation, then installs the host/client
 outside checkout with references physically absent and `PYTHONPATH` unset. A
 separate client-only interpreter runs the CLI over real loopback HTTP. Synthetic
 Google-style JWTs exercise real Google signature/issuer/audience/time verification
@@ -120,9 +120,9 @@ Retain platform messages/scopes, local journal, task receipts/fingerprints and
 source tombstones; no schema migration or data rekeying is needed. Missing
 historical task reconcilers still refuse startup. Local synthetic results do not
 establish native DB/process crash durability, real identity/IAM, providers or
-independent acceptance. No automatic PI-3+ or memory promotion follows.
+independent acceptance. No automatic capability promotion or memory promotion follows.
 
-## PI-4 optional profile recipient
+## Optional profile sharing
 
 The host remains history-only by default. `READING_LOGBOOK_PROFILE_ENABLED=true`
 adds the existing `global_profile` disclosure policy to its manifest; it installs
@@ -142,7 +142,7 @@ original journal key after a denied or uncertain replay. Past provider sends
 cannot be recalled. Browser controls and production acceptance remain unverified.
 
 
-## Optional standalone retrieval (PI-5 candidate)
+## Optional standalone retrieval
 
 The dependency-free client supports `retrieve QUERY --key UUID [--tool] [--external]`
 and `PlatformClient.retrieve`. The server must opt into retrieval and install exact
@@ -154,7 +154,7 @@ attempt. Synthetic/mock provider checks are labeled; live Brave is not approved.
 See [the wire/operator contract](../../docs/platform-independence/retrieval-v1.md).
 
 
-The optional PI-5 completion candidate also accepts `retrieval_context: true` in
+The optional retrieval context also accepts `retrieval_context: true` in
 the original continuation body passed to `PlatformClient.ask`. Enable
 `READING_LOGBOOK_RETRIEVAL_CONTEXT_ENABLED=true` on the trusted host and the
 server's separate `RETRIEVAL_CONTEXT_ENABLED` gate, with exact model-context

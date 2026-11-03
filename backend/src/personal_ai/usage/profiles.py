@@ -1,4 +1,4 @@
-"""Resolve configured, secret-free Phase 18 profiles for accounting."""
+"""Resolve configured, secret-free usage accounting profiles for accounting."""
 
 from threading import Lock
 

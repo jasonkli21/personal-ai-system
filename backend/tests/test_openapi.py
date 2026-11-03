@@ -14,7 +14,7 @@ def test_openapi_documents_health_response() -> None:
 
 
 def test_openapi_documents_non_streaming_conversation_routes() -> None:
-    """The generated schema exposes the documented Phase 1 route contracts."""
+    """The generated schema exposes the documented conversation API route contracts."""
     schema = TestClient(app).get("/openapi.json").json()
 
     routes = schema["paths"]

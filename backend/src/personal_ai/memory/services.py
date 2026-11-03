@@ -645,7 +645,7 @@ class MemoryRetriever:
                     excluded.append((m.id, reason))
                 else:
                     valid.append(scored)
-            # Fixed ordering exactly preserves Phase 3's similarity-band policy.
+            # Fixed ordering exactly preserves memory extraction's similarity-band policy.
             valid.sort(
                 key=lambda s: (
                     -math.floor(s.similarity / 0.05 + 1e-8),

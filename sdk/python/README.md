@@ -8,7 +8,7 @@ required except for explicitly opted-in numeric loopback test endpoints.
 Timeouts bound socket waits, and the client caps request, response, event and
 stream sizes. It disables redirects and ambient proxy configuration.
 
-Use `UV_OFFLINE=1 make hxe0-installed-check` from the repository root with the
+Use `UV_OFFLINE=1 make sdk-install-check` from the repository root with the
 prepared backend build environment. The wheel is independently installable.
 The sdist uses the pinned build backend in `pyproject.toml`.
 

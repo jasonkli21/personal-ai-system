@@ -933,7 +933,7 @@ class RoutingDecisionService:
 
         Callback must perform one send and return (value, neutral AttemptResult).
         Any exception keeps conservative unknown accounting and closes no success.
-        Application workflows remain gated on Phase 15; there is no HTTP route.
+        Application workflows remain gated on membership and revocation policy; there is no HTTP route.
         """
         with self.observations.transaction(owner_id=owner_id) as c:
             record = self.observations.get_in_transaction(

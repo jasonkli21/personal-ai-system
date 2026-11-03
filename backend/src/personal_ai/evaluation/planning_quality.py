@@ -1,4 +1,4 @@
-"""Phase 22 task-quality adapter for outputs bound to assembled planning context."""
+"""task-quality scoring task-quality adapter for outputs bound to assembled planning context."""
 
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def measure_planning_answer(
 ) -> PlanningAnswerQualityEvidence:
     """Score an observed answer against only evidence injected in this assembled input.
 
-    ``source_bindings`` is request-local and maps Phase 22 fixture source IDs to
+    ``source_bindings`` is request-local and maps task-quality scoring fixture source IDs to
     transient source-reference IDs. Neither side of that mapping is retained.
     """
     if assembled.manifest is None or assembled.manifest.actual_build is not True:

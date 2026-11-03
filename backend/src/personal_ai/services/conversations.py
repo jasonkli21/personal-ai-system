@@ -1,4 +1,4 @@
-"""Use cases for the non-streaming Phase 1 conversation API."""
+"""Use cases for the non-streaming conversation API conversation API."""
 
 from __future__ import annotations
 

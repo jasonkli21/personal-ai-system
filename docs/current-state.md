@@ -7,8 +7,9 @@ Independent final review and external acceptance remain open.
 The 2026-11-03 v27 check failed after required Apache-2.0 package metadata changed
 the frozen PI-6 source identity. HXE-0 addressed that with additive v28 and
 source-generation-2 identities while preserving v26, v27, v2 manifest, corpus,
-scorer, driver and non-promotion. This remediation adds another additive identity
-for the final commit's source bytes. The old failure remains historical evidence;
+scorer, driver and non-promotion. The review remediation added source generation
+3. This naming cleanup adds planning lock v30 and source generation 4 while
+preserving the v2 corpus, scorer, driver, and non-promotion. The old failure remains historical evidence;
 current local verification and any remaining identity limitation are recorded in
 the dated [HXE-0 remediation receipt](harness-excellence/2026-11-03-remediation.md).
 
@@ -168,14 +169,14 @@ acceptance remain open.
 
 ## Harness excellence
 
-HXE-1 is a **PARTIAL E1** synthetic development pilot. The optional SDK adapter
+The optional read-only MCP source adapter is a **PARTIAL E1** synthetic development pilot. It
 covers bounded stdio and socket-free Streamable HTTP, scoped local PI-5 tool
 disclosure and digest-pinned text preparation. The remediation adds a separately
 launched synthetic PAS stdio host, scope-denial canaries, executable identity
 pinnings, malformed-frame and cancellation coverage, and a local/MCP-to-PI-5
 fake-model canary. Installed authentication, independently implemented legacy
 peer compatibility, and native isolation remain unverified; inherited source,
-provider and production gates remain open. See the [HXE inventory](harness-excellence/README.md)
+provider and production gates remain open. See the [capability inventory](harness-excellence/README.md)
 and [2026-11-03 remediation evidence](harness-excellence/2026-11-03-hxe1-remediation.md).
 
 HXE-0 remains a local **PARTIAL E1** development candidate with the Python SDK,
@@ -377,6 +378,15 @@ commit, without push, merge, live provider requests or deployment. Hosted CI out
 remain separate evidence and are never inferred from local checks.
 
 ## Minimum context and history
+
+## Open-source naming cleanup
+
+Active adapter, check, script, test, and cloud-plan names now describe their
+capabilities. The optional package is `personal-ai-mcp-adapter` at
+`adapters/mcp_source/`; CI runs `make naming-policy-check`. Frozen benchmark
+paths and persisted phase-labelled IDs remain listed in the
+[naming compatibility register](naming-exceptions.md). Planning lock v30 and
+PI-6 source generation 4 preserve the existing corpus and non-promotion status.
 
 Use [the router](README.md), the owning package README, its executable contract,
 and focused tests. Use [operations](../stabilization/OPERATIONS.md) for the

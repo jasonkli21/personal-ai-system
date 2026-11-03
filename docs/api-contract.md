@@ -1,4 +1,4 @@
-# API contract (Phases 1–19 local implementation)
+# API and consumer contract
 
 This document defines the implemented HTTP boundary. All `/v1` routes require an application principal. Staging/production verify
 Google OIDC and resolve an opaque owner from issuer and stable subject; client
@@ -50,7 +50,7 @@ identity for Travel.
 | `POST` | `/v1/conversations/{conversation_id}/messages/{message_id}/regenerate` | — | SSE stream replacing a completed assistant message |
 | `POST` | `/v1/conversations/{conversation_id}/messages/{message_id}/edit-and-retry` | `{"content": "..."}` | SSE stream after replacing a user message |
 
-## Phase 11–12 owner profile and context building
+## Profiles and context assembly
 
 `/v1/profile` is owner-scoped through the application principal and requires
 the standalone `personal_ai` application scope with no workspace. Deployed
@@ -61,30 +61,30 @@ user-set fields: `preferred_units` (`metric` or `imperial`), `locale`,
 `response_style` (`concise`, `balanced`, or `detailed`), and `answer_length`
 (`short`, `standard`, or `expanded`). Each update field has a
 legacy `shared_with_applications` list, which must now be empty; a nonempty
-list is rejected and cannot grant PI-4 consent. Omitted values remain absent. `remove_fields`
+list is rejected and cannot grant profile consent consent. Omitted values remain absent. `remove_fields`
 removes selected fields. Responses include field-level `set_by: "user"` and
 `set_at` provenance plus a monotonically increasing profile revision.
 
 The `global_profile` context provider returns only fields selected by the
-planner and covered by a current, explicit PI-4 grant for the exact actor,
+planner and covered by a current, explicit profile consent grant for the exact actor,
 application/workspace, purpose and profile value/revision. Sharing is default-off.
 `GET/POST /v1/profile/shares` supplies recent-auth builtin-owner list/grant/revoke,
 exact If-Match/CAS and original-key reconciliation; external app clients cannot
-manage it. See the [PI-4 consent contract](platform-independence/profile-sharing-v1.md)
+manage it. See the [profile consent consent contract](platform-independence/profile-sharing-v1.md)
 for request examples, expiry, safe errors, revocation and rollout restrictions.
 The typed context
 provider interfaces also expose bounded selections and normalized items for
 conversation, memory, external evidence, client context, and registered
-read-only tool results. The shared Phase 12 builder fits the conversation,
+read-only tool results. The shared context builder builder fits the conversation,
 memory, and explicitly selected provider items under global and per-source
 budgets, rechecks expiry and permission dependencies, preserves source
 authority and sensitivity, and produces a metadata-only manifest for the
 messages actually built. Sources remain caller-selected; deterministic
-automatic planning is Phase 13 scope. The development inspector reports an
+automatic planning is context planner scope. The development inspector reports an
 estimated current view and does not claim historical prompt reconstruction.
-See the [Phase 11 guide](personal-ai-chapter-2/phase-11-implementation-guide.md),
-[Phase 12 guide](personal-ai-chapter-2/phase-12-implementation-guide.md), and
-[Phase 12 evidence](personal-ai-chapter-2/phase-12-implementation-evidence.md).
+See the [profile policy guide](personal-ai-chapter-2/phase-11-implementation-guide.md),
+[context builder guide](personal-ai-chapter-2/phase-12-implementation-guide.md), and
+[context builder evidence](personal-ai-chapter-2/phase-12-implementation-evidence.md).
 
 ### Itinerary proposal capability (accepted for local integration)
 
@@ -112,10 +112,10 @@ preview/apply authority.
 `completed`, `failed`, or `superseded`), `created_at`, `parent_message_id`,
 `supersedes_message_id`, `model`, and `error_code`.
 
-Titles may be derived deterministically from the first user message. Phase 1
+Titles may be derived deterministically from the first user message. conversation API
 does not make a model call to create titles.
 
-Phase 2 preparation has two atomic persistence stages: persist the user/branch
+branch context preparation has two atomic persistence stages: persist the user/branch
 mutation and reserve the conversation, then assemble/count/refresh context before
 creating an assistant placeholder and releasing that reservation. Preparation
 failure leaves an auditable completed user without a misleading streaming
@@ -148,7 +148,7 @@ unsupported historical schemas return `historical_schema_unsupported`. Both
 leave the estimate explicitly labeled. The inspector performs no provider
 calls, writes, or retention actions; normal deployments return 404. Current
 traces still record policy/source version labels rather than immutable Postgres
-version references, which remains an open Phase 14 storage-contract gap.
+version references, which remains an open storage contract storage-contract gap.
 
 The development inspector sends an `X-Request-ID`; the proxy forwards the
 validated ID and returns the API correlation header. The actual trace separately
@@ -169,7 +169,7 @@ name and JSON `data:` payload.
 An error event is safe for display. It must not contain provider credentials,
 internal exception details, or raw upstream output.
 
-## Phase 2 review amendments (2026-10-02)
+## Conversation contract clarifications
 
 Supersession is represented by durable root cuts. Repository reads return
 `superseded` for every historical descendant, while original descendant documents
@@ -183,11 +183,11 @@ validation. Legacy summaries omit explicit coverage and require a complete prefi
 Preparation counting and generation share `REQUEST_TIMEOUT_SECONDS`; expiration
 returns the safe `llm_timeout` envelope before streaming.
 
-## Phase 3 memory amendments (2026-10-02)
+## Memory behavior and failure handling
 
 Successful chat/SSE responses remain unchanged. After the user/branch mutation,
 optional owner-scoped memory retrieval precedes context assembly; retrieval and
-memory-counting failure continue with the valid Phase 2 request. Extraction runs
+memory-counting failure continue with the valid branch context request. Extraction runs
 after final completion persistence and the terminal frame, with no additional SSE
 messages or user-facing extraction errors.
 
@@ -200,9 +200,9 @@ planning metadata in `memory`: `mode`, aggregate `tokens`, `diagnostics`, and
 `estimated_tokens`, and null `similarity`. It performs no embedding or semantic
 query and makes no prior-use claim. Memory text and vectors are omitted. A missing
 or foreign record returns 404; malformed or oversized ID lists return 422.
-There are no user-facing memory create/edit/delete/list routes in Phase 3.
+There are no user-facing memory create/edit/delete/list routes in memory extraction.
 
-## Phase 4 lifecycle amendments (2026-10-02)
+## Memory lifecycle and recovery
 
 Public chat/SSE contracts remain unchanged. The supplied-ID inspector also accepts
 `MEMORY_LIFECYCLE_INSPECTION_ENABLED` with the existing context gate; corresponding
@@ -216,9 +216,9 @@ The public API has no `/tasks/research` or `/tasks/memory` route. The private
 under Cloud Run IAM; it decodes a bounded envelope containing a job ID/schema version
 and obtains owner/source authority from durable storage. Disabled/completed/terminal
 work returns 204; active leases and retryable processing return 503. See the
-[Phase 4 guide](phase-4-implementation-guide.md) for gates and failure recovery.
+[memory lifecycle guide](phase-4-implementation-guide.md) for gates and failure recovery.
 
-## Phase 5 standalone research (`research-v1`)
+## Research sessions (`research-v1`)
 
 All routes require `RESEARCH_ENABLED`; disabled routes return safe 404 before
 constructing storage/provider clients. The local/test `local` owner is not
@@ -258,7 +258,7 @@ Existing chat SSE events remain unchanged. The result is validated literal sourc
 excerpts with adjacent numbered citations, not unrestricted factual synthesis.
 Each citation exposes original normalized URL, optional title, observation time,
 evidence expiry and source/evidence IDs. Known old publication dates are excluded;
-missing dates remain unknown. See [Phase 5 plan](phase-5-implementation-plan.md).
+missing dates remain unknown. See [research session plan](phase-5-implementation-plan.md).
 
 ## Booking document extraction candidate (`booking-document-extraction-v1`)
 
@@ -286,7 +286,7 @@ non-completed states. The candidate is not yet accepted for cross-repository
 private-data use; model/provider data-use review, live identity/IAM, Firestore
 TTL and coordinator whole-phase verification remain open.
 
-## Phase 6 decision support (`decision-v1`)
+## Evidence-backed decisions (`decision-v1`)
 
 Decision routes require `DECISION_ENABLED`; inspection additionally requires
 `DECISION_INSPECTION_ENABLED`. Browser calls pass through the Next.js
@@ -295,7 +295,7 @@ Local/test `local` ownership is not authentication; deployed requests follow the
 
 | Route | Contract |
 | --- | --- |
-| `POST /v1/decisions` | Validated candidate proposals, typed constraints/preferences, an idempotency key, and exactly one evidence path: a completed Phase 5 `research_session_id` or explicitly supplied source references and fingerprint-checked excerpts. Returns 201 `DecisionResult`. |
+| `POST /v1/decisions` | Validated candidate proposals, typed constraints/preferences, an idempotency key, and exactly one evidence path: a completed research session `research_session_id` or explicitly supplied source references and fingerprint-checked excerpts. Returns 201 `DecisionResult`. |
 | `GET /v1/decisions/{UUID}` | Owner-scoped immutable result, evidence snapshot, entities, claims, resolution matches, and candidate evaluations. |
 | `GET /v1/decisions/{UUID}/inspection` | Requires both decision and inspection gates; read-only selected/excluded evaluations, attribute and constraint outcomes, score components, policy versions, resolution trace, and source links. No raw memory or hidden model reasoning. |
 
@@ -313,10 +313,10 @@ idempotency conflicts and unusable evidence return safe 409/422 responses;
 storage failures return 503. The decision result page presents supported claim
 values, observation/expiry times, requirement outcomes, and source links. The
 development inspector is separately gated and read-only. See the
-[Phase 6 guide](phase-6-implementation-guide.md) and
+[decision service guide](phase-6-implementation-guide.md) and
 [decision-support ADR](decisions/0012-evidence-grounded-decision-support.md).
 
-## Phase 7 domain comparisons (`domain-module-v1`)
+## Domain comparisons (`domain-module-v1`)
 
 Every domain route requires both `DECISION_ENABLED` and its domain-specific
 backend gate (`TRAVEL_ENABLED` or `SHOPPING_ENABLED`). The Next.js proxy
@@ -328,7 +328,7 @@ unauthenticated; deployed requests require the principal boundary above.
 | --- | --- |
 | `GET /v1/domains/{domain}/fixtures` | Lists bounded synthetic examples (`travel` or `shopping`). |
 | `POST /v1/domains/{domain}/lookup` | `domain-lookup-v1`: idempotency key, one bounded query, optional shared hard constraints/preferences, and result limit. Travel accepts a place query; shopping accepts an exact 8–14 digit barcode. Returns a saved comparison. |
-| `POST /v1/domains/{domain}/comparisons` | `domain-comparison-v1`: a Phase 6 decision request plus provider-observation extensions correlated to its evidence. |
+| `POST /v1/domains/{domain}/comparisons` | `domain-comparison-v1`: a decision service decision request plus provider-observation extensions correlated to its evidence. |
 | `POST /v1/domains/{domain}/fixtures/{fixture_id}/compare` | Runs one deterministic synthetic decision fixture through the shared platform. |
 | `GET /v1/domains/{domain}/comparisons/{id}` | Returns the immutable comparison snapshot, registered field schema, core decision evidence/results, provider observations, and typed domain claim extensions. |
 | `GET /v1/domains/{domain}/comparisons/{id}/inspection` | Requires `DOMAIN_INSPECTION_ENABLED`; returns read-only source-policy and ID metadata, not raw private memory or hidden reasoning. |
@@ -350,10 +350,10 @@ requests only bounded product identity fields, shares a Firestore rate record
 with a four-second minimum interval, and uses a thirty-day catalog TTL. It does
 not provide merchant offers, stock, shipping, or delivery. Both adapters and
 their policy-approval gates default off; adapter policy links and setup are in
-the [Phase 7 guide](phase-7-implementation-guide.md) and
+the [domain comparison guide](phase-7-implementation-guide.md) and
 [ADRs](decisions/0013-nominatim-travel-place-source.md).
 
-## Phase 8 iterative research (`iterative-research-v1`)
+## Bounded iterative research (`iterative-research-v1`)
 
 Iterative research requires `RESEARCH_ENABLED`, `ITERATIVE_RESEARCH_ENABLED`,
 and `ITERATIVE_PROGRESS_ENABLED`. All three gates default off. The ordinary
@@ -363,8 +363,8 @@ requires `DECISION_ENABLED`.
 
 | Method and route | Contract |
 | --- | --- |
-| `POST /v1/research/iterative` | `iterative-research-request-v1`: question, freshness, idempotency key, and optional user-authored candidates/constraints/preferences. Starts one durable run and returns a progress stream. Optional `Last-Event-ID` is validated before creation/claim. Candidate facts/claims are rejected; conservative typed proposals from exact evidence IDs must still pass the Phase 6 verifier. |
-| `GET /v1/research/iterative/runs/{run_id}` | Owner-scoped run status, immutable budget snapshot, safe counts, stop reason, gaps, and saved Phase 5 session detail. Read only. |
+| `POST /v1/research/iterative` | `iterative-research-request-v1`: question, freshness, idempotency key, and optional user-authored candidates/constraints/preferences. Starts one durable run and returns a progress stream. Optional `Last-Event-ID` is validated before creation/claim. Candidate facts/claims are rejected; conservative typed proposals from exact evidence IDs must still pass the decision service verifier. |
+| `GET /v1/research/iterative/runs/{run_id}` | Owner-scoped run status, immutable budget snapshot, safe counts, stop reason, gaps, and saved research session session detail. Read only. |
 | `GET /v1/research/iterative/runs/{run_id}/events?after=N` | Persisted safe events after the event sequence. An optional `Last-Event-ID` overrides `after` and must be a persisted sequence. Does not claim a lease or start work. |
 | `POST /v1/research/iterative/runs/{run_id}/cancel` | Explicitly makes a nonterminal run cancelled. The cancellation fence prevents later run/session writes. |
 | `POST /v1/research/iterative/runs/{run_id}/resume` | Accepts `Last-Event-ID` as the last already-seen sequence (default `-1`), validates it against persisted events before claiming work, then claims an expired lease only when no external side effect is uncertain. An uncertain provider/model attempt is settled conservatively and ends incomplete without redispatch. A live lease returns only persisted events after the cursor. |
@@ -380,17 +380,17 @@ separate explicit action available only for a safely recoverable expired lease.
 The run stores policy and budget versions, idempotency, owner/session links,
 current iteration, lease, gaps, assessments, iterations, event sequence,
 budget ledger, and terminal reason. Query/source/evidence/citation provenance
-stays in the Phase 5 owner-scoped session. Budget use includes iteration,
+stays in the research session owner-scoped session. Budget use includes iteration,
 query, source, token, estimated provider cost, elapsed-time, and unique allowed
 domain counts. Configured hostnames are allowlisted before evidence extraction.
 Unknown side-effect outcomes are charged at their full reservation and are not
-retried. Explicit constraints remain immutable; a Phase 6 decision intent
+retried. Explicit constraints remain immutable; a decision service decision intent
 re-evaluates through the shared entity, claim, constraint, and ranking service.
 Any unresolved required gap yields an incomplete/insufficient result with all
 open gap classes visible. Firestore storage and index changes are described in
-the [Phase 8 guide](phase-8-implementation-guide.md) and [ADRs](decisions/0016-bounded-iterative-research.md).
+the [iterative research guide](phase-8-implementation-guide.md) and [ADRs](decisions/0016-bounded-iterative-research.md).
 
-## Phase 9 identity and account controls
+## Identity and account controls
 
 User identity is supplied as a Google `Authorization: Bearer` token or as the
 separate `X-User-ID-Token` header forwarded by the web proxy alongside its
@@ -413,7 +413,7 @@ Scheduler token, requires one active owner mapping, and processes a bounded
 expiry/republish batch. It does not physically delete data. Account and
 maintenance gates stay off by default.
 
-## Phase 19 provider usage inspection
+## Provider usage inspection
 
 `GET /v1/developer/provider-usage?days=N` requires
 `PROVIDER_USAGE_INSPECTION_ENABLED=true`. The default is disabled and the route
@@ -428,20 +428,20 @@ observations are reported as unknown; remaining capacity is never inferred
 from account usage or application limits.
 
 
-## Phase 20 private artifacts
+## Private artifacts
 
 `GET /v1/artifacts/{artifact_id}` is default off under `ARTIFACTS_ENABLED`. It reads only ready, unexpired, authorized owner/application/workspace artifacts. Unknown, cross-scope, revoked, missing or corrupt references are unavailable (404); successful JSON responses use `Cache-Control: no-store`. Browser callers use the separately gated Next.js `/api/artifacts/{artifact_id}` proxy. Clients cannot choose bucket keys, upload bodies or obtain public/signed URLs.
 
 When artifact storage is enabled, `POST /v1/account/export` returns a ready `account-artifact-export-v1` frozen envelope containing the existing declared DB snapshot, exact object manifest, live artifact bodies and explicit body coverage. Previous export bodies, expired and deleted bodies are excluded. Required storage/body failure or artifact envelope overflow returns 503 `export_artifact_unavailable`; existing database-export limits remain 413 `export_limit_exceeded`. Ready retries reuse the original frozen export. Full snapshot atomicity across stores is not promised. With artifact storage disabled, the synchronous database export remains available when no live artifact bodies exist; if live artifacts exist, export returns 503 rather than omit them. Scheduled maintenance still cleans existing artifacts while new writes and retrieval API access are disabled.
 
-Confirmed account deletion fences future artifact retrieval/publication and provider sends while physical cleanup is reconciled. Verified request and worker gates use the canonical fence; deletion control paths remain accessible. Cancellation can un-fence before irreversible artifact cleanup, after which it returns the existing 409 lifecycle conflict. Full canonical account deletion remains an operator workflow. See the [Phase 20 guide](personal-ai-chapter-2/phase-20-implementation-guide.md) for source/grant and cloud acceptance gates.
+Confirmed account deletion fences future artifact retrieval/publication and provider sends while physical cleanup is reconciled. Verified request and worker gates use the canonical fence; deletion control paths remain accessible. Cancellation can un-fence before irreversible artifact cleanup, after which it returns the existing 409 lifecycle conflict. Full canonical account deletion remains an operator workflow. See the [private artifacts guide](personal-ai-chapter-2/phase-20-implementation-guide.md) for source/grant and cloud acceptance gates.
 
-## Gated external-turn contract (Phase 25.2)
+## Gated external-turn contract
 
-Message status adds `pending` for reserved external work; `streaming` continues to describe ordinary model streams. Messages may include safe producer `attribution`, an embedded execution reservation, and a normalized error fact source. Existing messages remain readable without those fields. Manual provenance is user-declared; connected external metadata is client-reported; ordinary server generation records observed adapter identity and usage confidence. No new HTTP issuer/import endpoint is enabled. Internal provider-neutral preparation/continuation values and canonical lifecycle semantics are described in the [Phase 25.2 guide](personal-ai-chapter-2/phase-25-2-implementation-guide.md). Phase 25.3 must compose them through authenticated thin routes and the existing Next.js API proxy.
+Message status adds `pending` for reserved external work; `streaming` continues to describe ordinary model streams. Messages may include safe producer `attribution`, an embedded execution reservation, and a normalized error fact source. Existing messages remain readable without those fields. Manual provenance is user-declared; connected external metadata is client-reported; ordinary server generation records observed adapter identity and usage confidence. No new HTTP issuer/import endpoint is enabled. Internal provider-neutral preparation/continuation values and canonical lifecycle semantics are described in the [external-turn lifecycle guide](personal-ai-chapter-2/phase-25-2-implementation-guide.md). authenticated route integration must compose them through authenticated thin routes and the existing Next.js API proxy.
 
 
-## Authoritative mutation proposals (Phase 31)
+## Authoritative mutation proposals
 
 `POST /v1/mutations` accepts `ProposalIntent`: a client UUID intent key, exact app/workspace/entity target, registered operation ID/version and payload schema, strict typed patch, expected domain revision, rationale, claimed producer provenance, exact source snapshots with shared permission dependencies and an expiry of at most one hour. Authenticated acting identity comes from the verified request, never the body. Local development identity is insufficient. Workspace scope follows the existing membership boundary.
 

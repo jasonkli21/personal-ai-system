@@ -1,4 +1,4 @@
-"""Shared Phase 4 fixtures assert real service outcomes, never model-judged quality."""
+"""Shared memory lifecycle fixtures assert real service outcomes, never model-judged quality."""
 
 from datetime import timedelta
 from types import SimpleNamespace

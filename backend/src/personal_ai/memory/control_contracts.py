@@ -1,4 +1,4 @@
-"""MEM-2 content-only inputs and bounded disclosure contracts."""
+"""memory controls content-only inputs and bounded disclosure contracts."""
 
 from datetime import datetime
 from typing import Literal

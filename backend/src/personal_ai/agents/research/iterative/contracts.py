@@ -1,4 +1,4 @@
-"""Versioned contracts for bounded, persisted Phase 8 research runs."""
+"""Versioned contracts for bounded, persisted iterative research research runs."""
 
 from datetime import datetime
 from decimal import Decimal

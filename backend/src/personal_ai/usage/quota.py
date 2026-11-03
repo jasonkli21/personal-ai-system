@@ -1,4 +1,4 @@
-"""Phase 19 observations extend static topology; live state never enters P18."""
+"""provider usage observations extend static topology; live state never enters P18."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from personal_ai.routing.contracts import QuotaBucket, _require_aware
 
 @dataclass(frozen=True, slots=True)
 class QuotaLedgerBucketSnapshot:
-    """Decision-time projection of one canonical Phase 19 quota window."""
+    """Decision-time projection of one canonical provider usage quota window."""
 
     bucket_id: str
     unit: str

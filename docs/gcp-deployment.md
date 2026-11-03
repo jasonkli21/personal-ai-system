@@ -31,9 +31,9 @@ for code checks, skipped target-engine/cloud checks, and remaining release gaps.
 
 ## Static preflight
 
-Run `make pi7-cloud-plan` for the checked-in synthetic manifest. Use a local
+Run `make cloud-plan-check` for the checked-in synthetic manifest. Use a local
 proposal and approved baseline for a redacted review of policy and drift.
-The [PI-7 runbook](platform-independence/pi-7-operations-runbook.md#static-cloud-plan)
+The [deployment runbook](platform-independence/pi-7-operations-runbook.md#static-cloud-plan)
 describes the profile, identity, ingress, IAM, storage and cost requirements.
 
 The current `deploy.sh` entrypoint runs the static planner. It refuses
@@ -65,10 +65,10 @@ This starts local Postgres/pgvector and DynamoDB Local. Run `make persistence-te
 and `make persistence-test` for the isolated integration stack when Docker is
 available. `make persistence-clean` is destructive to local persistence volumes.
 
-After a deployment, use the [Phase 9 release checklist](phase-9-release-checklist.md)
+After a deployment, use the [identity controls release checklist](phase-9-release-checklist.md)
 for authentication, safeguards, and account workflows, and the
-[Phase 10 migration/cutover verification plan](personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md)
-for target-store persistence, recovery, IAM, and release evidence. The Phase 1
+[persistence boundary migration/cutover verification plan](personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md)
+for target-store persistence, recovery, IAM, and release evidence. The conversation API
 deployment checklist is a historical Firestore procedure and must not be used
 for current deployments. A successful `/api/health` response confirms only
 server-side web-to-API reachability; it does not exercise either database or

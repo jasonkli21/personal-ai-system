@@ -1,4 +1,4 @@
-"""Phase 2 selection, provenance, and quality regressions on shared fixtures."""
+"""branch context selection, provenance, and quality regressions on shared fixtures."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4

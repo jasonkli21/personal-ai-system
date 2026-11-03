@@ -1,4 +1,4 @@
-"""Stateful hermetic MEM-1 authority and tools; never production composition."""
+"""Stateful hermetic project knowledge authority and tools; never production composition."""
 
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta

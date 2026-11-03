@@ -175,7 +175,7 @@ class ContextBuildItem(BaseModel):
             # Only the exact selected preference reaches the model. Owner IDs,
             # consent identities and detailed labels stay in the authority graph
             # and trace. This also fits the existing small planner budget under
-            # the PI-3 fake's exact byte counter without relaxing any budget.
+            # the provider isolation fake's exact byte counter without relaxing any budget.
             content = json.dumps({
                 "source": "personal_ai/global_profile",
                 "revision": item.source_version.rsplit(":", 1)[-1],

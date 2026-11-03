@@ -16,7 +16,7 @@ from personal_ai.routing.contracts import EndpointRef
 
 
 class ExecutionProfileIdentity(BaseModel):
-    """The exact shared Phase 18 profile identity selected for local execution."""
+    """The exact shared usage accounting profile identity selected for local execution."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     endpoint: EndpointRef

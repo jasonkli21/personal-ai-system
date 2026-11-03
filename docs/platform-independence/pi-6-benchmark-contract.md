@@ -97,3 +97,12 @@ remediation parent commit and exact source digest; final-commit evaluation must
 be rerun after commit. The manifest binds the changed evaluator and current core
 tree without including itself. This identity supports local synthetic E1
 verification only and does not advance PI-6 acceptance.
+
+## Source generation 4 · 2026-11-03
+
+The open-source naming cleanup adds `manifest-v2-source-4.json` and planning
+baseline lock v30. The corpus, scorer, thresholds, and non-promotion decision
+remain unchanged. Verification selectors now use capability-named test paths;
+source generation 3 and earlier evidence remain immutable. This identity
+supports local synthetic E1 verification only and does not advance benchmark
+acceptance.

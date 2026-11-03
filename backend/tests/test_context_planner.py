@@ -1,4 +1,4 @@
-"""Deterministic Phase 13 planning and narrow provider execution contracts."""
+"""Deterministic context planner planning and narrow provider execution contracts."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any

@@ -46,7 +46,7 @@ make backend-build
 make frontend-lint frontend-typecheck frontend-test frontend-build
 ```
 
-`make backend-test-offline` excludes native persistence and cloud tests. `make pi2-check` builds the core, reference, and Reading Logbook packages and runs offline artifact/contract checks. Native persistence and provider checks are opt-in; see the [current status and gates](docs/current-state.md).
+`make backend-test-offline` excludes native persistence and cloud tests. `make consumer-contract-check` builds the core, reference, and Reading Logbook packages and runs offline artifact/contract checks. Native persistence and provider checks are opt-in; see the [current status and gates](docs/current-state.md).
 
 ## Architecture and contribution routes
 

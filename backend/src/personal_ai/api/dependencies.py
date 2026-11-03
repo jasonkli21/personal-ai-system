@@ -1,4 +1,4 @@
-"""FastAPI dependencies for the Phase 1 conversation surface."""
+"""FastAPI dependencies for the conversation API conversation surface."""
 
 import base64
 import time
@@ -496,7 +496,7 @@ def get_endpoint_registry(settings: Annotated[Settings, Depends(get_settings)]) 
 def get_routing_authorization_authority(request: Request) -> RoutingAuthorizationAuthority:
     """Read the app-installed current routing authority; absence fails closed.
 
-    Phase 15 source membership/revocation acceptance is still open, so the API
+    membership and revocation policy source membership/revocation acceptance is still open, so the API
     does not synthesize routing permission from the local owner identity or an
     endpoint profile. A deployment must install an accepted authority before a
     routed workflow can request this dependency.
@@ -513,12 +513,12 @@ def get_routing_decision_service(
         RoutingAuthorizationAuthority, Depends(get_routing_authorization_authority)
     ],
 ) -> RoutingDecisionService:
-    """Canonical FastAPI composition for internal Phase 21 routed workflows.
+    """Canonical FastAPI composition for internal routing decision lifecycle routed workflows.
 
     The shared factory remains the owner of endpoint registry, P19 accounting,
-    durable observations, and default-off Phase 35 shadow composition. This
+    durable observations, and default-off adaptive routing shadow composition. This
     dependency is intentionally not attached to user workflows until their
-    Phase 15 membership/revocation acceptance gate closes.
+    membership and revocation policy membership/revocation acceptance gate closes.
     """
     try:
         return persistence_factory(settings).routing_service(settings, authorization=authorization)

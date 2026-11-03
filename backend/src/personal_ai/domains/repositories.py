@@ -1,4 +1,4 @@
-"""Owner-scoped storage for Phase 7 registration and comparison snapshots."""
+"""Owner-scoped storage for domain comparison registration and comparison snapshots."""
 
 from datetime import UTC, datetime
 from threading import RLock

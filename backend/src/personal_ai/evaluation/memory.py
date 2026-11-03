@@ -1,4 +1,4 @@
-"""Synthetic Phase 2 baseline and measured Phase 3 memory loop, entirely offline."""
+"""Synthetic branch context baseline and measured memory extraction memory loop, entirely offline."""
 
 import json
 from datetime import UTC, datetime, timedelta

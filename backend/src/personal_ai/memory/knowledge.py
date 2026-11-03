@@ -1,4 +1,4 @@
-"""MEM-1 immutable knowledge contracts; source authority never comes from text."""
+"""project knowledge immutable knowledge contracts; source authority never comes from text."""
 
 from __future__ import annotations
 

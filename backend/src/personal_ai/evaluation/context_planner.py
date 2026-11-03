@@ -1,4 +1,4 @@
-"""Synthetic Phase 13 planner baseline; no domain or model provider is contacted."""
+"""Synthetic context planner planner baseline; no domain or model provider is contacted."""
 
 from __future__ import annotations
 

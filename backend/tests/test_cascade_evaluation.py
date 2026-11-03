@@ -1,4 +1,4 @@
-"""Paired P22 fixtures through P23/P24 service/ledger contracts, synthetic only."""
+"""Paired task-quality and quota-aware cascade fixtures through domain lifecycle service/ledger contracts, synthetic only."""
 
 import hashlib
 import json
@@ -24,9 +24,15 @@ from personal_ai.validation.tasks import (
     TaskValidatorRegistry,
     ValidationResult,
 )
-from tests.test_cascade_phase24 import cascade_task, install_budget_adapter, validation_input
+from tests.test_cascade_lifecycle import cascade_task, install_budget_adapter, validation_input
 from tests.test_endpoint_registry import _bucket, _profile
-from tests.test_routing_phase21 import SCOPE, Authorization, MemoryRepository, Usage, request
+from tests.test_routing_decision_lifecycle import (
+    SCOPE,
+    Authorization,
+    MemoryRepository,
+    Usage,
+    request,
+)
 
 
 def test_paired_baseline_counts_every_attempt_and_keeps_direct(tmp_path):

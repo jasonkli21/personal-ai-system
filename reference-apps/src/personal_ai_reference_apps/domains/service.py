@@ -1,4 +1,4 @@
-"""Domain adapters and views layered over the shared Phase 5–6 services."""
+"""Domain adapters and views layered over the shared research session–6 services."""
 
 import asyncio
 from datetime import UTC, datetime
@@ -404,7 +404,7 @@ class DomainService:
                     entity_kind="web_source",
                     adapter_version=f"phase5-{source.provider}-snippet-v1",
                     attribution=(
-                        f"Source observed through Phase 5 ({source.provider}); the cited page is the authority."
+                        f"Observed from {source.provider}; the cited page is the authority."
                     ),
                     policy_url=(
                         "https://api-dashboard.search.brave.com/documentation/resources/terms-of-service"

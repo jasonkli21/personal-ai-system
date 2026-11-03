@@ -1,4 +1,4 @@
-"""HTTP request and response schemas for the documented Phase 1 API."""
+"""HTTP request and response schemas for the documented conversation API API."""
 
 from typing import Literal
 from uuid import UUID
@@ -22,7 +22,7 @@ class ErrorDetail(APIModel):
 
 
 class ErrorResponse(APIModel):
-    """Consistent JSON error envelope for Phase 1 routes."""
+    """Consistent JSON error envelope for conversation API routes."""
 
     error: ErrorDetail
 
@@ -42,7 +42,7 @@ class ExternalCreateConversationRequest(APIModel):
 
 
 class ConversationListResponse(APIModel):
-    """Newest-first conversations for the current Phase 1 owner."""
+    """Newest-first conversations for the current conversation API owner."""
 
     conversations: list[Conversation]
 

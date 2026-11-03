@@ -1,4 +1,4 @@
-"""Cross-endpoint evaluation stays on Phase 21 routing and Phase 19 dispatch."""
+"""Cross-endpoint evaluation stays on routing decision lifecycle routing and provider usage dispatch."""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ from personal_ai.routing.integrity import (
 )
 from personal_ai.routing.service import RoutingFinalizationError
 from tests.test_endpoint_registry import _bucket, _profile
-from tests.test_routing_phase21 import Authorization, MemoryRepository, Usage
+from tests.test_routing_decision_lifecycle import Authorization, MemoryRepository, Usage
 
 
 def _valid_output(messages=None):
@@ -619,7 +619,7 @@ def test_evaluation_gate_rejects_preparation_for_different_fixture_before_reserv
     assert runner.routing_service.usage.reserve_calls == 0
 
 
-def test_quality_waiver_keeps_phase21_quota_authority_in_force():
+def test_quality_waiver_keeps_routing_quota_authority_in_force():
     runner, repository, observations, executor, profiles, fixtures, task = _matrix(
         include_blocked=False
     )

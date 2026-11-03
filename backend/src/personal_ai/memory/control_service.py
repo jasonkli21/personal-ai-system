@@ -1,4 +1,4 @@
-"""Scoped MEM-2 control service; missing host authority always fails closed."""
+"""Scoped memory controls control service; missing host authority always fails closed."""
 
 from contextlib import contextmanager
 from datetime import UTC, datetime

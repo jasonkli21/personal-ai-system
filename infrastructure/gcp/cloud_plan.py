@@ -8,7 +8,7 @@ import re
 import stat
 from pathlib import Path
 
-VERSION = "pi7-cloud-plan-v1"
+VERSION = "cloud-plan-check-v1"
 UNVERIFIED_BINDINGS = [
     "project_number_to_live_project",
     "run_app_audiences_to_deployed_services",

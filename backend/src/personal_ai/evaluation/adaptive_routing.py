@@ -1,4 +1,4 @@
-"""Privacy-safe P21/P22 observation projection, leakage-safe splits and rollout gates.
+"""Privacy-safe routing/quality observation projection, leakage-safe splits and rollout gates.
 
 This module does not dispatch, train on prompt text, invent missing labels, or
 publish runtime policy. P19 and P22 remain authoritative for measured outcomes.
@@ -732,7 +732,7 @@ def evaluate_strategy(dataset, strategy, *, thresholds=None, promotion_evidence=
 def collect_dataset(
     factory, *, owner_id, scope, start, end, split_policy, accounting, max_records=1000
 ):
-    """Read canonical retained P21/P22 facts. Bounds/expiry remain explicit.
+    """Read canonical retained routing/quality facts. Bounds/expiry remain explicit.
 
     An exhausted row budget yields an incomplete manifest. This is a retained
     snapshot, not a claim that expired/deleted observations never existed.

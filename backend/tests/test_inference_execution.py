@@ -1,4 +1,4 @@
-"""PI-3 composition/admission abuse tests. All provider responses are synthetic."""
+"""provider isolation composition/admission abuse tests. All provider responses are synthetic."""
 
 import asyncio
 import json
@@ -74,7 +74,7 @@ async def test_two_backends_use_canonical_chat_and_exact_local_count(profile):
     messages = InMemoryMessageRepository(conversations)
     now = datetime.now(UTC)
     conversation = conversations.create(Conversation(
-        id=uuid4(), owner_id="local", title="PI3", created_at=now, updated_at=now
+        id=uuid4(), owner_id="local", title="offline profile", created_at=now, updated_at=now
     ))
     service = ChatTurnService(
         conversations, messages, pair.generator, owner_id="local", application_context=scope(),

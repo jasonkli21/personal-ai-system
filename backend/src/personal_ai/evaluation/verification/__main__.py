@@ -91,7 +91,7 @@ def verifier_environment():
 def render_report(report):
     release = report["release"]
     lines = [
-        "# Phase 36 release verification",
+        "# system conformance release verification",
         "",
         f"Tested revision: `{report['tested_revision']}`.",
         f"Tracked source/configuration inputs: `{report['configuration_sha256']}`.",

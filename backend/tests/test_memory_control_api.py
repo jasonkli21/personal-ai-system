@@ -1,4 +1,4 @@
-"""Real middleware identity, feature gates and explicit user intent for MEM-2."""
+"""Real middleware identity, feature gates and explicit user intent for memory controls."""
 
 from dataclasses import replace
 from datetime import UTC, datetime

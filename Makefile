@@ -20,6 +20,11 @@ memory-task-eval:
 
 .PHONY: integrated-verification backend-test-offline
 
+.PHONY: naming-policy-check
+naming-policy-check:
+	$(PLATFORM_PYTHON) -I backend/scripts/naming_policy_check.py
+	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_naming_policy_check.py
+
 integrated-verification:
 
 	cd backend && python -m personal_ai.evaluation.verification
@@ -155,99 +160,99 @@ reference-build:
 
 platform-independence-check: backend-build reference-build
 	$(PLATFORM_PYTHON) backend/scripts/platform_dependency_inventory.py --check
-	$(PLATFORM_PYTHON) backend/scripts/pi1_core_evaluation_probe.py
-	$(PLATFORM_PYTHON) backend/scripts/pi1_artifact_checks.py
+	$(PLATFORM_PYTHON) backend/scripts/core_evaluation_probe.py
+	$(PLATFORM_PYTHON) backend/scripts/package_isolation_checks.py
 
-.PHONY: pi2-build pi2-check
-pi2-build: backend-build reference-build
+.PHONY: consumer-build consumer-contract-check
+consumer-build: backend-build reference-build
 	cd examples/reading-logbook/client && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
 	cd examples/reading-logbook/host && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
 
-pi2-check: pi2-build
+consumer-contract-check: consumer-build
 	$(PLATFORM_PYTHON) backend/scripts/platform_dependency_inventory.py --check
-	$(PLATFORM_PYTHON) backend/scripts/pi1_core_evaluation_probe.py
-	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
-	$(PLATFORM_PYTHON) backend/scripts/pi2_artifact_checks.py
+	$(PLATFORM_PYTHON) backend/scripts/core_evaluation_probe.py
+	$(PLATFORM_PYTHON) backend/scripts/consumer_contract_check.py --check
+	$(PLATFORM_PYTHON) backend/scripts/consumer_artifact_checks.py
 
-.PHONY: pi3-check
-pi3-check:
-	$(PLATFORM_PYTHON) backend/scripts/pi3_checks.py
+.PHONY: provider-isolation-check
+provider-isolation-check:
+	$(PLATFORM_PYTHON) backend/scripts/provider_isolation_checks.py
 
-.PHONY: pi4-check
-pi4-check:
-	$(PLATFORM_PYTHON) backend/scripts/pi4_checks.py
+.PHONY: consent-check
+consent-check:
+	$(PLATFORM_PYTHON) backend/scripts/profile_consent_checks.py
 
-.PHONY: pi5-check
-pi5-check:
-	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
-	$(PLATFORM_PYTHON) backend/scripts/pi5_checks.py
+.PHONY: retrieval-security-check
+retrieval-security-check:
+	$(PLATFORM_PYTHON) backend/scripts/consumer_contract_check.py --check
+	$(PLATFORM_PYTHON) backend/scripts/retrieval_safety_checks.py
 
-.PHONY: pi6-check
-pi6-check: pi2-build
+.PHONY: offline-benchmark-check
+offline-benchmark-check: consumer-build
 	$(PLATFORM_PYTHON) backend/scripts/pi6_checks.py
 	$(PLATFORM_PYTHON) backend/scripts/pi6_installed_checks.py
 
-.PHONY: pi7-local-smoke pi7-consumer-smoke
-pi7-local-smoke:
-	$(PLATFORM_PYTHON) -E -s backend/scripts/pi7_local_smoke.py $(PI7_SMOKE_FLAGS)
+.PHONY: installed-core-smoke standalone-consumer-smoke
+installed-core-smoke:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/installed_core_smoke.py $(CORE_SMOKE_FLAGS)
 
-pi7-consumer-smoke:
-	$(PLATFORM_PYTHON) -E -s backend/scripts/pi7_local_smoke.py --consumer $(PI7_SMOKE_FLAGS)
+standalone-consumer-smoke:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/installed_core_smoke.py --consumer $(CORE_SMOKE_FLAGS)
 
-.PHONY: pi7-cloud-plan
-PI7_CLOUD_MANIFEST ?= infrastructure/gcp/pi7-cloud-plan.example.json
-export PI7_CLOUD_MANIFEST PI7_CLOUD_BASELINE
-pi7-cloud-plan:
-	@set -- --manifest "$$PI7_CLOUD_MANIFEST"; \
-	if [ -n "$$PI7_CLOUD_BASELINE" ]; then set -- "$$@" --baseline "$$PI7_CLOUD_BASELINE"; fi; \
+.PHONY: cloud-plan-check
+CLOUD_PLAN_MANIFEST ?= infrastructure/gcp/cloud-plan.example.json
+export CLOUD_PLAN_MANIFEST CLOUD_PLAN_BASELINE
+cloud-plan-check:
+	@set -- --manifest "$$CLOUD_PLAN_MANIFEST"; \
+	if [ -n "$$CLOUD_PLAN_BASELINE" ]; then set -- "$$@" --baseline "$$CLOUD_PLAN_BASELINE"; fi; \
 	bash infrastructure/gcp/deploy.sh plan "$$@"
 
-.PHONY: pi7-store-doctor pi7-store-up pi7-store-bootstrap pi7-store-smoke pi7-store-down
-PI7_STORE_SOCKET ?= /var/run/docker.sock
-PI7_STORE_IMAGE_ARGS ?=
-export PI7_STORE_SESSION PI7_STORE_SOCKET PI7_STORE_IMAGE_ARGS
-pi7-store-doctor pi7-store-up pi7-store-bootstrap pi7-store-smoke pi7-store-down:
-	$(PLATFORM_PYTHON) -I backend/scripts/pi7_local_stores.py $(@:pi7-store-%=%) --session "$$PI7_STORE_SESSION" --socket "$$PI7_STORE_SOCKET" $(PI7_STORE_IMAGE_ARGS)
+.PHONY: local-store-doctor local-store-up local-store-bootstrap local-store-smoke local-store-down
+LOCAL_STORE_SOCKET ?= /var/run/docker.sock
+LOCAL_STORE_IMAGE_ARGS ?=
+export LOCAL_STORE_SESSION LOCAL_STORE_SOCKET LOCAL_STORE_IMAGE_ARGS
+local-store-doctor local-store-up local-store-bootstrap local-store-smoke local-store-down:
+	$(PLATFORM_PYTHON) -I backend/scripts/local_storage_smoke.py $(@:local-store-%=%) --session "$$LOCAL_STORE_SESSION" --socket "$$LOCAL_STORE_SOCKET" $(LOCAL_STORE_IMAGE_ARGS)
 
-.PHONY: pi7-check
-pi7-check: pi7-cloud-plan
+.PHONY: operations-check
+operations-check: cloud-plan-check
 	bash -n infrastructure/gcp/deploy.sh
 	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
-	  $(PLATFORM_PYTHON) -E -s backend/scripts/pi2_http_checks.py -q backend/tests/test_pi7_operations.py backend/tests/test_deployment_script.py backend/tests/test_inference_execution.py backend/tests/test_litellm_gateway.py backend/tests/test_phase9_controls.py backend/tests/test_provider_usage.py backend/tests/test_retrieval_phase33.py
+	  $(PLATFORM_PYTHON) -E -s backend/scripts/signed_http_checks.py -q backend/tests/test_local_operations.py backend/tests/test_deployment_script.py backend/tests/test_inference_execution.py backend/tests/test_litellm_gateway.py backend/tests/test_privacy_usage_controls.py backend/tests/test_provider_usage.py backend/tests/test_retrieval_query_planning.py
 
-.PHONY: pi8-check
-export PI8_EXPECTED_COMMIT
-pi8-check:
-	@test -n "$$PI8_EXPECTED_COMMIT" || { echo "Set PI8_EXPECTED_COMMIT to the full independently reviewed commit SHA" >&2; exit 2; }
-	$(PLATFORM_PYTHON) -I backend/scripts/pi8_check.py --expected-commit "$$PI8_EXPECTED_COMMIT"
-	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_pi8_check.py
+.PHONY: release-evidence-check
+export RELEASE_EVIDENCE_EXPECTED_COMMIT
+release-evidence-check:
+	@test -n "$$RELEASE_EVIDENCE_EXPECTED_COMMIT" || { echo "Set RELEASE_EVIDENCE_EXPECTED_COMMIT to the full independently reviewed commit SHA" >&2; exit 2; }
+	$(PLATFORM_PYTHON) -I backend/scripts/release_evidence_check.py --expected-commit "$$RELEASE_EVIDENCE_EXPECTED_COMMIT"
+	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_release_evidence_check.py
 
-.PHONY: hxe0-build hxe0-check
-hxe0-build:
+.PHONY: sdk-build sdk-check
+sdk-build:
 	cd sdk/python && $(UV) build --no-build-isolation --python ../../backend/.venv/bin/python
 	cd examples/project-checklist/client && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
 	cd examples/project-checklist/host && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
 
-hxe0-check:
-	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
+sdk-check:
+	$(PLATFORM_PYTHON) backend/scripts/consumer_contract_check.py --check
 	PYTHONPATH=sdk/python/src:examples/project-checklist/client/src:examples/project-checklist/host/src \
-	  $(PLATFORM_PYTHON) backend/scripts/pi1_offline_checks.py -q -m 'not loopback_http' \
-	    sdk/python/tests backend/tests/test_hxe0_http.py backend/tests/test_openapi.py \
+	  $(PLATFORM_PYTHON) backend/scripts/offline_test_runner.py -q -m 'not loopback_http' \
+	    sdk/python/tests backend/tests/test_external_consumer_http.py backend/tests/test_openapi.py \
 	    backend/tests/test_planning_experiment.py backend/tests/test_pi6.py \
-	    backend/tests/test_pi2_client.py backend/tests/test_pi5_context.py \
-	    backend/tests/test_pi5_retrieval.py backend/tests/test_pi7_lifecycle.py \
+	    backend/tests/test_standalone_client.py backend/tests/test_retrieval_context.py \
+	    backend/tests/test_retrieval_integrations.py backend/tests/test_application_lifecycle.py \
 	    backend/tests/test_inference_execution.py backend/tests/test_provider_usage.py \
 	    backend/tests/test_memory_control_api.py backend/tests/test_memory_control_context.py \
 	    backend/tests/test_memory_knowledge.py
 
-.PHONY: hxe0-installed-check
-hxe0-installed-check: hxe0-build
-	$(PLATFORM_PYTHON) backend/scripts/hxe0_artifact_checks.py "$(UV)"
+.PHONY: sdk-install-check
+sdk-install-check: sdk-build
+	$(PLATFORM_PYTHON) backend/scripts/sdk_install_smoke.py "$(UV)"
 
-.PHONY: hxe1-check
-HXE1_PYTHON ?= adapters/hxe1/.venv/bin/python
-HXE1_IMPORT_PATH ?= adapters/hxe1/src:backend/src
-hxe1-check:
+.PHONY: mcp-adapter-check
+MCP_ADAPTER_PYTHON ?= adapters/mcp_source/.venv/bin/python
+MCP_ADAPTER_IMPORT_PATH ?= adapters/mcp_source/src:backend/src
+mcp-adapter-check:
 	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
-	  PYTHONPATH="$(HXE1_IMPORT_PATH)" $(HXE1_PYTHON) -s backend/scripts/pi1_offline_checks.py \
-	    -q adapters/hxe1/tests
+	  PYTHONPATH="$(MCP_ADAPTER_IMPORT_PATH)" $(MCP_ADAPTER_PYTHON) -s backend/scripts/offline_test_runner.py \
+	    -q adapters/mcp_source/tests

@@ -14,7 +14,7 @@ MAX_MESSAGE_CONTENT_CHARS = 20_000
 
 
 class MessageRole(StrEnum):
-    """The two message authors supported by the Phase 1 chat surface."""
+    """The two message authors supported by the conversation API chat surface."""
 
     USER = "user"
     ASSISTANT = "assistant"

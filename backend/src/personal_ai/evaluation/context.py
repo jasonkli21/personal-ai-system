@@ -1,4 +1,4 @@
-"""Synthetic offline Phase 1/2 comparison; no provider, credentials, or judge."""
+"""Synthetic offline conversation API/2 comparison; no provider, credentials, or judge."""
 
 import asyncio
 import json

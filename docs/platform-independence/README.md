@@ -133,7 +133,7 @@ above retain their historical scope; the living boundary is current-state.
 - [Implementation report](pi-6-implementation-report.md), [command/scenario/hash ledger](pi-6-verification.json), [benchmark report](pi-6-benchmark-report.md) and [canonical observations](pi-6-benchmark-report.json).
 - [Separate gates](pi-6-completion-gate.md) and [review closure](pi-6-review-closure.md); no further review handoff is requested.
 
-Run `make pi6-check` with the backend virtualenv. This is synthetic local evidence,
+Run `make offline-benchmark-check` with the backend virtualenv. This is synthetic local evidence,
 not real-model lift, live cost or production acceptance. PI-5 remains
 `blocked_unverified`; original P6-02/29 are unmet, production promotion is `no_go`,
 MEM-3+ remains frozen. No public API, production default or migration is added.

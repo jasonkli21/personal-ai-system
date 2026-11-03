@@ -1,4 +1,4 @@
-"""Storage contracts for the Phase 1 conversation surface."""
+"""Storage contracts for the conversation API conversation surface."""
 
 from collections.abc import Sequence
 from datetime import datetime

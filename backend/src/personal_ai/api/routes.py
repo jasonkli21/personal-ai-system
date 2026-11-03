@@ -1,4 +1,4 @@
-"""Phase 1 conversation routes."""
+"""conversation API conversation routes."""
 
 import asyncio
 import logging
@@ -71,7 +71,7 @@ def create_conversation(
     request: CreateConversationRequest,
     service: Annotated[ConversationService, Depends(get_conversation_service)],
 ) -> Conversation:
-    """Create an empty conversation for the Phase 1 owner."""
+    """Create an empty conversation for the conversation API owner."""
     if is_external_client_request() and request.idempotency_key is None:
         raise HTTPException(status_code=422, detail="validation_error")
     return service.create_conversation(title=request.title, idempotency_key=request.idempotency_key)
@@ -81,7 +81,7 @@ def create_conversation(
 def list_conversations(
     service: Annotated[ConversationService, Depends(get_conversation_service)],
 ) -> ConversationListResponse:
-    """List conversations belonging to the current Phase 1 owner."""
+    """List conversations belonging to the current conversation API owner."""
     return ConversationListResponse(conversations=service.list_conversations())
 
 

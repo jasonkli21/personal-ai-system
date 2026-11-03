@@ -1,4 +1,4 @@
-"""Atomic MEM-2 control operations in the canonical memory database."""
+"""Atomic memory controls control operations in the canonical memory database."""
 
 from contextlib import contextmanager
 

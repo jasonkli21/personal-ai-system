@@ -44,7 +44,7 @@ class ArtifactContextTraceRepository:
     def _retain(self, owner_id, trace):
         try:
             if trace.source_decisions:
-                # Phase 14/15 immutable source/grant propagation is still incomplete.
+                # storage contract/15 immutable source/grant propagation is still incomplete.
                 # Retain only actual builds whose dependencies are owner history today.
                 return
             # This is the retained actual build, never a reconstruction from current data.

@@ -1,4 +1,4 @@
-"""Phase 20 deterministic lifecycle, disclosure, budget and export regressions."""
+"""private artifacts deterministic lifecycle, disclosure, budget and export regressions."""
 
 import gzip
 from concurrent.futures import ThreadPoolExecutor

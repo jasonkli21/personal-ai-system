@@ -12,7 +12,7 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | --- | --- |
 | Architecture and boundaries | [Architecture](architecture.md), [current state](current-state.md) |
 | Core startup and API | [API contract](api-contract.md), `backend/src/personal_ai/` |
-| Harness excellence, SDK, Checklist and MCP | [Capability inventory](harness-excellence/README.md), [HXE-1 adapter](../adapters/hxe1/README.md) |
+| SDK, Checklist and MCP | [Capability inventory](harness-excellence/README.md), [MCP source adapter](../adapters/mcp_source/README.md) |
 | HTTP consumers and reference apps | [Consumer contract](platform-independence/consumer-v1.md), [reference apps](../reference-apps/README.md), [Reading Logbook](../examples/reading-logbook/README.md) |
 | Inference and routing | [LLM README](../backend/src/personal_ai/llm/README.md), [routing README](../backend/src/personal_ai/routing/README.md) |
 | Context and chat | [API contract](api-contract.md), `backend/src/personal_ai/context/`, `services/chat/`, focused tests |
@@ -24,8 +24,9 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | Frontend and sidecar | [chat feature README](../frontend/src/features/chat/README.md), [API contract](api-contract.md) |
 | Evaluation and experiments | `backend/src/personal_ai/evaluation/`, fixture/lock and focused tests; [current status](current-state.md) |
 | Operations and release gates | [Current verification](../stabilization/VERIFICATION.md), [operations](../stabilization/OPERATIONS.md), [current state](current-state.md) |
-| Platform-independence review | [PI index](platform-independence/README.md), then the specific gate and dated evidence for the task |
+| Compatibility and independent acceptance | [Platform independence](platform-independence/README.md), then the relevant contract and dated evidence |
 | Maintainability or future work | [Quality assessment](../stabilization/CODE-QUALITY.md), then the specifically authorized plan |
+| Naming compatibility | [Naming exceptions](naming-exceptions.md), then the active paths and naming-policy check |
 
 ## Evidence and history
 

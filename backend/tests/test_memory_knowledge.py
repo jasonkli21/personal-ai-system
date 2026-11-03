@@ -1,4 +1,4 @@
-"""Trust/state-transition tests for the MEM-1 two-session seam."""
+"""Trust/state-transition tests for the project knowledge two-session seam."""
 
 from dataclasses import replace
 from datetime import timedelta

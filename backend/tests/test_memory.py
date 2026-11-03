@@ -1,4 +1,4 @@
-"""Phase 3 contracts, repositories, extraction and retrieval on shared fixtures."""
+"""memory extraction contracts, repositories, extraction and retrieval on shared fixtures."""
 
 from datetime import UTC, datetime
 from uuid import uuid4

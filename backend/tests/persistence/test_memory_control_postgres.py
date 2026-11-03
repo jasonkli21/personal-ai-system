@@ -1,4 +1,4 @@
-"""Opt-in native MEM-2 atomicity, reconciliation, process races and erasure."""
+"""Opt-in native memory controls atomicity, reconciliation, process races and erasure."""
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager

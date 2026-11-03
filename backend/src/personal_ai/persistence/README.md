@@ -10,7 +10,7 @@ Backend-neutral repository protocols and storage errors remain in `personal_ai.s
 - `postgres/research_experiments.py` and migration 026 own bounded immutable paired research evaluation summaries. Dispatch/admission stays in P19, snippet/evidence source facts stay in research sessions, and optional bulky numeric batches stay in P20. Account export and scheduled expiry include the new family.
 
 - `postgres/federation.py` owns current federation grant heads, immutable revisions, safe selection audits through existing audit events, and fenced grant cleanup; migration 024 adds the relational grant tables. Runtime/history/artifacts retain typed dependencies, not grant authority.
-- `postgres/mutations.py` owns Phase 31 proposal heads and immutable revision audit in one transactional aggregate (migration 025), including CAS execution/reconciliation reservations, scoped reads, export inventory and fenced purge. Domain state and deduplication receipts remain external.
+- `postgres/mutations.py` owns mutation proposals proposal heads and immutable revision audit in one transactional aggregate (migration 025), including CAS execution/reconciliation reservations, scoped reads, export inventory and fenced purge. Domain state and deduplication receipts remain external.
 - `factory.py` composes the configured Postgres/Neon and DynamoDB repositories.
 - `postgres/` owns Postgres connections, migrations, and Postgres-backed repositories.
 - `dynamodb/` owns DynamoDB clients and the conversation, message, summary, trace, job, and usage adapters.
@@ -19,7 +19,7 @@ Backend-neutral repository protocols and storage errors remain in `personal_ai.s
 
 Repository adapters may coordinate multiple writes inside one transaction when their contract requires it. Do not move commit boundaries to match file boundaries. The tests live under `backend/tests/persistence/` and in repository-specific backend test modules.
 
-## MEM-2 migration and operator notes
+## memory controls migration and operator notes
 
 Migration 030 adds only actor-scoped pending proposals and content-free operation
 receipts under the existing Postgres memory owner. Migration 031 adds the global
@@ -31,7 +31,7 @@ then applies canonical lifecycle event/projection plus receipt in one transactio
 Queue review and receipt also share a transaction. User actors are rejected by raw
 lifecycle `apply_event`; the narrow control transaction is the only user-write seam.
 
-Rollback disables the three MEM-2 flags and the frontend management gate. Do not
+Rollback disables the three memory controls flags and the frontend management gate. Do not
 roll back migrations 030/031, undo forget, prune source fences or recycle receipt keys.
 TTL hides expired proposals; the bounded scheduled-maintenance pass and later writes
 erase expired content. An operator performing account erasure must retain
@@ -40,7 +40,7 @@ both control tables in every scope; it refuses an unfenced owner. Account invent
 and export cover both tables. This is a local SQL erasure seam, not proof of cloud
 physical deletion, backups, recovery or a complete account-erasure workflow.
 
-## PI-4 profile consent
+## profile consent profile consent
 
 Migration 032 adds `profile_consents`, a bounded owner aggregate in the existing
 Postgres payload-family inventory, distinct from the unchanged profile schema.

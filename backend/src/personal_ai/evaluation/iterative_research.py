@@ -1,4 +1,4 @@
-"""Paired, deterministic Phase 5 / Phase 8 evaluation (synthetic data only)."""
+"""Paired, deterministic research session / iterative research evaluation (synthetic data only)."""
 
 import asyncio
 import json
@@ -338,7 +338,7 @@ def _result_record(fixture, baseline, run, session, events, adapter, decision_re
             part.casefold() in query.casefold() for part in expected["followup_query_contains"]
         )
     if "followup_allowed_domains" in expected:
-        # Phase 33 keeps typed domain bounds in the immutable operation sent to
+        # retrieval query planning keeps typed domain bounds in the immutable operation sent to
         # the adapter, separately from literal terms in the user's question.
         dispatched_followups = adapter.calls[1:]
         passed = passed and bool(dispatched_followups) and all(
@@ -486,7 +486,7 @@ def _validate_schema(report):
     if report["schema_version"] != schema["properties"]["schema_version"]["const"]:
         raise ValueError("unsupported evaluation schema version")
     if not report["synthetic"] or report["single_pass_baseline"] != "research-v1":
-        raise ValueError("evaluation report must compare synthetic fixtures to Phase 5")
+        raise ValueError("evaluation report must compare synthetic fixtures to research session")
     if report["paired_count"] != len(report["results"]) or report["paired_count"] < 10:
         raise ValueError("at least ten complete paired fixtures are required")
     if not isinstance(report["passed"], bool):

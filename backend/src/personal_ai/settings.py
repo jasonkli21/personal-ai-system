@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     ai_api_key: SecretStr = Field(default=SecretStr(""))
     routing_shadow_enabled: bool = False
     routing_shadow_artifact: dict[str, object] = Field(default_factory=dict, max_length=16)
-    # Phase 18 endpoint facts are account-specific operator attestations. They
+    # usage accounting endpoint facts are account-specific operator attestations. They
     # remain disabled/unknown by default and never contain credential values.
     gemini_account_scope_id: str = Field(default="", max_length=200)
     gemini_credential_scope_id: str = Field(default="gemini-primary-key", max_length=200)
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
     gemini_structured_schema_ids: tuple[str, ...] = Field(default=(), max_length=128)
     gemini_quota_membership_verified: bool = False
     gemini_quota_buckets: tuple[dict[str, object], ...] = Field(default=(), max_length=32)
-    # Phase 17 reference adapters stay inactive until an operator records
+    # provider adapters reference adapters stay inactive until an operator records
     # account/model-specific cost, privacy, and compatibility preflight evidence.
     groq_adapter_enabled: bool = False
     groq_model: str = Field(default="", max_length=200)
@@ -153,7 +153,7 @@ class Settings(BaseSettings):
     # Raw Ed25519 private key as unpadded base64url. Store in Secret Manager or
     # an untracked local environment file; never expose it to browser or bridge.
     external_dispatch_grant_private_key: SecretStr = Field(default=SecretStr(""))
-    # P25.3 remains unavailable until Phase 15 source/revocation and P25.2
+    # P25.3 remains unavailable until membership and revocation policy source/revocation and P25.2
     # storage acceptance gates are explicitly reviewed and accepted.
     external_turn_acceptance_enabled: bool = False
     gcp_project_id: str = Field(default="", max_length=200)
@@ -313,7 +313,7 @@ class Settings(BaseSettings):
     memory_job_candidate_limit: int = Field(default=40, ge=1, le=100)
 
     research_storage: str = Field(default="postgres", pattern=r"^(postgres|memory)$")
-    # PI-5 selection is explicit; model-context access is independently default-off.
+    # retrieval selection is explicit; model-context access is independently default-off.
     retrieval_enabled: bool = False
     retrieval_context_enabled: bool = False
     retrieval_external_enabled: bool = False

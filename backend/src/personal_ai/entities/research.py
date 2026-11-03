@@ -211,7 +211,7 @@ class EntityClaim(ScopedDecisionRecord):
     unit: str | None = Field(default=None, max_length=30)
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     # Each of up to 12 deduplicated evidence passages may retain up to 12
-    # source observations from Phase 5; keep the complete attribution graph.
+    # source observations from research session; keep the complete attribution graph.
     evidence_refs: tuple[EvidenceReference, ...] = Field(min_length=1, max_length=144)
     evidence_ids: tuple[UUID, ...] = Field(min_length=1, max_length=12)
     observed_at: datetime

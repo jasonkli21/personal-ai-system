@@ -38,7 +38,7 @@ from personal_ai.usage.contracts import (
 )
 from personal_ai.usage.profiles import EndpointProfileResolver
 from tests.test_endpoint_registry import _profile, _requirements
-from tests.test_routing_phase21 import Authorization
+from tests.test_routing_decision_lifecycle import Authorization
 
 pytestmark = pytest.mark.persistence_integration
 SCOPE = ApplicationScope()
@@ -983,7 +983,7 @@ def test_staged_migration_preserves_legacy_audit_and_transfers_quota(database):
         c.execute(f"DROP SCHEMA {schema} CASCADE")
 
 
-def test_phase35_shadow_roundtrip_retention_scope_and_idempotency(database):
+def test_shadow_roundtrip_retention_scope_and_idempotency(database):
     """P35 nested metadata remains in the canonical transactional decision JSON."""
     from personal_ai.routing.adaptive import (
         AdaptiveArtifact,
@@ -1027,7 +1027,7 @@ def test_phase35_shadow_roundtrip_retention_scope_and_idempotency(database):
     assert len(tail) == 1 and complete
 
 
-def test_phase35_resource_projection_uses_claims_and_preserves_unknown(database):
+def test_resource_projection_uses_claims_and_preserves_unknown(database):
     """Real P19 read projection; reservations never masquerade as sends/usage."""
     owner, service, decision, prep, _repo, usage, _auth = setup(database)
     query = {"owner_id": owner, "scope": SCOPE, "request_id": decision.request.request_id,

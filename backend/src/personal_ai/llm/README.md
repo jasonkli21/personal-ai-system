@@ -12,7 +12,7 @@ and preparation contracts used by services. Provider SDK and transport details s
 
 Gateway and provider contract tests live in `backend/tests/test_litellm_gateway.py`, `backend/tests/test_llm_*.py`, and related usage tests. Offline fakes do not establish live provider compatibility.
 
-## PI-3 explicit execution profiles
+## operator-selected execution profiles explicit execution profiles
 
 Normal API chat/context, research synthesis and the memory worker use
 `execution.py`; the API caches one generation/count pair per request. This is a
@@ -70,13 +70,13 @@ independent. Existing memory flags remain default-off.
 
 Direct adapter constructors remain for compatibility tests and explicitly gated
 provider evaluation/cascade paths. They are not normal workflow composition and
-do not inherit PI-3 admission merely by existing. Manual/connected external turns
+do not inherit operator-selected execution profiles admission merely by existing. Manual/connected external turns
 retain their separate default-off explicit contracts. No adaptive/shadow promotion.
 
-`make pi3-check` runs an inspected offline suite in a macOS OS network sandbox
+`make provider-isolation-check` runs an inspected offline suite in a macOS OS network sandbox
 (including native TCP/IPv6/Unix probes) plus the Python audit fence. Other operating
 systems need an equivalent OS fence; this target fails rather than silently
-claiming native isolation. `make pi2-check` separately exercises installed artifacts
+claiming native isolation. `make consumer-contract-check` separately exercises installed artifacts
 and loopback HTTP; that legacy target's Python fence is not a native sandbox.
 
 Rollback: stop/drain new sends; disable the selected profile or select a separately

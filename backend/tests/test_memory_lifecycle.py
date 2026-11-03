@@ -1,4 +1,4 @@
-"""Phase 4 lifecycle contracts, scoring, leases and immutable source safety."""
+"""memory lifecycle lifecycle contracts, scoring, leases and immutable source safety."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import UUID

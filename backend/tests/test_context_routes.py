@@ -1,4 +1,4 @@
-"""Phase 2 API integration on synthetic shared fixtures, with no network."""
+"""branch context API integration on synthetic shared fixtures, with no network."""
 
 from datetime import UTC, datetime
 from uuid import uuid4

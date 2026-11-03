@@ -781,7 +781,7 @@ def test_postgres_global_profile_repository_contract_and_concurrency(postgres_da
         (item.field, item.value, item.shared_with_applications) for _, item in records
     )
     assert projection(pg_shared) == projection(memory_shared)
-    assert pg_shared == ()  # Legacy sharing requires fresh PI-4 consent.
+    assert pg_shared == ()  # Legacy sharing requires fresh profile consent consent.
     assert repository.shared_fields(owner_id, "shopping", ("preferred_units",)) == ()
 
     revoked = repository.update(
@@ -1643,7 +1643,7 @@ def test_job_effect_guard_pins_lease_and_source_until_receipt_recovery(
     assert late_effects == []
 
 
-def test_phase34_pgvector_lossless_baseline_eligibility_and_resource_measurement(postgres_database):
+def test_pgvector_lossless_baseline_eligibility_and_resource_measurement(postgres_database):
     """Opt-in native-store baseline. No ANN claim is inferred from offline fakes."""
     from time import perf_counter
 
@@ -1694,7 +1694,7 @@ def test_phase34_pgvector_lossless_baseline_eligibility_and_resource_measurement
     )
 
 
-def test_phase34_duplicate_new_attempt_preserves_first_original(postgres_database):
+def test_duplicate_new_attempt_preserves_first_original(postgres_database):
     from dataclasses import replace
 
     class Guard(_SourceGuard):

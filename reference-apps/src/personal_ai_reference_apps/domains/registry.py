@@ -1,4 +1,4 @@
-"""Small, explicit registry for the two in-repository Phase 7 domains."""
+"""Small, explicit registry for the two in-repository domain comparison domains."""
 
 from datetime import datetime
 from typing import Protocol

@@ -1,4 +1,4 @@
-"""Bounded, replaceable structured-source adapters for Phase 7 domains."""
+"""Bounded, replaceable structured-source adapters for domain comparison domains."""
 
 import asyncio
 import base64

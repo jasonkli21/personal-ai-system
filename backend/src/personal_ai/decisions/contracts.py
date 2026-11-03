@@ -21,7 +21,7 @@ from personal_ai.entities.research import (
 
 
 class SuppliedEvidence(DecisionRecord):
-    """Evidence supplied without a Phase 5 session; still requires attribution."""
+    """Evidence supplied without a research session session; still requires attribution."""
 
     evidence_id: UUID
     source_observation_id: UUID
@@ -37,7 +37,7 @@ class SuppliedEvidence(DecisionRecord):
 
     @model_validator(mode="after")
     def source_is_valid(self):
-        # Reuse Phase 5's public URL policy at this untrusted input boundary.
+        # Reuse research session's public URL policy at this untrusted input boundary.
         from personal_ai.search.policy import canonical_url
 
         if self.expires_at <= self.observed_at:
@@ -235,7 +235,7 @@ class PolicyVersions(ScopedDecisionRecord):
     claim_verification: Literal["claim-verification-v1", "claim-verification-v2"] = "claim-verification-v1"
     constraints: Literal["constraint-v1"] = "constraint-v1"
     ranking: Literal["rank-v1"] = "rank-v1"
-    # Optional, additive Phase 7 feature policy. `rank-v1` remains the shared
+    # Optional, additive domain comparison feature policy. `rank-v1` remains the shared
     # hard-filter/soft-rank contract; this records a registered domain feature
     # extension used for that decision.
     domain_features: str | None = Field(default=None, max_length=100)

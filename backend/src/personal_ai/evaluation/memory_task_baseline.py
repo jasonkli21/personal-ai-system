@@ -1,4 +1,4 @@
-"""MEM-0: hermetic, evidence-aware four-arm replay. No provider dispatch path."""
+"""memory benchmark: hermetic, evidence-aware four-arm replay. No provider dispatch path."""
 
 import argparse
 import json

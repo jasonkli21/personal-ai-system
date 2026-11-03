@@ -1,4 +1,4 @@
-"""MEM-2 authority, CAS, boundedness and content-independent control scoring."""
+"""memory controls authority, CAS, boundedness and content-independent control scoring."""
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace

@@ -1,4 +1,4 @@
-"""Phase 15 server-owned policy preflight and sensitivity contract fixtures."""
+"""membership and revocation policy server-owned policy preflight and sensitivity contract fixtures."""
 
 import asyncio
 from datetime import UTC, datetime

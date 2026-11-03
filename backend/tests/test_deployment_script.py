@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).parents[2]
 SCRIPT = ROOT / "infrastructure/gcp/deploy.sh"
-EXAMPLE = SCRIPT.with_name("pi7-cloud-plan.example.json")
+EXAMPLE = SCRIPT.with_name("cloud-plan.example.json")
 CANARY = "PRIVATE_CANARY_NEVER_ECHO_4369"
 
 

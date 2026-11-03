@@ -287,7 +287,7 @@ export default function ResearchPanel({ initialSessionId, initialRunId, iterativ
           {event.gap_count !== undefined ? ` · ${event.gap_count} open gaps` : ""}
         </li>)}</ol>
       </>}
-      {iterativeRun.decision_ids.length > 0 && <p>Phase 6 decision snapshots: {iterativeRun.decision_ids.length}</p>}
+      {iterativeRun.decision_ids.length > 0 && <p>Decision snapshots: {iterativeRun.decision_ids.length}</p>}
     </section>}
     {session && <section className={styles.result} aria-label="Research result">
       <h2>{resultExpired ? "Evidence expired" : iterativeMode && iterativeRun?.state === "insufficient" ? "Partial cited evidence" : stateNames[session.state]}</h2>

@@ -86,9 +86,9 @@ def source_reference_manifest_sha256(references: tuple[str, ...]) -> str:
 def task_configuration_sha256(task: RoutingTaskProfile) -> str:
     """Digest task/output policy while excluding routing-only scarcity preferences.
 
-    Quality evidence predates Phase 23 and remains valid when only the route's
+    Quality evidence predates quota-aware routing and remains valid when only the route's
     quota preference changes. Preserve the former serialized shape so existing
-    Phase 22 evidence does not become stale merely because new defaulted fields
+    task-quality scoring evidence does not become stale merely because new defaulted fields
     were added to ``RoutingPreferences``.
     """
     task_payload = task.model_dump(mode="json")

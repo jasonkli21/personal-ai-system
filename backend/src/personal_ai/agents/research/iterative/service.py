@@ -134,7 +134,7 @@ def _host_allowed(url: str, domains: tuple[str, ...]) -> bool:
 
 
 class _DecisionSessionView:
-    """Provide the live evidence snapshot to the existing Phase 6 decision service."""
+    """Provide the live evidence snapshot to the existing decision service decision service."""
 
     def __init__(self, session: ResearchSession, selection: EvidenceSelection):
         self.session, self.selection = session, selection
@@ -142,7 +142,7 @@ class _DecisionSessionView:
     def get(self, owner_id: str, session_id: UUID):
         if owner_id != self.session.owner_id or session_id != self.session.id:
             raise ResourceNotFoundError("research not found")
-        # This ephemeral projection gives the Phase 6 service its normal completed,
+        # This ephemeral projection gives the decision service service its normal completed,
         # selected-evidence contract without persisting a premature session result.
         return self.session.model_copy(
             update={
@@ -227,7 +227,7 @@ class IterativeResearchService:
             allowed_domains=budget.allowed_domains,
             excluded_domains=request.excluded_domains,
             published_after=request.published_after,
-            # Keep the iterative session's Phase 5 key in its own namespace so
+            # Keep the iterative session's research session key in its own namespace so
             # an ordinary single-pass request with the same client key cannot
             # be adopted as this run's backing session.
             idempotency_key=uuid5(request.idempotency_key, "phase8-research-session"),
@@ -834,7 +834,7 @@ class IterativeResearchService:
             try:
                 proposed_candidates = self._propose_supported_claims(run, eligible)
                 if not all(candidate.claims for candidate in proposed_candidates):
-                    # Do not ask Phase 6 to persist anonymous candidate entities
+                    # Do not ask decision service to persist anonymous candidate entities
                     # without evidence-backed identity/claims. Such provisional
                     # records can make a later exact candidate look ambiguous.
                     raise ValueError("candidate claims are not yet supported")
@@ -1078,7 +1078,7 @@ class IterativeResearchService:
     def _propose_supported_claims(self, run, evidence):
         """Extract only explicit, unambiguous money literals for user candidates.
 
-        Phase 6 remains the sole verifier: this creates ordinary claim proposals
+        decision service remains the sole verifier: this creates ordinary claim proposals
         with exact evidence IDs and lets its subject/literal/identity policies
         decide whether they become verified claims.
         """
@@ -1166,7 +1166,7 @@ class IterativeResearchService:
                     values.setdefault(key, []).append(item.id)
                     originals[key] = match.group().strip()
             # Multiple values or currencies are a conflict. Let the ordinary
-            # Phase 6 evaluation report missing/conflicting evidence instead.
+            # decision service evaluation report missing/conflicting evidence instead.
             proposals = list(candidate.claims)
             if len(values) == 1:
                 (currency, amount), evidence_ids = next(iter(values.items()))
@@ -1376,7 +1376,7 @@ class IterativeResearchService:
             attempt for attempt in session.attempts if attempt.query_id == query.id
         ]
         if any(attempt.status == "completed" for attempt in existing_attempts):
-            # The Phase 5 session and run are atomically committed; this branch is
+            # The research session session and run are atomically committed; this branch is
             # defensive and refuses a duplicate provider call.
             iteration = run.iterations[-1].model_copy(update={"state": "assessing"})
             resumed = await self._transition(

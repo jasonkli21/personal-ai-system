@@ -57,7 +57,7 @@ class EndpointNotAdmissibleError(EndpointRegistryError):
 
 
 class EndpointRegistryRepository(Protocol):
-    """Durable owner for registry snapshots under the Phase 10 Postgres boundary."""
+    """Durable owner for registry snapshots under the persistence boundary Postgres boundary."""
 
     def load(self) -> EndpointRegistrySnapshot | None: ...
 

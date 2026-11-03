@@ -5,7 +5,7 @@ JSON fixtures live under `fixtures/<area>/`; output schemas live under `schemas/
 exercise services through synthetic inputs and do not establish provider, cloud, or deployment
 behavior.
 
-MEM-0 adds `make memory-task-eval`: the active v2 corpus has 30 synthetic cases,
+memory benchmark adds `make memory-task-eval`: the active v2 corpus has 30 synthetic cases,
 four historical-context arms, action-specific causal traces, keyed effect
 observations, exact diagnostic-derived support, and actual fixed memory
 retrieval/revalidation/packing where v1-compatible. The command runs twice and
@@ -19,7 +19,7 @@ scripted task proxy success is not measured model quality or native-store eviden
 The independent review and bounded remediation are recorded separately; fresh
 independent re-verification remains a gate for accepting the baseline.
 
-MEM-1 adds `make memory-knowledge-eval`, a separate `mem1-paired-v1` corpus
+project knowledge adds `make memory-knowledge-eval`, a separate `mem1-paired-v1` corpus
 with 20 stateful paired sessions (six tagged holdout cases). A trusted fake
 executes Task A, issues a resolver-bound receipt, persists through the canonical
 memory repository, then composes fresh Task B service/retriever/builder objects.
@@ -40,7 +40,7 @@ local fake runtime. Native resource and model-mediated metrics stay unverified.
 Cases are author-reviewed; independent review, including fixture review, is
 still required. A holdout tag does not establish a blind model study.
 
-Phase 36's `verification/` program indexes existing executable contracts and
+system conformance's `verification/` program indexes existing executable contracts and
 original acceptance obligations in a strict versioned matrix. `make
 integrated-verification` executes offline rows, captures exact parametrized case
 receipts, and generates matrix results, a blocker ledger, and a Markdown report
@@ -59,7 +59,7 @@ before interpreting results or adding evidence classes.
 `domains/fixtures.py` remains domain-owned because the API exposes those synthetic comparisons
 as a supported demo endpoint as well as using them in offline evaluation.
 
-MEM-2 adds `make memory-control-eval`: 36 synthetic control probes in
+memory controls adds `make memory-control-eval`: 36 synthetic control probes in
 `fixtures/memory/mem2-control-v1.json`, with 30 development and six public tagged
 holdout cases. Driver inputs exclude scoring expectations. The evaluator exercises
 real scoped service/tool contracts under a hermetic host, not a live model loop.

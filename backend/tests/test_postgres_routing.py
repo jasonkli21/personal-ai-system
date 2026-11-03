@@ -1,4 +1,4 @@
-"""Deterministic contract checks for Phase 18's Postgres registry owner."""
+"""Deterministic contract checks for usage accounting's Postgres registry owner."""
 
 import json
 from contextlib import contextmanager
@@ -443,7 +443,7 @@ def test_repository_revalidates_model_copies_and_rejects_oversize_before_databas
     assert database.connection_value.namespace is None
 
 
-def test_phase18_migration_owns_one_bounded_system_snapshot():
+def test_usage_migration_owns_one_bounded_system_snapshot():
     from pathlib import Path
 
     migration = Path(__file__).parents[1] / "src/personal_ai/persistence/migrations/016_endpoint_registry.sql"

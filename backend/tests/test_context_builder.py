@@ -1,4 +1,4 @@
-"""Regression coverage for Phase 12 model-input selection and manifests."""
+"""Regression coverage for context builder model-input selection and manifests."""
 
 from datetime import UTC, datetime, timedelta
 from time import monotonic, sleep

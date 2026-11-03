@@ -141,7 +141,7 @@ def _base_state(owner_id: str, memory_id: UUID) -> MemoryLifecycleState:
 
 
 class InMemoryMemoryLifecycleRepository:
-    """Deterministic fake sharing the Phase 3 message mutation lock."""
+    """Deterministic fake sharing the memory extraction message mutation lock."""
 
     def __init__(self, memories, messages, *, clock=None):
         self.memories, self.messages = memories, messages

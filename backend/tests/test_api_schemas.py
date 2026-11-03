@@ -1,4 +1,4 @@
-"""Contract examples for Phase 1 domain and HTTP schemas."""
+"""Contract examples for conversation API domain and HTTP schemas."""
 
 from datetime import UTC, datetime
 from uuid import uuid4

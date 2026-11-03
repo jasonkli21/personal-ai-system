@@ -1,4 +1,4 @@
-"""Real-Postgres run persistence and actual P21/P19 synthetic dispatch test."""
+"""Real-Postgres run persistence and actual routing/accounting synthetic dispatch test."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ from personal_ai.routing.service import RoutingFinalizationError
 from personal_ai.usage.profiles import EndpointProfileResolver
 from tests.test_endpoint_registry import _bucket, _profile
 from tests.test_provider_matrix import _valid_output
-from tests.test_routing_phase21 import Authorization
+from tests.test_routing_decision_lifecycle import Authorization
 
 pytestmark = pytest.mark.persistence_integration
 

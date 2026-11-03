@@ -1,4 +1,4 @@
-"""Bounded buffered task orchestration over the P21/P19 lifecycle.
+"""Bounded buffered task orchestration over the routing/accounting lifecycle.
 
 No public workflow enables this coordinator. Preparation and validation are
 trusted registered capabilities; output is returned only after durable acceptance.
@@ -241,7 +241,7 @@ class EndpointInputPreparer:
 
     `assemble` is a trusted context capability returning a ContextBuildResult and
     exact ValidationInput for the injected sources. It must use a local counter;
-    the single exact external count below is admitted by P21/P19. Domain rules
+    the single exact external count below is admitted by routing/accounting. Domain rules
     remain in this capability and the validator, never in the coordinator.
     """
 

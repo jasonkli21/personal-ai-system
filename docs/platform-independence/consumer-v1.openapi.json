@@ -832,7 +832,7 @@
       },
       "ConversationListResponse": {
         "additionalProperties": false,
-        "description": "Newest-first conversations for the current Phase 1 owner.",
+        "description": "Newest-first conversations for the current conversation API owner.",
         "properties": {
           "conversations": {
             "items": {
@@ -896,7 +896,7 @@
       },
       "ErrorResponse": {
         "additionalProperties": false,
-        "description": "Consistent JSON error envelope for Phase 1 routes.",
+        "description": "Consistent JSON error envelope for conversation API routes.",
         "properties": {
           "error": {
             "$ref": "#/components/schemas/ErrorDetail"
@@ -1305,7 +1305,7 @@
         "type": "object"
       },
       "MessageRole": {
-        "description": "The two message authors supported by the Phase 1 chat surface.",
+        "description": "The two message authors supported by the conversation API chat surface.",
         "enum": [
           "user",
           "assistant"
@@ -2337,7 +2337,7 @@
   "paths": {
     "/v1/conversations": {
       "get": {
-        "description": "List conversations belonging to the current Phase 1 owner.",
+        "description": "List conversations belonging to the current conversation API owner.",
         "operationId": "list_conversations_v1_conversations_get",
         "parameters": [
           {
@@ -2481,7 +2481,7 @@
         ]
       },
       "post": {
-        "description": "Create an empty conversation for the Phase 1 owner.",
+        "description": "Create an empty conversation for the conversation API owner.",
         "operationId": "create_conversation_v1_conversations_post",
         "parameters": [
           {

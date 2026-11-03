@@ -1,4 +1,4 @@
-"""Phase 5 request, aggregate, result and safe progress contracts."""
+"""research session request, aggregate, result and safe progress contracts."""
 
 from datetime import datetime
 from hashlib import sha256

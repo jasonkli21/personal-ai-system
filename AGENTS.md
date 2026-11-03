@@ -28,3 +28,7 @@ The fixed `local` owner is only a local/test development identity. Deployed requ
 Keep [docs/current-state.md](docs/current-state.md) as the single living implementation status and [docs/README.md](docs/README.md) as the task router. New user behavior changes user docs/contracts. Implementation status and verification changes update current-state/evidence. Durable design rationale belongs in accepted ADRs; module usage belongs in the owning README; plans and dated reports remain historical. Do not put implementation notes, review history, or phase commentary in the root README.
 
 Run checks relevant to changed code using the Makefile. For documentation-only changes, check links and content and run `git diff --check`. Keep provider/emulator checks opt-in; never report cloud, emulator, or provider checks as passed based on fakes.
+
+## Naming
+
+Active production code, tests, public developer commands, current module READMEs, and user-visible strings use enduring capability and behavior names rather than implementation-phase IDs. Historical plans/reports and verified immutable or persisted compatibility identifiers are narrow exceptions. Comments explain invariants and reasons; tests describe behaviors.

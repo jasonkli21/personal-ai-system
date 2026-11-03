@@ -1,4 +1,4 @@
-"""Explicit construction of the small set of Phase 17 reference adapters."""
+"""Explicit construction of the small set of provider adapters reference adapters."""
 
 from typing import Literal
 

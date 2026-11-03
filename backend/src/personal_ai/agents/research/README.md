@@ -4,16 +4,16 @@ This package coordinates bounded, owner-scoped research. Search/provider calls r
 
 ## Module map
 
-- `contracts.py` and `repositories.py`: Phase 5 request/session state and repository contract.
+- `contracts.py` and `repositories.py`: research session request/session state and repository contract.
 - `service.py`: one request-owned pass, including query planning, bounded attempts, evidence selection, synthesis, expiry, and fenced session persistence.
-- `personal_ai.search.planning`, `runtime`, and `authority`: Phase 33 query envelopes, installed adapter composition, and shared snippet-rights dependencies. Baseline and opt-in experiment configuration use the same service.
-- `iterative/`: typed Phase 8 run, budget, event, state, repository, and test-fixture modules under `contracts.py`, `repositories.py`, and `fakes.py`.
-- `iterative/service.py`: bounded iterative state machine over the Phase 5 session/evidence pipeline. It owns deterministic sufficiency/gap assessment, follow-up sequencing, run transitions, budget/resource reservations, cancellation/recovery fences, and safe progress events. It remains the main context-cost hotspot; read this map and the contracts first, then inspect only the relevant state transition.
+- `personal_ai.search.planning`, `runtime`, and `authority`: retrieval query planning query envelopes, installed adapter composition, and shared snippet-rights dependencies. Baseline and opt-in experiment configuration use the same service.
+- `iterative/`: typed iterative research run, budget, event, state, repository, and test-fixture modules under `contracts.py`, `repositories.py`, and `fakes.py`.
+- `iterative/service.py`: bounded iterative state machine over the research session session/evidence pipeline. It owns deterministic sufficiency/gap assessment, follow-up sequencing, run transitions, budget/resource reservations, cancellation/recovery fences, and safe progress events. It remains the main context-cost hotspot; read this map and the contracts first, then inspect only the relevant state transition.
 
 ## State, budgets, and recovery
 
-Phase 5 stores source queries, attempts, observations, selected evidence, citations, and answer in an expiring owner-scoped session. Phase 8 persists a separate versioned run linked to that session. Repository transactions/fences protect state transitions and stale-worker recovery; uncertain external calls are not silently retried. The run ledger bounds queries, provider attempts, tokens, time, and cost. Iteration, progress, and decision gates remain off by default; single-pass research remains the normal path.
+research session stores source queries, attempts, observations, selected evidence, citations, and answer in an expiring owner-scoped session. iterative research persists a separate versioned run linked to that session. Repository transactions/fences protect state transitions and stale-worker recovery; uncertain external calls are not silently retried. The run ledger bounds queries, provider attempts, tokens, time, and cost. Iteration, progress, and decision gates remain off by default; single-pass research remains the normal path.
 
 ## Entry points and verification
 
-Read `contracts.py` and `service.py` for single-pass behavior, or `iterative/contracts.py` before touching `iterative/service.py`. Relevant checks are `backend/tests/test_research_pipeline.py`, `test_research_routes.py`, `test_iterative_research.py`, `test_iterative_research_contracts.py`, and `test_iterative_research_routes.py`. Use `make research-eval` and `make iterative-research-eval` for the synthetic baselines. See the [research task router](../../../../../docs/README.md), [research-agent guide](../../../../../docs/research-agent.md), and [Phase 8 release evidence](../../../../../docs/releases/phase-8-iterative-research.md).
+Read `contracts.py` and `service.py` for single-pass behavior, or `iterative/contracts.py` before touching `iterative/service.py`. Relevant checks are `backend/tests/test_research_pipeline.py`, `test_research_routes.py`, `test_iterative_research.py`, `test_iterative_research_contracts.py`, and `test_iterative_research_routes.py`. Use `make research-eval` and `make iterative-research-eval` for the synthetic baselines. See the [research task router](../../../../../docs/README.md), [research-agent guide](../../../../../docs/research-agent.md), and [iterative research release evidence](../../../../../docs/releases/phase-8-iterative-research.md).

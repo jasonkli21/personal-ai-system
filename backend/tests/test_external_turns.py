@@ -1,4 +1,4 @@
-"""Phase 25.2 synthetic state-machine, provenance, policy and concurrency acceptance."""
+"""external-turn lifecycle synthetic state-machine, provenance, policy and concurrency acceptance."""
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor

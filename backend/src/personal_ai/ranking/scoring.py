@@ -22,7 +22,7 @@ def rank_with_domain_features(
 ) -> tuple[tuple[CandidateEvaluation, ...], str, UUID | None]:
     """Apply registered domain features after the shared eligibility filter.
 
-    Phase 6 eligibility and exclusion outcomes are preserved. The shared stage
+    decision service eligibility and exclusion outcomes are preserved. The shared stage
     combines its preference score with a domain feature score at equal weight,
     then applies the same stable name/entity tie breakers as rank-v1.
     """

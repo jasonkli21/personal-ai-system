@@ -1,4 +1,4 @@
-"""Opt-in PI-4 native transaction, CAS, rollback and version-skew probes."""
+"""Opt-in profile consent native transaction, CAS, rollback and version-skew probes."""
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta

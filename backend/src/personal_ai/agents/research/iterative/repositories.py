@@ -1,4 +1,4 @@
-"""Owner-scoped, revision-fenced storage for Phase 8 runs and events."""
+"""Owner-scoped, revision-fenced storage for iterative research runs and events."""
 
 from hashlib import sha256
 from typing import Protocol
@@ -58,7 +58,7 @@ class IterativeResearchRepository(Protocol):
 
 
 class InMemoryIterativeResearchRepository:
-    """Test fake sharing one lock with the Phase 5 session fake."""
+    """Test fake sharing one lock with the research session session fake."""
 
     def __init__(self, sessions):
         self.session_repository = sessions

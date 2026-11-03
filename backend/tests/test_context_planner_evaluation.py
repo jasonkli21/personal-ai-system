@@ -1,4 +1,4 @@
-"""Executable acceptance checks for the offline Phase 13 baseline."""
+"""Executable acceptance checks for the offline context planner baseline."""
 
 import json
 

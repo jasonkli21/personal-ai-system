@@ -3,7 +3,7 @@
 This package owns durable user-memory contracts, extraction, retrieval, disclosure policy, and
 lifecycle behavior. Memory remains a separate data class from time-sensitive external evidence.
 
-## MEM-1 verified project knowledge
+## project knowledge verified project knowledge
 
 `knowledge.py` defines immutable schema-3 `procedure` and `project_decision`
 records. V1 `Memory` and V2 `DerivedMemory` retain their exact contracts.
@@ -69,7 +69,7 @@ See the [ADR](../../../../docs/memory/mem-1-contract-adr.md) and
 
 Lifecycle and disclosure tests live in `backend/tests/test_memory_lifecycle.py`, `backend/tests/test_memory.py`, and persistence suites. Preserve freshness, source attribution, owner scope, and transactional behavior when changing adapters.
 
-## Phase 34 read and maintenance contracts
+## memory revalidation read and maintenance contracts
 
 `MemoryRetriever` builds a server-owned `MemoryQuery`, checks hard scope, source,
 lifecycle and complete embedding-space eligibility before scoring/top-K, and returns
@@ -119,9 +119,9 @@ deferred and is not represented as a supported query contract.
 Run `make memory-eval memory-lifecycle-eval memory-optimization-eval`.
 The original baseline and paired evaluator are synthetic evidence. Native pgvector
 precision/resource tests remain in the intentionally deferred persistence suite.
-No experiment coverage is promoted; see the Phase 34 implementation report.
+No experiment coverage is promoted; see the memory revalidation implementation report.
 
-## MEM-2 default-off controls
+## memory controls default-off controls
 
 `control_contracts.py`, `control_service.py`, `control_repository.py` and
 `control_tools.py` add exact actor/project-scoped lexical search, fetch, kind

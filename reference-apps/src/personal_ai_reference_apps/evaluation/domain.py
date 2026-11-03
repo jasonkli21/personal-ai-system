@@ -1,4 +1,4 @@
-"""Offline cross-domain evaluation using fixed synthetic Phase 7 records."""
+"""Offline cross-domain evaluation using fixed synthetic domain comparison records."""
 
 import subprocess
 from datetime import UTC, datetime

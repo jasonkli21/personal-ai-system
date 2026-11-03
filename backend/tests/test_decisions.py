@@ -494,7 +494,7 @@ def test_decision_api_is_gated_and_serves_persisted_result():
 
 
 @pytest.mark.anyio
-async def test_phase5_session_supplies_owner_scoped_decision_evidence():
+async def test_research_session_supplies_owner_scoped_decision_evidence():
     from personal_ai.evaluation.research import build_fixture, load_fixtures
 
     fixture = {**load_fixtures()[0], "sources": [{

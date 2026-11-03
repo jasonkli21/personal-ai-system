@@ -1,4 +1,4 @@
-"""Deterministic paired Phase 23 routing evaluation fixtures."""
+"""Deterministic paired quota-aware routing routing evaluation fixtures."""
 
 from personal_ai.evaluation.quota_scarcity import (
     QuotaEvaluationThresholds,

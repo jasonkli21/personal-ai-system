@@ -24,7 +24,7 @@ def _assembled(fixture, available_sources):
     )
 
 
-def test_phase22_scorer_measures_only_sources_injected_by_planned_context():
+def test_scorer_measures_only_sources_injected_by_planned_context():
     fixtures, _task, _scoring = load_provider_matrix_configuration()
     fixture = fixtures[0]
     output = json.dumps(fixture.reference_output)

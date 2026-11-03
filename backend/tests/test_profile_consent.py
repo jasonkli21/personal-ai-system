@@ -1,4 +1,4 @@
-"""PI-4 synthetic authority and deterministic interleaving regression probes."""
+"""profile consent synthetic authority and deterministic interleaving regression probes."""
 
 import time
 from concurrent.futures import ThreadPoolExecutor

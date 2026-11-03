@@ -1,4 +1,4 @@
-"""Hermetic MEM-2 host. Not imported by application or provider composition."""
+"""Hermetic memory controls host. Not imported by application or provider composition."""
 
 from contextlib import contextmanager
 

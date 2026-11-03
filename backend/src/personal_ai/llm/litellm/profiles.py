@@ -42,7 +42,7 @@ class _ProviderProfile:
 
 
 def _bind_endpoint_profile(settings: Settings, provider: str, endpoint_profile):
-    """Bind this fixed transport to one exact configured Phase 18 profile.
+    """Bind this fixed transport to one exact configured usage accounting profile.
 
     The gateway has provider-specific URL, model, and credential configuration;
     accepting a profile that merely shares its neutral provider identity would

@@ -1,4 +1,4 @@
-"""MEM-1 packed-content consumer proxy; deterministic, explicitly not a model.
+"""project knowledge packed-content consumer proxy; deterministic, explicitly not a model.
 
 Only serialized messages returned by the shared context packer and a narrow
 read/execute tool handle enter ``consume_packed_context``. The stateful

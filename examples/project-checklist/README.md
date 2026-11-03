@@ -9,8 +9,8 @@ workspace membership, and leaves checklist records on the client.
 From the repository root, with the prepared build environment:
 
 ```sh
-UV_OFFLINE=1 make hxe0-installed-check
-make hxe0-check
+UV_OFFLINE=1 make sdk-install-check
+make sdk-check
 ```
 
 The installed test runs the CLI's local `add`, `finish` and `preflight`

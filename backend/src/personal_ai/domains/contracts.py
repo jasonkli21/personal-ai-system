@@ -100,7 +100,7 @@ class ProviderObservationExtension(ScopedDecisionRecord):
 
 
 class DomainClaimExtension(ScopedDecisionRecord):
-    """Typed domain vocabulary linked to an immutable Phase 6 claim."""
+    """Typed domain vocabulary linked to an immutable decision service claim."""
 
     claim_id: UUID
     domain_id: str
