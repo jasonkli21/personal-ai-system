@@ -1,523 +1,64 @@
 # Personal AI System
 
-A personal AI platform and research environment focused on the systems around large language models: streaming chat, context management, long-term memory, evidence-grounded research, decision support, domain integrations, evaluation, and application-facing AI capabilities.
+A learning and research project for reusable AI capabilities around chat, context, memory, retrieval, evidence, and evaluation. It is experimental software, not a production-ready personal-data service. Provider, cloud, native-storage, and independent security acceptance remain incomplete; see [current state](docs/current-state.md).
 
-The project is intentionally not a model-training or local-model-hosting project. It uses hosted model/provider APIs behind replaceable interfaces and concentrates on the surrounding architecture: memory, retrieval, evidence, routing, constraints, persistence, observability, and cost-aware orchestration.
+## What is here
 
-For concise implementation status and open verification gates, see [docs/current-state.md](docs/current-state.md). Use the [documentation router](docs/README.md) to find task-specific plans, contracts, and evidence.
+- A FastAPI core with streaming chat, token-budgeted context assembly, provider-neutral inference contracts, policy and usage boundaries, and persistence adapters.
+- Governed memory and local retrieval/research capabilities. These are separately controlled; experimental and privacy-sensitive features default off. Retrieval can enter model context only through its gated, permission-checked path.
+- A Next.js web client and optional Travel, Shopping, Finance, and Health reference integrations. Reference applications are a separate distribution and are not part of the standalone core.
+- HTTP contracts for independent applications, including the optional HTTP-only [Reading Logbook example](examples/reading-logbook/README.md).
 
-## Core and optional reference profiles
+Hosted model adapters require provider credentials. The offline fake profile is for local development and tests; it does not prove real provider behavior or production readiness.
 
-The core wheel and source archive contain the `personal_ai` harness and standalone
-chat/context consumer. The default application registry contains only
-`personal_ai`; no reference package or configuration is required to import it.
-Ordinary persistence-backed operation requires explicit stores. The
-credential-free `offline_fake` profile exercises the same app factory and
-context assembly with synthetic ports.
+## Quick start: credential-free core
 
-Travel, Shopping, Finance and Health implementations live in the separately
-installable [reference distribution](reference-apps/README.md). Installation alone
-does not select them. `APPLICATION_CONTRIBUTIONS` is a JSON array of trusted
-installed catalog names, default `[]`; selection, feature enablement and user/source
-authorization are distinct. The existing Dockerfile builds the core profile.
-A reference deployment must explicitly install the optional wheel into its image
-and configure selection; legacy example flags alone do not install code.
+Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/) 0.11.13, Node.js 22, and pnpm 11.19.0 for the web client. Docker Compose is optional for native persistence.
 
-`make backend-build reference-build` builds both artifacts. With the existing
-backend dependencies available, `make platform-independence-check` inspects the
-archives, creates an isolated environment outside the checkout, tests core HTTP
-and lifespan under import/network denial, installs the reference wheel, runs
-copied compatibility tests, uninstalls references and rechecks core. It uses no
-network dependency installation. See [PI-1 evidence](docs/platform-independence/pi-1-implementation-report.md)
-for tested commands and limitations. This is a candidate pending independent review.
-
-## External application HTTP candidate
-
-The [PI-2 consumer contract](docs/platform-independence/consumer-v1.md) documents
-versioned scoped conversations, metadata-only context preview, automatic SSE and
-original-key recovery. The separately built [Reading Logbook](examples/reading-logbook/README.md)
-client owns its local records and uses only HTTP; its optional trusted host is a
-different distribution. OAuth client/app binding and independent workspace rights
-are required. `make pi2-check` builds and tests the installed profiles offline over
-synthetic loopback HTTP. This candidate does not close independent review or
-real identity/provider/cloud acceptance.
-
-## Standalone retrieval candidate
-
-Default-off source-neutral lexical retrieval and a registered read-only retrieval
-tool are available through the additive v1.1 HTTP consumer contract. See
-[the PI-5 API/operator guide](docs/platform-independence/retrieval-v1.md).
-General model-context integration, live Brave eligibility and production
-acceptance remain incomplete; retrieved passages never automatically enter chat
-or memory. `make pi5-check` runs bounded offline and signed loopback tests.
-
-## What it does
-
-The system provides reusable AI capabilities that can be used directly through its web UI or consumed by domain applications such as travel and shopping.
-
-Core capabilities include:
-
-- streamed conversational chat;
-- persistent conversation history;
-- token-budgeted context building across conversation, memory, and deterministically planned eligible sources, with provenance and sensitivity manifests;
-- an owner-managed AI profile with default-off, revision-bound field consent;
-- a versioned federation grant API and shared broker with gated Travel, Finance, and Health exports; destination-product acceptance remains open;
-- attributable long-term memory with retrieval;
-- bounded memory retrieval/compaction and lifecycle experiments, with original provenance and source revalidation;
-- source-grounded research with persisted evidence;
-- iterative research with explicit budgets and recovery;
-- canonical research entities and evidence-backed claims;
-- deterministic hard constraints and explainable ranking;
-- decision snapshots with source attribution;
-- travel and shopping comparison modules;
-- itinerary-proposal and booking-extraction capability boundaries;
-- a typed, confirmed mutation framework with Postgres reservations and domain-owned reconciliation; current domain write adapters remain unavailable;
-- owner-scoped application/workspace identity foundations;
-- bounded provider-attempt accounting with a default-off owner-scoped developer summary;
-- account export/deletion workflow foundations;
-- a default-off private artifact tier for compressed traces, evaluation batches and frozen exports;
-- synthetic evaluation suites for memory, context, research, decisions, and domain behavior.
-
-## Design principles
-
-- **The model provider is replaceable.**
-- **Memory and external evidence are different data classes.**
-- **Current evidence can override stale memory.**
-- **Hard constraints are enforced by application code, not delegated to a model.**
-- **Research is bounded by time, token, source, and cost budgets.**
-- **Domain applications keep authority over their own data and business rules.**
-- **Experiments require measurable evaluation before promotion.**
-- **Cloud resources should scale to zero or stay disabled when not needed.**
-
-## Architecture
-
-```text
-                         Browser
-                            |
-                            v
-                +-----------------------+
-                | Next.js / React       |
-                | public web service    |
-                +-----------+-----------+
-                            |
-                     server-side proxy
-                            |
-                            v
-                +-----------------------+
-                | private FastAPI API   |
-                |                       |
-                | chat + context        |
-                | endpoint registry     |
-                | usage ledger          |
-                | memory + research     |
-                | evidence + decisions  |
-                | domain capabilities   |
-                +----+-------------+----+
-                     |             |
-                     |             +-------> hosted LLM/search providers
-                     +-------> Neon Postgres + pgvector
-                     +-------> DynamoDB runtime state
-                     +-------> private GCS artifact bodies (opt-in)
-                     |
-                     +-------> Pub/Sub ---> private Cloud Run worker
-```
-
-Domain applications integrate over explicit HTTP contracts rather than importing internal packages.
-
-The internal endpoint registry records provider, model, account, credential-scope,
-privacy, capability, count-compatibility, and quota-authority facts, and can
-produce strict-free candidates with deterministic rejection reasons. The internal routing
-coordinator persists compact decisions and requires atomic usage reservation plus
-a current, single-use dispatch claim; see the [Phase 18–21 refactor](docs/personal-ai-chapter-2/phase-18-21-architecture-refactor-implementation-plan.md). Current
-application workflows remain Gemini-only behind Phase 15 membership and revocation
-acceptance. An internal [bounded task cascade](docs/personal-ai-chapter-2/phase-24-implementation-guide.md)
-validates buffered output and accounts for every count/generation attempt; direct
-routing remains the default because the synthetic baseline did not justify adoption.
-
-Provider sends have a separate usage ledger for physical attempts, quota
-reservations, endpoint health, and bounded owner-attributed summaries. Its
-developer inspection route is disabled by default; quota values without
-authoritative observations remain unknown.
-
-The optional artifact tier stores compact references in Postgres and immutable
-compressed bodies in private GCS, with bounded retention, storage budgets and
-account deletion fences. Both backend and browser proxy gates default off;
-the worker still reconciles retained bodies while new writes are disabled. Store
-rotation waits until old references and recent deletion tombstones are drained;
-exports fail explicitly if live artifact bodies exist while storage is disabled.
-Cloud/IAM/free-tier acceptance remains unverified. See the [Phase 20 guide](docs/personal-ai-chapter-2/phase-20-implementation-guide.md) for setup and prerequisite gates.
-
-## Repository layout
-
-```text
-.
-├── backend/
-│   ├── src/personal_ai/
-│   │   ├── agents/          # research orchestration
-│   │   ├── auth/            # identity and owner boundaries
-│   │   ├── context/         # token-budgeted context assembly
-│   │   ├── decisions/       # evidence-backed decision contracts
-│   │   ├── domains/         # thin travel/shopping capabilities
-│   │   ├── entities/        # chat and canonical research entities
-│   │   ├── evidence/        # attributable observations
-│   │   ├── evaluation/      # evaluators, grouped fixtures, and schemas
-│   │   ├── llm/             # provider-neutral inference contracts and adapters
-│   │   ├── memory/          # durable memory and lifecycle package
-│   │   ├── ranking/         # deterministic ranking/constraints
-│   │   ├── routing/         # endpoint profiles and strict-free admission
-│   │   ├── search/          # search adapters and pipeline
-│   │   ├── usage/           # provider invocation and attempt accounting contracts
-│   │   ├── services/        # chat/application orchestration
-│   │   ├── storage/         # repository contracts and persistence primitives
-│   │   └── persistence/     # concrete Postgres and DynamoDB adapter packages
-│   └── tests/
-├── frontend/
-│   ├── src/                 # Next.js application and API proxies
-│   │   ├── features/chat/continuation-sidecar/ # sidecar UI, state, and bridge client
-│   │   └── lib/api/         # shared client and feature endpoint/DTO groups
-│   └── tests/
-├── infrastructure/          # local/GCP and semantically grouped cloud assets
-├── experiments/             # isolated research experiments
-├── docs/                    # architecture, ADRs, runbooks, evaluations
-├── docker-compose.persistence.yml
-└── Makefile
-```
-
-## Tech stack
-
-### Web
-
-- Next.js 15
-- React 19
-- TypeScript
-- pnpm 11.19.0
-
-### API / worker
-
-- Python 3.11+
-- FastAPI
-- Uvicorn
-- Pinned LiteLLM Python SDK beneath Personal AI's neutral inference gateway for Gemini, Groq, and Workers AI
-- psycopg and boto3 adapters behind repository contracts
-
-### Cloud
-
-- Google Cloud Run
-- Neon Postgres with pgvector for query-rich durable records, embeddings, and the canonical provider usage ledger
-- DynamoDB for conversations, messages, summaries, runtime guards, jobs, and scoped provider usage events
-- Pub/Sub
-- AWS STS web-identity federation from Cloud Run for DynamoDB access
-- Secret Manager
-- Artifact Registry
-- Cloud Build
-
-## Local setup
-
-With a prepared backend virtualenv, run `make pi7-local-smoke` for the
-credential-free installed core and `make pi7-consumer-smoke` for the separate
-Reading Logbook client and host. Use `PI7_SMOKE_FLAGS=--require-native` when
-native loopback-only evidence is required. See the
-[PI-7 operations runbook](docs/platform-independence/pi-7-operations-runbook.md)
-for the offline and disposable persistence profiles.
-
-### Prerequisites
-
-- Python 3.11+; Python 3.12 is used by the containerized runtime
-- `uv` 0.11.13
-- Node.js 22
-- pnpm 11.19.0
-- Docker Compose for local Postgres/pgvector and DynamoDB Local
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/jasonkli21/personal-ai-system.git
-cd personal-ai-system
-```
-
-### 2. Install backend dependencies
-
-```bash
+```sh
+cp backend/.env.example backend/.env
 cd backend
-
-uv sync --locked --only-group build --no-install-project
-uv sync --locked --extra dev --group build --no-build-isolation
-
-cd ..
-source backend/.venv/bin/activate
+uv sync --locked --extra dev
+set -a; . ./.env; set +a
+python -m uvicorn personal_ai.main:app --reload --port 8000
 ```
 
-### 3. Install frontend dependencies
+The example environment selects `INFERENCE_PROFILE=offline_fake` and `INFERENCE_COST_MODE=offline_fake`, with memory, retrieval and other gated capabilities disabled. No real provider key is needed. The command starts the API; persistent operations need explicitly configured stores. For local Postgres and DynamoDB Local, use `make persistence-up` and the bootstrap commands in the [Makefile](Makefile).
 
-```bash
+In another terminal, install and start the UI:
+
+```sh
 cd frontend
 pnpm install --frozen-lockfile
-cd ..
+pnpm dev
 ```
 
-### 4. Configure local environment files
+The frontend reads the server-side `API_BASE_URL` from `frontend/.env.local`; copy `frontend/.env.local.example` and keep its default `http://localhost:8000` for local API proxying. See [API and consumer contracts](docs/api-contract.md) before building an independent client.
 
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.local.example frontend/.env.local
-```
+## Development checks
 
-The default local configuration keeps optional research, memory-lifecycle, decision, domain, export, deletion, and provider-backed features disabled.
+Run commands from the repository root. The backend environment must be installed as above; install frontend dependencies with the frozen lockfile for frontend commands.
 
-Automated tests use fakes and do not require model credentials or GCP access.
-
-### 5. Start local persistence
-
-The application uses the local Postgres and DynamoDB endpoints from
-`backend/.env.example`. Start and initialize them before using persistence-backed
-application flows:
-
-```bash
-make persistence-up
-make persistence-bootstrap
-```
-
-Stop the containers with `make persistence-down`. `make persistence-clean`
-also deletes their local volumes.
-
-### 6. Start the application
-
-In separate terminals:
-
-```bash
-make run-backend
-```
-
-```bash
-make run-frontend
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-The frontend server-side proxy defaults to:
-
-```env
-API_BASE_URL=http://localhost:8000
-```
-
-## Model and provider configuration
-
-The default model configuration is Gemini:
-
-```env
-AI_PROVIDER=gemini
-AI_MODEL=gemini-2.5-flash
-AI_API_KEY=
-```
-
-Leave `AI_API_KEY` empty for offline/fake-backed testing.
-
-Normal inference defaults to `INFERENCE_PROFILE=offline_fake` and
-`INFERENCE_COST_MODE=offline_fake`; no provider credentials or examples are needed
-for fake generation. A real response requires an explicitly selected
-`legacy_gemini` profile, `strict_free` mode, canonical accounting, and current
-account-specific privacy, free-tier, quota, counter and bounded endpoint evidence.
-A key alone does not authorize disclosure. Summary/extraction are separately
-selected and default disabled. New memory embedding work is unavailable pending
-an approved exact embedding-input counter; existing vectors remain intact.
-
-See the [PI-3 operator instructions](backend/src/personal_ai/llm/README.md#pi-3-explicit-execution-profiles)
-for configuration, finite attestation overlays, limitations and rollback. Groq and
-Cloudflare generation adapters remain opt-in evaluation transports; normal
-composition rejects them until an approved exact counter is installed. Paid modes
-remain disabled because hard monetary admission is absent. LiteLLM Proxy, Router
-and automatic cross-provider fallback are not used.
-
-The Phase 25.3 continuation sidecar is implemented, but manual external disclosure and connected dispatch are unavailable by default. `EXTERNAL_TURN_ACCEPTANCE_ENABLED` is an explicit, default-off gate; keep it disabled until Phase 15 derived-source/revocation authority and Phase 25.2 DynamoDB transaction/race/restart acceptance pass. The shared planner, local estimated-count preparation runtime, bounded preview, idempotency-key reconciliation, scope propagation, and transient shared-chat streaming seams are implemented and covered locally. Automatic Personal AI continuation remains available. Connected execution additionally requires an approved explicit Phase 18 profile and dispatch signer. A separately started user-local ChatGPT bridge owns reusable credentials, account-specific discovery, and restricted Responses streaming. Live connected execution remains unverified pending distribution approval, enforceable plan-only billing, real OAuth/Responses compatibility, and native browser/loopback acceptance. See the [Phase 25.3 guide](docs/personal-ai-chapter-2/phase-25-3-implementation-guide.md) and [evidence](docs/personal-ai-chapter-2/phase-25-3-implementation-evidence.md). Installation, pairing, and open gates are documented in the [Phase 25.1 guide](docs/personal-ai-chapter-2/phase-25-1-implementation-guide.md).
-
-Phase 26 adds an optional, read-only Travel context integration through the shared planner, context assembler, and sidecar. The Travel API remains authoritative for trips, days, places, bookings, and writes; the integration has independent default-off gates and supports preview, narrowing, Copy, and draft insertion. See the [Phase 26 plan](docs/personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/plans/phase-26-implementation-plan.md) and [implementation evidence](docs/personal-ai-chapter-2/phase-26-implementation-evidence.md).
-
-Phase 28 adds a separate, read-only Finance context contract through the shared planner, context assembler, and permission-revalidation seams. Both Finance and Personal AI gates default off. Automatic chat routing and the Finance sidecar remain unavailable pending Phase 15/21 prerequisites, an accepted Finance embed contract, and deployed identity/provider privacy checks; see the [Phase 28 evidence](docs/personal-ai-chapter-2/phase-28-implementation-evidence.md).
-
-Phase 29 adds a separate, read-only Health `health-context-read-v1` contract and typed providers through those same shared seams. Its broad context-read gate remains off and unavailable to Personal AI because that contract still requires a Firebase user token. Phase 30 adds a separate, default-off Health federation export using a request-bound, short-lived signed Google-user delegation; both services retain independent consent and owner checks. Shopping still lacks a trusted user-bound destination host, so Phase 30 remains open. See the [Phase 29 evidence](docs/personal-ai-chapter-2/phase-29-implementation-evidence.md) and the [Phase 30/31 follow-up evidence](docs/personal-ai-chapter-2/phase-30-31-follow-up-review-implementation-evidence-2026-10-12.md).
-
-Connected execution requires an operator-provisioned Ed25519 signer that matches the public key pinned in the local bridge's protected compatibility configuration. Set `EXTERNAL_DISPATCH_GRANT_ISSUER`, `EXTERNAL_DISPATCH_GRANT_KEY_ID`, and `EXTERNAL_DISPATCH_GRANT_PRIVATE_KEY` only through a protected local environment file or Secret Manager. The key is never sent to the browser. Manual copy/import does not need this signer or the ChatGPT bridge.
-
-Research, memory, decision, travel, shopping, proposal, and extraction capabilities each have independent gates. Enable only the specific path you are testing and preserve its provider/storage policy controls.
-
-## Quality and evaluation
-
-Common checks from the repository root:
-
-```bash
-make backend-test
-make backend-test-offline
+```sh
 make backend-lint
-make frontend-test
-make frontend-lint
-make frontend-typecheck
+make backend-test-offline
 make backend-build
-make platform-independence-check
-make frontend-build
+make frontend-lint frontend-typecheck frontend-test frontend-build
 ```
 
-`make backend-test` uses the source-tree compatibility harness configured in
-`backend/pyproject.toml`; it covers core and optional-reference code from the
-checkout. It is not clean-wheel evidence. `make platform-independence-check`
-builds both distributions with the backend virtualenv interpreter, proves the
-installed core wheel works with reference files physically absent, then installs
-and probes the optional reference wheel.
+`make backend-test-offline` excludes native persistence and cloud tests. `make pi2-check` builds the core, reference, and Reading Logbook packages and runs offline artifact/contract checks. Native persistence and provider checks are opt-in; see the [current status and gates](docs/current-state.md).
 
-`make backend-test-offline` excludes the intentionally deferred native-store,
-cloud-smoke and live Gemini suites. `make integrated-verification` runs the
-structured Phase 36 offline matrix and generates receipts, a blocker ledger and
-a release report in `artifacts/phase36/`. A successful command establishes its
-local evidence only; mandatory external gates keep affected capabilities
-unavailable. See the [Phase 36 model](docs/personal-ai-chapter-2/phase-36/architecture.md).
+## Architecture and contribution routes
 
-The repository also includes deterministic evaluation suites:
+The core owns shared chat, context, inference, memory, retrieval, usage, policy, and storage interfaces. Optional domain applications own their records and rules and contribute through explicit extension points. The API is FastAPI; the browser uses the Next.js API proxy; external consumers use versioned HTTP contracts. See [architecture](docs/architecture.md), [extensions](reference-apps/README.md), and the [documentation router](docs/README.md).
 
-```bash
-make context-eval
-make context-plan-eval
-make planning-eval
-make memory-eval
-make memory-lifecycle-eval
-make research-eval
-make retrieval-eval
-make iterative-research-eval
-make decision-eval
-make domain-eval
-```
+Repository map:
 
-Phase 32 adds a frozen context-planning benchmark, bounded proposal validation,
-and compact diagnostics through the shared assembler. Its current decision is
-non-promotion: planning remains deterministic, with no planner inference calls.
-See the [implementation report](docs/personal-ai-chapter-2/phase-32-implementation-report.md)
-for measured limitations and verification.
+- `backend/src/personal_ai/` — core services, contracts, adapters, and API
+- `backend/tests/` — backend unit, contract, and integration tests
+- `frontend/` — Next.js UI and tests
+- `reference-apps/` — separately installable reference contributions
+- `examples/` — independent consumer examples
+- `docs/` — architecture, contracts, current implementation state, and evidence
 
-These evaluations are designed to make changes to memory, retrieval, ranking, context assembly, and research behavior measurable rather than purely subjective.
-
-Phase 33 research retrieval keeps the literal snippet strategy as its default.
-The bounded qualifier, two-query expansion, and compact extractive packing probes
-require `RESEARCH_RETRIEVAL_EXPERIMENTS_ENABLED=true`; no coverage is promoted.
-`RESEARCH_QUERY_STRATEGY` selects `literal-snippet-v1`, `qualifier-v1`, or
-`expansion-v1`; `RESEARCH_PACKING_STRATEGY` selects `literal-extractive-v1` or
-`compact-extractive-v1`. Source rights, source-domain bounds, mandatory publication
-freshness, Phase 19 admission, and context budgets still apply. See the
-[Phase 33 report](docs/personal-ai-chapter-2/phase-33-implementation-report.md).
-
-Phase 35 adds a default-off adaptive routing shadow behind the existing strategy
-seam. It records preferences over admitted strict-free candidates and preserves
-the deterministic visible route. The canonical API dependency is available but no
-user workflow consumes it while Phase 15 authorization/revocation and transport
-acceptance remain open. The synthetic corpus does not support promotion; learned
-ranking and online adaptation are deferred. Run
-`make adaptive-routing-eval`; see the [Phase 35 report](docs/personal-ai-chapter-2/phase-35-implementation-report.md)
-and [experiment contract](experiments/ranking/README.md).
-
-## Cloud deployment
-
-The deployed topology uses Cloud Run for the web/API/worker, Neon Postgres and
-DynamoDB for durable state, and authenticated Pub/Sub delivery for bounded
-memory lifecycle jobs.
-
-```text
-Browser
-  |
-  v
-Cloud Run: personal-ai-web
-  |
-  | service identity + end-user identity
-  v
-Cloud Run: personal-ai-api
-  |
-  +------> Neon Postgres (TLS transaction pooler)
-  |
-  +------> DynamoDB (Google identity token exchanged through AWS STS)
-  |
-  +------> hosted model/search providers
-  |
-  +------> Pub/Sub ---> Cloud Run: personal-ai-worker
-```
-
-### Cloud preflight
-
-Run `make pi7-cloud-plan` to validate the synthetic staging plan. The
-[deployment guide](docs/gcp-deployment.md) covers the proposed topology and
-the blocked hosted prerequisites. The `deploy.sh` entrypoint is static and
-refuses apply until a separate authorized deployment implementation and
-release review.
-
-## Cost and free-tier considerations
-
-The architecture is intentionally compatible with low-idle-cost personal use:
-
-- Cloud Run uses request-based billing and can scale to zero;
-- Neon and provisioned DynamoDB are durable stores with distinct storage owners;
-- Pub/Sub is used only for concrete durable async work;
-- optional providers remain disabled until needed;
-- coarse request reservations complement the canonical P19 attempt and quota ledger.
-
-This is **free-tier-aware**, not a guarantee of zero cost. Database compute/storage,
-DynamoDB capacity and requests, cross-cloud egress, external providers, and model
-usage can incur charges. Confirm current account-specific allowances before
-deploying; local tests and static configuration checks do not establish strict-$0
-eligibility.
-
-## Security notes
-
-- local `AUTH_MODE=development` is a development convenience, not production authentication;
-- deployed API and worker services use separate service identities;
-- the API validates end-user identity independently of Cloud Run service identity;
-- production/staging origins are explicit allowlists;
-- provider credentials belong in Secret Manager;
-- research/provider outputs are bounded and validated;
-- persistent memory retains attribution/provenance;
-- external evidence has freshness/retention semantics separate from memory;
-- account export/deletion controls remain gated operational capabilities.
-
-Do not put personal data, provider credentials, service-account keys, or production environment files in version control.
-
-## Documentation
-
-Detailed documentation lives in `docs/`.
-
-Useful entry points include:
-
-```text
-docs/project-brief.md
-docs/architecture.md
-docs/api-contract.md
-docs/gcp-deployment.md
-docs/research-agent.md
-docs/dependency-management.md
-docs/decisions/
-```
-
-## License
-
-No license is currently specified. Add an explicit `LICENSE` file before treating the repository as generally reusable open-source software.
-
-## Governed profile consent candidate
-
-PI-4 adds default-off explicit owner grants for the four existing user-set profile
-fields. Old allowlists require re-consent; value edits, expiry and revocation fence
-future model use, including sourced history and replay. Read the
-[owner API/operator instructions](docs/platform-independence/profile-sharing-v1.md)
-and [local evidence](docs/platform-independence/pi-4-implementation-report.md).
-`make pi4-check` runs the inspected OS/Python-fenced offline regression; `make
-pi2-check` also verifies installed profiles and the signed unrelated-consumer path.
-Browser controls, exact-record memory sharing and production acceptance remain
-unavailable/incomplete. All memory defaults and the MEM-2 freeze remain in force.
-
-## Conditional offline task evaluation
-
-`make pi6-check` runs a frozen 32-case synthetic PI-6 task proxy through existing
-API/context/chat/local retrieval, memory-control and research seams. It requires
-the reviewed macOS native loopback-only fence; unsupported hosts fail explicitly.
-No real provider or search request is available. See the
-[benchmark contract](docs/platform-independence/pi-6-benchmark-contract.md),
-[results](docs/platform-independence/pi-6-benchmark-report.md) and
-[gate](docs/platform-independence/pi-6-completion-gate.md). Synthetic task success
-is not real-model utility or cost evidence; independent review remains pending,
-PI-5 completion blocked, production promotion denied and MEM-3+ frozen.
+Contributors: read [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: see [SECURITY.md](SECURITY.md). This project is licensed under [Apache License 2.0](LICENSE).

@@ -7,6 +7,8 @@ name = "reading-logbook-client"
 version = "0.1.0"
 description = "Independent HTTP-only reading records and Personal AI v1 CLI"
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = []
 
 [project.scripts]
@@ -16,4 +18,4 @@ reading-logbook = "reading_logbook.cli:main"
 packages = ["src/reading_logbook"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/pyproject.toml"]
+include = ["/src", "/pyproject.toml", "/LICENSE"]

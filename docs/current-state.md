@@ -1,9 +1,17 @@
 # Current implementation state
 
-Updated 2026-11-02. This is the living implementation boundary. Code, contracts,
-migrations and tests control behavior; dated evidence controls acceptance. The
-[suite handoff](../stabilization/FRESH-REVIEW-HANDOFF.md) records this change and its
-verification. Independent final review and external acceptance remain open.
+Updated 2026-11-03. This is the living implementation boundary. Code, contracts,
+migrations and tests control behavior; dated evidence controls acceptance.
+Independent final review and external acceptance remain open.
+
+This revision also updates public onboarding, contributor/security guidance,
+documentation routing, and package license metadata. It changes no runtime
+behavior or acceptance gate; package builds and documentation checks are recorded
+in the [quality review](quality/repo-quality-review-2026-11-03.md). The broad
+offline backend run had one failure: the frozen PI-6 source identity includes
+`backend/pyproject.toml`, so the required license metadata changes its digest.
+The frozen lock and assertion remain unchanged; the package/evaluation identity
+conflict is open.
 
 ## Delivered locally
 

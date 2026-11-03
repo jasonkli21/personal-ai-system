@@ -1,66 +1,31 @@
 # Documentation router
 
-Read [current state](current-state.md), then the smallest task route below.
-[Root README](../README.md) and [Makefile](../Makefile) own local setup and commands.
+Read [current state](current-state.md) for implementation and release boundaries. Then read only the task route below, the owning module README, executable contract, and focused tests. The [root README](../README.md) and [Makefile](../Makefile) own setup and commands.
 
-## Authority and document classes
+## Authority
 
-Code/contracts/migrations/tests → dated verification/review evidence → accepted
-ADRs → architecture/product intent → authorized plans → history. Security and
-privacy constraints apply throughout. A plan or fake test never proves delivery
-or provider/cloud acceptance. Each repository owns one current-state page.
+Code, executable contracts, migrations, and tests → dated verification/review evidence → accepted ADRs → architecture/product intent → authorized plans → history. Security and privacy constraints apply throughout. Plans and fake tests do not prove delivery or external acceptance.
 
-## Route by task
+## Routes
 
-| Task | Minimum context |
+| Task | Start here |
 | --- | --- |
-| Platform Independence and memory feature freeze | [PI index](platform-independence/README.md), [PI-0 baseline](platform-independence/pi-0-implementation-report.md), [architecture decisions](platform-independence/pi-0-architecture-decisions.md), [PI-1 candidate](platform-independence/pi-1-implementation-report.md), [PI-1 review remediation](platform-independence/pi-1-review-remediation-2026-10-30.md), [PI-2 candidate](platform-independence/pi-2-implementation-report.md), [PI-2 review remediation](platform-independence/pi-2-review-remediation-2026-10-30.md), [external HTTP contract](platform-independence/consumer-v1.md), [PI-3 candidate](platform-independence/pi-3-implementation-report.md), [PI-4 profile candidate](platform-independence/pi-4-implementation-report.md), [PI-4 review remediation](platform-independence/pi-4-independent-review-remediation-2026-10-30.md), [consent contract](platform-independence/profile-sharing-v1.md), [PI-5 bounded candidate](platform-independence/pi-5-implementation-report.md), [PI-5 independent review remediation](platform-independence/pi-5-independent-review-remediation-2026-10-31.md), [retrieval/tool contract](platform-independence/retrieval-v1.md), [PI-5 completion candidate/gate](platform-independence/pi-5-completion-gate.md), [PI-6 conditional offline candidate/gate](platform-independence/pi-6-completion-gate.md), [PI-7 local profiles and cloud preflight](platform-independence/pi-7-operations-runbook.md) |
-| PI-8 readiness audit | [Readiness assessment](platform-independence/pi-8-readiness-assessment.md), [verification ledger](platform-independence/pi-8-verification.json), [independent review handoff](platform-independence/pi-8-independent-review-handoff.md) |
-| Five-repo stabilization or separate review | [Current verification](../stabilization/VERIFICATION.md), [fresh re-review handoff](../stabilization/FRESH-REVIEW-HANDOFF.md), [contracts](../stabilization/CROSS-REPO-CONTRACTS.md) |
-| Delegated identity, confirmed tasks, domain receipts | [Suite contracts](../stabilization/CROSS-REPO-CONTRACTS.md), `backend/src/personal_ai/contracts/`, `mutations/`, `auth/task_identity.py`, and [integration matrix](../stabilization/INTEGRATION-MATRIX.md) |
-| Federation, grants, context identity and revocation | `backend/src/personal_ai/federation/`, [Phase30 architecture](personal-ai-chapter-2/phase-30-architecture.md), owning context adapter and domain contract |
-| Chat, branches, summaries and active model input | [API contract](api-contract.md), `backend/src/personal_ai/chat/`, `context/`, focused tests; [Phase2 guide](phase-2-implementation-guide.md) for historical intent |
-| Durable memory and temporal context | [Memory README](../backend/src/personal_ai/memory/README.md), [Phase34 report](personal-ai-chapter-2/phase-34-implementation-report.md), memory lifecycle tests |
-| MEM-0 research baseline | [Architecture ADR](personal-ai-chapter-2/memory/mem-0-architecture-adr.md), [benchmark contract](personal-ai-chapter-2/memory/mem-0-benchmark-contract.md), [baseline evidence](personal-ai-chapter-2/memory/mem-0-baseline-report.md) |
-| MEM-2 memory controls | [Control ADR](memory/mem-2-control-adr.md), [implementation evidence](memory/mem-2-implementation-report.md), [review remediation evidence](memory/mem-2-review-remediation-2026-10-30.md), [review handoff](memory/mem-2-independent-review-handoff.md) |
-| MEM-1 verified project knowledge | [Contract ADR](memory/mem-1-contract-adr.md), [implementation evidence](memory/mem-1-implementation-report.md), [review remediation evidence](memory/mem-1-review-remediation-evidence.md), [tombstone capacity blocker](memory/mem-1-tombstone-capacity-follow-up.md) |
-| Provider transport, endpoint admission and routing | [Inference README](../backend/src/personal_ai/llm/README.md), [routing README](../backend/src/personal_ai/routing/README.md), provider/accounting tests |
-| Persistence, artifacts, deletion and recovery | [Persistence README](../backend/src/personal_ai/persistence/README.md), owning adapter/schema, [operations](../stabilization/OPERATIONS.md) |
-| Strict evaluation, experiments and promotion | Owning `backend/src/personal_ai/evaluation/` module, fixture/lock, focused tests; [Phase36 report](personal-ai-chapter-2/phase-36/implementation-report.md) indexes external obligations |
-| Shared sidecar, applications and external turns | [Applications README](../backend/src/personal_ai/applications/README.md), frontend sidecar/API code, owning Phase25–31 evidence |
-| Maintainability or future work | [Quality assessment](../stabilization/CODE-QUALITY.md), [roadmap](../stabilization/ROADMAP.md), then the specifically authorized plan |
+| Architecture and boundaries | [Architecture](architecture.md), [current state](current-state.md) |
+| Core startup and API | [API contract](api-contract.md), `backend/src/personal_ai/` |
+| HTTP consumers and reference apps | [Consumer contract](platform-independence/consumer-v1.md), [reference apps](../reference-apps/README.md), [Reading Logbook](../examples/reading-logbook/README.md) |
+| Inference and routing | [LLM README](../backend/src/personal_ai/llm/README.md), [routing README](../backend/src/personal_ai/routing/README.md) |
+| Context and chat | [API contract](api-contract.md), `backend/src/personal_ai/context/`, `services/chat/`, focused tests |
+| Memory | [Memory README](../backend/src/personal_ai/memory/README.md), [memory docs](memory/) |
+| Retrieval and tools | [Retrieval README](../backend/src/personal_ai/retrieval/README.md), [retrieval contract](platform-independence/retrieval-v1.md) |
+| Research | [Research guide](research-agent.md), `backend/src/personal_ai/agents/research/` |
+| Authentication and security | [Threat model](phase-9-threat-model.md), `backend/src/personal_ai/auth/`, [security policy](../SECURITY.md) |
+| Persistence and recovery | [Persistence README](../backend/src/personal_ai/persistence/README.md), [operations](../stabilization/OPERATIONS.md) |
+| Frontend and sidecar | [chat feature README](../frontend/src/features/chat/README.md), [API contract](api-contract.md) |
+| Evaluation and experiments | `backend/src/personal_ai/evaluation/`, fixture/lock and focused tests; [current status](current-state.md) |
+| Operations and release gates | [Current verification](../stabilization/VERIFICATION.md), [operations](../stabilization/OPERATIONS.md), [current state](current-state.md) |
+| Platform-independence review | [PI index](platform-independence/README.md), then the specific gate and dated evidence for the task |
+| Maintainability or future work | [Quality assessment](../stabilization/CODE-QUALITY.md), then the specifically authorized plan |
 
-## Authentication and operations
+## Evidence and history
 
-Read the current authentication/account-data code and [Phase9 threat model](phase-9-threat-model.md).
-Only verified deployed identity/private invocation can authorize personal data.
-Use [suite operations](../stabilization/OPERATIONS.md) for local isolation and
-staging prerequisites. External gates remain open unless dated evidence says
-otherwise.
-
-## Research, evidence, and domain guides
-
-Use the owning service and focused tests first. [Research notes](research-agent.md)
-and [architecture](architecture.md) explain intent. Domain canonical data and UI
-remain in their own repositories; [contracts](../stabilization/CROSS-REPO-CONTRACTS.md)
-route to those boundaries. Evidence freshness is distinct from durable memory.
-
-## Release and review evidence
-
-[Current verification](../stabilization/VERIFICATION.md) records this patch set.
-Chapter2 phase evidence and `docs/releases/` retain dated predecessor acceptance.
-Use the [fresh re-review handoff](../stabilization/FRESH-REVIEW-HANDOFF.md)
-for the fixes and remaining acceptance; implementation QA does not constitute
-independent sign-off.
-
-## Decisions
-
-See [accepted decisions](decisions/) for durable architecture and
-[suite decisions](../stabilization/DECISIONS.md) for this bounded stabilization.
-The polyglot persistence and LiteLLM boundaries remain unchanged.
-
-## Historical material
-
-The [previous router](history/stabilization/README-before-2026-10-14.md) preserves
-the detailed guide/evidence index. The [detailed plan index](personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/README.md)
-preserves future sequencing. Read history only when the bounded task needs it.
+Use the owning code and tests first. Dated reports preserve what was checked at a particular revision; they do not override current behavior or close a gate without explicit acceptance. Historical plans and predecessor indexes remain discoverable under `docs/history/` and `docs/personal-ai-chapter-2/` but are not default context.
