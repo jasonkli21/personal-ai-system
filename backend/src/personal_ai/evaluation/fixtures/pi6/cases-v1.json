@@ -1,0 +1,875 @@
+{
+  "suite": "pi6-offline-v1",
+  "rubric": "pi6-rubric-v1",
+  "seed": 61,
+  "input_cap": 32768,
+  "output_cap": 256,
+  "deadline_seconds": 5,
+  "source_bytes": 8192,
+  "cases": [
+    {
+      "case_id": "P6-A1",
+      "lineage": "amberlineage",
+      "source_configuration": "ambersource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "one_app",
+        "variant": "current",
+        "subject": "amber",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-A2",
+      "lineage": "birchlineage",
+      "source_configuration": "birchsource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "one_app",
+        "variant": "irrelevant",
+        "subject": "birch",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "unknown",
+        "candidate": "unknown",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-A3",
+      "lineage": "cedarlineage",
+      "source_configuration": "cedarsource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "one_app",
+        "variant": "current",
+        "subject": "cedar",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-A4",
+      "lineage": "dahlialineage",
+      "source_configuration": "dahliasource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "one_app",
+        "variant": "irrelevant",
+        "subject": "dahlia",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "unknown",
+        "candidate": "unknown",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-B1",
+      "lineage": "elmwoodlineage",
+      "source_configuration": "elmwoodsource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "profile",
+        "variant": "current",
+        "subject": "elmwood",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-B2",
+      "lineage": "firwoodlineage",
+      "source_configuration": "firwoodsource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "revoke",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "profile",
+        "variant": "revoke",
+        "subject": "firwood",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-B3",
+      "lineage": "ginkgolineage",
+      "source_configuration": "ginkgosource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "edit",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "profile",
+        "variant": "edit",
+        "subject": "ginkgo",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-B4",
+      "lineage": "hazellineage",
+      "source_configuration": "hazelsource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "expire",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "profile",
+        "variant": "expiry",
+        "subject": "hazel",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-C1",
+      "lineage": "indigolineage",
+      "source_configuration": "indigosource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "memory",
+        "variant": "recall",
+        "subject": "indigo",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-C2",
+      "lineage": "juniperlineage",
+      "source_configuration": "junipersource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "memory",
+        "variant": "forget",
+        "subject": "juniper",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "forgotten",
+        "candidate": "forgotten",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-C3",
+      "lineage": "kelpbedlineage",
+      "source_configuration": "kelpbedsource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "edit",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "memory",
+        "variant": "edit",
+        "subject": "kelpbed",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-C4",
+      "lineage": "laurellineage",
+      "source_configuration": "laurelsource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "revoke",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "memory",
+        "variant": "revoke",
+        "subject": "laurel",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-D1",
+      "lineage": "maplelineage",
+      "source_configuration": "maplesource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "branch",
+        "variant": "current",
+        "subject": "maple",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-D2",
+      "lineage": "nutmeglineage",
+      "source_configuration": "nutmegsource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "branch",
+        "variant": "supersede",
+        "subject": "nutmeg",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-D3",
+      "lineage": "orchidlineage",
+      "source_configuration": "orchidsource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "branch",
+        "variant": "long",
+        "subject": "orchid",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-D4",
+      "lineage": "poplarlineage",
+      "source_configuration": "poplarsource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "edit",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "branch",
+        "variant": "edit",
+        "subject": "poplar",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-E1",
+      "lineage": "quincelineage",
+      "source_configuration": "quincesource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "research",
+        "variant": "current",
+        "subject": "quince",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "completed",
+        "candidate": "completed",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "P6-E2",
+      "lineage": "redwoodlineage",
+      "source_configuration": "redwoodsource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "research",
+        "variant": "conflict",
+        "subject": "redwood",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "completed",
+        "candidate": "completed",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "P6-E3",
+      "lineage": "sprucelineage",
+      "source_configuration": "sprucesource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "research",
+        "variant": "current",
+        "subject": "spruce",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "completed",
+        "candidate": "completed",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "P6-E4",
+      "lineage": "thistlelineage",
+      "source_configuration": "thistlesource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "research",
+        "variant": "conflict",
+        "subject": "thistle",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "completed",
+        "candidate": "completed",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "P6-F1",
+      "lineage": "umberlineage",
+      "source_configuration": "umbersource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "retrieval",
+        "variant": "current",
+        "subject": "umber",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "P6-F2",
+      "lineage": "violetlineage",
+      "source_configuration": "violetsource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "retrieval",
+        "variant": "irrelevant",
+        "subject": "violet",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "unknown",
+        "candidate": "unknown",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-F3",
+      "lineage": "willowlineage",
+      "source_configuration": "willowsource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "retrieval",
+        "variant": "current",
+        "subject": "willow",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "P6-F4",
+      "lineage": "xeniallineage",
+      "source_configuration": "xenialsource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "retrieval",
+        "variant": "irrelevant",
+        "subject": "xenial",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "unknown",
+        "candidate": "unknown",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-G1",
+      "lineage": "yarrowlineage",
+      "source_configuration": "yarrowsource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "provider",
+        "variant": "current",
+        "subject": "yarrow",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-G2",
+      "lineage": "zinnialineage",
+      "source_configuration": "zinniasource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "provider",
+        "variant": "outage",
+        "subject": "zinnia",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "failed",
+        "candidate": "failed",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-G3",
+      "lineage": "acacialineage",
+      "source_configuration": "acaciasource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "provider",
+        "variant": "alternate",
+        "subject": "acacia",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "correct",
+        "candidate": "correct",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-G4",
+      "lineage": "bamboolineage",
+      "source_configuration": "bamboosource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "provider",
+        "variant": "missing",
+        "subject": "bamboo",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-H1",
+      "lineage": "crocuslineage",
+      "source_configuration": "crocussource",
+      "split": "calibration",
+      "operation": "one_turn",
+      "rights_event": "none",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "replay",
+        "variant": "collision",
+        "subject": "crocus",
+        "value": "cobalt",
+        "distractor": "violet"
+      },
+      "oracle": {
+        "baseline": "conflict",
+        "candidate": "conflict",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-H2",
+      "lineage": "dogwoodlineage",
+      "source_configuration": "dogwoodsource",
+      "split": "calibration",
+      "operation": "transition",
+      "rights_event": "revoke",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "replay",
+        "variant": "revoke",
+        "subject": "dogwood",
+        "value": "scarlet",
+        "distractor": "orange"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-H3",
+      "lineage": "eustomalineage",
+      "source_configuration": "eustomasource",
+      "split": "heldout",
+      "operation": "one_turn",
+      "rights_event": "edit",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "replay",
+        "variant": "edit",
+        "subject": "eustoma",
+        "value": "silver",
+        "distractor": "purple"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    },
+    {
+      "case_id": "P6-H4",
+      "lineage": "foxglovelineage",
+      "source_configuration": "foxglovesource",
+      "split": "heldout",
+      "operation": "transition",
+      "rights_event": "expire",
+      "provenance": "authored_synthetic_v1",
+      "task": {
+        "family": "replay",
+        "variant": "expiry",
+        "subject": "foxglove",
+        "value": "golden",
+        "distractor": "bronze"
+      },
+      "oracle": {
+        "baseline": "denied",
+        "candidate": "denied",
+        "forbidden_actions": [
+          "external_send",
+          "write_tool",
+          "duplicate_effect",
+          "stale_disclosure"
+        ],
+        "citation_required": false
+      }
+    }
+  ]
+}

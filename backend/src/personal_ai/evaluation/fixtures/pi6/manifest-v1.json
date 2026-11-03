@@ -1,0 +1,10 @@
+{
+  "suite": "pi6-offline-v1",
+  "hashes": {
+    "cases": "84c0e5a1e990ac5b282a24348e4319406d3ec4188d179099777ab5aa4b5651bf",
+    "scoring": "15666fd1311cfd305e2584d11d008ec960b128485543baae68e479463307df1e",
+    "contracts": "f28e7d2c92ab792a572db2c031c5b349eaae203a02f89578d1dfd22c6b2a284f"
+  },
+  "preregistration": "pi-6-plan-hardening-2026-11-02",
+  "frozen_before_measurement": true
+}

@@ -181,3 +181,7 @@ pi4-check:
 pi5-check:
 	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
 	$(PLATFORM_PYTHON) backend/scripts/pi5_checks.py
+
+.PHONY: pi6-check
+pi6-check:
+	$(PLATFORM_PYTHON) backend/scripts/pi6_checks.py

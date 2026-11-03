@@ -347,3 +347,15 @@ F01/F02 remain P1 blockers. F06 remains a P2 gap because the candidate has one f
 tool executable rather than the roadmap's general operator-installed registry; its
 manifest remains non-executable. F08's source plan is preserved untracked and excluded
 from the remediation commit. See the [dated review evidence](pi-5-independent-review-remediation-2026-10-31.md).
+
+## 2026-11-02 PI-6 conditional sequencing exception
+
+The user explicitly authorizes local synthetic PI-6 evaluation despite PI-5
+completion remaining blocked. The [entry decision](pi-6-conditional-entry-decision.md)
+and [revised plan](pi-6-detailed-implementation-plan.md) separate offline
+`conditional_go` from production `no_go`. This exception does not satisfy the
+roadmap's original predecessor acceptance or P6-02/29. The original phase targets
+and all distributed/provider/cloud/restore/deletion obligations remain unchanged.
+The [local candidate report](pi-6-implementation-report.md) and
+[33-row ledger](pi-6-verification.json) record actual coverage and limitations.
+PI-7/8 and MEM-3+ are not authorized by this exception.

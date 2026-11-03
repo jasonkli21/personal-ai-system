@@ -50,7 +50,8 @@ HISTORICAL_V21_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V22_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v22.json"
 HISTORICAL_V23_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v23.json"
 HISTORICAL_V24_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v24.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v25.json"
+HISTORICAL_V25_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v25.json"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v26.json"
 PLANNING_EVALUATOR_VERSION = "planning-evaluator-v7"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -112,7 +113,7 @@ def baseline_planner():
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v25",
+        "baseline_lock_version": "planning-baseline-lock-v26",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

@@ -558,3 +558,15 @@ and [local evidence](docs/platform-independence/pi-4-implementation-report.md).
 pi2-check` also verifies installed profiles and the signed unrelated-consumer path.
 Browser controls, exact-record memory sharing and production acceptance remain
 unavailable/incomplete. All memory defaults and the MEM-2 freeze remain in force.
+
+## Conditional offline task evaluation
+
+`make pi6-check` runs a frozen 32-case synthetic PI-6 task proxy through existing
+API/context/chat/local retrieval, memory-control and research seams. It requires
+the reviewed macOS native loopback-only fence; unsupported hosts fail explicitly.
+No real provider or search request is available. See the
+[benchmark contract](docs/platform-independence/pi-6-benchmark-contract.md),
+[results](docs/platform-independence/pi-6-benchmark-report.md) and
+[gate](docs/platform-independence/pi-6-completion-gate.md). Synthetic task success
+is not real-model utility or cost evidence; independent review remains pending,
+PI-5 completion blocked, production promotion denied and MEM-3+ frozen.

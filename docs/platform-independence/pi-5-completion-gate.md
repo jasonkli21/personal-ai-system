@@ -21,6 +21,11 @@ current local file and SQLite checks do not prove atomic model dispatch,
 distributed recovery, or physical deletion. PI-6 Stage G/G5 must not be treated
 as satisfied while this gate is blocked. MEM-3+ remains frozen.
 
+The user-directed [2026-11-02 conditional PI-6 entry](pi-6-conditional-entry-decision.md)
+permits synthetic offline development only (`conditional_go`). It does not
+satisfy Stage G/G5, P6-02/29 or PI-5 acceptance. PI-6 production promotion remains
+`no_go`; all production obligations in this gate are preserved.
+
 See the [completion implementation report](pi-5-completion-implementation-report.md),
 [verification ledger](pi-5-completion-verification.json), and
 [review remediation](pi-5-completion-independent-review-remediation-2026-11-01.md)
