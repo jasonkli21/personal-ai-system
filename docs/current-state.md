@@ -170,9 +170,13 @@ acceptance remain open.
 
 HXE-1 is a **PARTIAL E1** synthetic development pilot. The optional SDK adapter
 covers bounded stdio and socket-free Streamable HTTP, scoped local PI-5 tool
-disclosure and digest-pinned text preparation. Authenticated installed
-transport, independently deployed clients and peers, and live source
-admission remain open. See the [HXE inventory](harness-excellence/README.md).
+disclosure and digest-pinned text preparation. The remediation adds a separately
+launched synthetic PAS stdio host, scope-denial canaries, executable identity
+pinnings, malformed-frame and cancellation coverage, and a local/MCP-to-PI-5
+fake-model canary. Installed authentication, independently implemented legacy
+peer compatibility, and native isolation remain unverified; inherited source,
+provider and production gates remain open. See the [HXE inventory](harness-excellence/README.md)
+and [2026-11-03 remediation evidence](harness-excellence/2026-11-03-hxe1-remediation.md).
 
 HXE-0 remains a local **PARTIAL E1** development candidate with the Python SDK,
 separate Project Checklist consumer and operator-selected host. The generated

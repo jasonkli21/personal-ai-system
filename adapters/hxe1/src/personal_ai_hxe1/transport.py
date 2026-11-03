@@ -5,7 +5,7 @@ import signal
 import subprocess
 from collections.abc import Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import anyio
@@ -24,9 +24,20 @@ class StdioFixture:
     program: Path
     args: tuple[str, ...]
     cwd: Path
+    _program_identity: tuple[int, int, int, int, int] = field(init=False, repr=False)
+    _program_realpath: Path = field(init=False, repr=False)
+    _cwd_identity: tuple[int, int, int] = field(init=False, repr=False)
+
+    def __post_init__(self):
+        """Pin the host-selected executable and working directory at registration."""
+        executable = _trusted_executable(self.program)
+        directory = _trusted_directory(self.cwd)
+        object.__setattr__(self, "_program_realpath", executable)
+        object.__setattr__(self, "_program_identity", _file_identity(executable.stat()))
+        object.__setattr__(self, "_cwd_identity", _directory_identity(directory.stat()))
 
     def connect(self):
-        return _stdio_fixture(self.program, self.args, self.cwd)
+        return _stdio_fixture(self)
 
 
 @dataclass(frozen=True)
@@ -38,21 +49,38 @@ class HttpFixture:
 
 
 @asynccontextmanager
-async def _stdio_fixture(program: Path, args: tuple[str, ...], cwd: Path):
+async def _stdio_fixture(registration: StdioFixture):
     """Run one trusted executable, with no shell and no inherited environment."""
+    program, args, cwd = registration.program, registration.args, registration.cwd
     if (
-        not program.is_absolute()
+        type(args) is not tuple
+        or not program.is_absolute()
         or not cwd.is_absolute()
-        or not program.is_file()
-        or cwd.resolve(strict=True) != cwd
         or len(args) > 12
         or any(len(arg) > 1024 for arg in args)
     ):
         raise ValueError("fixture_unavailable")
+    try:
+        executable = _trusted_executable(program)
+        directory = _trusted_directory(cwd)
+        if (
+            executable != registration._program_realpath
+            or _file_identity(executable.stat()) != registration._program_identity
+            or _directory_identity(directory.stat()) != registration._cwd_identity
+        ):
+            raise ValueError("fixture_unavailable")
+    except (OSError, ValueError):
+        raise ValueError("fixture_unavailable") from None
+    child_env = {}
+    if program != executable:
+        # macOS Python uses this launcher marker to recover a venv prefix when
+        # invoked through its real binary. Execute the pinned target itself so
+        # replacing the selected symlink after validation cannot redirect it.
+        child_env["__PYVENV_LAUNCHER__"] = str(program)
     process = await anyio.open_process(
-        [str(program), *args],
-        cwd=cwd,
-        env={},
+        [str(executable), *args],
+        cwd=directory,
+        env=child_env,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
@@ -106,6 +134,43 @@ async def _stdio_fixture(program: Path, args: tuple[str, ...], cwd: Path):
                     pass
             with anyio.fail_after(2):
                 await process.aclose()
+
+
+def _trusted_executable(program: Path) -> Path:
+    if not isinstance(program, Path) or not program.is_absolute():
+        raise ValueError("fixture_unavailable")
+    resolved = program.resolve(strict=True)
+    info = resolved.stat()
+    if (
+        not resolved.is_file()
+        or not info.st_mode & 0o111
+        or info.st_uid not in {0, os.geteuid()}
+        or info.st_mode & 0o022
+    ):
+        raise ValueError("fixture_unavailable")
+    return resolved
+
+
+def _trusted_directory(cwd: Path) -> Path:
+    if not isinstance(cwd, Path) or not cwd.is_absolute():
+        raise ValueError("fixture_unavailable")
+    resolved = cwd.resolve(strict=True)
+    info = resolved.stat()
+    if (
+        not resolved.is_dir()
+        or info.st_uid not in {0, os.geteuid()}
+        or info.st_mode & 0o022
+    ):
+        raise ValueError("fixture_unavailable")
+    return resolved
+
+
+def _file_identity(info):
+    return info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid
+
+
+def _directory_identity(info):
+    return info.st_dev, info.st_ino, info.st_mode
 
 
 @asynccontextmanager

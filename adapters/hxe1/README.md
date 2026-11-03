@@ -14,8 +14,15 @@ each require an explicit `enabled=True` from trusted host code.
   issuer/document registration. It never installs results.
 - `retrieval_server` builds an SDK server for a verified, current host binding.
   The host supplies the real PI-5 service and selected application registry.
-  The test suite uses synthetic bindings and does not provision an authenticated
-  standalone launcher or network listener.
+  The test suite exercises it in-process and through a separately launched
+  synthetic stdio host. That host binds fixed test identity before serving;
+  client arguments cannot select or change the identity. This is E1 process
+  isolation evidence, not installed authentication or a network listener.
+
+The adapter pins the official Python SDK at 2.3.0 and accepts protocol revisions
+`2026-07-28` and `2025-11-25`. Both revisions are exercised through that same
+SDK; independent interoperability with a separately implemented legacy peer
+has not been established. Unknown revisions remain rejected.
 
 Use a dedicated CPython 3.12 environment with the backend distribution,
 pytest and the SDK requirements in
