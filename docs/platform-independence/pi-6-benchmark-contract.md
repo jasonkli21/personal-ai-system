@@ -34,3 +34,45 @@ launcher provides a native loopback-only network sandbox and a Python audit
 fence; benchmark execution requires that launcher. Unit checks use deny-network.
 Native and Python fence evidence are reported distinctly. Inherited verification
 does not get relabeled as PI-6 task measurement.
+
+## Prospective v2 protocol and review remediation — 2026-11-02
+
+V1 remains immutable historical evidence. Its held-out content was exposed
+during development, so it is not confirmatory. V2 uses 32 newly authored
+synthetic cases and IDs in `cases-v2.json`. They were authored by the same
+implementation session, are not blind and are not independent validation.
+
+The v2 manifest freezes the case bytes, closed observation contract, scorer,
+driver, runner, HTTP adapter, audit module, full core runtime, and available
+Reading Logbook client/host source trees before the final measurement. Drivers
+do not receive expected outcomes. Expected effects derive from case/arm
+semantics; the isolated observer counts model dispatch, tool writes, stale
+disclosure, denials, memory access and mutations. Forbidden effects veto the
+row regardless of quality. Facts require positive task-specific answer and
+source evidence. Denials and memory controls require an attempted operation and
+explicit resulting status.
+
+Coverage is calculated from the immutable corpus before dispatch. Each expected
+case/arm must appear once and score completely; unknown, duplicate, missing,
+unmeasured or evidence-incomplete rows invalidate evaluation and produce a
+nonzero check result. Task-quality losses remain distinct from structural
+coverage failures and safety vetoes.
+
+Each operation is isolated in a killable process with a hard five-second
+deadline. The whole suite has a fixed 300-second deadline. It enforces 8,192
+source bytes, 32,768 input units and 256 output units. Suite or operation
+timeouts stay visible in the expected denominator. Bounded log/stdout handling
+and child termination prevent output or background threads from escaping into
+later measurements.
+
+`make pi6-check` is the canonical measured entrypoint. Each measured worker
+proves native loopback-only fencing in its own process and installs the Python
+audit hook. A Python sentinel is not treated as a security capability. The
+installed probe runs the same full evaluator/scorer from wheels outside the
+checkout; core-only mode reports missing optional HTTP dependencies as explicit
+ineligibility and cannot pass coverage.
+
+The local v2 evaluation is complete for its 68 scripted rows. Its score is not
+real-model utility, independent fixture validation, live provider behavior or
+production acceptance. The user closed this scoped review remediation with no
+further review required; the evidence boundary remains unchanged.

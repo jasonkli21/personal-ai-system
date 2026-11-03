@@ -72,8 +72,8 @@ class ControlRuntime:
             finally:
                 reset_verified_principal(token)
 
-    def seed(self, run_id="seed"):
-        p = make_proposal("procedure", "make backend-lint")
+    def seed(self, run_id="seed", command="make backend-lint"):
+        p = make_proposal("procedure", command)
         ref = self.authority.complete_task_a(self.scope, "repo-alpha", p, run_id=run_id)
         outcome = self.knowledge.admit(self.scope, "repo-alpha", ref, p)
         if outcome.status != "created":

@@ -1,30 +1,33 @@
-# PI-6 offline candidate gate — 2026-11-02
+# PI-6 local verification gate — 2026-11-02
 
 | Gate | Status | Boundary |
 | --- | --- | --- |
-| pi5_completion | blocked_unverified | F01/F02/F03, P5-04/11/14/19/22/26/27, P5-24/P5-28 and independent acceptance remain open |
-| pi6_offline_development_entry | conditional_go | User sequencing exception; no change to original predecessor obligations |
-| pi6_offline_evaluation | partial | Reproducible local scripted task proxy and structural negatives; missing production authority and utility evidence |
-| pi6_candidate | pi6_offline_development_completed_pending_independent_review | Implementation evidence only; see exact command ledger |
-| pi6_production_promotion | no_go | No real-model utility, live cost, distributed send/source authority or independent signoff |
+| `pi5_completion` | `blocked_unverified` | F01/F02/F03, P5-04/11/14/19/22/26/27, P5-24/P5-28 and inherited acceptance remain open |
+| `pi6_offline_development_entry` | `conditional_go` | User sequencing exception; original predecessor obligations remain open |
+| `pi6_offline_evaluation` | `locally_complete` | 32 synthetic tasks, 68/68 source and installed-wheel rows, complete coverage, zero safety veto; model utility remains unmeasured |
+| `pi6_review_remediation` | `closed_no_further_review_required` | User directed closure without a review handoff |
+| `pi6_production_promotion` | `no_go` | No real-model utility, live cost, distributed source/send authority or production evidence |
 
-The 33 original obligations retain their original intents in the handoff and
-[scenario ledger](pi-6-verification.json). Local pass/partial rows are never
-production acceptance. Any unauthorized source use, stale disclosure, duplicate
-physical effect, hidden fallback or unapproved provider request vetoes promotion
-without averaging. Unsupported arms remain visibly blocked or unmeasured.
+The [verification ledger](pi-6-verification.json) records the R01–R11 fixes,
+failed iterations, final commands and P6-01–P6-33 dispositions. The
+[review closure](pi-6-review-closure.md) records the user's direction that no
+further review is required for this scoped remediation. This status is based on
+the local evidence in the ledger; it does not claim independent acceptance or
+change the PI-5 and production gates.
 
-Default-off memory, profile and retrieval semantics remain unchanged. The runner
-selects bounded synthetic configuration in disposable state. Fake profiles have
-no physical P19 provider accounting; inherited P19/P21 tests are separate
-structural evidence. Quota/real USD remain unknown, never fabricated zero.
+Local completion covers the frozen scripted evaluator and its installed-wheel
+path. It does not establish model quality, population-level generalization,
+live provider behavior, deployed identity, distributed effect authority,
+physical deletion or cloud recovery. V2 cases are synthetic and agent-authored;
+they were frozen before measurement but are not blind or independently authored.
 
-Rollback removes/disables `pi6-check`, PI-6-only modules/fixtures and report
-retention. Preserve PI-5 guards, receipts/tombstones and historical locks. The
-additive v26 planning identity binds the new source without changing v10–v25 or
-planner policy, corpus, scoring, thresholds or non-promotion. Do not delete
-anti-replay state or run down migrations. PI-7/MEM-3+ are outside this candidate.
+P6-02/P6-29 predecessor acceptance remains `blocked_deferred`. P6-15/P6-32
+distributed receipt, source lease, restore, deletion and live-provider evidence
+also remain `blocked_deferred`. The default-off memory, profile and retrieval
+semantics are unchanged. No external provider, paid request, deployment,
+production data access, migration, PI-7 or MEM-3+ work was performed.
 
-A [fresh independent review](pi-6-independent-review-prompt.md) may accept only
-this conditional offline scope. Same-session self-review is not independent
-acceptance and cannot clear the PI-5 or production gates.
+Rollback removes or disables the PI-6 runner, fixtures and retained reports while
+preserving PI-5 guards, receipts, tombstones and historical locks. Planning v27
+is additive; v10–v26 remain byte-for-byte historical evidence. No down migration
+or destructive cleanup is part of rollback.

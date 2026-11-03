@@ -17,7 +17,8 @@ preceded code; the manifest froze task/rubric bytes before candidate measurement
 5. W4: calculate matched held-out wins/ties/losses and task-success risk difference;
    every safety veto dominates the mean. No generalizable uncertainty or live lift.
 6. W5: inspect the diff, preserve failures, execute inherited compatibility and
-   installed-artifact checks, write reports and a separate fresh-review prompt.
+   installed-artifact checks, write reports and close the scoped review without
+   a handoff when directed by the user.
 
 The two configuration variants are source selection (profile/local retrieval or
 memory selection versus no selection) and compact research packing. Fake provider
@@ -27,8 +28,9 @@ paired model-context denominators. No defaults are changed.
 
 Source-configuration groups are synthetic and distinct, but templates are shared
 across some families/splits. They are not independent real-world task populations.
-The primary endpoint is a scripted structural proxy; independent fixture/rubric
-review and a genuinely new real-model corpus remain required before utility claims.
+The primary endpoint is a scripted structural proxy. The user closed this review
+with no further review required; no utility claim follows from that closure. Any
+future real-model utility claim needs new, eligible real-model evidence.
 Held-out memory cases exercise unsupported revision and revocation, not new
 production memory correction. Long-history tests do not establish lossy-summary
 quality; inherited summary/source tests supply separate structural evidence.

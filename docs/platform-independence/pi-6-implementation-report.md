@@ -1,10 +1,15 @@
-# PI-6 conditional offline implementation — 2026-11-02
+# PI-6 conditional offline implementation and review closure — 2026-11-02
 
-**Candidate:** `pi6_offline_development_completed_pending_independent_review`.
-Offline evaluation is **partial**, PI-5 completion **blocked_unverified**, and
-PI-6 production promotion **no_go**. All original P6-01–33 intents and their
-local interpretations/dispositions are in the [verification ledger](pi-6-verification.json).
-This report is implementation evidence, not independent acceptance.
+**Current disposition:** R01–R11 remediation complete; the user directed that
+no further review is required for this scope. The local v2 evaluation covers
+all 68 expected rows in both source and full installed-wheel runs. PI-5 remains
+`blocked_unverified`; PI-6 production promotion remains `no_go`.
+
+The sections below preserve the c22c646 implementation report and its historical
+test iterations. The final review remediation, tests and identities are recorded
+in [Review remediation completion](#review-remediation-completion) and the
+[verification ledger](pi-6-verification.json). No independent acceptance is
+claimed; none is required to close this scoped review per the user's direction.
 
 The user authorized the handoff's bounded offline sequencing exception. The
 [entry decision](pi-6-conditional-entry-decision.md),
@@ -101,8 +106,8 @@ are explicitly separated from unknown real tokens/quota/USD. There is no real
 model, live latency/free-tier/billing, deployed Google identity, private IAM,
 native distributed source/attempt authority or deletion/restore evidence.
 Held-out memory denial controls do not establish correction utility; long-context
-branch selection does not establish summary quality. Independent fixture/design
-review must challenge these limits rather than infer broad quality from counts.
+branch selection does not establish summary quality. Those limits remain in
+force after this review closure; the measured counts do not support broader claims.
 
 ## Verification and preserved failures
 
@@ -190,17 +195,57 @@ redaction/emit/exception paths, temporary-state isolation, tool effects, package
 isolation, historical hash preservation, provider SDK/dependency creep, and hidden
 transport/fallback paths. The disabled external path remains uncallable by task
 inputs. Native/Python and installed/source evidence classes stay separate.
-This is not an independent review or a proof of real-model injection resilience.
+This is a local remediation closure, not an independent review or proof of
+real-model injection resilience. The user directed that no further review is
+required for this scoped work.
 
 Mandatory PI-5 F01/F02/F03, P5-04/11/14/19/22/26/27, P5-24 independent canonical/
 causality evidence, P5-28 absent-original-input ownership and independent
 acceptance remain open. P6-02/29 are blocked_deferred; P6-15/32 production
 obligations remain blocked_deferred; local partial rows preserve external gaps.
-The [PI-6 gate](pi-6-completion-gate.md) separately records offline entry/evaluation
-and production denial. A fresh session should use the
-[standalone review prompt](pi-6-independent-review-prompt.md).
+The [PI-6 gate](pi-6-completion-gate.md) records local evaluation completion
+and production denial. The [review closure](pi-6-review-closure.md) records that
+no further review handoff is requested.
 
 Rollback disables/removes PI-6-only runner/config and retains PI-5 guards,
 receipts/tombstones and historical locks. No destructive cleanup or down migration.
 No PI-7 or MEM-3+ work, real provider/search/cloud/billable request, deployment,
 production-data access, database restore or physical deletion was performed.
+
+## Review remediation completion
+
+R01–R11 are addressed in the evaluator and covered by focused regressions. The
+closed observation schema requires positive factual/source proof; effect counts
+come from the isolated observer; coverage requires every predeclared arm; and
+each operation has a hard five-second deadline with a fixed 300-second suite
+limit and enforced source/input/output caps. Memory revocation runs the same
+protected read on both arms and recall checks content and current dependency.
+Runtime identity no longer requires Git or a source checkout. The installed
+probe executes the full evaluator from the installed core and optional wheels.
+Native fencing is verified in each measured worker; logging and output capture
+are bounded inside that killable process.
+
+V1 corpus, manifest and prior observations remain unchanged. V1 held-out content
+was exposed during development and is historical only. V2 uses a new 32-case,
+agent-authored synthetic corpus frozen against the full protocol before its final
+run. It is not blind or independent validation. The first v2 run with 13
+evidence-incomplete arms is preserved separately. The final source and full
+installed-wheel runs each recorded 68/68 expected arms, complete coverage and
+zero safety vetoes. The core-only installed run correctly marked 52 optional
+host-dependent arms ineligible.
+
+Final remediation verification on the canonical macOS arm64 / CPython 3.11.15
+environment includes: 54 focused PI-6 tests passed; `make pi5-check` passed its
+147 native/Python tests and 34 signed HTTP tests; `make pi3-check` passed 788
+tests; `make pi4-check` passed 898 tests; PI-2 and platform-independence package
+checks passed; the full native loopback-fenced offline backend suite passed
+2,385 tests with 119 deselected; planning, retrieval, research and memory
+evaluations exited successfully without promotion. The exact commands, warnings,
+wheel hashes and intermediate failures are in the [verification ledger](pi-6-verification.json).
+
+The user explicitly closed this scoped remediation without a review handoff and
+directed that no further review is required. This closure records local
+implementation evidence; it does not convert synthetic results into live-model,
+independent fixture, cloud, distributed authority, PI-5 completion or production
+evidence. See the [review closure](pi-6-review-closure.md) and
+[current gate](pi-6-completion-gate.md).

@@ -107,19 +107,24 @@ verification, and P5-28 input-ownership evidence remain open. PI-5 remains
 `blocked_unverified`; see the [dated remediation](platform-independence/pi-5-completion-independent-review-remediation-2026-11-01.md)
 and [gate](platform-independence/pi-5-completion-gate.md).
 [PI-6](platform-independence/pi-6-implementation-report.md) adds a user-directed
-conditional offline candidate: a frozen 32-case/eight-family scripted task proxy,
-signed unrelated-consumer HTTP, existing context/chat/local retrieval, memory
-controls and research services, strict content-free observations and a native
-loopback-only runner. Source selection and compact research packing are measured
-only with fake I/O; no model utility or physical P19 provider accounting is claimed.
+conditional offline implementation: a frozen 32-case/eight-family scripted task
+proxy, signed unrelated-consumer HTTP, existing context/chat/local retrieval,
+memory controls and research services, strict content-free observations and a
+native loopback-only runner. Source selection and compact research packing are
+measured only with fake I/O; no model utility or physical P19 provider accounting
+is claimed. The R01–R11 remediation is locally complete: source and installed
+evaluations each cover 68/68 expected rows with no safety veto.
 The [conditional entry](platform-independence/pi-6-conditional-entry-decision.md)
-permits development despite PI-5's blocked gate; P6-02/29 remain unmet. PI-6 offline
-evaluation is partial, independent review pending, production promotion `no_go`.
-All original distributed/live/restore/ownership blockers remain. Planning v26 is
-an additive source-only identity; v10–v25 and historical corpora/scoring remain
-preserved. See the [PI-6 gate](platform-independence/pi-6-completion-gate.md) and
-[verification](platform-independence/pi-6-verification.json). PI-7 and PI-8 remain
-undelivered. The user-directed memory feature freeze stops at MEM-2:
+permits development despite PI-5's blocked gate; P6-02/29 remain unmet. The
+scoped review remediation is closed at the user's direction with no further
+review required. This is local verification evidence and does not claim
+independent acceptance. PI-6 production promotion remains `no_go`. All original
+distributed/live/restore/ownership blockers remain. Planning v27 is an additive
+source-only identity; v10–v26 and historical corpora/scoring remain preserved.
+See the [PI-6 gate](platform-independence/pi-6-completion-gate.md),
+[review closure](platform-independence/pi-6-review-closure.md) and
+[verification](platform-independence/pi-6-verification.json). PI-7 and PI-8
+remain undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,

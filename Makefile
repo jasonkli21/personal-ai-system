@@ -183,5 +183,6 @@ pi5-check:
 	$(PLATFORM_PYTHON) backend/scripts/pi5_checks.py
 
 .PHONY: pi6-check
-pi6-check:
+pi6-check: pi2-build
 	$(PLATFORM_PYTHON) backend/scripts/pi6_checks.py
+	$(PLATFORM_PYTHON) backend/scripts/pi6_installed_checks.py

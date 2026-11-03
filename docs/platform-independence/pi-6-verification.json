@@ -2,8 +2,8 @@
   "all_start_inputs_unchanged": true,
   "artifact_sha256": {
     "backend/dist/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
-    "backend/dist/personal_ai_backend-0.1.0-py3-none-any.whl": "2c8d2c8d299a80e3633089304e13a76cb8af5cd71ac9a9811aac06f53a1cc3d0",
-    "backend/dist/personal_ai_backend-0.1.0.tar.gz": "e5661d59849b8894fdd25824b7556026bc234ca8cf3320b86c15e9586fe55ebf",
+    "backend/dist/personal_ai_backend-0.1.0-py3-none-any.whl": "ec505abe871c0268589ef47ca3366a3462b8bf1dec8a6a88c42952f36130c1b0",
+    "backend/dist/personal_ai_backend-0.1.0.tar.gz": "2385ea9ab8916fbd9e9894194ffc57b3661cd8378d3e76aadeb46dd80e208404",
     "examples/reading-logbook/client/dist/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
     "examples/reading-logbook/client/dist/reading_logbook_client-0.1.0-py3-none-any.whl": "a0b341030c33201999a575795a2ed98e4f103281cc5a5c5b34be86d1d87fa933",
     "examples/reading-logbook/client/dist/reading_logbook_client-0.1.0.tar.gz": "306607b8f58a5e5e9ccf548cd9eab67befd54aaf5de630b06363df7fc1136641",
@@ -14,7 +14,7 @@
     "reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl": "f8cab1b4fdad815638bcc740732bb739770f484a3055595ea777b0d635c996ac",
     "reference-apps/dist/personal_ai_reference_apps-0.1.0.tar.gz": "b55a0630c42f2b16a6978958e144f607676b33530ee6aff6befbe035247985f3"
   },
-  "benchmark_sha256": "d9d01941d3d48cb3383f9b4f51d0b8854e20c7b8934143a919f844a2f4c2a325",
+  "benchmark_sha256": "57783d392d53d740c7a07e61366ffba319d394a677f5b4da5a3f9ac9b8ba30f1",
   "checks": [
     {
       "command": "make pi3-check",
@@ -470,6 +470,196 @@
         "========= 2367 passed, 119 deselected, 4 warnings in 238.50s (0:03:58) ========="
       ],
       "seconds": 241.365
+    },
+    {
+      "command": "make backend-lint",
+      "environment": "PATH prefixed with backend/.venv/bin",
+      "exit_code": 0,
+      "name": "backend-lint",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "All checks passed!"
+      ]
+    },
+    {
+      "command": "make pi6-check",
+      "exit_code": 0,
+      "name": "pi6",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "53 passed, 2 upstream warnings",
+        "source evaluation: 68/68 measured; complete coverage; zero safety veto",
+        "core-only installed: 52 optional-host arms ineligible; coverage correctly incomplete",
+        "full installed wheels: 68/68 measured; complete coverage; native fence complete"
+      ]
+    },
+    {
+      "command": "make pi5-check",
+      "exit_code": 0,
+      "name": "pi5",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "PI2_CONSUMER_CONTRACT=PASS",
+        "147 passed, 2 warnings",
+        "34 passed, 2 warnings",
+        "zero forbidden Python/network attempts"
+      ]
+    },
+    {
+      "command": "make pi3-check",
+      "exit_code": 0,
+      "name": "pi3",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "788 passed, 4 warnings",
+        "native IPv4/IPv6/Unix denial passed",
+        "zero forbidden Python network attempts"
+      ]
+    },
+    {
+      "command": "make pi4-check",
+      "exit_code": 0,
+      "name": "pi4",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "898 passed, 4 warnings",
+        "native denial passed",
+        "zero forbidden Python network attempts"
+      ]
+    },
+    {
+      "command": "make pi2-check",
+      "exit_code": 0,
+      "name": "pi2",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "builds and inventory passed; zero dependency edges/issues",
+        "190 installed tests passed",
+        "191 passed, 1 skipped; zero forbidden network attempts"
+      ]
+    },
+    {
+      "command": "make platform-independence-check",
+      "exit_code": 0,
+      "name": "platform-independence",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "dependency inventory and core probes passed",
+        "190 installed tests passed",
+        "56 tests passed",
+        "zero provider calls or network attempts"
+      ]
+    },
+    {
+      "command": "backend/.venv/bin/python -m pytest -q backend/tests/test_planning_experiment.py",
+      "exit_code": 0,
+      "name": "planning-focused",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "60 passed, 3 warnings"
+      ]
+    },
+    {
+      "command": "make planning-eval",
+      "exit_code": 0,
+      "name": "planning-eval",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "decision=non_promotion; planner calls/tokens/quota=0"
+      ]
+    },
+    {
+      "command": "make retrieval-eval",
+      "exit_code": 0,
+      "name": "retrieval-eval",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "completed; synthetic-only; no promotion; live quality/quota unmeasured"
+      ]
+    },
+    {
+      "command": "make research-eval",
+      "exit_code": 0,
+      "name": "research-eval",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "completed; scripted research cases passed"
+      ]
+    },
+    {
+      "command": "make memory-task-eval",
+      "exit_code": 0,
+      "name": "memory-task-eval",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "status=passed; real model, native stores, quota, live latency, deletion and deployed identity unverified"
+      ]
+    },
+    {
+      "command": "make memory-control-eval",
+      "exit_code": 0,
+      "name": "memory-control-eval",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "all emitted control cases passed"
+      ]
+    },
+    {
+      "command": "make memory-knowledge-causal-eval",
+      "exit_code": 0,
+      "name": "memory-knowledge-causal-eval",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "16 pairs; status=passed; synthetic parser consumer; native and real-model metrics unverified"
+      ]
+    },
+    {
+      "command": "/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)(allow network-inbound (local ip \"localhost:*\"))(allow network-outbound (remote ip \"localhost:*\"))' /usr/bin/env PATH=/Users/jasonkli/projects/personal-ai-system/backend/.venv/bin:/usr/bin:/bin make backend-test-offline",
+      "exit_code": 0,
+      "name": "canonical-offline",
+      "phase": "review_remediation_final",
+      "result_lines": [
+        "2,384 passed, 119 deselected, 4 warnings in 244.15s",
+        "Phase35/36, provider-matrix, PI-2/PI-5 HTTP, source authority and memory regressions included"
+      ]
+    },
+    {
+      "command": "/usr/bin/env PATH=/Users/jasonkli/projects/personal-ai-system/backend/.venv/bin:/usr/bin:/bin make backend-lint",
+      "exit_code": 0,
+      "name": "backend-lint-final",
+      "phase": "review_remediation_final_post_scorer",
+      "result_lines": [
+        "All checks passed!"
+      ]
+    },
+    {
+      "command": "backend/.venv/bin/python -m pytest -q backend/tests/test_planning_experiment.py",
+      "exit_code": 0,
+      "name": "planning-focused-final",
+      "phase": "review_remediation_final_post_scorer",
+      "result_lines": [
+        "60 passed, 3 warnings in 4.56s"
+      ]
+    },
+    {
+      "command": "/usr/bin/env PATH=/Users/jasonkli/projects/personal-ai-system/backend/.venv/bin:/usr/bin:/bin make planning-eval",
+      "exit_code": 0,
+      "name": "planning-eval-final",
+      "phase": "review_remediation_final_post_scorer",
+      "result_lines": [
+        "decision=non_promotion; planner calls/tokens/quota=0",
+        "source identity d099f766bf4b85c4d7b843f04f0615291240018205ead0daef6f8e7fc9c6a679"
+      ]
+    },
+    {
+      "command": "/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)(allow network-inbound (local ip \"localhost:*\"))(allow network-outbound (remote ip \"localhost:*\"))' /usr/bin/env PATH=/Users/jasonkli/projects/personal-ai-system/backend/.venv/bin:/usr/bin:/bin make backend-test-offline",
+      "exit_code": 0,
+      "name": "canonical-offline-final",
+      "phase": "review_remediation_final_post_scorer",
+      "result_lines": [
+        "2,385 passed, 119 deselected, 4 warnings in 247.79s (0:04:07)",
+        "Phase35/36, PI-2/PI-5 HTTP, PI-6 scorer and memory duplicate-effect regression included"
+      ]
     }
   ],
   "date": "2026-11-02",
@@ -493,13 +683,37 @@
     {
       "result": "Synthetic auth configuration, trusted temp path resolution, builtin branch API, failed SSE handling and research caps corrected; oracles unchanged",
       "stage": "calibration_driver"
+    },
+    {
+      "result": "68 rows; 13 incomplete-score arms; coverage invalid and evaluation incomplete; no safety veto. Preserved at the first-v2 report path and hash above.",
+      "stage": "first_v2_measurement"
+    },
+    {
+      "result": "Initial wheel probe lacked a __main__ guard, so spawned workers re-entered the probe. Added guard; core-only and full installed evaluator then ran independently.",
+      "stage": "installed_probe_entrypoint"
+    },
+    {
+      "result": "The initial 120-second suite cap expired before all installed full-wheel rows. Raised fixed suite bound to 300 seconds while retaining a five-second per-operation hard deadline and incomplete-denominator veto.",
+      "stage": "installed_suite_deadline"
+    },
+    {
+      "result": "First v27 assertion detected that the v2 measurement manifest changed the planner source digest. Excluded that protocol output manifest from planner source identity, rebound v27, refreshed the v2 manifest, and passed the focused and full PI-3 planning regressions.",
+      "stage": "planning_v27_identity"
+    },
+    {
+      "result": "Ordinary workspace sandbox blocked local HTTP sockets (11 failures, 91 setup errors). A representative PI-2 HTTP test passed with loopback access; full 2,384-test offline suite passed under native deny-network except localhost.",
+      "stage": "offline_suite_network_boundary"
+    },
+    {
+      "result": "Latest native loopback-fenced offline suite passed 2,385 tests, 119 deselected, four warnings after the final PI-6 scorer regression.",
+      "stage": "final_offline_suite_post_scorer"
     }
   ],
   "end": {
     "dirty": true,
-    "head": "093e3b6816581e0b975e74e498dab99a2ac9a4b6",
-    "new_commit": null,
-    "status": " M Makefile\n M README.md\n M backend/src/personal_ai/evaluation/planning.py\n M backend/tests/test_planning_experiment.py\n M docs/README.md\n M docs/current-state.md\n M docs/platform-independence/README.md\n M docs/platform-independence/pi-5-completion-gate.md\n M docs/platform-independence/platform-independence-roadmap.md\n?? backend/scripts/pi6_checks.py\n?? backend/scripts/pi6_installed_checks.py\n?? backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v26.json\n?? backend/src/personal_ai/evaluation/fixtures/pi6/\n?? backend/src/personal_ai/evaluation/pi6.py\n?? backend/src/personal_ai/evaluation/pi6_contracts.py\n?? backend/src/personal_ai/evaluation/pi6_driver.py\n?? backend/src/personal_ai/evaluation/pi6_http.py\n?? backend/src/personal_ai/evaluation/pi6_scoring.py\n?? backend/tests/test_pi6.py\n?? docs/platform-independence/pi-6-benchmark-contract.md\n?? docs/platform-independence/pi-6-benchmark-report.json\n?? docs/platform-independence/pi-6-benchmark-report.md\n?? docs/platform-independence/pi-6-completion-gate.md\n?? docs/platform-independence/pi-6-conditional-entry-decision.md\n?? docs/platform-independence/pi-6-conditional-offline-development-codex-handoff.md\n?? docs/platform-independence/pi-6-detailed-implementation-plan.md\n?? docs/platform-independence/pi-6-implementation-report.md\n?? docs/platform-independence/pi-6-independent-review-prompt.md\n?? docs/platform-independence/pi-6-plan-hardening.md\n?? docs/platform-independence/pi-6-verification.json\n"
+    "head": "c22c646a30dc62d1e9dd8eec7747453e45b7071b (tested base; this remediation is a single direct-child commit)",
+    "new_commit": "single remediation commit containing this changeset; its Git SHA is reported in the task completion message to avoid self-referential ledger content",
+    "status": "review remediation committed; original untracked user handoff unchanged and excluded from commit"
   },
   "entry": {
     "head": "093e3b6816581e0b975e74e498dab99a2ac9a4b6",
@@ -886,13 +1100,80 @@
     "runtime": "3.11.15 (main, May 10 2026, 19:23:07) [Clang 22.1.3 ]",
     "status": "?? docs/platform-independence/pi-6-conditional-offline-development-codex-handoff.md\n"
   },
+  "final_pi6_measurement": {
+    "cases_sha256": "25df654eda27040c3b52695fd6ec695b53238a7cf76b82e1ed4e5d442b55205d",
+    "command": "make pi6-check",
+    "environment": "macOS 27.0.1 arm64; CPython 3.11.15; uv offline wheel install",
+    "exit_code": 0,
+    "first_failed_v2": {
+      "incomplete_score_arms": 13,
+      "path": "docs/platform-independence/pi-6-first-v2-measurement-2026-11-02.json",
+      "rows": 68,
+      "safety_veto": false,
+      "sha256": "f8e7a91401adcbfa55b4c353a12c33c41abe629734cf88255499dc31500a0d2c"
+    },
+    "fixture_hashes": {
+      "audit": "0b33310df0ff73be2e3308257ec730f4e6827aaf6bc2c2dad6a12fc423490765",
+      "cases": "25df654eda27040c3b52695fd6ec695b53238a7cf76b82e1ed4e5d442b55205d",
+      "contracts": "0057215086b4a4f325e21c9997aa58dc37e8c43c9b58ed19a33f508f5edf2667",
+      "core_runtime": "ae98e8fc8785b777254bde71f72c45a73bc08975e058cf22f4e118c1b03a64bb",
+      "driver": "d1b5a80c8c20afa7fb7e07c490109177b1669bf2db1ed49a524d5cf1f6efd446",
+      "http": "c961bb43f4a80766fbd909f63b3d43acf8b58d65db98abb40148171225ee5ea7",
+      "reading_logbook_client": "fc1d1b70448192532311261b00e08233da2ef9aba7419d5f971b33d4bca12c40",
+      "reading_logbook_host": "bbef3ec65cb0c991348742b160da74bf8dd8fd9eda46493e14641c506ce29d03",
+      "runner": "4e5a9371e7506507a1a96d151942231e8ab5fa05b4d9335256f24bceee3821d1",
+      "scoring": "88b5577bdec9c855d4a2d74e6eff6fc6ecead46f954dbe9568e6d346100beef1"
+    },
+    "focused_tests": "54 passed, 2 upstream Google Python 3.11 support warnings",
+    "installed_core_only": {
+      "coverage_valid": false,
+      "exit_code": 0,
+      "expected_behavior": "missing Reading Logbook client/host arms explicitly ineligible; incomplete coverage does not pass",
+      "non_measured_optional_host_arms": 52,
+      "rows": 68
+    },
+    "installed_full": {
+      "coverage_valid": true,
+      "evaluation_complete": true,
+      "exit_code": 0,
+      "native_fence_complete": true,
+      "rows": 68,
+      "runtime_identity_sha256": "181c3b81cdd898f293441296f71574740da3ba7587f5b4ed334b6f6aaf46b798",
+      "wheel_sha256": {
+        "backend": "ec505abe871c0268589ef47ca3366a3462b8bf1dec8a6a88c42952f36130c1b0",
+        "reading_logbook_client": "a0b341030c33201999a575795a2ed98e4f103281cc5a5c5b34be86d1d87fa933",
+        "reading_logbook_host": "76e83ee390bf9ecb5dbf8613c5a93fb44354625ebe2f699a7a35d4bf0f87531f"
+      }
+    },
+    "manifest_file_sha256": "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c",
+    "native_fence": "native IPv4/IPv6 remote denial passed in each measured worker; Python audit reported zero forbidden attempts",
+    "source_evaluation": {
+      "coverage_valid": true,
+      "evaluation_complete": true,
+      "latency": {
+        "class": "local_synthetic",
+        "n": 68,
+        "p50_ms": 1445.8125,
+        "p95_method": "nearest_rank",
+        "p95_ms": 1542.133
+      },
+      "native_fence_complete": true,
+      "report_sha256": "57783d392d53d740c7a07e61366ffba319d394a677f5b4da5a3f9ac9b8ba30f1",
+      "rows": 68,
+      "runtime_identity_sha256": "2c6a52f0ac002042c1881738749d26006d3b8a6f2122241aa9c6c7f31194539a",
+      "safety_veto": false
+    },
+    "tested_base": "c22c646a30dc62d1e9dd8eec7747453e45b7071b"
+  },
   "gates": {
     "pi5_completion": "blocked_unverified",
     "pi6_offline_development_entry": "conditional_go",
-    "pi6_offline_evaluation": "partial",
-    "pi6_production_promotion": "no_go"
+    "pi6_offline_evaluation": "locally_complete",
+    "pi6_production_promotion": "no_go",
+    "pi6_review_remediation": "closed_no_further_review_required"
   },
-  "independent_review": "pending; same-session self-review is not acceptance",
+  "historical_v1_benchmark_sha256": "d9d01941d3d48cb3383f9b4f51d0b8854e20c7b8934143a919f844a2f4c2a325",
+  "independent_review": "no fresh review handoff requested by user; scoped remediation closed with no further review required; no independent acceptance claimed",
   "initial_pi6_measurement": {
     "artifact_sha256": "2143661929346a63c9cd177431ce0eccecf053869c64c31d4353f033c59082e9",
     "explanation": "Driver mishandled required_context_source_empty as unsafe failure in two calibration and two held-out records. Exact calibration-observed normalization fixed; frozen corpus/scorer unchanged. Full original artifact retained locally in artifacts/pi6/initial-benchmark.json.",
@@ -901,10 +1182,18 @@
     "safety_veto": true
   },
   "installed_pi6": {
-    "command": "UV_OFFLINE=1 make pi2-build; backend/.venv/bin/python backend/scripts/pi6_installed_checks.py",
+    "command": "make pi6-check (includes backend/scripts/pi6_installed_checks.py)",
+    "core_only_coverage_valid": false,
     "exit_code": 0,
-    "log_sha256": "7dedbc90676df09df4770769b257b526a0630c0dac0effd1ff8a4f6cd72c9397",
-    "result": "core-only frozen-fixture probe passed; independently installed signed HTTP 64 observations, 58 successes, no safety veto; reference apps physically absent; native loopback-only fence"
+    "full_coverage_valid": true,
+    "native_fence": "native_loopback_only",
+    "result": "core-only mode fails closed with 52 explicitly ineligible optional-host arms; full installed evaluator passes all 68 rows",
+    "wheel_sha256": {
+      "backend": "ec505abe871c0268589ef47ca3366a3462b8bf1dec8a6a88c42952f36130c1b0",
+      "reading_logbook_client": "a0b341030c33201999a575795a2ed98e4f103281cc5a5c5b34be86d1d87fa933",
+      "reading_logbook_host": "76e83ee390bf9ecb5dbf8613c5a93fb44354625ebe2f699a7a35d4bf0f87531f"
+    },
+    "runtime_identity_sha256": "181c3b81cdd898f293441296f71574740da3ba7587f5b4ed334b6f6aaf46b798"
   },
   "not_run": [
     "live_model_or_search",
@@ -920,12 +1209,13 @@
   ],
   "post_verification": {
     "artifact_manifest_path": "artifacts/pi6/final-artifact-manifest.json",
-    "backend_lint": "passed",
-    "git_diff_check": "passed",
-    "local_markdown_links": "passed",
+    "backend_lint": "passed: make backend-lint; All checks passed",
+    "git_diff_check": "passed after final documentation and ledger updates",
+    "local_markdown_links": "passed: 146 local links checked across 11 changed Markdown files; none missing",
     "patch_path": "artifacts/pi6/implementation.patch",
-    "raw_benchmark_content_scan": "passed",
-    "source_fixture_scorer_runtime_hashes": "passed"
+    "raw_benchmark_content_scan": "passed; final v2 observation keys contain no raw task/answer/source fields",
+    "source_fixture_scorer_runtime_hashes": "passed; manifest-v2 is frozen against final source before measurement",
+    "source_manifest_entries": 560
   },
   "pre_forget_checkpoint": {
     "benchmark_sha256": "42c70d4338007403e319511dcd07c233fe6f8d2c0dc2c91bffbe8852b223500e",
@@ -1012,7 +1302,119 @@
     "matched": 595,
     "missing": []
   },
-  "rollback": "Disable/remove PI6-only runner/config; preserve PI5 source fences, receipts, tombstones and all historical locks.",
+  "previous_source_manifest_sha256": "e445375d7edeaac89f6bfb9713f8edb91305318852c0ee9cce95260091ad8a2b",
+  "review_disposition": {
+    "authority": "user direction in this conversation",
+    "handoff": "none requested or issued",
+    "independent_acceptance": "not claimed",
+    "scope": "R01-R11 PI-6 local offline evaluator remediation",
+    "status": "closed_no_further_review_required"
+  },
+  "review_findings": [
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_score_rejects_unknown_or_missing_source_evidence",
+        "test_source_dependency_is_required_for_selected_and_cited_content",
+        "test_answer_digest_is_checked_against_frozen_expected_value"
+      ],
+      "id": "R01"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_observer_detects_duplicate_send_without_driver_self_attestation",
+        "test_frozen_forbidden_effects_veto_even_when_driver_reports_success",
+        "test_observer_vetoes_duplicate_memory_mutation_and_requires_expected_attempt"
+      ],
+      "id": "R02"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_aggregate_requires_all_arms_and_reports_quality_separately",
+        "test_aggregate_rejects_duplicate_unmeasured_and_unknown_rows"
+      ],
+      "id": "R03"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_budget_enforcement_and_source_bytes_are_hard_limits",
+        "test_worker_deadline_kills_blocking_driver_without_orphan_child",
+        "test_suite_deadline_marks_remaining_required_arms_unmeasured"
+      ],
+      "id": "R04",
+      "limits": {
+        "input_units": 32768,
+        "operation_deadline_seconds": 5,
+        "output_units": 256,
+        "source_bytes": 8192,
+        "suite_deadline_seconds": 300
+      }
+    },
+    {
+      "disposition": "addressed_with_explicit_limit",
+      "evidence": [
+        "v1 fixture/manifest unchanged",
+        "v2 protocol frozen before final v2 measurement",
+        "first failed v2 measurement preserved"
+      ],
+      "id": "R05",
+      "limit": "v2 is agent-authored synthetic, not blind or independent validation"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_memory_revocation_executes_same_denied_read_on_both_arms",
+        "test_memory_positive_recall_checks_content_fingerprint_not_only_id"
+      ],
+      "id": "R06"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_runtime_identity_uses_packages_without_git_or_checkout_paths",
+        "installed core-only and full-wheel evaluator phases"
+      ],
+      "id": "R07"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_native_launcher_has_no_python_flag_capability",
+        "native remote-denial probe in each measured worker"
+      ],
+      "id": "R08"
+    },
+    {
+      "disposition": "fixed_within_isolated_child_boundary",
+      "evidence": [
+        "test_child_logs_are_bounded_and_never_escape_to_parent",
+        "test_worker_exception_text_and_stdout_are_not_retained"
+      ],
+      "id": "R09"
+    },
+    {
+      "disposition": "fixed",
+      "evidence": [
+        "test_nearest_rank_p95_uses_ceiling_index"
+      ],
+      "id": "R10"
+    },
+    {
+      "disposition": "fixed_additively",
+      "evidence": [
+        "test_v26_pi6_additive_source_binding_preserves_v25_and_non_promotion",
+        "test_v27_pi6_review_rebind_preserves_v26_and_non_promotion"
+      ],
+      "id": "R11",
+      "source_identity_digest": "d099f766bf4b85c4d7b843f04f0615291240018205ead0daef6f8e7fc9c6a679",
+      "v26_sha256": "d3503c40af9aa122e80c1cd9d99da0e7236b29ed404cf8c3c20f9e8f6dff6c85",
+      "v27_sha256": "f15dd0ee032d2013e9caa06fb82de9ec7d68ef5290f5ba352f510ec268ec24e8"
+    }
+  ],
+  "rollback": "Disable/remove PI-6-only runner, config, fixtures and report artifacts; preserve PI-5 guards, receipts/tombstones, planning locks v10-v27 history, and all user files. No destructive cleanup or down migration.",
   "scenarios": [
     {
       "disposition": "pass",
@@ -1383,7 +1785,7 @@
       ],
       "id": "P6-27",
       "observation_class": "diff_and_hash",
-      "offline_interpretation": "No production defaults/API/schema/migration changes; v26 source identity is additive; all original v10-v25 fixtures retained byte-for-byte.",
+      "offline_interpretation": "No production defaults/API/schema/migration changes; planning v27 is an additive non-promoting source identity; v10-v26 and historical fixtures remain byte-for-byte preserved.",
       "original_intent": "Production defaults, historical locks, schema and public APIs preserved.",
       "production_obligation_preserved": true
     },
@@ -1476,10 +1878,10 @@
   ],
   "schema_version": "pi6-verification-v1",
   "source_files_sha256": {
-    "Makefile": "d8cf7b502032b4b70421f4286e83b57521625fc4d770492b4e80900c29e2face",
+    "Makefile": "7f52489fdae15c4f4c8201da00b4b84c58b92a1665276f1bbf5cb4471d359bc2",
     "backend/pyproject.toml": "f868b46c97cfbf40d87d8e12fd8702f8231ee6571fca7f56f367e9de757f0110",
-    "backend/scripts/pi6_checks.py": "5fce1d62f58fb30625e0f2e238c0ae51c9fb0526cddaea6a86a340ee26d12856",
-    "backend/scripts/pi6_installed_checks.py": "fb9f9523444369e160cd503ba072fa4ed8d029580cd229e00900b9ec355d48a4",
+    "backend/scripts/pi6_checks.py": "a0c1556d0fd3fe892c8f47de9667f65d95abda455353b539f0114fe627a08872",
+    "backend/scripts/pi6_installed_checks.py": "a19dde74b1b5e475ab51f3feaa27cd8af3473ec0ff976f91c8e116f446a55b59",
     "backend/src/personal_ai/__init__.py": "686e15f8831fad58162acbc0b1c4ecbfe38219e3e8b92d23f5b4882a3c8ae917",
     "backend/src/personal_ai/agents/__init__.py": "6a97eb6cf6f7c9c5ff599574fb5caf40bfc41a1e514d41c44b6d8ea48ac3f45c",
     "backend/src/personal_ai/agents/research/__init__.py": "e137e578233115b7af3b4c809b6a7995123e55e282d23a242369bf8dc543b669",
@@ -1586,7 +1988,7 @@
     "backend/src/personal_ai/evaluation/cascade.py": "c8b43760439252437a44b16f00c0edbb3c2defe3e27248e1826c2f3f21413ab0",
     "backend/src/personal_ai/evaluation/context.py": "e20999e1e2b6083eae2a251fa42b619b3a23272a82d5e2cac00c4bc3f1cb288f",
     "backend/src/personal_ai/evaluation/context_planner.py": "3fd5a88dc8353cbade0818a6b90cb7e376e12d26a04971e2fe3edd62c8c4dea5",
-    "backend/src/personal_ai/evaluation/control_runtime.py": "3a23ae81932c3a80a135ffff4c215b637a227269de8a88ce23218a0e56f2a4ac",
+    "backend/src/personal_ai/evaluation/control_runtime.py": "26ddb7cf0bc920e3071c415c2a4b16836f8d36b5b4aed5704051d9d6021d7609",
     "backend/src/personal_ai/evaluation/decision.py": "1c763c98131a3e6fc7f5e092e6f3786d5bd7d54071c589b096274eb04560db7e",
     "backend/src/personal_ai/evaluation/fixtures/context/context-fixtures.json": "89573230becac4758a26ec86c21c8bc1edb92d3762c12311b9b13d4d32bb0e22",
     "backend/src/personal_ai/evaluation/fixtures/context/context-plan-fixtures.json": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
@@ -1609,6 +2011,7 @@
     "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v24.json": "5ff0691b39d02c50a8a2fa778bba90676a3a89ec5732d7e3467f5269f2bcd2d6",
     "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v25.json": "236d07d3000099b451d42d3deb60e0c670a3665faeb9cff8712e83ad370334cb",
     "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v26.json": "d3503c40af9aa122e80c1cd9d99da0e7236b29ed404cf8c3c20f9e8f6dff6c85",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v27.json": "f15dd0ee032d2013e9caa06fb82de9ec7d68ef5290f5ba352f510ec268ec24e8",
     "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v3.json": "a1cd94e59027595a724c9733778c822b363fdc694f6f5a06c0da0394cb938919",
     "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v4.json": "0ccc073e5751451d3c551a2f289a1798fc81b6259cb1dc27d7d7b67d00787750",
     "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v5.json": "bc90a287f1d1e8b6f4261ac9f8548a1a072effd6da6b57cb7a132244131b688e",
@@ -1630,7 +2033,9 @@
     "backend/src/personal_ai/evaluation/fixtures/memory/memory-fixtures.json": "bd2f7a0c3ee8ab6cc4dd728364be091ebddbf8af3daa9ae49ec19e22b974471a",
     "backend/src/personal_ai/evaluation/fixtures/memory/memory-lifecycle-fixtures.json": "b8863d06cdb4c6d5bf0cd2753fbb64ebffbbb19945870abd096a691d0d152f06",
     "backend/src/personal_ai/evaluation/fixtures/pi6/cases-v1.json": "84c0e5a1e990ac5b282a24348e4319406d3ec4188d179099777ab5aa4b5651bf",
+    "backend/src/personal_ai/evaluation/fixtures/pi6/cases-v2.json": "25df654eda27040c3b52695fd6ec695b53238a7cf76b82e1ed4e5d442b55205d",
     "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v1.json": "8480771c464c353a8899a36a4c510fe08a3665ff97a0cde7c0b867f5ff0d99bf",
+    "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2.json": "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c",
     "backend/src/personal_ai/evaluation/fixtures/research/research-fixtures.json": "e2901c69e02f46229644b70026b87954245d6ae685e04908e4282785879e64ec",
     "backend/src/personal_ai/evaluation/fixtures/research/retrieval-baseline-v1.json": "58ffcadd82e2e00685fb20ae407f3b5007d27e1218ff8831cc803b6e8f1fa665",
     "backend/src/personal_ai/evaluation/fixtures/research/retrieval-baseline-v2.json": "8fd05a3b792eb629da72948802e8a144ca233fa576867351fefa835680cf7782",
@@ -1654,12 +2059,13 @@
     "backend/src/personal_ai/evaluation/memory_task_driver.py": "b948e711d051b1a2850b8087e24e8c487d0ce779e6d1f9d85c3470894325f54b",
     "backend/src/personal_ai/evaluation/memory_task_runtime.py": "9ff1e77f308bad1cbc6185cd64d0608da57be28697704762024efe30b2c2ed5b",
     "backend/src/personal_ai/evaluation/output.py": "61d70726798f38dd944f6c8d88c3a07f69aadac80c704111cfa8908f101fe1ea",
-    "backend/src/personal_ai/evaluation/pi6.py": "3939644dd7ba327e9c58fcb5b7cfcd48efa91007789fa48a9f721d2a15a6dc48",
-    "backend/src/personal_ai/evaluation/pi6_contracts.py": "f28e7d2c92ab792a572db2c031c5b349eaae203a02f89578d1dfd22c6b2a284f",
-    "backend/src/personal_ai/evaluation/pi6_driver.py": "fe89a51ebe136339debed0f7ff40cbd1565a53a916dd5e97597b977be09564ad",
-    "backend/src/personal_ai/evaluation/pi6_http.py": "7ec65b82a2cb5dbec49489a372f5271bd75aeb40c1bf65d9f4ccb6aaa0bbc9ae",
-    "backend/src/personal_ai/evaluation/pi6_scoring.py": "15666fd1311cfd305e2584d11d008ec960b128485543baae68e479463307df1e",
-    "backend/src/personal_ai/evaluation/planning.py": "da68a213edc52787d857484fcd5a97bfa919f024d23d7ff6616d53125287f316",
+    "backend/src/personal_ai/evaluation/pi6.py": "4e5a9371e7506507a1a96d151942231e8ab5fa05b4d9335256f24bceee3821d1",
+    "backend/src/personal_ai/evaluation/pi6_audit.py": "0b33310df0ff73be2e3308257ec730f4e6827aaf6bc2c2dad6a12fc423490765",
+    "backend/src/personal_ai/evaluation/pi6_contracts.py": "0057215086b4a4f325e21c9997aa58dc37e8c43c9b58ed19a33f508f5edf2667",
+    "backend/src/personal_ai/evaluation/pi6_driver.py": "d1b5a80c8c20afa7fb7e07c490109177b1669bf2db1ed49a524d5cf1f6efd446",
+    "backend/src/personal_ai/evaluation/pi6_http.py": "c961bb43f4a80766fbd909f63b3d43acf8b58d65db98abb40148171225ee5ea7",
+    "backend/src/personal_ai/evaluation/pi6_scoring.py": "88b5577bdec9c855d4a2d74e6eff6fc6ecead46f954dbe9568e6d346100beef1",
+    "backend/src/personal_ai/evaluation/planning.py": "b9874757fb0ac78fad51fd73fca867b00659be631a70efadb90ffb4ee8b33930",
     "backend/src/personal_ai/evaluation/planning_fixtures.py": "c0c09d725f631f5c204e89ce60f2c7bc7cde53eac134058e2c6ee93b45603d11",
     "backend/src/personal_ai/evaluation/planning_promotion.py": "8219f9429164da65ff1bf795f32eb941a144030cd6bb7b0e146b4f2892f23f7e",
     "backend/src/personal_ai/evaluation/planning_quality.py": "0f5d892e058f9700bd47747f3e736776d3392b8ff359a1490b5622294b4a5ecf",
@@ -1988,8 +2394,8 @@
     "backend/tests/test_pi5_context.py": "449bef1bc401f3a944677f6503189e44b9046026d26af5a750ec373b7d92ab02",
     "backend/tests/test_pi5_http.py": "5e03410b5d457a9107347e6013fd9f4a4844aa7a17abea178e6843f76d7f7a52",
     "backend/tests/test_pi5_retrieval.py": "7551d29740a29f735f72fd2f65b3ab868226ed87cf699db9af93bceb8e62644c",
-    "backend/tests/test_pi6.py": "f0320ab10bd377312a3307408d926536bbaea269abacfca8794c5e59ad7545dc",
-    "backend/tests/test_planning_experiment.py": "c6426383a20d1989103dc745cf3e44139c3aa4c09da12338c5c3c950151d3df7",
+    "backend/tests/test_pi6.py": "4c84f9a339e71a7e06d85ea7bc1a93a8acc2e087d7c8cb0427ec9e3c2aee60b1",
+    "backend/tests/test_planning_experiment.py": "39ab74036fa334822907537abec190e01784db83745672c495e77cbd0cf983d8",
     "backend/tests/test_planning_quality.py": "881d29f7a7c85d29e1730d3790df020e1d860d3304edddac9691bd77f9c6da98",
     "backend/tests/test_platform_dependency_inventory.py": "be1818799d9b906baca3439e0ca1832661429398922db130724a32128846b09a",
     "backend/tests/test_platform_independence.py": "51be8bfbbdf1b0248041e067c961ba9fdcc7ae844608f76d100b36abbad8bfd4",
@@ -2018,10 +2424,24 @@
     "backend/tests/test_task_deployment.py": "5e7c781549c57a056127694015cf30ebd9f63fab127baef04f4c6ea1e860a063",
     "backend/tests/test_task_identity.py": "f0093425e0a545ce8141d63e9921aafaab0d264de3265efb482b214a5f4cb3be",
     "backend/tests/test_travel_context.py": "30875ed98040e99fe61846302a8d3a11df29576ee9e1b8498e00c96116301d4a",
-    "backend/uv.lock": "43e6b75954501a599000b192fd0075073716e893eed01dfadcd544069735cb7a"
+    "backend/uv.lock": "43e6b75954501a599000b192fd0075073716e893eed01dfadcd544069735cb7a",
+    "docs/current-state.md": "a27c5cd323fabe1bfd6ea34ce4568573fd1013c06f7898bade037bf2d4579ca3",
+    "docs/platform-independence/README.md": "d635b771278ff4056def9c16f61dcfc3c292824192d9c376c79bdab98b38dfbd",
+    "docs/platform-independence/pi-6-benchmark-contract.md": "e5d9986be74291f28c97377ae8e79fa42e5d264a46d9c13633ea664999e6c9c0",
+    "docs/platform-independence/pi-6-benchmark-report-v2.json": "57783d392d53d740c7a07e61366ffba319d394a677f5b4da5a3f9ac9b8ba30f1",
+    "docs/platform-independence/pi-6-benchmark-report.md": "40bb28ed10c7daa7f18a89f6608fb00c623e7135a4545437ff23d310cd397a65",
+    "docs/platform-independence/pi-6-completion-gate.md": "e1b56c4f99d94662ddd9c8700ee3f03f7a86a640170ae9493e78f0d380969ff1",
+    "docs/platform-independence/pi-6-conditional-offline-development-codex-handoff.md": "6855d4cb55a5ea2b9d0eecda01c2714b8c45ac5c5e3208d0337474b0d2fc33f1",
+    "docs/platform-independence/pi-6-detailed-implementation-plan.md": "711005d7df359c1d69557a38a6ed53f75aacf90b5984ca10186e7612c4c4eceb",
+    "docs/platform-independence/pi-6-first-v2-measurement-2026-11-02.json": "f8e7a91401adcbfa55b4c353a12c33c41abe629734cf88255499dc31500a0d2c",
+    "docs/platform-independence/pi-6-implementation-report.md": "1ae40ae3e29216954b24ca022063009838b8de245b93e212835be4152904395f",
+    "docs/platform-independence/pi-6-plan-hardening.md": "535bd420d3ff4de195be6c7da37f056b9bd695c12c8460444d0c52e9e5f8332c",
+    "docs/platform-independence/pi-6-review-closure.md": "30f9f52561186211dbee024dd3c3526249af80f6d2479510ee874163ef4bb60d",
+    "docs/platform-independence/platform-independence-roadmap.md": "8ee1440f618af4482a63b0c5caa414b1a2fcaf48f4c94e23c7291e198446d3ad"
   },
-  "source_manifest_sha256": "e445375d7edeaac89f6bfb9713f8edb91305318852c0ee9cce95260091ad8a2b",
-  "status": "pi6_offline_development_completed_pending_independent_review",
+  "source_manifest_scope": "Current review candidate paths and preserved workspace inputs; this JSON is excluded to avoid a self-referential hash.",
+  "source_manifest_sha256": "1934152657f53072ad597f15ec1113da47f6839fa1f4b519afa71e2dac8b5cc1",
+  "status": "review_remediation_complete_no_further_review_required",
   "timezone": "America/Los_Angeles",
   "unsupported_claims": [
     "real_model_utility",

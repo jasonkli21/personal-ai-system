@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 is a conditional offline candidate pending independent review; PI-7 and PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 has a locally complete scripted offline evaluation and a closed 2026-11-02 remediation review with no further review required at the user's direction; production promotion remains no-go. PI-7 and PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -131,7 +131,7 @@ above retain their historical scope; the living boundary is current-state.
 
 - [Conditional-entry decision](pi-6-conditional-entry-decision.md), [revised local plan](pi-6-detailed-implementation-plan.md), [pre-code hardening](pi-6-plan-hardening.md) and [benchmark contract](pi-6-benchmark-contract.md).
 - [Implementation report](pi-6-implementation-report.md), [command/scenario/hash ledger](pi-6-verification.json), [benchmark report](pi-6-benchmark-report.md) and [canonical observations](pi-6-benchmark-report.json).
-- [Separate gates](pi-6-completion-gate.md) and [fresh independent review prompt](pi-6-independent-review-prompt.md).
+- [Separate gates](pi-6-completion-gate.md) and [review closure](pi-6-review-closure.md); no further review handoff is requested.
 
 Run `make pi6-check` with the backend virtualenv. This is synthetic local evidence,
 not real-model lift, live cost or production acceptance. PI-5 remains

@@ -391,7 +391,11 @@ def test_frozen_baseline_and_no_promotion_without_measurements(runtime_bound_pla
         assert row["source_revision_observations"][0]["source_revision"] == expected
         assert row["source_revision_observations"][0]["observation_complete"] is complete
     federation_states = {row["id"] for row in result["rows"] if row["id"].startswith("cross-app-")}
-    assert {"cross-app-grant_epoch_changed", "cross-app-consent_revoked", "cross-app-membership_revoked"} <= federation_states
+    assert {
+        "cross-app-grant_epoch_changed",
+        "cross-app-consent_revoked",
+        "cross-app-membership_revoked",
+    } <= federation_states
     assert all(not row["promoted"] for row in result["coverage_slices"])
     assert all(row["independent_family_count"] < 100 for row in result["coverage_slices"])
 
@@ -416,7 +420,12 @@ def test_v11_freeze_preserves_v10_corpus_and_non_promotion():
 def test_v12_freeze_preserves_v11_semantics_as_historical_evidence():
     v12 = json.loads(planning.FREEZE_PATH.with_name("planning-baseline-v12.json").read_text())
     v11 = json.loads(planning.FREEZE_PATH.with_name("planning-baseline-v11.json").read_text())
-    for key in ("baseline_version", "configuration_digest", "corpus_digest", "fixture_dependency_digest"):
+    for key in (
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+    ):
         assert v12[key] == v11[key]
     assert v12["source_identity_digest"] != v11["source_identity_digest"]
     assert v12["supersedes"] == v11["baseline_lock_version"]
@@ -426,11 +435,18 @@ def test_v12_freeze_preserves_v11_semantics_as_historical_evidence():
 
 def test_v13_publication_freeze_remains_historical_evidence():
     current = json.loads(planning.HISTORICAL_V13_FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V13_FREEZE_PATH.with_name("planning-baseline-v12.json").read_text())
+    previous = json.loads(
+        planning.HISTORICAL_V13_FREEZE_PATH.with_name("planning-baseline-v12.json").read_text()
+    )
     for key in (
-        "baseline_version", "configuration_digest", "corpus_digest",
-        "fixture_dependency_digest", "evaluator_version", "counter_identity",
-        "runtime_dependency_digest", "runtime_distribution_count",
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "evaluator_version",
+        "counter_identity",
+        "runtime_dependency_digest",
+        "runtime_distribution_count",
     ):
         assert current[key] == previous[key]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
@@ -444,9 +460,14 @@ def test_v14_source_rebind_preserves_corpus_runtime_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V14_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V13_FREEZE_PATH.read_text())
     for key in (
-        "baseline_version", "configuration_digest", "corpus_digest",
-        "fixture_dependency_digest", "evaluator_version", "counter_identity",
-        "runtime_dependency_digest", "runtime_distribution_count",
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "evaluator_version",
+        "counter_identity",
+        "runtime_dependency_digest",
+        "runtime_distribution_count",
     ):
         assert current[key] == previous[key]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
@@ -462,9 +483,15 @@ def test_v15_mem0_rebind_remains_immutable_historical_evidence():
     current = json.loads(planning.HISTORICAL_V15_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V14_FREEZE_PATH.read_text())
     for key in (
-        "baseline_version", "configuration_digest", "corpus_digest",
-        "fixture_dependency_digest", "evaluator_version", "counter_identity",
-        "runtime_dependency_digest", "runtime_distribution_count", "promotion_decision",
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "evaluator_version",
+        "counter_identity",
+        "runtime_dependency_digest",
+        "runtime_distribution_count",
+        "promotion_decision",
         "source_revision_binding",
     ):
         assert current[key] == previous[key]
@@ -477,9 +504,15 @@ def test_v16_review_rebind_preserves_v15_corpus_runtime_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V16_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V15_FREEZE_PATH.read_text())
     for key in (
-        "baseline_version", "configuration_digest", "corpus_digest",
-        "fixture_dependency_digest", "evaluator_version", "counter_identity",
-        "runtime_dependency_digest", "runtime_distribution_count", "promotion_decision",
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "evaluator_version",
+        "counter_identity",
+        "runtime_dependency_digest",
+        "runtime_distribution_count",
+        "promotion_decision",
         "source_revision_binding",
     ):
         assert current[key] == previous[key]
@@ -492,9 +525,15 @@ def test_v17_knowledge_rebind_preserves_historical_locks_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V17_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V16_FREEZE_PATH.read_text())
     for key in (
-        "baseline_version", "configuration_digest", "corpus_digest",
-        "fixture_dependency_digest", "evaluator_version", "counter_identity",
-        "runtime_dependency_digest", "runtime_distribution_count", "promotion_decision",
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "evaluator_version",
+        "counter_identity",
+        "runtime_dependency_digest",
+        "runtime_distribution_count",
+        "promotion_decision",
         "source_revision_binding",
     ):
         assert current[key] == previous[key]
@@ -503,14 +542,19 @@ def test_v17_knowledge_rebind_preserves_historical_locks_and_non_promotion():
     assert current["source_revision"] == "293a5910827d9a1f70e1342ee3b98f24ab615e4d"
 
 
-
 def test_v18_control_rebind_preserves_historical_locks_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V18_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V17_FREEZE_PATH.read_text())
     for key in (
-        "baseline_version", "configuration_digest", "corpus_digest",
-        "fixture_dependency_digest", "evaluator_version", "counter_identity",
-        "runtime_dependency_digest", "runtime_distribution_count", "promotion_decision",
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "evaluator_version",
+        "counter_identity",
+        "runtime_dependency_digest",
+        "runtime_distribution_count",
+        "promotion_decision",
         "source_revision_binding",
     ):
         assert current[key] == previous[key]
@@ -525,7 +569,10 @@ def test_v19_core_fixture_rebind_preserves_v18_history_and_non_promotion():
 
     assert current["baseline_lock_version"] == "planning-baseline-lock-v19"
     assert current["evaluator_version"] == planning.PLANNING_EVALUATOR_VERSION
-    assert current["source_identity_digest"] == "ac0526535784cc783db25689fb45f63fe2a2812640ff74c420fdd334c87d8142"
+    assert (
+        current["source_identity_digest"]
+        == "ac0526535784cc783db25689fb45f63fe2a2812640ff74c420fdd334c87d8142"
+    )
     assert current["configuration_digest"] == planning.baseline_planner().configuration_digest
     assert current["source_revision"] == "b97aab4a679df0410ad7688fa50c8b8557a7ec8b"
     assert current["supersedes"] == previous["baseline_lock_version"]
@@ -545,15 +592,18 @@ def test_evaluator_records_bound_validation_trace_metrics(runtime_bound_planning
 
     baseline = planning.evaluate()
     row = next(row for row in baseline["rows"] if row["id"] == "literal-units")
-    trace = PlanningTrace.model_validate(row["trace"]).model_copy(update={
-        "reasons": ("planning_unknown_or_duplicate_choice",),
-        "choice_results": (
-            PlanningChoiceResult(
-                choice_id="choice-0", disposition="retained",
-                reason="planning_unknown_or_duplicate_choice",
+    trace = PlanningTrace.model_validate(row["trace"]).model_copy(
+        update={
+            "reasons": ("planning_unknown_or_duplicate_choice",),
+            "choice_results": (
+                PlanningChoiceResult(
+                    choice_id="choice-0",
+                    disposition="retained",
+                    reason="planning_unknown_or_duplicate_choice",
+                ),
             ),
-        ),
-    })
+        }
+    )
     observed = planning.evaluate(validation_traces={"literal-units": trace})
     row = next(row for row in observed["rows"] if row["id"] == "literal-units")
     assert row["validation_observation"]["proposal_attempts"] == 1
@@ -721,11 +771,19 @@ def test_promotion_thresholds_reject_missing_overhead_and_hard_regressions():
     ):
         assert reason in promotion_reasons(control, candidate.model_copy(update={field: None}))
     for field in (
-        "proposal_attempts", "accepted_proposals", "rejected_proposals",
-        "fallback_proposals", "rejected_choices", "narrowed_choices",
-        "retained_fallback_choices", "unauthorized_proposal_attempts",
-        "proposal_rejection_rate", "fallback_proposal_rate", "narrowed_choice_rate",
-        "retained_fallback_rate", "unauthorized_attempt_rate",
+        "proposal_attempts",
+        "accepted_proposals",
+        "rejected_proposals",
+        "fallback_proposals",
+        "rejected_choices",
+        "narrowed_choices",
+        "retained_fallback_choices",
+        "unauthorized_proposal_attempts",
+        "proposal_rejection_rate",
+        "fallback_proposal_rate",
+        "narrowed_choice_rate",
+        "retained_fallback_rate",
+        "unauthorized_attempt_rate",
     ):
         assert "unmeasured_proposal_validation" in promotion_reasons(
             control, candidate.model_copy(update={field: None})
@@ -741,9 +799,9 @@ def test_promotion_thresholds_reject_missing_overhead_and_hard_regressions():
     )
     assert "coverage_key_mismatch" in promotion_reasons(
         control,
-        candidate.model_copy(update={
-            "coverage_key": coverage.model_copy(update={"sensitivity_class": "restricted"})
-        }),
+        candidate.model_copy(
+            update={"coverage_key": coverage.model_copy(update={"sensitivity_class": "restricted"})}
+        ),
     )
 
 
@@ -751,8 +809,10 @@ def test_promotion_scope_is_exact_task_source_and_sensitivity_key():
     from personal_ai.evaluation.planning_promotion import PlanningCoverageKey
 
     control = PlanningCoverageKey(
-        application_id="travel", task_family="trip_dates",
-        source_pattern=("travel.trip_context.current",), sensitivity_class="sensitive",
+        application_id="travel",
+        task_family="trip_dates",
+        source_pattern=("travel.trip_context.current",),
+        sensitivity_class="sensitive",
     )
     changed = control.model_copy(update={"sensitivity_class": "restricted"})
     assert control != changed
@@ -826,7 +886,10 @@ def test_v21_pi2_review_source_rebind_preserves_v20_and_non_promotion():
     previous = json.loads(planning.HISTORICAL_V20_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v21"
     assert current["source_revision"] == "96227267e4c1361a2366278b051a5d7b2fd5d7d7"
-    assert current["source_identity_digest"] == "f620be93d81e7c73722d34365a250b1d860cf54424cb7f22d4d369f5bb026e6f"
+    assert (
+        current["source_identity_digest"]
+        == "f620be93d81e7c73722d34365a250b1d860cf54424cb7f22d4d369f5bb026e6f"
+    )
     assert current["supersedes"] == previous["baseline_lock_version"]
     for key in (
         "configuration_digest",
@@ -845,10 +908,16 @@ def test_v22_pi3_source_rebind_preserves_v21_and_non_promotion():
     assert current["baseline_lock_version"] == "planning-baseline-lock-v22"
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "0dbe7406fda20c58c784339647ca15c4c7ab3f7e"
-    assert current["source_identity_digest"] == "6d9ec1a937ad290b2683343fddb5fe916fba18b956d8d003b02061a5db45f18c"
+    assert (
+        current["source_identity_digest"]
+        == "6d9ec1a937ad290b2683343fddb5fe916fba18b956d8d003b02061a5db45f18c"
+    )
     for key in (
-        "configuration_digest", "evaluator_version", "corpus_digest",
-        "fixture_dependency_digest", "promotion_decision",
+        "configuration_digest",
+        "evaluator_version",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "promotion_decision",
     ):
         assert current[key] == previous[key]
 
@@ -859,9 +928,17 @@ def test_v23_pi4_source_rebind_preserves_v22_and_non_promotion():
     assert current["baseline_lock_version"] == "planning-baseline-lock-v23"
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "00359b3e4941b3d0ff31575070aed083c77c98f8"
-    assert current["source_identity_digest"] == "937aca44fa80cace27a7fe54d7cf06d1a1deb7b847309f5dd858b571fa0232fb"
-    for key in ("configuration_digest", "evaluator_version", "corpus_digest",
-                "fixture_dependency_digest", "promotion_decision"):
+    assert (
+        current["source_identity_digest"]
+        == "937aca44fa80cace27a7fe54d7cf06d1a1deb7b847309f5dd858b571fa0232fb"
+    )
+    for key in (
+        "configuration_digest",
+        "evaluator_version",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "promotion_decision",
+    ):
         assert current[key] == previous[key]
 
 
@@ -871,9 +948,17 @@ def test_v24_pi5_source_rebind_preserves_v23_and_non_promotion():
     assert current["baseline_lock_version"] == "planning-baseline-lock-v24"
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "e5412a85e58fdf0a9d7b58d1361a23b37e477190"
-    assert current["source_identity_digest"] == "2130c652bb8a723a605730eca5eedfe733d923f1903816269670ac7979af9a58"
-    for key in ("configuration_digest", "evaluator_version", "corpus_digest",
-                "fixture_dependency_digest", "promotion_decision"):
+    assert (
+        current["source_identity_digest"]
+        == "2130c652bb8a723a605730eca5eedfe733d923f1903816269670ac7979af9a58"
+    )
+    for key in (
+        "configuration_digest",
+        "evaluator_version",
+        "corpus_digest",
+        "fixture_dependency_digest",
+        "promotion_decision",
+    ):
         assert current[key] == previous[key]
 
 
@@ -882,20 +967,57 @@ def test_v25_source_binding_preserves_v24_corpus_rubric_and_non_promotion():
     previous = json.loads(planning.HISTORICAL_V24_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v25"
     assert current["supersedes"] == previous["baseline_lock_version"]
-    for field in ("baseline_version", "configuration_digest", "corpus_digest",
-                  "counter_identity", "evaluator_version", "fixture_dependency_digest",
-                  "promotion_decision"):
+    for field in (
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "counter_identity",
+        "evaluator_version",
+        "fixture_dependency_digest",
+        "promotion_decision",
+    ):
         assert current[field] == previous[field]
-    assert current["source_identity_digest"] == "a505db8166c4243c7249761356b49d782b749dc9041205791fd91d20d82ce133"
+    assert (
+        current["source_identity_digest"]
+        == "a505db8166c4243c7249761356b49d782b749dc9041205791fd91d20d82ce133"
+    )
 
 
 def test_v26_pi6_additive_source_binding_preserves_v25_and_non_promotion():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V26_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V25_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v26"
     assert current["supersedes"] == previous["baseline_lock_version"]
-    for field in ("baseline_version", "configuration_digest", "corpus_digest",
-                  "counter_identity", "evaluator_version", "fixture_dependency_digest",
-                  "promotion_decision"):
+    for field in (
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "counter_identity",
+        "evaluator_version",
+        "fixture_dependency_digest",
+        "promotion_decision",
+    ):
         assert current[field] == previous[field]
+    assert sha256(planning.HISTORICAL_V26_FREEZE_PATH.read_bytes()).hexdigest() == (
+        "d3503c40af9aa122e80c1cd9d99da0e7236b29ed404cf8c3c20f9e8f6dff6c85"
+    )
+
+
+def test_v27_pi6_review_rebind_preserves_v26_and_non_promotion():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V26_FREEZE_PATH.read_text())
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v27"
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_revision"] == "c22c646a30dc62d1e9dd8eec7747453e45b7071b"
     assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    for field in (
+        "baseline_version",
+        "configuration_digest",
+        "corpus_digest",
+        "counter_identity",
+        "evaluator_version",
+        "fixture_dependency_digest",
+        "promotion_decision",
+    ):
+        assert current[field] == previous[field]
+    assert current["promotion_decision"].startswith("non_promotion")

@@ -358,4 +358,7 @@ roadmap's original predecessor acceptance or P6-02/29. The original phase target
 and all distributed/provider/cloud/restore/deletion obligations remain unchanged.
 The [local candidate report](pi-6-implementation-report.md) and
 [33-row ledger](pi-6-verification.json) record actual coverage and limitations.
+The R01–R11 review remediation is complete with 68/68 source and installed
+observations; the user closed this scoped review with no further review required.
+This local status does not imply real-model utility or production readiness.
 PI-7/8 and MEM-3+ are not authorized by this exception.
