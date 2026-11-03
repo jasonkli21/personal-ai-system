@@ -4,7 +4,13 @@ from uuid import uuid4
 import anyio
 import pytest
 
-from personal_ai.evaluation.real_tasks import load_manifest, run
+from personal_ai.evaluation.real_tasks import (
+    MANIFEST_SHA256,
+    evaluate_e1_rows,
+    load_manifest,
+    run,
+    validate_manifest,
+)
 from personal_ai.llm.execution import compose_pair
 from personal_ai.settings import Settings
 from personal_ai.usage.context import bind_usage_task
@@ -14,6 +20,7 @@ from personal_ai.usage.trace import Event, State, Trace, emit
 def test_frozen_task_corpus_uses_canonical_context_narrowing():
     manifest, digest = load_manifest()
     assert digest == "84f08efcbcf978192ada09d6026078672d5e44931f1090382d17d6abbb2c0e2f"
+    assert digest == MANIFEST_SHA256
     cases = manifest["cases"]
     assert len(cases) == len({case["id"] for case in cases}) == 12
     assert len({case["family"] for case in cases if case["split"] == "held_out"}) == 4
@@ -29,6 +36,11 @@ def test_frozen_task_corpus_uses_canonical_context_narrowing():
             assert row["source_selected"] == (row["arm"] != "direct")
             assert row["distractor_selected"] == (row["arm"] == "eligible")
             assert not row["rubric_pass"]
+    passed, metrics = evaluate_e1_rows(rows, cases, manifest["arms"])
+    assert passed and metrics == {
+        "coverage": "passed", "safety_canaries": "passed",
+        "natural_language_rubric": "not_applicable_fake", "scripted_rubric_passes": 0,
+    }
     events, _ = trace.snapshot()
     for row in rows:
         if row["completed"]:
@@ -59,6 +71,21 @@ def test_trace_is_bounded_redacted_and_cannot_overwrite(tmp_path, monkeypatch):
         trace.export("../outside.jsonl", **kwargs)
 
 
+def test_trace_export_failure_removes_private_temporary_receipt(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    trace = Trace()
+    kwargs = {"commit": "a" * 40, "configuration": "b" * 64, "run_id": uuid4()}
+
+    def fail_link(*args, **options):
+        raise OSError("synthetic disk publish failure")
+
+    monkeypatch.setattr("personal_ai.usage.trace.os.link", fail_link)
+    with pytest.raises(OSError, match="publish failure"):
+        trace.export("receipt.jsonl", **kwargs)
+    assert not (tmp_path / "receipt.jsonl").exists()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_concurrent_trace_scopes_and_observer_failure_are_isolated(monkeypatch):
     first, second = Trace(), Trace()
 
@@ -82,3 +109,35 @@ def test_concurrent_trace_scopes_and_observer_failure_are_isolated(monkeypatch):
     monkeypatch.setattr(first, "record", broken)
     with first.capture():
         emit(Event.ADMISSION, State.DENIED)
+
+
+def test_manifest_drift_and_adverse_e1_rows_fail_closed():
+    manifest, digest = load_manifest()
+    with pytest.raises(ValueError, match="identity_mismatch"):
+        validate_manifest(manifest, "0" * 64)
+    changed = json.loads(json.dumps(manifest))
+    changed["arms"].append("unapproved")
+    with pytest.raises(ValueError, match="contract_mismatch"):
+        validate_manifest(changed, digest)
+    rows = []
+    for case in manifest["cases"]:
+        for arm in manifest["arms"]:
+            denied = case["require_scope_denial"]
+            rows.append({
+                "id": case["id"], "arm": arm,
+                "status": "scope_denied" if denied else "completed",
+                "completed": not denied, "scope_denied": denied,
+                "forbidden_output": False, "rubric_pass": False,
+            })
+    assert evaluate_e1_rows(rows, manifest["cases"], manifest["arms"])[0]
+    for adverse in (
+        {**rows[0], "forbidden_output": True},
+        {**rows[0], "status": "timeout"},
+        {**rows[0], "id": "unauthorized-case"},
+    ):
+        changed_rows = [adverse, *rows[1:]]
+        assert not evaluate_e1_rows(changed_rows, manifest["cases"], manifest["arms"])[0]
+    denial_index = next(i for i, row in enumerate(rows) if row["id"] == "denial-scope")
+    changed_rows = list(rows)
+    changed_rows[denial_index] = {**rows[denial_index], "completed": True, "scope_denied": False}
+    assert not evaluate_e1_rows(changed_rows, manifest["cases"], manifest["arms"])[0]

@@ -30,6 +30,7 @@ from personal_ai.retrieval.installation import (
     load_snapshot,
     local_rights_authority_id,
 )
+from personal_ai.usage.trace import Event, Reason, State, emit
 
 PROVIDER_ID = "retrieval_context"
 NAMESPACE = "retrieval_context:"
@@ -67,42 +68,45 @@ class RetrievalContextAuthority:
         return dependency.permission_id.startswith(NAMESPACE)
 
     def snapshot(self, scope):
-        require_current_client_authority()
-        if self.authority is None:
-            raise ValueError("retrieval_authority_unavailable")
-        self.authority()
-        current = self.current_settings()
-        if (
-            not current.retrieval_enabled
-            or not current.retrieval_context_enabled
-            or current.retrieval_installation_file != self.settings.retrieval_installation_file
-            or current.app_environment not in {"local", "test"}
-        ):
-            raise ValueError("retrieval_context_unavailable")
-        if self.scope is None or any(
-            getattr(scope, name) != getattr(self.scope, name)
-            for name in ("owner_id", "acting_user_id", "application_id", "workspace_id")
-        ):
-            raise ValueError("retrieval_context_scope_denied")
-        # Recheck the current application policy/capability, supplied by the request.
-        context = self.context() if callable(self.context) else self.context
-        if context is None:
-            raise ValueError("retrieval_context_policy_unavailable")
-        if context.scope != scope:
-            raise ValueError("retrieval_context_scope_denied")
-        authorize_context_selection(context, context_selection())
-        capability = next(
-            (c for c in context.context_provider_capabilities if c.capability_id == PROVIDER_ID),
-            None,
-        )
-        if capability is None or not capability.is_enabled():
-            raise ValueError("retrieval_context_capability_denied")
-        snapshot = load_snapshot(current.retrieval_installation_file)
-        if not snapshot.installation.allows(scope) or not any(
-            grant.allows(scope) for grant in snapshot.installation.model_context_access
-        ):
-            raise ValueError("retrieval_context_scope_denied")
-        return snapshot
+        try:
+            require_current_client_authority()
+            if self.authority is None:
+                raise ValueError("retrieval_authority_unavailable")
+            self.authority()
+            current = self.current_settings()
+            if (
+                not current.retrieval_enabled
+                or not current.retrieval_context_enabled
+                or current.retrieval_installation_file != self.settings.retrieval_installation_file
+                or current.app_environment not in {"local", "test"}
+            ):
+                raise ValueError("retrieval_context_unavailable")
+            if self.scope is None or any(
+                getattr(scope, name) != getattr(self.scope, name)
+                for name in ("owner_id", "acting_user_id", "application_id", "workspace_id")
+            ):
+                raise ValueError("retrieval_context_scope_denied")
+            context = self.context() if callable(self.context) else self.context
+            if context is None:
+                raise ValueError("retrieval_context_policy_unavailable")
+            if context.scope != scope:
+                raise ValueError("retrieval_context_scope_denied")
+            authorize_context_selection(context, context_selection())
+            capability = next(
+                (c for c in context.context_provider_capabilities if c.capability_id == PROVIDER_ID),
+                None,
+            )
+            if capability is None or not capability.is_enabled():
+                raise ValueError("retrieval_context_capability_denied")
+            snapshot = load_snapshot(current.retrieval_installation_file)
+            if not snapshot.installation.allows(scope) or not any(
+                grant.allows(scope) for grant in snapshot.installation.model_context_access
+            ):
+                raise ValueError("retrieval_context_scope_denied")
+            return snapshot
+        except Exception:
+            emit(Event.SOURCE, State.DENIED, reason=Reason.SOURCE_AUTHORITY)
+            raise
 
     def is_current(self, dependency):
         if not self.supports(dependency):
@@ -137,6 +141,7 @@ class RetrievalContextAuthority:
                 for doc in snapshot.installation.documents
             )
         except Exception:  # noqa: BLE001 - unavailable authority always denies
+            emit(Event.SOURCE, State.DENIED, reason=Reason.SOURCE_AUTHORITY)
             return False
 
 
@@ -230,6 +235,10 @@ class RetrievalContextProvider:
                     payload=ExcerptPayload(excerpt=item),
                 )
             )
+        emit(
+            Event.SOURCE, State.OK, source_count=len(output),
+            source_refs=tuple(item.item_id for item in output[:32]),
+        )
         return output
 
 

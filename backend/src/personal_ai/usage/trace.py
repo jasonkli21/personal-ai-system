@@ -77,7 +77,7 @@ class Trace:
     def record(
         self, event, state, *, invocation=None, attempt=None, operation=None,
         input_tokens=None, output_tokens=None, elapsed_ms=None, source_count=None,
-        source_refs=(), units=None, cost=None, reason=None,
+        source_refs=(), units=None, work_bytes=None, cost=None, reason=None,
     ):
         scope = resolve_execution_context(event.value)
         entry = {
@@ -98,13 +98,14 @@ class Trace:
             entry["attempt"] = str(UUID(str(attempt.attempt_id)))
         if operation in {"token_counting", "streaming", "bounded_generation", "structured_generation"}:
             entry["operation"] = operation
-        if units in {"reserved", "reported", "estimated", "unknown", "fake_bytes"}:
+        if units in {"reserved", "reported", "estimated", "unknown", "fake_bytes", "selected_budget"}:
             entry["units"] = units
         if cost in {"local_no_provider_charge", "unknown"}:
             entry["cost"] = cost
         for name, value in (
             ("input_tokens", input_tokens), ("output_tokens", output_tokens),
             ("elapsed_ms", elapsed_ms), ("source_count", source_count),
+            ("work_bytes", work_bytes),
         ):
             if type(value) is int and 0 <= value <= 2**53:
                 entry[name] = value
@@ -139,9 +140,23 @@ class Trace:
             "retained": len(events), "dropped": dropped, "summary": summary,
         }
         payload = "\n".join(json.dumps(row, sort_keys=True) for row in (manifest, *events)) + "\n"
-        fd = os.open(filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write(payload)
+        temporary = f".{filename}.{os.urandom(12).hex()}.tmp"
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            # A same-directory hard link publishes atomically and fails if the
+            # destination already exists, including when it is a symlink.
+            os.link(temporary, filename, follow_symlinks=False)
+        except BaseException:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+            raise
+        os.unlink(temporary)
         return summary
 
 

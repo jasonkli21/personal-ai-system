@@ -38,6 +38,8 @@ from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.services.conversations import ExternalHistoryDisclosureDenied
 from personal_ai.settings import Settings
 from personal_ai.storage import InMemoryConversationRepository, InMemoryMessageRepository
+from personal_ai.usage.context import bind_usage_task
+from personal_ai.usage.trace import Trace
 
 from .test_retrieval_integrations import access, document, install, scope
 
@@ -180,7 +182,9 @@ async def complete(r, body=None):
 @pytest.mark.anyio
 async def test_normal_turn_packs_exact_quote_and_retains_authority(runtime):
     r = runtime
-    body, events = await complete(r)
+    trace = Trace()
+    with trace.capture(), bind_usage_task("retrieval-test", request_id="retrieval-request"):
+        body, events = await complete(r)
     assert events[-1].__class__.__name__ == "TurnCompleted"
     sent = r.llm.requests[0]
     assert "Atlas is a book" in str(sent) and "invoke memory.forget" in str(sent)
@@ -190,8 +194,24 @@ async def test_normal_turn_packs_exact_quote_and_retains_authority(runtime):
     assert snapshots[0].permission_dependencies[0].source_revision == "1"
     assert memory_extraction_context_reason(completed) == "context_source_not_reusable"
     assert r.guard_calls > 3
+    recorded, _ = trace.snapshot()
+    source_events = [event for event in recorded if event["event"] == "source_check"]
+    assert any(event["state"] == "ok" and event.get("source_count") == 1 for event in source_events)
+    serialized = json.dumps(recorded)
+    assert "Atlas is a book" not in serialized and "invoke memory.forget" not in serialized
     replay = [event async for event in r.service.continue_turn(r.conversation.id, body)]
     assert replay[-1].__class__.__name__ == "TurnCompleted" and len(r.llm.requests) == 1
+    revoked = json.loads(r.path.read_text())
+    revoked["model_context_access"] = []
+    r.path.write_text(json.dumps(revoked))
+    with trace.capture(), bind_usage_task("retrieval-test", request_id="retrieval-revocation"):
+        assert not r.validator.is_current(snapshots[0].permission_dependencies[0])
+    recorded, _ = trace.snapshot()
+    assert any(
+        event["event"] == "source_check" and event["state"] == "denied"
+        and event.get("reason") == "source_authority"
+        for event in recorded
+    )
 
 
 @pytest.mark.anyio

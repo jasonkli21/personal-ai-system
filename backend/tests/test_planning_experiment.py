@@ -568,7 +568,7 @@ def test_v19_core_fixture_rebind_preserves_v18_history_and_non_promotion():
     previous = json.loads(planning.HISTORICAL_V18_FREEZE_PATH.read_text())
 
     assert current["baseline_lock_version"] == "planning-baseline-lock-v19"
-    assert current["evaluator_version"] == planning.PLANNING_EVALUATOR_VERSION
+    assert current["evaluator_version"] == "planning-evaluator-v7"
     assert (
         current["source_identity_digest"]
         == "ac0526535784cc783db25689fb45f63fe2a2812640ff74c420fdd334c87d8142"
@@ -1025,24 +1025,25 @@ def test_v27_pi6_review_rebind_preserves_v26_and_non_promotion():
     assert current["promotion_decision"].startswith("non_promotion")
 
 
-def test_v29_is_preserved_and_v30_binds_naming_cleanup_source():
+def test_v30_is_preserved_and_v31_binds_review_remediation_source():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V29_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V30_FREEZE_PATH.read_text())
     identity = planning.freeze_identity()
     assert current["baseline_lock_version"] == identity["baseline_lock_version"]
-    assert current["baseline_lock_version"] == "planning-baseline-lock-v30"
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v31"
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["source_revision"] == "55eae00e5efbcce5e7a5eee4e4b2330292c9846c"
+    assert current["source_revision"] == "35c26de9b75d9eab1ebef2d7f4aad30b72ae5d11"
     assert current["source_identity_digest"] == identity["source_identity_digest"]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
-    assert previous["baseline_lock_version"] == "planning-baseline-lock-v29"
+    assert previous["baseline_lock_version"] == "planning-baseline-lock-v30"
     for field in (
         "baseline_version",
         "configuration_digest",
         "corpus_digest",
         "counter_identity",
-        "evaluator_version",
         "fixture_dependency_digest",
         "promotion_decision",
     ):
         assert current[field] == previous[field]
+    assert current["evaluator_version"] == "planning-evaluator-v8"
+    assert current["evaluator_version"] != previous["evaluator_version"]

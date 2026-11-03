@@ -183,6 +183,26 @@ class LocalEndpoint:
     def _transport(self):
         return httpx.AsyncHTTPTransport(uds=str(self.path), trust_env=False, retries=0)
 
+    @staticmethod
+    def _tokenizer_prompt(messages):
+        if not messages:
+            raise LLMInvalidRequestError("local inference requires chat messages")
+        prompt = bytearray(b"Continue this conversation as the assistant.\n")
+        for message in messages:
+            line = _json_bytes([message.role, message.content])
+            if len(prompt) + len(line) + 1 >= CONTEXT_TOKENS:
+                raise LLMInvalidRequestError("local tokenizer work exceeds its reserved byte ceiling")
+            prompt.extend(line)
+            prompt.extend(b"\n")
+        prompt.extend(b'["assistant", ')
+        if len(prompt) > CONTEXT_TOKENS:
+            raise LLMInvalidRequestError("local tokenizer work exceeds its reserved byte ceiling")
+        return prompt
+
+    @staticmethod
+    def _tokenize_payload(prompt):
+        return {"content": prompt.decode(), "add_special": True, "parse_special": False}
+
     async def _verify(self, client):
         props = await _request(client, "/props")
         defaults = props.get("default_generation_settings")
@@ -196,7 +216,8 @@ class LocalEndpoint:
         ):
             raise LLMInvalidConfigurationError("local inference server identity or bounds mismatch")
 
-    async def _call(self, operation, path, payload, timeout, parse, expected_socket=None):
+    async def _call(self, operation, path, payload, timeout, parse, expected_socket=None,
+                   reservation_units=None):
         if not math.isfinite(timeout) or timeout <= 0:
             raise LLMTimeoutError("local inference deadline expired")
         if len(_json_bytes(payload)) > MAX_BYTES:
@@ -223,6 +244,8 @@ class LocalEndpoint:
                         call = await AsyncProviderCall.begin(
                             self.accounting, from_profile(self.profile), operation=operation,
                             quota_operation=operation, max_attempts=1,
+                            input_tokens_estimate=(reservation_units or {}).get("input_tokens"),
+                            additional_units=reservation_units,
                         )
                     except Exception:  # noqa: BLE001 - hide ledger implementation details
                         emit(Event.RESERVE, State.DENIED, operation=operation, reason=Reason.ACCOUNTING)
@@ -245,7 +268,8 @@ class LocalEndpoint:
                     emit(Event.RESERVE, State.OK, invocation=call.invocation, attempt=attempt,
                          operation=operation, units="reserved", cost="local_no_provider_charge",
                          input_tokens=dict(attempt.reservation_units).get("input_tokens"),
-                         output_tokens=dict(attempt.reservation_units).get("output_tokens"))
+                         output_tokens=dict(attempt.reservation_units).get("output_tokens"),
+                         work_bytes=dict(attempt.reservation_units).get("tokenizer_request_bytes"))
                     await anyio.to_thread.run_sync(self.accounting.check_send, call.invocation)
                     if _socket_identity(self.path) != socket:
                         raise LLMInvalidConfigurationError("local inference socket changed")
@@ -300,31 +324,26 @@ class LocalEndpoint:
             raise LLMInvalidRequestError("local inference requires unstructured chat messages")
         # Separate role boundaries from untrusted content. Tokenize with special
         # parsing disabled and dispatch exactly the returned integer sequence.
-        prompt = bytearray(b"Continue this conversation as the assistant.\n")
-        for message in messages:
-            if len(message.content) > MAX_BYTES:
-                raise LLMInvalidRequestError("local inference request exceeds its byte ceiling")
-            line = _json_bytes([message.role, message.content])
-            if len(prompt) + len(line) >= MAX_BYTES:
-                raise LLMInvalidRequestError("local inference request exceeds its byte ceiling")
-            prompt.extend(line)
-            prompt.extend(b"\n")
-        prompt.extend(b'["assistant", ')
+        prompt = self._tokenizer_prompt(messages)
+        payload = self._tokenize_payload(prompt)
+        request_bytes = len(_json_bytes(payload))
+        if request_bytes > CONTEXT_TOKENS:
+            raise LLMInvalidRequestError("local tokenizer work exceeds its reserved byte ceiling")
         timeout = self.timeout if timeout_seconds is None else timeout_seconds
-        return anyio.run(self._count, prompt.decode(), timeout)
+        return anyio.run(self._count, payload, request_bytes, timeout)
 
-    async def _count(self, prompt, timeout):
+    async def _count(self, payload, request_bytes, timeout):
         def parse(body):
             tokens = body.get("tokens")
             if not isinstance(tokens, list) or not tokens or any(
                 type(token) is not int or not 0 <= token <= 2**31 - 1 for token in tokens
-            ):
+            ) or len(tokens) > CONTEXT_TOKENS:
                 raise LLMInvalidResponseError("local inference tokenizer returned invalid token IDs")
             return tuple(tokens), None, "success"
 
         tokens, _, _, socket, _ = await self._call(
-            "token_counting", "/tokenize",
-            {"content": prompt, "add_special": True, "parse_special": False}, timeout, parse,
+            "token_counting", "/tokenize", payload, timeout, parse,
+            reservation_units={"tokenizer_request_bytes": request_bytes},
         )
         return LocalTokenCount(
             len(tokens), "provider", PROVIDER, self.identity.model_id,
@@ -366,6 +385,10 @@ class LocalEndpoint:
                     "tokens_evaluated", "tokens_predicted",
                 ],
             }, timeout_seconds, parse, count.socket_identity,
+            reservation_units={
+                "input_tokens": count.tokens, "output_tokens": max_output_tokens,
+                "tokens": count.tokens + max_output_tokens,
+            },
         )
         # Preserve incomplete terminal state even if some text was produced.
         return GenerationResult(text, GenerationMetadata(

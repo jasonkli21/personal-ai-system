@@ -724,6 +724,7 @@ class ChatTurnService:
                 revalidate_preparation()
                 emit(
                     Event.CONTEXT, State.OK, input_tokens=assembled.budget.selected_total,
+                    units="selected_budget",
                     source_count=len(assembled.source_items),
                     source_refs=(
                         tuple(item.item_id for item in assembled.source_items[:32])

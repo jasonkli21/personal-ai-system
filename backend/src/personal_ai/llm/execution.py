@@ -106,6 +106,14 @@ class SendAccounting:
             input_tokens=requirements.input_tokens,
             output_tokens=requirements.output_tokens or 0,
         )
+        if (
+            invocation.endpoint.execution_mode == "LOCAL_ONLY"
+            and invocation.operation == "token_counting"
+        ):
+            work_bytes = dict(attempt.reservation_units).get("tokenizer_request_bytes")
+            if type(work_bytes) is not int or not 1 <= work_bytes <= 4096:
+                raise LLMInvalidRequestError("local tokenizer work reservation is invalid")
+            units = tuple(sorted({**dict(units), "tokenizer_request_bytes": work_bytes}.items()))
         attempt = replace(
             attempt, reservation_units=units,
             reserved_tokens=(requirements.input_tokens or 0) + (requirements.output_tokens or 0),

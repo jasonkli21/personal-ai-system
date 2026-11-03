@@ -173,8 +173,14 @@ The optional [private local inference](harness-excellence/local-inference.md)
 development profile uses a single operator-approved llama.cpp Unix socket,
 exact prepared token IDs and canonical usage reservations. The additive
 synthetic task experiment and privacy-safe trace are local development evidence.
-E2 real-model utility remains open, hosted candidates remain blocked, and the
-frozen planning and PI-6 locks reject the changed runtime source identity.
+The HXE-2 review remediation adds source generation 5 and planning lock v31,
+preserving earlier cases, thresholds, and receipts. Canonical native-fenced
+PI-6 source and installed full-consumer checks pass with 68/68 rows, no safety
+veto, and non-promotion. E1 fake evaluation reports coverage and safety integrity
+separately and records natural-language quality as not applicable; its positive
+task rubric passes remain zero. E2 real-model utility remains blocked by the
+unavailable verified model, native server fence, and disposable migrated ledger.
+E3 hosted candidates remain `BLOCKED_UNVERIFIED`; production remains NO-GO.
 See the [dated evidence](harness-excellence/2026-11-03-local-inference-verification.md).
 
 The optional read-only MCP source adapter is a **PARTIAL E1** synthetic development pilot. It

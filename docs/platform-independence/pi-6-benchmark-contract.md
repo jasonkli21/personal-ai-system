@@ -106,3 +106,12 @@ remain unchanged. Verification selectors now use capability-named test paths;
 source generation 3 and earlier evidence remain immutable. This identity
 supports local synthetic E1 verification only and does not advance benchmark
 acceptance.
+
+## Source generation 5 · 2026-11-03
+
+HXE-2 review remediation adds `manifest-v2-source-5.json` and planning baseline
+lock v31. V1/v2 cases, scorer, thresholds, and all earlier identities and
+receipts remain unchanged. The new identity binds the closed task evaluator and
+local counting, trace, and retrieval-observation changes to the reviewed parent
+commit. It supports synthetic E1 plumbing only; model utility and production
+acceptance remain unmeasured.

@@ -12,6 +12,7 @@ from personal_ai.llm import local_endpoint
 from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.errors import (
     LLMInvalidConfigurationError,
+    LLMInvalidRequestError,
     LLMInvalidResponseError,
     LLMUnavailableError,
     LLMUnsupportedCapabilityError,
@@ -91,7 +92,9 @@ def test_exact_prepared_tokens_and_one_reservation_per_operation(runtime):
     assert tokenizer["parse_special"] is False and "Unicode:" in tokenizer["content"]
     generation = json.loads(calls[-1].content)
     assert generation["prompt"] == [1, 10, 12] and generation["stream"] is False
-    assert [attempt.reserved_tokens for _, attempt in ledger.attempts] == [4096, 13]
+    assert dict(ledger.attempts[0][1].reservation_units)["tokenizer_request_bytes"] == len(calls[1].content)
+    assert ledger.attempts[0][1].reserved_tokens == 4096
+    assert ledger.attempts[1][1].reserved_tokens == 13
     assert ledger.results[0].usage_source == "unknown"
     assert ledger.results[1].input_tokens == 3 and ledger.results[1].output_tokens == 2
     events, dropped = trace.snapshot()
@@ -208,6 +211,35 @@ def test_socket_replacement_between_count_and_generation_denies_send(runtime, mo
         complete(pair)
     assert len(calls) == 2 and len(ledger.attempts) == 1
 
+
+def test_large_unicode_prompt_is_denied_before_tokenizer_and_reserved_work_matches_bytes(runtime):
+    pair, ledger, calls, _ = runtime
+    too_large = [type(MESSAGES[0])(role="user", content="界" * local_endpoint.CONTEXT_TOKENS)]
+    with pytest.raises(Exception, match="reserved byte ceiling"):
+        pair.counter.count(too_large, inference_context=CTX)
+    assert not calls and not ledger.attempts
+    prompt = [type(MESSAGES[0])(role="user", content="界" * 700)]
+    with pytest.raises(LLMInvalidRequestError, match="reserved byte ceiling"):
+        pair.counter.count(prompt, inference_context=CTX)
+    assert not calls and not ledger.attempts
+
+
+def test_tokenizer_response_above_reserved_context_is_unknown_after_only_bounded_work(runtime, monkeypatch):
+    pair, ledger, calls, respond = runtime
+
+    def handler(request):
+        if request.url.path == "/tokenize":
+            calls.append(request)
+            return httpx.Response(200, json={"tokens": [1] * (local_endpoint.CONTEXT_TOKENS + 1)})
+        return respond(request)
+
+    monkeypatch.setattr(pair.generator.delegate, "_transport", lambda: httpx.MockTransport(handler))
+    with pytest.raises(LLMInvalidResponseError):
+        pair.counter.count(MESSAGES, inference_context=CTX)
+    assert [request.url.path for request in calls] == ["/props", "/tokenize"]
+    assert dict(ledger.attempts[0][1].reservation_units)["tokenizer_request_bytes"] == len(calls[1].content)
+    assert ledger.attempts[0][1].reserved_tokens == 4096
+    assert ledger.results[0].outcome == "unknown"
 
 @pytest.mark.anyio
 async def test_cancelled_generation_settles_uncertain_without_retry(runtime, monkeypatch):
