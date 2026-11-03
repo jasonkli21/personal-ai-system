@@ -1,0 +1,783 @@
+{
+  "schema_version": "pi7-verification-v1",
+  "date": "2026-11-02",
+  "timezone": "America/Los_Angeles",
+  "source": {
+    "base_sha": "57fc5ea53af6540c86f6f0df7ef2ff23b67a1d62",
+    "review_target": "git log -1 --format='%H %P' -- docs/platform-independence/pi-7-implementation-report.md",
+    "candidate_sha_rule": "The single commit containing this ledger is the exact review target. Its SHA cannot be embedded in its own Git tree.",
+    "tested_executable_file_sha256": {
+      "Makefile": "6d58058c9df6713fd7dca2196751d3a58017a386e9207018d97489f014f65d62",
+      "backend/scripts/pi7_local_smoke.py": "4dff4e42ddb0da396216496a0f9dff0d86040747b8e3cd8e48af8dfd8b98b564",
+      "backend/scripts/pi7_local_stores.py": "d7e8097f233dea32951ca7b32417a88945eb66830caa97313b86e8da705a361a",
+      "backend/tests/test_deployment_script.py": "839ec4ca51e66f82971e2d58769bc0de63a9db4b90c05c62fa87094bbcb4b1f5",
+      "backend/tests/test_pi7_core_http.py": "8e05e30fbaddecb3f0a6c1fd3bf9a74db0a44e1146bbfa7777f17c2dfbb15b4f",
+      "backend/tests/test_pi7_lifecycle.py": "1a0c777e998e30d0dce2c003a2a3df82ace7457bfb96d40763ad3522de5af47b",
+      "backend/tests/test_pi7_operations.py": "e19d0ad5cd95f7629c50c5cf109ba18ee3a2a5e9a70ce015300ef62ddc4d316f",
+      "infrastructure/gcp/cloud_plan.py": "447f30b675b87bab0c00942cf7a807e808e8ecfeb6cba5e0a4087eb13cc36b54",
+      "infrastructure/gcp/deploy.sh": "66f46ddef59b270892f6a3e3c1d068ae8a58b927eac9d49f1203806d916f3279",
+      "infrastructure/gcp/pi7-cloud-plan.example.json": "941980cc7df68ead67fe0af04bd61c60d206db0f5cf6df838e862519725ea0f6"
+    },
+    "fixture_index_sha256": "377b11269faad6a521b4cb6d4cea16f8b6b5472921257137eab74e4f53b577cb",
+    "uv_lock_sha256": "43e6b75954501a599000b192fd0075073716e893eed01dfadcd544069735cb7a",
+    "input_sha256": {
+      "pi-6-conditional-offline-development-codex-handoff.md": "6855d4cb55a5ea2b9d0eecda01c2714b8c45ac5c5e3208d0337474b0d2fc33f1",
+      "pi-7-detailed-implementation-plan.md": "40f26ae872db031f2e167aed3bb3a66b124683ec189dca47669493d17c204029",
+      "pi-7-implementation-prompt.md": "74783dbe721afe87601b74def7de3c0aadec829609e7cf14655c83a714935348",
+      "pi-7-independent-review-prompt.md (attached original)": "5b01b75ca1bdd83e4ff43392dc0997c8c1ba716a7bf4d6be37f9aa2f57bc7646"
+    },
+    "untracked_at_entry": [
+      "docs/platform-independence/pi-6-conditional-offline-development-codex-handoff.md",
+      "docs/platform-independence/pi-7-detailed-implementation-plan.md"
+    ],
+    "expected_untracked_at_exit": [
+      "docs/platform-independence/pi-6-conditional-offline-development-codex-handoff.md",
+      "docs/platform-independence/pi-7-detailed-implementation-plan.md"
+    ]
+  },
+  "runtime": {
+    "os_arch": "Darwin-arm64",
+    "macos_version": "27.0.1 (26A434)",
+    "other_platforms": "Linux and Python 3.12 installed runs were not exercised.",
+    "python": "3.11.15",
+    "uv": "0.11.13",
+    "dependencies": "version-matched prepared backend virtualenv; no network download",
+    "core_and_consumer_fence": "macOS sandbox-exec native loopback allowlist plus Python audit; numeric IPv4/IPv6 TCP denial tested",
+    "docker": "CLI unavailable",
+    "hosted_usage": "unobserved",
+    "remote_provider_calls": 0,
+    "startup_ms": {
+      "samples": [
+        99.73,
+        39.96,
+        171.21,
+        50.01,
+        29.99
+      ],
+      "p50": 50.01,
+      "p95": 171.21,
+      "method": "nearest rank, listener start to health after factory creation"
+    }
+  },
+  "artifacts": [
+    {
+      "artifact": "personal_ai_backend-0.1.0-py3-none-any.whl",
+      "sha256": "ec505abe871c0268589ef47ca3366a3462b8bf1dec8a6a88c42952f36130c1b0",
+      "members": 450
+    },
+    {
+      "artifact": "personal_ai_backend-0.1.0.tar.gz",
+      "sha256": "2385ea9ab8916fbd9e9894194ffc57b3661cd8378d3e76aadeb46dd80e208404",
+      "members": 451
+    },
+    {
+      "artifact": "reading_logbook_client-0.1.0-py3-none-any.whl",
+      "sha256": "a0b341030c33201999a575795a2ed98e4f103281cc5a5c5b34be86d1d87fa933",
+      "members": 8
+    },
+    {
+      "artifact": "reading_logbook_client-0.1.0.tar.gz",
+      "sha256": "306607b8f58a5e5e9ccf548cd9eab67befd54aaf5de630b06363df7fc1136641",
+      "members": 7
+    },
+    {
+      "artifact": "reading_logbook_host-0.1.0-py3-none-any.whl",
+      "sha256": "76e83ee390bf9ecb5dbf8613c5a93fb44354625ebe2f699a7a35d4bf0f87531f",
+      "members": 5
+    },
+    {
+      "artifact": "reading_logbook_host-0.1.0.tar.gz",
+      "sha256": "6ab36795894e6eb44757c7eff4003566cf614f9d2483a931d4e3857f85f643ec",
+      "members": 4
+    }
+  ],
+  "gates": {
+    "pi5_completion": "blocked_unverified",
+    "pi6_offline_evaluation": "locally_complete",
+    "pi6_production_promotion": "no_go",
+    "pi7_offline_operability": "local_candidate",
+    "pi7_cloud_preflight": "plan_validated",
+    "pi7_hosted_operations": "blocked_unverified",
+    "pi7_native_recovery_deletion": "blocked_unverified",
+    "pi7_release_promotion": "no_go",
+    "pi7_independent_review": "pending"
+  },
+  "roadmap": {
+    "A01": [
+      "P7-01",
+      "P7-02",
+      "P7-03"
+    ],
+    "A03": [
+      "P7-12"
+    ],
+    "A04": [
+      "P7-12",
+      "P7-33"
+    ],
+    "A05": [
+      "P7-13",
+      "P7-14"
+    ],
+    "A06": [
+      "P7-13"
+    ],
+    "A07": [
+      "P7-15",
+      "P7-16",
+      "P7-32"
+    ],
+    "A10": [
+      "P7-21",
+      "P7-22",
+      "P7-23",
+      "P7-24"
+    ],
+    "A15": [
+      "P7-29",
+      "P7-30",
+      "P7-31"
+    ],
+    "A18": [
+      "P7-26",
+      "P7-29"
+    ],
+    "A20": [
+      "P7-31",
+      "P7-32"
+    ],
+    "A21": [
+      "P7-01",
+      "P7-04",
+      "P7-05"
+    ],
+    "A19": "Real model utility remains separately gated.",
+    "A22": "PI-8 independent audit remains separately gated."
+  },
+  "initial_attempts": [
+    {
+      "command": "uv sync --locked --offline --no-install-project --extra dev --group build (temporary project copy)",
+      "status": "BLOCKED",
+      "result": "Managed sandbox could not initialize existing uv cache. Implemented the prepared-dependency path with an owned cache."
+    },
+    {
+      "command": "make pi7-local-smoke",
+      "status": "FAIL",
+      "result": "Managed sandbox rejected sandbox_apply and numeric loopback bind (1 failed, 5 passed after build/install). Native rerun passed."
+    },
+    {
+      "command": "make pi7-consumer-smoke PI7_SMOKE_FLAGS=--require-native",
+      "status": "FAIL",
+      "result": "Copied audit runner filename did not match the separate client probe import (1 failed, 75 passed, 1 skipped). Corrected and reran."
+    },
+    {
+      "command": "make backend-lint",
+      "status": "FAIL",
+      "result": "ISC004 adjacent implicit string concatenation in child probe list. Parenthesized and reran."
+    },
+    {
+      "command": "make backend-lint",
+      "status": "FAIL",
+      "result": "PIE807 in the new Docker preflight test fixture. Used dict directly and reran."
+    },
+    {
+      "command": "make backend-test-offline",
+      "status": "FAIL",
+      "result": "1 failed, 2434 passed, 1 skipped, 119 deselected. The new deployed-environment refusal fixture depended on ambient AI_PROVIDER and AI_MODEL. It now injects explicit synthetic settings before running the real startup guard."
+    },
+    {
+      "command": "make platform-independence-check",
+      "status": "FAIL",
+      "result": "1 failed, 189 passed in the reference suite. The itinerary proposal timeout test got proposal_busy on immediate replay after an unknown outcome, consistent with missing the terminal write window. An unchanged rerun passed."
+    },
+    {
+      "command": "make pi7-local-smoke PI7_SMOKE_FLAGS=--require-native (early archive build)",
+      "status": "PASS",
+      "result": "Initial temporary build omitted inherited VCS exclusions and Hatchling warned about duplicate wheel members. Final build includes the exclusions, rejects duplicates and matches the standard build hashes."
+    },
+    {
+      "command": "make backend-test-offline (redundant scheduled copy)",
+      "status": "NOT_RUN",
+      "result": "Stopped after the complete corrected run passed. The interrupted copy supplies no acceptance evidence."
+    },
+    {
+      "command": "Disposable PostgreSQL startup under native fence",
+      "status": "FAIL",
+      "result": "Postmaster required a valid locale in the scrubbed process environment. Retried with LC_ALL=C."
+    },
+    {
+      "command": "Disposable PostgreSQL restart and P19 native cases with initdb --locale=C",
+      "status": "FAIL",
+      "result": "Restart passed. Sixteen P19 cases failed because SQL_ASCII returned bytes for text namespace comparisons. Retried with --encoding=UTF8."
+    }
+  ],
+  "commands": {
+    "lint": {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make backend-lint",
+      "status": "PASS",
+      "evidence_class": "static",
+      "result": "All checks passed."
+    },
+    "syntax": {
+      "command": "bash -n infrastructure/gcp/deploy.sh",
+      "status": "PASS",
+      "evidence_class": "static",
+      "result": "Shell syntax valid."
+    },
+    "diff": {
+      "command": "git diff --check && git diff --cached --check",
+      "status": "PASS",
+      "evidence_class": "static",
+      "result": "No whitespace errors in the candidate."
+    },
+    "preservation": {
+      "command": "git diff --exit-code 57fc5ea53af6540c86f6f0df7ef2ff23b67a1d62 -- backend/src backend/pyproject.toml backend/uv.lock && git ls-files -s 'backend/src/personal_ai/evaluation/fixtures/**' | shasum -a 256",
+      "status": "PASS",
+      "evidence_class": "static",
+      "result": "Core runtime and historical fixtures/lock unchanged; Git index listing SHA-256 377b11269faad6a521b4cb6d4cea16f8b6b5472921257137eab74e4f53b577cb."
+    },
+    "core": {
+      "command": "make pi7-local-smoke PI7_SMOKE_FLAGS=--require-native",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_synthetic_http",
+      "result": "6 passed in each wheel/sdist-rebuild installation; native IPv4/IPv6 deny, zero forbidden Python attempts."
+    },
+    "consumer": {
+      "command": "make pi7-consumer-smoke PI7_SMOKE_FLAGS=--require-native",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "result": "6 + 6 core tests before consumer install; 77 passed, 1 source-only dual-host case skipped; 6 passed after uninstall; zero forbidden Python attempts."
+    },
+    "check": {
+      "command": "make pi7-check",
+      "status": "PASS",
+      "evidence_class": "static_and_python_audit_fenced_synthetic",
+      "result": "207 passed, four warnings; zero forbidden Python attempts."
+    },
+    "cloud_plan": {
+      "command": "make pi7-cloud-plan",
+      "status": "PASS",
+      "evidence_class": "static",
+      "result": "Synthetic manifest validated. SHA-256 912051145eb28c95ead41108927e2a0e094294e8bab440f010977165626aba80. Apply blocked."
+    },
+    "cloud_baseline": {
+      "command": "make pi7-cloud-plan PI7_CLOUD_BASELINE=infrastructure/gcp/pi7-cloud-plan.example.json",
+      "status": "PASS",
+      "evidence_class": "static",
+      "result": "Same-file synthetic baseline yields no changed sections."
+    },
+    "focused": {
+      "command": "cd backend && .venv/bin/python -m pytest -q tests/test_deployment_script.py tests/test_pi7_operations.py",
+      "status": "PASS",
+      "evidence_class": "fake_cli_and_synthetic_process",
+      "result": "46 passed, including tripwires, drift, setup and disposable-store safety tests."
+    },
+    "missing_uv": {
+      "command": "env PATH=/usr/bin:/bin backend/.venv/bin/python -E -s backend/scripts/pi7_local_smoke.py",
+      "status": "PASS",
+      "evidence_class": "synthetic_setup_refusal",
+      "result": "Actionable refusal for absent uv before any build."
+    },
+    "core_source": {
+      "command": "cd backend && .venv/bin/python -m pytest -q tests/test_pi7_core_http.py",
+      "status": "PASS",
+      "evidence_class": "source_synthetic_startup",
+      "result": "5 passed, 1 installed-only test skipped. Startup refusal fixture supplies explicit settings."
+    },
+    "store_doctor": {
+      "command": "PI7_STORE_SESSION=4df49d56a5784e4fb2cef8ecc90fb661 make pi7-store-doctor",
+      "status": "BLOCKED",
+      "evidence_class": "toolchain_preflight",
+      "result": "docker_cli_missing. No Docker command or Compose resource mutation occurred."
+    },
+    "store_native": {
+      "command": "make pi7-store-up && make pi7-store-bootstrap && make pi7-store-smoke && make pi7-store-down",
+      "status": "BLOCKED",
+      "evidence_class": "native_compose",
+      "result": "Docker CLI unavailable. Dual-store integration and Compose cleanup were not run."
+    },
+    "hosted": {
+      "command": "bash infrastructure/gcp/deploy.sh apply",
+      "status": "BLOCKED",
+      "evidence_class": "authorization_and_runtime",
+      "result": "Requires separately authorized reviewed deployer, exact live IAM/ingress, network and identity, source rights, hard-cap/usage and billed cost evidence. Only the refusal was exercised with fake CLI tripwires."
+    },
+    "native_restore": {
+      "command": "Operator-approved native drill in pi-7-data-lifecycle-runbook.md",
+      "status": "BLOCKED",
+      "evidence_class": "native_recovery",
+      "result": "Requires exact isolated operator authority, independent monotonic source/receipt proof and approved native restore/erasure. No destructive native recovery actions executed."
+    },
+    "native_pg": {
+      "command": "cd backend && PERSISTENCE_TEST_POSTGRES_DSN=<fresh-owned-loopback-pg17-dsn> .venv/bin/python -m pytest -q -m persistence_integration tests/persistence/test_provider_usage_accounting.py",
+      "status": "PASS",
+      "evidence_class": "native_local_postgres_synthetic",
+      "result": "Fresh initdb/pg_ctl PostgreSQL 17.11, pgvector 0.8.7; marker persisted across stop/start; 17 P19 integration cases passed with database-per-case isolation. See the report for setup."
+    },
+    "pi3-check": {
+      "command": "make pi3-check",
+      "status": "PASS",
+      "evidence_class": "native_fenced_synthetic_regression",
+      "result": "788 passed, 4 warnings in 167.28s (0:02:47). Native IPv4/IPv6/Unix denial; zero forbidden Python network attempts."
+    },
+    "pi4-check": {
+      "command": "make pi4-check",
+      "status": "PASS",
+      "evidence_class": "native_fenced_synthetic_regression",
+      "result": "898 passed, 4 warnings in 160.62s (0:02:40). Native and Python network denial; zero forbidden Python network attempts."
+    },
+    "pi5-check": {
+      "command": "make pi5-check",
+      "status": "PASS",
+      "evidence_class": "native_and_python_audit_fenced_synthetic_regression",
+      "result": "147 passed, 2 warnings in 22.88s; 34 passed, 2 warnings in 17.93s. Public contract, native suite and signed HTTP; zero forbidden Python network attempts."
+    },
+    "pi6-check": {
+      "command": "make pi6-check",
+      "status": "PASS",
+      "evidence_class": "native_fenced_synthetic_regression",
+      "result": "54 passed, 2 warnings in 9.76s. Frozen source and full installed consumer evaluator 68/68 each; core-only optional host absence is explicit and incomplete."
+    },
+    "platform-independence-check": {
+      "command": "make platform-independence-check",
+      "status": "PASS",
+      "evidence_class": "native_fenced_synthetic_regression",
+      "result": "137 passed, 3 warnings in 11.74s; 190 passed, 3 warnings in 6.79s; 56 passed, 3 warnings in 4.37s. Package archives, core and reference probes, import inventory and retained compatibility."
+    },
+    "pi2-check": {
+      "command": "make pi2-check",
+      "status": "PASS",
+      "evidence_class": "native_fenced_synthetic_regression",
+      "result": "137 passed, 3 warnings in 8.60s; 190 passed, 3 warnings in 6.62s; 56 passed, 3 warnings in 4.42s; 191 passed, 1 skipped, 2 warnings in 66.44s (0:01:06). Public contract, installed HTTP and unrelated client, uninstall and core re-probe."
+    },
+    "backend-test-offline": {
+      "command": "make backend-test-offline",
+      "status": "PASS",
+      "evidence_class": "native_fenced_synthetic_regression",
+      "result": "2436 passed, 1 skipped, 119 deselected, 4 warnings in 288.78s (0:04:48)"
+    },
+    "planning-eval": {
+      "command": "make planning-eval",
+      "status": "PASS",
+      "evidence_class": "local_offline_evaluation",
+      "result": "Exited successfully at the pinned pre-commit base. Historical v27 is bound to the current-or-direct-child rule; expected post-commit refusal is planning_baseline_source_revision_mismatch_requires_new_version."
+    },
+    "retrieval-eval": {
+      "command": "make retrieval-eval",
+      "status": "PASS",
+      "evidence_class": "local_offline_evaluation",
+      "result": "Exited successfully at the pinned pre-commit base."
+    },
+    "research-eval": {
+      "command": "make research-eval",
+      "status": "PASS",
+      "evidence_class": "local_offline_evaluation",
+      "result": "Exited successfully at the pinned pre-commit base."
+    },
+    "memory-control-eval": {
+      "command": "make memory-control-eval",
+      "status": "PASS",
+      "evidence_class": "local_offline_evaluation",
+      "result": "Exited successfully at the pinned pre-commit base."
+    },
+    "memory-knowledge-causal-eval": {
+      "command": "make memory-knowledge-causal-eval",
+      "status": "PASS",
+      "evidence_class": "local_offline_evaluation",
+      "result": "Exited successfully at the pinned pre-commit base."
+    }
+  },
+  "scenarios": [
+    {
+      "id": "P7-01",
+      "status": "PASS",
+      "evidence_class": "offline_core_archive",
+      "command_ids": [
+        "core"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Built wheel and sdist with the repository VCS exclusions, rejected duplicate members, and installed both the built and rebuilt wheel. Core wheel and sdist hashes match the standard build."
+    },
+    {
+      "id": "P7-02",
+      "status": "PASS",
+      "evidence_class": "package_isolation",
+      "command_ids": [
+        "core"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Reference bundle, client and host were absent from the core probe."
+    },
+    {
+      "id": "P7-03",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_synthetic_http",
+      "command_ids": [
+        "core"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Real FastAPI factory/lifespan, loopback turn, context inspection and bounded assembled trace."
+    },
+    {
+      "id": "P7-04",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_synthetic_http",
+      "command_ids": [
+        "core"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Isolated Python and lock-selected local files; no source path, credentials or remote transport."
+    },
+    {
+      "id": "P7-05",
+      "status": "PASS",
+      "evidence_class": "synthetic_process",
+      "command_ids": [
+        "check",
+        "missing_uv"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Missing locked dependency and unavailable required native fence fail closed. Fresh uncached bootstrap was outside scope."
+    },
+    {
+      "id": "P7-06",
+      "status": "PASS",
+      "evidence_class": "synthetic_startup_and_config",
+      "command_ids": [
+        "core",
+        "check",
+        "core_source"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Deployed environment/capability refusal, invalid inference mode and caller env scrub; static parser refuses malformed input."
+    },
+    {
+      "id": "P7-07",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_synthetic_http",
+      "command_ids": [
+        "core",
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Fresh repeated runs and installations used owned temporary state and ephemeral listeners."
+    },
+    {
+      "id": "P7-08",
+      "status": "PASS",
+      "evidence_class": "synthetic_process",
+      "command_ids": [
+        "check"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Timeout and SIGTERM kill owned child work and leave an unrelated sentinel untouched."
+    },
+    {
+      "id": "P7-09",
+      "status": "BLOCKED",
+      "evidence_class": "native_compose",
+      "command_ids": [
+        "store_doctor",
+        "store_native",
+        "native_pg"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "The Compose dual-store boot requires Docker; standalone disposable PostgreSQL boot and P19 integration passed."
+    },
+    {
+      "id": "P7-10",
+      "status": "BLOCKED",
+      "evidence_class": "native_compose",
+      "command_ids": [
+        "store_doctor",
+        "store_native",
+        "native_pg"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Dual-store restart/bootstrap and isolation require Docker; native standalone PostgreSQL was tested separately."
+    },
+    {
+      "id": "P7-11",
+      "status": "BLOCKED",
+      "evidence_class": "fake_cli_only",
+      "command_ids": [
+        "check",
+        "store_doctor",
+        "store_native"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Fake Docker tests prove ownership refusal and no volume flags. Native Docker volume preservation remains unverified."
+    },
+    {
+      "id": "P7-12",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Separate host and client wheels and a client-only interpreter used the versioned HTTP API."
+    },
+    {
+      "id": "P7-13",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Forged owner/actor/app/workspace and invalid identity claims were rejected or could not change authority."
+    },
+    {
+      "id": "P7-14",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Registered audience and exact membership required; unavailable/disabled binding and wrong workspace denied."
+    },
+    {
+      "id": "P7-15",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Same key replay retained scope and identity; payload changes conflicted."
+    },
+    {
+      "id": "P7-16",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Lost stream/client restart retained original status and produced no second synthetic model effect."
+    },
+    {
+      "id": "P7-17",
+      "status": "PASS",
+      "evidence_class": "static_fake_cli",
+      "command_ids": [
+        "cloud_plan",
+        "cloud_baseline",
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Plan and baseline compared locally with no cloud CLI calls."
+    },
+    {
+      "id": "P7-18",
+      "status": "PASS",
+      "evidence_class": "static_fake_cli",
+      "command_ids": [
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Invalid project/region/secret version, digest, JWT and AWS claim shapes refused."
+    },
+    {
+      "id": "P7-19",
+      "status": "PASS",
+      "evidence_class": "static_fake_cli",
+      "command_ids": [
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Broad IAM/ingress/egress and feature drift refused; redacted valid drift returned review status."
+    },
+    {
+      "id": "P7-20",
+      "status": "PASS",
+      "evidence_class": "static_fake_cli",
+      "command_ids": [
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Empty, legacy and explicit apply paths ran no cloud command."
+    },
+    {
+      "id": "P7-21",
+      "status": "PASS",
+      "evidence_class": "synthetic_and_static",
+      "command_ids": [
+        "core",
+        "check",
+        "cloud_plan"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Fake selection worked without credentials; strict-free/paid cloud plans refused; mock-only P19 profile tests reused."
+    },
+    {
+      "id": "P7-22",
+      "status": "PASS",
+      "evidence_class": "mock_transport_and_canonical_admission",
+      "command_ids": [
+        "check",
+        "native_pg"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "429 and quota-exhausted cases did not fall back or dispatch after reservation denial."
+    },
+    {
+      "id": "P7-23",
+      "status": "PASS",
+      "evidence_class": "local_quota_and_concurrency",
+      "command_ids": [
+        "check",
+        "native_pg"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Concurrent synthetic owner admission was exact and reset at UTC midnight. See separate native PostgreSQL P19 result."
+    },
+    {
+      "id": "P7-24",
+      "status": "PASS",
+      "evidence_class": "mock_transport_and_signed_synthetic_http",
+      "command_ids": [
+        "check",
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Timeout, unresolved outcome and SDK retry cases preserved no-second-send and original key."
+    },
+    {
+      "id": "P7-25",
+      "status": "PASS",
+      "evidence_class": "bounded_redaction_checks",
+      "command_ids": [
+        "core",
+        "consumer",
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Plan/invalid configuration canary, prompt telemetry canary and source denial were exercised. Existing request correlation logs have separate fields."
+    },
+    {
+      "id": "P7-26",
+      "status": "PASS",
+      "evidence_class": "synthetic_provenance",
+      "command_ids": [
+        "check",
+        "consumer",
+        "pi5-check"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Typed source revision/rights and P19 request/scope/provenance checks used synthetic facts only."
+    },
+    {
+      "id": "P7-27",
+      "status": "PASS",
+      "evidence_class": "synthetic_cost_classification",
+      "command_ids": [
+        "core",
+        "check",
+        "cloud_plan"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Zero remote smoke dispatches and explicit unobserved billed cost. Live billed currency and provider-account hard caps remain blocked."
+    },
+    {
+      "id": "P7-28",
+      "status": "PASS",
+      "evidence_class": "bounded_diagnostics",
+      "command_ids": [
+        "core",
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Fixed status/refusal categories and startup/usage fields; manifest size and malformed input bounded."
+    },
+    {
+      "id": "P7-29",
+      "status": "PASS",
+      "evidence_class": "synthetic_source_revalidation",
+      "command_ids": [
+        "check",
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Revocation at count/send boundary blocked generation; derived restore could not start a fresh send."
+    },
+    {
+      "id": "P7-30",
+      "status": "PASS",
+      "evidence_class": "installed_native_fenced_signed_synthetic_http",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Revoked retained history and replay omitted stale content while completed status remained observable."
+    },
+    {
+      "id": "P7-31",
+      "status": "PASS",
+      "evidence_class": "synthetic_restore_only",
+      "command_ids": [
+        "consumer",
+        "native_restore"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Stale message repository reinstated while current source revocation and journal survived. Native/distributed anti-rollback is blocked."
+    },
+    {
+      "id": "P7-32",
+      "status": "PASS",
+      "evidence_class": "synthetic_restore_and_sqlite_journal",
+      "command_ids": [
+        "consumer"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Reopened journal preserved unknown/completed original key, denied changed payload and kept capacity pressure closed."
+    },
+    {
+      "id": "P7-33",
+      "status": "PASS",
+      "evidence_class": "installed_uninstall_and_static_rollback",
+      "command_ids": [
+        "consumer",
+        "focused"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Optional packages removed without core breakage; deployment remains quarantined."
+    },
+    {
+      "id": "P7-34",
+      "status": "PASS",
+      "evidence_class": "historical_file_identity",
+      "command_ids": [
+        "preservation",
+        "planning-eval"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "PI-5/PI-6 fixtures and locks byte-preserved. Historical v27 command ran at its eligible parent; revision guard remains strict."
+    },
+    {
+      "id": "P7-35",
+      "status": "PASS",
+      "evidence_class": "installed_and_source_synthetic",
+      "command_ids": [
+        "core",
+        "pi3-check"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Core memory defaults and existing MEM-2 default-off path exercised."
+    },
+    {
+      "id": "P7-36",
+      "status": "PASS",
+      "evidence_class": "synthetic_and_static",
+      "command_ids": [
+        "core",
+        "check",
+        "cloud_plan"
+      ],
+      "identity": "tested_executable_files_and_artifacts_in_this_ledger",
+      "result": "Local chat and existing request/provider stop tests, no remote budget and unobserved billing. Deployed stop evidence is still blocked."
+    }
+  ]
+}

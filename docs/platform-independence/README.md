@@ -2,7 +2,7 @@
 
 **Intended repository path:** `docs/platform-independence/`  
 **Initial review base:** [`8571a8af33969f249614c2652a7d29c0c686f2d8`](https://github.com/jasonkli21/personal-ai-system/commit/8571a8af33969f249614c2652a7d29c0c686f2d8), October 30, 2026.  
-**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 has a locally complete scripted offline evaluation and a closed 2026-11-02 remediation review with no further review required at the user's direction; production promotion remains no-go. PI-7 and PI-8 are not delivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
+**Status:** bounded PI-0 architecture/documentation/static diagnostics implemented locally; independent post-implementation acceptance is **pending**. Review remediation is recorded separately in the [2026-10-30 remediation evidence](pi-0-independent-review-remediation-2026-10-30.md). PI-1 is an implementation candidate pending independent review; PI-2 is a user-directed local implementation candidate pending independent review; PI-3 is a user-directed local candidate pending independent review; PI-4 is a user-directed local profile-consent candidate pending independent review; PI-5 is an incomplete standalone retrieval/tool candidate pending independent review; PI-6 has a locally complete scripted offline evaluation and a closed 2026-11-02 remediation review with no further review required at the user's direction; production promotion remains no-go. PI-7 is a synthetic local operations candidate pending independent review. PI-8 remains undelivered. See the [implementation report](pi-0-implementation-report.md) for original-baseline checks and worktree caveats.
 
 `personal-ai-system` is to become an application-independent, mostly-free AI harness. Travel, Shopping, Health, and Finance are **optional toy/reference clients**, not core platform requirements. Feature development for the separate memory program is **frozen at MEM-2**: preserve default-off MEM-0/1/2 and their outstanding acceptance gates; MEM-3+ requires a separate explicit unfreeze.
 
@@ -124,7 +124,7 @@ stays frozen.
 Explicit local source-to-normal-model context is now implemented with separate
 model disclosure grants and retained authority. External source-to-model, export
 consent, distributed source/attempt storage, real eligibility/IAM/restore/delete
-acceptance remain incomplete. PI-6 has not started. Older standalone-only records
+acceptance remain incomplete. Older standalone-only records
 above retain their historical scope; the living boundary is current-state.
 
 ## PI-6 conditional offline candidate
@@ -137,3 +137,17 @@ Run `make pi6-check` with the backend virtualenv. This is synthetic local eviden
 not real-model lift, live cost or production acceptance. PI-5 remains
 `blocked_unverified`; original P6-02/29 are unmet, production promotion is `no_go`,
 MEM-3+ remains frozen. No public API, production default or migration is added.
+
+
+## PI-7 local operations candidate
+
+- [Hardened plan](pi-7-implementation-plan.md) and [pre-code hardening](pi-7-plan-hardening.md).
+- [Operations and rollback](pi-7-operations-runbook.md), [data lifecycle and recovery](pi-7-data-lifecycle-runbook.md) and [storage decision](pi-7-storage-operations-decision.md).
+- [Implementation report](pi-7-implementation-report.md) and [P7-01–36 verification ledger](pi-7-verification.json).
+- [Fresh independent-review prompt](pi-7-independent-review-prompt.md).
+
+Installed synthetic core and Reading Logbook HTTP checks, static cloud policy
+validation and simulated recovery have separate evidence classes. Hosted apply,
+account/provider caps and cost, deployed source/receipt authority, and native
+recovery and physical erasure remain blocked. PI-5/PI-6 gates and the MEM-2
+freeze continue to apply.

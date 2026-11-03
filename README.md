@@ -11,9 +11,9 @@ For concise implementation status and open verification gates, see [docs/current
 The core wheel and source archive contain the `personal_ai` harness and standalone
 chat/context consumer. The default application registry contains only
 `personal_ai`; no reference package or configuration is required to import it.
-Model and canonical persistence configuration are still required for ordinary
-operation. Generation/counting/summary/embedding defaults remain Gemini-bound;
-provider portability belongs to PI-3.
+Ordinary persistence-backed operation requires explicit stores. The
+credential-free `offline_fake` profile exercises the same app factory and
+context assembly with synthetic ports.
 
 Travel, Shopping, Finance and Health implementations live in the separately
 installable [reference distribution](reference-apps/README.md). Installation alone
@@ -212,6 +212,13 @@ Cloud/IAM/free-tier acceptance remains unverified. See the [Phase 20 guide](docs
 - Cloud Build
 
 ## Local setup
+
+With a prepared backend virtualenv, run `make pi7-local-smoke` for the
+credential-free installed core and `make pi7-consumer-smoke` for the separate
+Reading Logbook client and host. Use `PI7_SMOKE_FLAGS=--require-native` when
+native loopback-only evidence is required. See the
+[PI-7 operations runbook](docs/platform-independence/pi-7-operations-runbook.md)
+for the offline and disposable persistence profiles.
 
 ### Prerequisites
 
@@ -433,69 +440,13 @@ Cloud Run: personal-ai-api
   +------> Pub/Sub ---> Cloud Run: personal-ai-worker
 ```
 
-### Prerequisites
+### Cloud preflight
 
-Provision or prepare:
-
-1. a GCP project with billing enabled;
-2. a Google OAuth web client;
-3. a Gemini API key stored in Secret Manager;
-4. a reviewed staging domain/origin;
-5. a provisioned Neon database and runtime DSN stored in Secret Manager;
-6. a provisioned DynamoDB table/GSI and an AWS role whose OIDC trust matches the
-   Cloud Run service identity and configured audience;
-7. appropriate Cloud Run, Pub/Sub, Secret Manager, IAM, and Artifact Registry permissions.
-
-### Store the model key
-
-Example:
-
-```bash
-printf '%s' "$GEMINI_API_KEY" | \
-  gcloud secrets create personal-ai-gemini-api-key \
-  --replication-policy=automatic \
-  --data-file=-
-```
-
-Do not place the key in repository files or command-line arguments.
-
-### Deploy
-
-Provision Neon and DynamoDB using the reviewed Phase 10 schema and resource
-templates before deploying. The deploy script does not create or migrate those
-stores. Set `NEON_RUNTIME_DSN_SECRET_NAME`,
-`NEON_RUNTIME_DSN_SECRET_VERSION`, `DYNAMODB_ROLE_ARN`, and
-`DYNAMODB_IDENTITY_TOKEN_AUDIENCE` in the deployment shell. The Neon DSN secret
-must contain the TLS transaction-pooler DSN. Then deploy from a clean reviewed
-commit:
-
-```bash
-chmod +x infrastructure/gcp/deploy.sh
-
-infrastructure/gcp/deploy.sh \
-  staging \
-  YOUR_STAGING_PROJECT \
-  us-central1 \
-  personal-ai-gemini-api-key \
-  gemini-2.5-flash \
-  YOUR_GOOGLE_OAUTH_WEB_CLIENT_ID.apps.googleusercontent.com \
-  owner@example.com \
-  https://personal.example \
-  2
-```
-
-The deployment script:
-
-- enables required GCP APIs;
-- builds backend/frontend images;
-- resolves immutable image digests;
-- deploys separate web, API, and worker services;
-- creates scoped service identities;
-- configures authenticated Pub/Sub delivery;
-- injects the model key and Neon DSN from explicit Secret Manager versions;
-- configures the API/worker to use the pre-provisioned Neon and DynamoDB resources.
-
-Production deployment requires the repository's explicit production acknowledgement and should be rehearsed in a synthetic staging project first.
+Run `make pi7-cloud-plan` to validate the synthetic staging plan. The
+[deployment guide](docs/gcp-deployment.md) covers the proposed topology and
+the blocked hosted prerequisites. The `deploy.sh` entrypoint is static and
+refuses apply until a separate authorized deployment implementation and
+release review.
 
 ## Cost and free-tier considerations
 
@@ -505,7 +456,7 @@ The architecture is intentionally compatible with low-idle-cost personal use:
 - Neon and provisioned DynamoDB are durable stores with distinct storage owners;
 - Pub/Sub is used only for concrete durable async work;
 - optional providers remain disabled until needed;
-- provider usage is bounded by application-level request/token/call limits.
+- coarse request reservations complement the canonical P19 attempt and quota ledger.
 
 This is **free-tier-aware**, not a guarantee of zero cost. Database compute/storage,
 DynamoDB capacity and requests, cross-cloud egress, external providers, and model

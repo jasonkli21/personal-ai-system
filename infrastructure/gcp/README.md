@@ -1,18 +1,19 @@
 # GCP deployment assets
 
-The deployment topology and operator prerequisites are documented in the
-[GCP deployment guide](../../docs/gcp-deployment.md). `deploy.sh` creates the
-Cloud Run web/API/worker services and supporting GCP identities, Pub/Sub, and
-paused maintenance schedule. It expects Neon and DynamoDB to be provisioned
-separately and takes explicit Secret Manager versions and AWS federation
-settings.
+Run `make pi7-cloud-plan` at the repository root to validate the synthetic
+[example manifest](pi7-cloud-plan.example.json). For a local proposal, use
+`bash infrastructure/gcp/deploy.sh plan --manifest /path/to/proposal.json --baseline /path/to/reviewed.json`.
+The command returns a redacted policy and drift result using local files.
+`apply` is blocked until a separately authorized and reviewed implementation
+can bind the plan to verified live state.
 
-The active runtime stores query-rich records and vectors in Neon/Postgres and
-conversation/runtime state in DynamoDB. Cloud Run exchanges its Google service
-identity token through AWS STS for DynamoDB access. Firestore index definitions,
-emulator instructions, provisioning, and IAM grants are no longer part of the
-active deployment.
+The planned runtime stores query-rich records and vectors in Neon/Postgres
+and conversations and runtime state in DynamoDB. Cloud Run uses Google
+service identity with AWS STS for DynamoDB access. See the
+[GCP deployment guide](../../docs/gcp-deployment.md) and
+[PI-7 operations](../../docs/platform-independence/pi-7-operations-runbook.md).
 
-The script's local checks are `bash -n infrastructure/gcp/deploy.sh` and
-`backend/tests/test_deployment_script.py`. A passing fake-script test does not
-establish deployed GCP/AWS/Neon connectivity or strict-$0 eligibility.
+Run `bash -n infrastructure/gcp/deploy.sh` and `make pi7-check` for syntax,
+fake CLI tripwires and static contract checks. Deployed GCP/AWS/Neon
+connectivity, strict-$0 eligibility and provider account limits require
+separate evidence.

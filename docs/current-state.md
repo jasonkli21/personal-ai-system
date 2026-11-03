@@ -123,8 +123,22 @@ distributed/live/restore/ownership blockers remain. Planning v27 is an additive
 source-only identity; v10–v26 and historical corpora/scoring remain preserved.
 See the [PI-6 gate](platform-independence/pi-6-completion-gate.md),
 [review closure](platform-independence/pi-6-review-closure.md) and
-[verification](platform-independence/pi-6-verification.json). PI-7 and PI-8
-remain undelivered. The user-directed memory feature freeze stops at MEM-2:
+[verification](platform-independence/pi-6-verification.json).
+
+[PI-7](platform-independence/pi-7-implementation-report.md) is a synthetic local
+operations candidate pending independent review. The credential-free core and
+Reading Logbook checks run from isolated installed artifacts over native-fenced
+loopback HTTP. The static cloud plan validates a closed fake-inference profile
+and redacts the policy diff. The deployment entrypoint refuses apply. Disposable
+Compose controls are available for the existing integration services. The
+dual-store check is blocked on this workstation, and standalone disposable
+PostgreSQL restart and P19 tests passed. Synthetic stale derived
+restore exercised current source revalidation and retained original keys.
+Hosted identity, provider billing/caps, native restore and physical erasure
+remain `blocked_unverified`, and release promotion remains `no_go`.
+See the [PI-7 operations runbook](platform-independence/pi-7-operations-runbook.md)
+and [verification ledger](platform-independence/pi-7-verification.json).
+PI-8 remains undelivered. The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,

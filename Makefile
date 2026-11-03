@@ -186,3 +186,30 @@ pi5-check:
 pi6-check: pi2-build
 	$(PLATFORM_PYTHON) backend/scripts/pi6_checks.py
 	$(PLATFORM_PYTHON) backend/scripts/pi6_installed_checks.py
+
+.PHONY: pi7-local-smoke pi7-consumer-smoke
+pi7-local-smoke:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/pi7_local_smoke.py $(PI7_SMOKE_FLAGS)
+
+pi7-consumer-smoke:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/pi7_local_smoke.py --consumer $(PI7_SMOKE_FLAGS)
+
+.PHONY: pi7-cloud-plan
+PI7_CLOUD_MANIFEST ?= infrastructure/gcp/pi7-cloud-plan.example.json
+export PI7_CLOUD_MANIFEST PI7_CLOUD_BASELINE
+pi7-cloud-plan:
+	@set -- --manifest "$$PI7_CLOUD_MANIFEST"; \
+	if [ -n "$$PI7_CLOUD_BASELINE" ]; then set -- "$$@" --baseline "$$PI7_CLOUD_BASELINE"; fi; \
+	bash infrastructure/gcp/deploy.sh plan "$$@"
+
+.PHONY: pi7-store-doctor pi7-store-up pi7-store-bootstrap pi7-store-smoke pi7-store-down
+PI7_STORE_SOCKET ?= /var/run/docker.sock
+export PI7_STORE_SESSION PI7_STORE_SOCKET
+pi7-store-doctor pi7-store-up pi7-store-bootstrap pi7-store-smoke pi7-store-down:
+	$(PLATFORM_PYTHON) -I backend/scripts/pi7_local_stores.py $(@:pi7-store-%=%) --session "$$PI7_STORE_SESSION" --socket "$$PI7_STORE_SOCKET"
+
+.PHONY: pi7-check
+pi7-check: pi7-cloud-plan
+	bash -n infrastructure/gcp/deploy.sh
+	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
+	  $(PLATFORM_PYTHON) -E -s backend/scripts/pi2_http_checks.py -q backend/tests/test_pi7_operations.py backend/tests/test_deployment_script.py backend/tests/test_inference_execution.py backend/tests/test_litellm_gateway.py backend/tests/test_phase9_controls.py backend/tests/test_provider_usage.py backend/tests/test_retrieval_phase33.py

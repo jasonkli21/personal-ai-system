@@ -29,74 +29,27 @@ no cloud-account inventory independently verified that report, and no data
 migration occurred. See the [P10.6 evidence](personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md)
 for code checks, skipped target-engine/cloud checks, and remaining release gaps.
 
-## Provisioning prerequisites
+## Static preflight
 
-The deploy script creates and configures GCP service identities, Pub/Sub and
-Cloud Scheduler resources, and Cloud Run services. It does not provision Neon
-or DynamoDB. Before deployment:
+Run `make pi7-cloud-plan` for the checked-in synthetic manifest. Use a local
+proposal and approved baseline for a redacted review of policy and drift.
+The [PI-7 runbook](platform-independence/pi-7-operations-runbook.md#static-cloud-plan)
+describes the profile, identity, ingress, IAM, storage and cost requirements.
 
-1. Prepare a GCP project, OAuth web client, reviewed HTTPS origin, and billing
-   budget/alerts. Authenticate with permissions for Cloud Run, Pub/Sub, Secret
-   Manager, service accounts/IAM, Cloud Build, and Artifact Registry.
-2. Provision a Neon database/schema using the Phase 10 migrations. Create a
-   transaction-pooler DSN with TLS and put it in Secret Manager. Give the deploy
-   operator permission to bind Secret Manager access; the script grants the API
-   and worker identities access to the configured secret.
-3. Provision the DynamoDB Standard table and required GSIs using
-   [`infrastructure/aws/dynamodb/dynamodb-cloudformation.yaml`](../infrastructure/aws/dynamodb/dynamodb-cloudformation.yaml).
-   Set up Google OIDC-to-AWS-STS trust from
-   [`infrastructure/aws/identity/aws-google-oidc-trust-policy.json.tmpl`](../infrastructure/aws/identity/aws-google-oidc-trust-policy.json.tmpl)
-   and grant only the runtime policy in
-   [`infrastructure/aws/dynamodb/dynamodb-runtime-policy.json.tmpl`](../infrastructure/aws/dynamodb/dynamodb-runtime-policy.json.tmpl).
-   Bootstrap/schema permissions are separate from runtime access.
-4. Create the Gemini API-key secret and numeric version. Keep secret values out
-   of repository files, logs, and command-line arguments.
-5. Choose the exact allowed Google account and configure its matching OAuth
-   client ID. Non-Gmail Workspace accounts also require the matching hosted
-   domain claim.
+The current `deploy.sh` entrypoint runs the static planner. It refuses
+`apply` and the predecessor positional deployment command. The historical
+script remains in the parent revision for audit. A separately authorized
+deployer must bind the reviewed plan to live IAM, network and resource state,
+verify image provenance and secret version references, and apply scoped
+changes with a rehearsed rollback. Hosted and production operations remain
+blocked.
 
-## Deploy
-
-Set these variables in the deployment shell. `NEON_RUNTIME_DSN_SECRET_VERSION`
-and the model secret version must be explicit numeric versions; `latest` is
-rejected.
-
-```bash
-export NEON_RUNTIME_DSN_SECRET_NAME=personal-ai-neon-runtime-dsn
-export NEON_RUNTIME_DSN_SECRET_VERSION=1
-export DYNAMODB_ROLE_ARN=arn:aws:iam::123456789012:role/personal-ai-runtime
-export DYNAMODB_IDENTITY_TOKEN_AUDIENCE=https://aws.example/personal-ai
-
-infrastructure/gcp/deploy.sh staging YOUR_STAGING_PROJECT us-central1 \
-  personal-ai-gemini-api-key gemini-2.5-flash \
-  YOUR_GOOGLE_OAUTH_WEB_CLIENT_ID.apps.googleusercontent.com \
-  owner@gmail.com https://personal.example 2
-```
-
-Arguments are environment (`staging` or `production`), GCP project, region,
-model-secret name, model ID, OAuth client ID, exact owner email, HTTPS web
-origin, and numeric model-secret version. Optional variables are
-`DYNAMODB_RUNTIME_TABLE_NAME` (default `personal-ai-runtime-v1`),
-`DYNAMODB_AWS_REGION` (default `us-east-1`),
-`MAINTENANCE_ENABLED`, `EXPORT_ENABLED`, and `DELETION_ENABLED` (default
-`false`). The script refuses a dirty checkout. Production also requires
-`PRODUCTION_DEPLOY_ACK=I_REVIEWED_THE_PRODUCTION_CHANGE` after staging and the
-release gates pass.
-
-The script enables required GCP APIs, verifies the named secrets and versions,
-builds from the committed revision, resolves image tags to immutable digests,
-and deploys separate web, API, and worker services. It creates separate runtime
-and invoker identities, grants the web identity access to the private API,
-configures authenticated Pub/Sub push, and creates the maintenance schedule
-paused. The API and worker receive the Neon DSN and model key through explicit
-Secret Manager versions. The runtime uses a Google service-account ID token to
-exchange credentials with AWS STS; it does not receive static AWS keys.
-
-The script does not run Neon migrations, create DynamoDB tables, establish
-cross-cloud network paths, validate AWS trust/IAM, or prove cost eligibility.
-Keep optional capability and maintenance gates off until their external
-acceptance checks are complete. Deletion remains an operator-review workflow;
-this implementation does not physically erase account data.
+Use the [DynamoDB template](../infrastructure/aws/dynamodb/dynamodb-cloudformation.yaml),
+[Google-to-AWS trust template](../infrastructure/aws/identity/aws-google-oidc-trust-policy.json.tmpl)
+and [runtime policy](../infrastructure/aws/dynamodb/dynamodb-runtime-policy.json.tmpl)
+as topology references. Schema/bootstrap permissions and runtime access are
+separate. Secret references must pin numeric versions. Store the values in the
+authorized secret service.
 
 ## Local and release verification
 
