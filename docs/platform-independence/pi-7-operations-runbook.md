@@ -11,10 +11,12 @@ versions selected by `backend/uv.lock` for dev and build. Prepare that
 environment using the [repository setup](../../README.md#local-setup) in a
 separately authorized setup step if it is missing. The smoke commands use
 the installed dependency files as their offline input. They check package
-names and versions against the lock export and exclude editable distributions,
-startup hooks and the source checkout from the installed interpreter. A
-version check is not a byte-for-byte reconstruction from downloaded wheel
-hashes.
+names and versions against the lock export, verify copied files against their
+installed `RECORD` hashes, and reject editable distributions, unhashed files,
+`.pth` files, startup hooks and the source checkout. This is an operability
+probe from a prepared trusted environment, not a clean installer: the
+prepared environment and its `RECORD` files are the trust roots. No package
+is downloaded and no wheelhouse provenance is asserted.
 
 ```sh
 make pi7-local-smoke PI7_SMOKE_FLAGS=--require-native
@@ -34,12 +36,15 @@ and remove that invocation's temp directory. After an uncatchable termination,
 verify ownership and that no child is running before removing its exact temp
 directory.
 
-The launcher tests a macOS loopback-only sandbox with native IPv4/IPv6 TCP
-probes before reporting native evidence. Some managed shells deny nested
-sandbox setup or bind. Without `--require-native` the launcher labels its
-Python audit-only path explicitly and still requires working loopback.
-The uv build/install commands stay offline in either case. An unsupported
-or rejected native fence leaves that claim blocked. Investigate missing
+The launcher fails before build or child dispatch unless the reviewed macOS
+`sandbox-exec` fence starts and a child Python process proves IPv4/IPv6 TCP and
+UDP denial. The kernel fence wraps every `uv`, Python, pytest and client
+subprocess, so descendants inherit it. Some managed shells deny nested
+sandbox setup or loopback bind; those runs are blocked. `--allow-degraded` is
+available only for development diagnostics and always exits nonzero with
+`degraded_unverified`; it cannot count as offline acceptance. The uv
+build/install commands stay offline. An unsupported or rejected native fence
+leaves the check blocked. Investigate missing
 dependency diagnostics using the version in `uv.lock`. The launcher does
 not fetch packages or use `.env`, credentials, Docker or personal storage.
 
@@ -56,19 +61,23 @@ absolute path. Do not point the wrapper at a forwarded or shared daemon.
 
 ```sh
 export PI7_STORE_SESSION=$(backend/.venv/bin/python -I -c 'import secrets; print(secrets.token_hex(16))')
-make pi7-store-doctor
-make pi7-store-up
-make pi7-store-bootstrap
-make pi7-store-smoke
-make pi7-store-down
+export PI7_STORE_IMAGE_ARGS='--approved-image postgres-test=sha256:<reviewed-id> --approved-image-digest postgres-test=sha256:<reviewed-digest> --approved-image dynamodb-local-test=sha256:<reviewed-id> --approved-image-digest dynamodb-local-test=sha256:<reviewed-digest>'
+make pi7-store-doctor PI7_STORE_IMAGE_ARGS="$PI7_STORE_IMAGE_ARGS"
+make pi7-store-up PI7_STORE_IMAGE_ARGS="$PI7_STORE_IMAGE_ARGS"
+make pi7-store-bootstrap PI7_STORE_IMAGE_ARGS="$PI7_STORE_IMAGE_ARGS"
+make pi7-store-smoke PI7_STORE_IMAGE_ARGS="$PI7_STORE_IMAGE_ARGS"
+make pi7-store-down PI7_STORE_IMAGE_ARGS="$PI7_STORE_IMAGE_ARGS"
 ```
 
-Doctor checks local tooling, ownership, ports and cached images. Up never
-pulls or builds. Bootstrap uses the test DSN and Dynamo endpoint after checking
-Compose identity, mount types and published ports. Smoke runs the repository's
-synthetic native integration cases, including new repository instances and
-scoped state. Down stops and removes only inspected test container IDs and
-the owned bridge. There is no volume removal. Save the nonce until cleanup
+The integration services use a dedicated internal bridge with no external
+egress; host-side bootstrap and smoke are refused unless the native loopback
+fence is available and passes a remote-connect denial probe. Doctor/up require
+operator-reviewed local image config IDs and registry digests. Up never pulls
+or builds. Bootstrap checks effective container configuration, image IDs,
+network, mounts and published ports. Smoke runs the repository's synthetic
+integration cases. Down re-inspects exact IDs and removes no volumes. The
+wrapper reports physical sends as prohibited by configuration, not observed
+as zero. Save the nonce until cleanup
 completes. If a command refuses drift or daemon state changes, inspect the
 exact test project before acting. Never use `persistence-clean` for this
 profile. To rehearse an ephemeral restart, repeat up, bootstrap and smoke
@@ -94,9 +103,12 @@ optional capabilities. The only PI-7 plan profile is fake inference with a
 zero remote model/search budget and the external-provider stop enabled.
 An optional baseline yields a redacted list of changed sections. Changes
 return a refusal exit code for review. Without a baseline the result covers
-policy validation only. Region, endpoints and cloud bindings are checked
-statically. DNS, ingress connectivity, current IAM and drift require authorized
-live evidence.
+policy validation only. Success is named `static_policy_validated_only`,
+carries an explicit unverified-binding list, and records no verified live
+bindings. Project-number mapping, run.app audiences, service accounts/IAM,
+image provenance, secret and storage ownership, routes, billing and provider
+caps remain unverified. DNS, ingress connectivity, current IAM and drift
+require authorized live evidence.
 
 The `deploy.sh` command supports `plan` and refuses `apply`. The old positional
 Gemini command now refuses before any cloud call. To close apply, a future
@@ -129,8 +141,9 @@ request. Where the adapter or route does not guarantee a physical stop, fence
 network egress and stop the worker or service before reopening traffic.
 
 Keep synthetic counts, estimated units, provider-reported usage and billed
-currency separate. The current smoke reports zero remote dispatches in its
-native fence and unobserved billing. Closed static settings do not cap cloud
+currency separate. The current smoke runs synthetic code under a native
+egress fence and leaves billing unobserved. The fence prohibits remote
+network sends; it does not measure provider billing. Closed static settings do not cap cloud
 infrastructure charges. Provider/account hard caps, allowance resets, pricing,
 actual billing and deployed kill-switch behavior require scoped account
 evidence. A live strict-free or paid profile stays outside this plan.

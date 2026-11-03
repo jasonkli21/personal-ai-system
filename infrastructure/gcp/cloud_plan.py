@@ -9,6 +9,16 @@ import stat
 from pathlib import Path
 
 VERSION = "pi7-cloud-plan-v1"
+UNVERIFIED_BINDINGS = [
+    "project_number_to_live_project",
+    "run_app_audiences_to_deployed_services",
+    "service_accounts_and_iam_existence",
+    "image_digest_provenance_and_registry_policy",
+    "neon_secret_version_and_host_ownership",
+    "aws_role_trust_and_dynamodb_resources",
+    "network_routes_and_effective_egress",
+    "provider_account_caps_and_billed_cost",
+]
 MAX_BYTES = 32_768
 FIELDS = {
     "schema",
@@ -350,13 +360,15 @@ def main():
             json.dumps(
                 {
                     "schema": VERSION,
-                    "status": "blocked_drift" if changes else "plan_validated",
+                    "status": "blocked_drift" if changes else "static_policy_validated_only",
                     "plan_sha256": hashlib.sha256(canonical(plan).encode()).hexdigest(),
                     "baseline": "operator_file"
                     if baseline is not None
                     else "not_supplied",
                     "changed_sections": changes,
                     "evidence": "static_only",
+                    "verified_live_bindings": [],
+                    "unverified_bindings": UNVERIFIED_BINDINGS,
                     "apply": "blocked_unverified",
                     "provider_cost": {
                         "configured_remote_budget_microusd": 0,

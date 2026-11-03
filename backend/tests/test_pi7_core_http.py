@@ -141,6 +141,7 @@ def test_installed_core_turn(core, caplog):
                 path = "/v1/conversations/" + response.json()["id"]
                 turn = client.post(path + "/messages", json={"content": prompt_canary})
                 assert turn.status_code == 200
+                assert prompt_canary not in turn.text
                 assert "Offline test response." in turn.text and "response.completed" in turn.text
                 assert client.get(path + "/context").status_code == 404
                 settings.context_inspection_enabled = True
@@ -149,12 +150,13 @@ def test_installed_core_turn(core, caplog):
                 assert "Offline test response." in client.get(path).text
                 prepared = [trace for rows in traces.records.values() for trace in rows]
                 assert len(prepared) == 1
+                assert prompt_canary not in repr(prepared)
                 assert 0 < prepared[0].actual_input_tokens <= prepared[0].global_input_tokens
                 settings.chat_kill_switch_enabled = True
-                assert (
-                    client.post(path + "/messages", json={"content": "must stop"}).status_code
-                    == 503
-                )
+                denied_canary = "SYNTHETIC_SEND_DENIAL_CANARY_8102"
+                denied = client.post(path + "/messages", json={"content": denied_canary})
+                assert denied.status_code == 503
+                assert denied_canary not in denied.text
                 assert sum(map(len, traces.records.values())) == 1
         finally:
             server.should_exit = True
@@ -185,11 +187,14 @@ async def test_startup_refuses_missing_retained_capability(core):
 @pytest.mark.anyio
 async def test_cloud_process_refuses_local_profile(core, monkeypatch):
     app, settings, _, _ = core
+    canary = "SYNTHETIC_STARTUP_SECRET_CANARY_2048"
+    settings.ai_api_key = canary
     monkeypatch.setenv("K_SERVICE", "synthetic")
     monkeypatch.setattr("personal_ai.settings.get_settings", lambda: settings)
-    with pytest.raises(ValueError, match="deployed_environment_must_be_explicit"):
+    with pytest.raises(ValueError, match="deployed_environment_must_be_explicit") as failure:
         async with app.router.lifespan_context(app):
             pytest.fail("unexpected successful startup")
+    assert canary not in str(failure.value)
 
 
 @pytest.mark.parametrize("mode", ["strict_free", "explicit_paid", "mostly_free_opt_in"])

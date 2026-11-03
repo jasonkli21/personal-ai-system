@@ -36,6 +36,7 @@ services:
   postgres-test:
     image: pgvector/pgvector:0.8.1-pg17
     profiles: ["integration"]
+    networks: [integration]
     environment:
       POSTGRES_DB: personal_ai_test
       POSTGRES_USER: personal_ai
@@ -53,6 +54,7 @@ services:
   dynamodb-local-test:
     image: amazon/dynamodb-local:2.6.1
     profiles: ["integration"]
+    networks: [integration]
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     working_dir: /home/dynamodblocal
     ports:
@@ -66,3 +68,9 @@ services:
 volumes:
   personal-ai-postgres:
   personal-ai-dynamodb:
+
+networks:
+  integration:
+    driver: bridge
+    internal: true
+    attachable: false

@@ -125,17 +125,20 @@ See the [PI-6 gate](platform-independence/pi-6-completion-gate.md),
 [review closure](platform-independence/pi-6-review-closure.md) and
 [verification](platform-independence/pi-6-verification.json).
 
-[PI-7](platform-independence/pi-7-implementation-report.md) is a synthetic local
-operations candidate pending independent review. The credential-free core and
-Reading Logbook checks run from isolated installed artifacts over native-fenced
-loopback HTTP. The static cloud plan validates a closed fake-inference profile
-and redacts the policy diff. The deployment entrypoint refuses apply. Disposable
-Compose controls are available for the existing integration services. The
-dual-store check is blocked on this workstation, and standalone disposable
-PostgreSQL restart and P19 tests passed. Synthetic stale derived
-restore exercised current source revalidation and retained original keys.
-Hosted identity, provider billing/caps, native restore and physical erasure
-remain `blocked_unverified`, and release promotion remains `no_go`.
+[PI-7](platform-independence/pi-7-implementation-report.md) remains a local
+candidate with independent acceptance `changes_required` until fresh review.
+The installed smoke now fails closed without the native macOS egress fence;
+degraded diagnostics cannot pass. Prepared dependencies are checked against
+installed RECORD hashes, but this remains an operability probe rather than a
+clean reproducible installer. Disposable Compose uses an internal network and
+requires operator-approved local image IDs; this workstation has no Docker CLI,
+so native Compose evidence is blocked. The cloud planner reports
+`static_policy_validated_only` with explicit unverified bindings and the
+deployment entrypoint still refuses apply. The earlier PostgreSQL and synthetic
+restore results remain implementer-reported evidence, not a fresh independent
+reproduction. Hosted identity, provider billing/caps, native restore and
+physical erasure remain `blocked_unverified`, and release promotion remains
+`no_go`.
 See the [PI-7 operations runbook](platform-independence/pi-7-operations-runbook.md)
 and [verification ledger](platform-independence/pi-7-verification.json).
 PI-8 remains undelivered. The user-directed memory feature freeze stops at MEM-2:

@@ -144,6 +144,7 @@ MEM-3+ remains frozen. No public API, production default or migration is added.
 - [Hardened plan](pi-7-implementation-plan.md) and [pre-code hardening](pi-7-plan-hardening.md).
 - [Operations and rollback](pi-7-operations-runbook.md), [data lifecycle and recovery](pi-7-data-lifecycle-runbook.md) and [storage decision](pi-7-storage-operations-decision.md).
 - [Implementation report](pi-7-implementation-report.md) and [P7-01–36 verification ledger](pi-7-verification.json).
+- [2026-11-03 independent-review remediation evidence](pi-7-review-remediation-2026-11-03.md); implementation follow-up, not independent acceptance.
 - [Fresh independent-review prompt](pi-7-independent-review-prompt.md).
 
 Installed synthetic core and Reading Logbook HTTP checks, static cloud policy

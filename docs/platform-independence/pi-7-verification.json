@@ -396,7 +396,8 @@
         "core"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Built wheel and sdist with the repository VCS exclusions, rejected duplicate members, and installed both the built and rebuilt wheel. Core wheel and sdist hashes match the standard build."
+      "result": "Built wheel and sdist with the repository VCS exclusions, rejected duplicate members, and installed both the built and rebuilt wheel. Core wheel and sdist hashes match the standard build.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-02",
@@ -406,7 +407,8 @@
         "core"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Reference bundle, client and host were absent from the core probe."
+      "result": "Reference bundle, client and host were absent from the core probe.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-03",
@@ -416,7 +418,8 @@
         "core"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Real FastAPI factory/lifespan, loopback turn, context inspection and bounded assembled trace."
+      "result": "Real FastAPI factory/lifespan, loopback turn, context inspection and bounded assembled trace.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-04",
@@ -426,7 +429,8 @@
         "core"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Isolated Python and lock-selected local files; no source path, credentials or remote transport."
+      "result": "Isolated Python and lock-selected local files; no source path, credentials or remote transport.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-05",
@@ -437,7 +441,8 @@
         "missing_uv"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Missing locked dependency and unavailable required native fence fail closed. Fresh uncached bootstrap was outside scope."
+      "result": "Missing locked dependency and unavailable required native fence fail closed. Fresh uncached bootstrap was outside scope.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-06",
@@ -449,7 +454,8 @@
         "core_source"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Deployed environment/capability refusal, invalid inference mode and caller env scrub; static parser refuses malformed input."
+      "result": "Deployed environment/capability refusal, invalid inference mode and caller env scrub; static parser refuses malformed input.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-07",
@@ -460,7 +466,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Fresh repeated runs and installations used owned temporary state and ephemeral listeners."
+      "result": "Fresh repeated runs and installations used owned temporary state and ephemeral listeners.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-08",
@@ -470,7 +477,8 @@
         "check"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Timeout and SIGTERM kill owned child work and leave an unrelated sentinel untouched."
+      "result": "Timeout and SIGTERM kill owned child work and leave an unrelated sentinel untouched.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-09",
@@ -482,7 +490,8 @@
         "native_pg"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "The Compose dual-store boot requires Docker; standalone disposable PostgreSQL boot and P19 integration passed."
+      "result": "The Compose dual-store boot requires Docker; standalone disposable PostgreSQL boot and P19 integration passed.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-10",
@@ -494,7 +503,8 @@
         "native_pg"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Dual-store restart/bootstrap and isolation require Docker; native standalone PostgreSQL was tested separately."
+      "result": "Dual-store restart/bootstrap and isolation require Docker; native standalone PostgreSQL was tested separately.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-11",
@@ -506,7 +516,8 @@
         "store_native"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Fake Docker tests prove ownership refusal and no volume flags. Native Docker volume preservation remains unverified."
+      "result": "Fake Docker tests prove ownership refusal and no volume flags. Native Docker volume preservation remains unverified.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-12",
@@ -516,7 +527,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Separate host and client wheels and a client-only interpreter used the versioned HTTP API."
+      "result": "Separate host and client wheels and a client-only interpreter used the versioned HTTP API.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-13",
@@ -526,7 +538,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Forged owner/actor/app/workspace and invalid identity claims were rejected or could not change authority."
+      "result": "Forged owner/actor/app/workspace and invalid identity claims were rejected or could not change authority.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-14",
@@ -536,7 +549,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Registered audience and exact membership required; unavailable/disabled binding and wrong workspace denied."
+      "result": "Registered audience and exact membership required; unavailable/disabled binding and wrong workspace denied.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-15",
@@ -546,7 +560,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Same key replay retained scope and identity; payload changes conflicted."
+      "result": "Same key replay retained scope and identity; payload changes conflicted.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-16",
@@ -556,7 +571,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Lost stream/client restart retained original status and produced no second synthetic model effect."
+      "result": "Lost stream/client restart retained original status and produced no second synthetic model effect.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-17",
@@ -568,7 +584,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Plan and baseline compared locally with no cloud CLI calls."
+      "result": "Plan and baseline compared locally with no cloud CLI calls.",
+      "independent_followup_status": "PASS"
     },
     {
       "id": "P7-18",
@@ -578,7 +595,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Invalid project/region/secret version, digest, JWT and AWS claim shapes refused."
+      "result": "Invalid project/region/secret version, digest, JWT and AWS claim shapes refused.",
+      "independent_followup_status": "PASS"
     },
     {
       "id": "P7-19",
@@ -588,7 +606,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Broad IAM/ingress/egress and feature drift refused; redacted valid drift returned review status."
+      "result": "Broad IAM/ingress/egress and feature drift refused; redacted valid drift returned review status.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-20",
@@ -598,7 +617,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Empty, legacy and explicit apply paths ran no cloud command."
+      "result": "Empty, legacy and explicit apply paths ran no cloud command.",
+      "independent_followup_status": "PASS"
     },
     {
       "id": "P7-21",
@@ -610,7 +630,8 @@
         "cloud_plan"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Fake selection worked without credentials; strict-free/paid cloud plans refused; mock-only P19 profile tests reused."
+      "result": "Fake selection worked without credentials; strict-free/paid cloud plans refused; mock-only P19 profile tests reused.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-22",
@@ -621,7 +642,8 @@
         "native_pg"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "429 and quota-exhausted cases did not fall back or dispatch after reservation denial."
+      "result": "429 and quota-exhausted cases did not fall back or dispatch after reservation denial.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-23",
@@ -632,7 +654,8 @@
         "native_pg"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Concurrent synthetic owner admission was exact and reset at UTC midnight. See separate native PostgreSQL P19 result."
+      "result": "Concurrent synthetic owner admission was exact and reset at UTC midnight. See separate native PostgreSQL P19 result.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-24",
@@ -643,7 +666,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Timeout, unresolved outcome and SDK retry cases preserved no-second-send and original key."
+      "result": "Timeout, unresolved outcome and SDK retry cases preserved no-second-send and original key.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-25",
@@ -655,7 +679,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Plan/invalid configuration canary, prompt telemetry canary and source denial were exercised. Existing request correlation logs have separate fields."
+      "result": "Plan/invalid configuration canary, prompt telemetry canary and source denial were exercised. Existing request correlation logs have separate fields.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-26",
@@ -667,7 +692,8 @@
         "pi5-check"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Typed source revision/rights and P19 request/scope/provenance checks used synthetic facts only."
+      "result": "Typed source revision/rights and P19 request/scope/provenance checks used synthetic facts only.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-27",
@@ -679,7 +705,8 @@
         "cloud_plan"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Zero remote smoke dispatches and explicit unobserved billed cost. Live billed currency and provider-account hard caps remain blocked."
+      "result": "Zero remote smoke dispatches and explicit unobserved billed cost. Live billed currency and provider-account hard caps remain blocked.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-28",
@@ -690,7 +717,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Fixed status/refusal categories and startup/usage fields; manifest size and malformed input bounded."
+      "result": "Fixed status/refusal categories and startup/usage fields; manifest size and malformed input bounded.",
+      "independent_followup_status": "PASS"
     },
     {
       "id": "P7-29",
@@ -701,7 +729,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Revocation at count/send boundary blocked generation; derived restore could not start a fresh send."
+      "result": "Revocation at count/send boundary blocked generation; derived restore could not start a fresh send.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-30",
@@ -711,7 +740,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Revoked retained history and replay omitted stale content while completed status remained observable."
+      "result": "Revoked retained history and replay omitted stale content while completed status remained observable.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-31",
@@ -722,7 +752,8 @@
         "native_restore"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Stale message repository reinstated while current source revocation and journal survived. Native/distributed anti-rollback is blocked."
+      "result": "Stale message repository reinstated while current source revocation and journal survived. Native/distributed anti-rollback is blocked.",
+      "independent_followup_status": "BLOCKED"
     },
     {
       "id": "P7-32",
@@ -732,7 +763,8 @@
         "consumer"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Reopened journal preserved unknown/completed original key, denied changed payload and kept capacity pressure closed."
+      "result": "Reopened journal preserved unknown/completed original key, denied changed payload and kept capacity pressure closed.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-33",
@@ -743,7 +775,8 @@
         "focused"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Optional packages removed without core breakage; deployment remains quarantined."
+      "result": "Optional packages removed without core breakage; deployment remains quarantined.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-34",
@@ -754,7 +787,8 @@
         "planning-eval"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "PI-5/PI-6 fixtures and locks byte-preserved. Historical v27 command ran at its eligible parent; revision guard remains strict."
+      "result": "PI-5/PI-6 fixtures and locks byte-preserved. Historical v27 command ran at its eligible parent; revision guard remains strict.",
+      "independent_followup_status": "PASS"
     },
     {
       "id": "P7-35",
@@ -765,7 +799,8 @@
         "pi3-check"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Core memory defaults and existing MEM-2 default-off path exercised."
+      "result": "Core memory defaults and existing MEM-2 default-off path exercised.",
+      "independent_followup_status": "NOT_RUN"
     },
     {
       "id": "P7-36",
@@ -777,7 +812,163 @@
         "cloud_plan"
       ],
       "identity": "tested_executable_files_and_artifacts_in_this_ledger",
-      "result": "Local chat and existing request/provider stop tests, no remote budget and unobserved billing. Deployed stop evidence is still blocked."
+      "result": "Local chat and existing request/provider stop tests, no remote budget and unobserved billing. Deployed stop evidence is still blocked.",
+      "independent_followup_status": "NOT_RUN"
     }
-  ]
+  ],
+  "independent_followup": {
+    "date": "2026-11-03",
+    "review_source": "attached independent review; not independently reproduced",
+    "review_verdict": {
+      "local": "changes_required_pending_fresh_review",
+      "cloud_plan": "static_policy_validated_only",
+      "hosted": "blocked_unverified",
+      "native_recovery_deletion": "blocked_unverified",
+      "promotion": "no_go"
+    },
+    "tested_revision": "local source tree based on 5c7e377827572a4e7770c10fd9bd91e71a7851b4; final commit SHA is resolved by git history for this record",
+    "runtime": {
+      "os_arch": "Darwin-arm64",
+      "python": "3.11.15",
+      "uv": "0.11.13",
+      "docker": "unavailable",
+      "sandbox": "managed sandbox-exec rejected; loopback bind permission denied"
+    },
+    "scenario_status_legend": "Historical scenarios[].status values are author evidence; independent_followup_status is this remediation session only.",
+    "scenario_statuses": {
+      "P7-01": "BLOCKED",
+      "P7-02": "BLOCKED",
+      "P7-03": "BLOCKED",
+      "P7-04": "BLOCKED",
+      "P7-05": "BLOCKED",
+      "P7-06": "NOT_RUN",
+      "P7-07": "NOT_RUN",
+      "P7-08": "NOT_RUN",
+      "P7-09": "BLOCKED",
+      "P7-10": "BLOCKED",
+      "P7-11": "BLOCKED",
+      "P7-12": "BLOCKED",
+      "P7-13": "NOT_RUN",
+      "P7-14": "NOT_RUN",
+      "P7-15": "NOT_RUN",
+      "P7-16": "NOT_RUN",
+      "P7-17": "PASS",
+      "P7-18": "PASS",
+      "P7-19": "BLOCKED",
+      "P7-20": "PASS",
+      "P7-21": "NOT_RUN",
+      "P7-22": "NOT_RUN",
+      "P7-23": "NOT_RUN",
+      "P7-24": "NOT_RUN",
+      "P7-25": "NOT_RUN",
+      "P7-26": "NOT_RUN",
+      "P7-27": "BLOCKED",
+      "P7-28": "PASS",
+      "P7-29": "NOT_RUN",
+      "P7-30": "NOT_RUN",
+      "P7-31": "BLOCKED",
+      "P7-32": "NOT_RUN",
+      "P7-33": "NOT_RUN",
+      "P7-34": "PASS",
+      "P7-35": "NOT_RUN",
+      "P7-36": "NOT_RUN"
+    },
+    "source_sha256": {
+      "Makefile": "107ab1aabe1d0d80c3b8b19787299c9defe97c774be04f60f12bd5d0975af899",
+      "docker-compose.persistence.yml": "dcfa6e04d932a23ba2c10d4e1ab3f8595563f86f975dbdd6738cfd44437b943e",
+      "backend/scripts/pi7_local_smoke.py": "ec0f7de77a8e8cd64a880d555210d721a54022089fabb0a5fda1f4e042da1889",
+      "backend/scripts/pi7_local_stores.py": "d4007239bb786c0031db963013f679ce8662efe60e5bc56b3dff945dc4b11cdc",
+      "backend/tests/test_pi7_operations.py": "d763f2b0312175bfcc9ec75406548e33a0d20926b20d309389d9fbd8fb2d8586",
+      "backend/tests/test_pi7_core_http.py": "5184ad964acf150b8da6e3fc49d1ec96b09660a167608fb4c1db663f3ccabd3a",
+      "backend/tests/test_deployment_script.py": "6a7f27ff4246158d76afbc4b3c11c2f0b59ae1cbe928a12f6af2d2949d311029",
+      "infrastructure/gcp/cloud_plan.py": "1a660ae0ff21b7db6728ca29db759952c6c143f7c4fb05560d41a49cec33b3be",
+      "infrastructure/gcp/deploy.sh": "66f46ddef59b270892f6a3e3c1d068ae8a58b927eac9d49f1203806d916f3279",
+      "infrastructure/gcp/pi7-cloud-plan.example.json": "941980cc7df68ead67fe0af04bd61c60d206db0f5cf6df838e862519725ea0f6"
+    },
+    "artifacts_built_by_followup": [],
+    "command_results": {
+      "focused": {
+        "status": "PASS",
+        "command": "backend/.venv/bin/python -m pytest -q backend/tests/test_pi7_operations.py backend/tests/test_deployment_script.py backend/tests/test_pi7_core_http.py",
+        "result": "65 passed, 1 skipped, 2 warnings; synthetic/fake CLI only"
+      },
+      "pi7_check": {
+        "status": "PASS",
+        "command": "make pi7-check",
+        "result": "221 passed, 4 warnings; zero forbidden Python network attempts"
+      },
+      "lint": {
+        "status": "PASS",
+        "command": "make backend-lint",
+        "result": "All checks passed"
+      },
+      "shell_syntax": {
+        "status": "PASS",
+        "command": "bash -n infrastructure/gcp/deploy.sh",
+        "result": "Valid"
+      },
+      "cloud_plan": {
+        "status": "PASS",
+        "command": "make pi7-cloud-plan",
+        "evidence_class": "static_policy_only",
+        "result": "static_policy_validated_only; apply blocked; no verified bindings"
+      },
+      "local_smoke": {
+        "status": "BLOCKED",
+        "command": "make pi7-local-smoke PI7_SMOKE_FLAGS=--require-native",
+        "result": "sandbox_launcher_rejected before build or child dispatch"
+      },
+      "docker": {
+        "status": "BLOCKED",
+        "result": "Docker CLI unavailable; no daemon operation"
+      },
+      "platform_independence": {
+        "status": "BLOCKED",
+        "command": "make platform-independence-check",
+        "result": "Build/static inventory passed with temp offline uv cache; historical planning guard refused exact source revision"
+      },
+      "pi2": {
+        "status": "BLOCKED",
+        "command": "make pi2-check",
+        "result": "Build/static inventory passed; historical planning revision guard refused"
+      },
+      "pi3": {
+        "status": "BLOCKED",
+        "command": "make pi3-check",
+        "result": "Loopback bind PermissionError: Operation not permitted"
+      },
+      "pi4": {
+        "status": "BLOCKED",
+        "command": "make pi4-check",
+        "result": "Loopback bind PermissionError: Operation not permitted"
+      },
+      "pi5": {
+        "status": "BLOCKED",
+        "command": "make pi5-check",
+        "result": "Consumer contract passed; loopback bind PermissionError stopped native suite"
+      },
+      "pi6": {
+        "status": "BLOCKED",
+        "command": "make pi6-check",
+        "result": "sandbox_apply Operation not permitted"
+      },
+      "backend_offline": {
+        "status": "BLOCKED",
+        "command": "make backend-test-offline",
+        "result": "2347 passed, 1 skipped, 119 deselected, 11 failed, 92 errors; every failure/error was a managed sandbox loopback bind PermissionError"
+      },
+      "diff_check": {
+        "status": "PASS",
+        "command": "git diff --check",
+        "result": "No whitespace errors before commit"
+      }
+    },
+    "initial_attempts": [
+      "Initial focused run found a malformed host-fence probe; fixed.",
+      "Teardown race regression initially exposed missing re-inventory comparison; fixed before rerun.",
+      "Lint initially reported import/style issues; fixed before final lint pass.",
+      "Default uv cache access was denied; retry used UV_CACHE_DIR=/tmp/codex-pi7-uv-cache with UV_OFFLINE=1."
+    ],
+    "remaining": "No fresh independent Sol High review; no native installed smoke, Docker, Linux/Python 3.12, hosted, provider billing, IAM, native recovery or physical deletion evidence."
+  }
 }

@@ -49,9 +49,12 @@ def test_static_plan_and_baseline_never_invoke_cloud(shell):
     result = shell("plan", "--manifest", EXAMPLE, "--baseline", EXAMPLE)
     assert result.returncode == 0, result.stderr
     plan = json.loads(result.stdout)
-    assert plan["status"] == "plan_validated"
+    assert plan["status"] == "static_policy_validated_only"
     assert plan["changed_sections"] == []
     assert plan["evidence"] == "static_only"
+    assert plan["verified_live_bindings"] == []
+    assert "project_number_to_live_project" in plan["unverified_bindings"]
+    assert "run_app_audiences_to_deployed_services" in plan["unverified_bindings"]
     assert plan["apply"] == "blocked_unverified"
     assert plan["provider_cost"] == {"configured_remote_budget_microusd": 0, "billed": "unobserved"}
     assert "operator@example.test" not in result.stdout and "projects/" not in result.stdout
@@ -139,6 +142,26 @@ def test_valid_static_drift_requires_review_and_prints_only_section(shell, tmp_p
     assert result.returncode == 2
     assert json.loads(result.stdout)["changed_sections"] == ["identity"]
     assert "different-owner" not in result.stdout + result.stderr
+
+
+def test_consistent_unbound_resource_names_remain_policy_only(shell, tmp_path):
+    manifest = json.loads(EXAMPLE.read_text())
+    manifest["identity"]["api_audience"] = "https://unrelated-service.run.app"
+    manifest["services"]["api"]["audience"] = manifest["identity"]["api_audience"]
+    manifest["services"]["web"]["proxy"]["audience"] = manifest["identity"]["api_audience"]
+    manifest["project_number"] = "999999999999"
+    manifest["iam"]["pubsub_token_creator"]["member"] = (
+        "service-999999999999@gcp-sa-pubsub.iam.gserviceaccount.com"
+    )
+    candidate = tmp_path / "unbound.json"
+    candidate.write_text(json.dumps(manifest))
+    result = shell("plan", "--manifest", candidate)
+    assert result.returncode == 0, result.stderr
+    plan = json.loads(result.stdout)
+    assert plan["status"] == "static_policy_validated_only"
+    assert plan["verified_live_bindings"] == []
+    assert "run_app_audiences_to_deployed_services" in plan["unverified_bindings"]
+    assert "project_number_to_live_project" in plan["unverified_bindings"]
 
 
 @pytest.mark.parametrize(

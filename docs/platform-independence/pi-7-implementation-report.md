@@ -151,3 +151,16 @@ implementation commit in a fresh session. Production gates require separate
 authorization and evidence for account/provider/source rights, deployed IAM
 and network, distributed receipts and anti-rollback, physical deletion,
 native restore and all predecessor blockers.
+
+## 2026-11-03 independent-review remediation addendum
+
+The attached independent review identified R01–R06. Implementation follow-up,
+focused command evidence, the separate P7-01–36 follow-up matrix and remaining
+limits are recorded in the [dated remediation record](pi-7-review-remediation-2026-11-03.md)
+and [verification ledger](pi-7-verification.json). The smoke is fail-closed,
+store tooling is bounded by internal networking and explicit image approvals,
+the cloud planner identifies its static-only result, and dependency copy checks
+installed RECORD hashes. This managed environment rejected the native sandbox
+and loopback bind; Docker is unavailable. Therefore local acceptance remains
+pending fresh independent review, hosted/native gates remain blocked, and
+release promotion remains `no_go`.

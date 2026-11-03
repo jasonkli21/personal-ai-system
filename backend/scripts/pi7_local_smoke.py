@@ -24,17 +24,24 @@ BACKEND = ROOT / "backend"
 SANDBOX = "/usr/bin/sandbox-exec"
 OPTIONAL = ("personal_ai_reference_apps", "reading_logbook", "reading_logbook_host")
 NATIVE_PROBE = """
-import errno, socket
+import errno, subprocess, sys
+child = r'''import errno, socket
 for family, target in [(socket.AF_INET, ('192.0.2.1', 9)),
                        (socket.AF_INET6, ('2001:db8::1', 9))]:
-    with socket.socket(family) as sock:
-        sock.settimeout(2)
-        try:
-            sock.connect(target)
-        except OSError as error:
-            assert error.errno in (errno.EPERM, errno.EACCES)
-        else:
-            raise AssertionError('native egress not fenced')
+    for kind in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
+        with socket.socket(family, kind) as sock:
+            try:
+                if kind == socket.SOCK_STREAM:
+                    sock.settimeout(2)
+                    sock.connect(target)
+                else:
+                    sock.sendto(b'pi7-fence-probe', target)
+            except OSError as error:
+                assert error.errno in (errno.EPERM, errno.EACCES)
+            else:
+                raise AssertionError('native egress not fenced')
+'''
+subprocess.run([sys.executable, '-I', '-c', child], check=True, timeout=8)
 """
 
 
@@ -67,6 +74,9 @@ def run(command, *, cwd, env, timeout=120, capture=False):
 
 
 def install_locked_dependencies(requirements, site, target):
+    import base64
+    import hmac
+
     from packaging.requirements import Requirement
     from packaging.utils import canonicalize_name
 
@@ -88,13 +98,20 @@ def install_locked_dependencies(requirements, site, target):
         if dist.read_text("direct_url.json") or not dist.files:
             raise SmokeError(f"expected a prepared index distribution: {requirement.name}")
         for entry in dist.files:
-            if ".." in entry.parts or entry.is_absolute() or entry.suffix in {".pth", ".pyc"}:
-                continue
+            if ".." in entry.parts or entry.is_absolute() or entry.suffix == ".pth":
+                raise SmokeError(f"unsafe dependency metadata: {requirement.name}")
             if entry.parts[0] in {"sitecustomize.py", "usercustomize.py"}:
-                continue
+                raise SmokeError(f"unexpected startup hook: {requirement.name}")
             source = Path(dist.locate_file(entry))
             if not source.is_file() or source.resolve() != site.resolve() / entry:
                 raise SmokeError(f"unsafe or incomplete installed dependency: {requirement.name}")
+            if entry.name != "RECORD":
+                if not entry.hash:
+                    raise SmokeError(f"dependency file has no RECORD hash: {requirement.name}")
+                digest = hashlib.new(entry.hash.mode, source.read_bytes()).digest()
+                actual = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+                if not hmac.compare_digest(actual, entry.hash.value):
+                    raise SmokeError(f"dependency RECORD hash mismatch: {requirement.name}")
             destination = target / entry
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
@@ -133,7 +150,7 @@ def inspect_artifacts(directory, absent):
         )
 
 
-def smoke(workspace, uv, *, consumer, require_native):
+def smoke(workspace, uv, *, consumer, allow_degraded):
     env = {
         "PATH": "/usr/bin:/bin",
         "TMPDIR": str(workspace),
@@ -158,8 +175,8 @@ def smoke(workspace, uv, *, consumer, require_native):
         reason = "no_reviewed_native_launcher"
     if not native:
         print(json.dumps({"native_egress": "blocked_unverified", "reason": reason}), flush=True)
-        if require_native:
-            raise SmokeError("native egress fence is required")
+        if not allow_degraded:
+            raise SmokeError("native egress fence is required before build or child dispatch")
     else:
         run(
             [*native, sys.executable, "-I", "-c", NATIVE_PROBE],
@@ -176,7 +193,7 @@ def smoke(workspace, uv, *, consumer, require_native):
                 "uv": run([uv, "--version"], cwd=workspace, env=env, capture=True).strip(),
                 "lock_sha256": hashlib.sha256((BACKEND / "uv.lock").read_bytes()).hexdigest(),
                 "dependency_source": "prepared_backend_venv",
-                "egress_evidence": "native_loopback" if native else "python_audit_only",
+                "egress_evidence": "native_fenced" if native else "degraded_unverified",
                 "usage_class": "synthetic",
                 "billed_cost": "unobserved",
             }
@@ -342,6 +359,8 @@ def smoke(workspace, uv, *, consumer, require_native):
             "reading-logbook-host",
         )
         test(core_test)
+    if allow_degraded:
+        raise SmokeError("degraded_unverified: offline acceptance is blocked")
 
 
 def interrupt(_number, _frame):
@@ -351,7 +370,10 @@ def interrupt(_number, _frame):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--consumer", action="store_true")
-    parser.add_argument("--require-native", action="store_true")
+    fence = parser.add_mutually_exclusive_group()
+    fence.add_argument("--require-native", action="store_true", help=argparse.SUPPRESS)
+    fence.add_argument("--allow-degraded", action="store_true",
+                       help="development probe only; always exits blocked for acceptance")
     args = parser.parse_args()
     uv = shutil.which("uv")
     if not uv:
@@ -359,7 +381,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupt)
     try:
         with tempfile.TemporaryDirectory(prefix="pi7-local-") as directory:
-            smoke(Path(directory), uv, consumer=args.consumer, require_native=args.require_native)
+            smoke(Path(directory), uv, consumer=args.consumer, allow_degraded=args.allow_degraded)
     except (SmokeError, ModuleNotFoundError, OSError, subprocess.TimeoutExpired) as error:
         reason = error if isinstance(error, SmokeError) else type(error).__name__
         if isinstance(error, OSError) and error.errno in {errno.ENOSPC, errno.EDQUOT}:

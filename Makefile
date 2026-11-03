@@ -204,9 +204,10 @@ pi7-cloud-plan:
 
 .PHONY: pi7-store-doctor pi7-store-up pi7-store-bootstrap pi7-store-smoke pi7-store-down
 PI7_STORE_SOCKET ?= /var/run/docker.sock
-export PI7_STORE_SESSION PI7_STORE_SOCKET
+PI7_STORE_IMAGE_ARGS ?=
+export PI7_STORE_SESSION PI7_STORE_SOCKET PI7_STORE_IMAGE_ARGS
 pi7-store-doctor pi7-store-up pi7-store-bootstrap pi7-store-smoke pi7-store-down:
-	$(PLATFORM_PYTHON) -I backend/scripts/pi7_local_stores.py $(@:pi7-store-%=%) --session "$$PI7_STORE_SESSION" --socket "$$PI7_STORE_SOCKET"
+	$(PLATFORM_PYTHON) -I backend/scripts/pi7_local_stores.py $(@:pi7-store-%=%) --session "$$PI7_STORE_SESSION" --socket "$$PI7_STORE_SOCKET" $(PI7_STORE_IMAGE_ARGS)
 
 .PHONY: pi7-check
 pi7-check: pi7-cloud-plan
