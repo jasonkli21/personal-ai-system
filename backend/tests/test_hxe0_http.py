@@ -7,22 +7,19 @@ from urllib.error import HTTPError
 from uuid import uuid4
 
 import pytest
+from personal_ai_sdk import APIError, Client, UncertainTurn
+from project_checklist.store import Checklist
 
 from .test_pi2_http import http_platform as signed_http_fixture
 from .test_pi2_http import turn
 
 http_platform = signed_http_fixture
 
-pytest.importorskip("project_checklist_host")
+from project_checklist_host import application as _checklist_application  # noqa: F401
 
 
 @pytest.mark.parametrize("http_platform", ["project_checklist"], indirect=True)
 def test_checklist_sdk_original_intent_and_denial(http_platform, tmp_path, caplog):
-    sdk_package = pytest.importorskip("personal_ai_sdk")
-    app_package = pytest.importorskip("project_checklist.store")
-    APIError, Client = sdk_package.APIError, sdk_package.Client
-    UncertainTurn = sdk_package.UncertainTurn
-    Checklist = app_package.Checklist
     h = http_platform
     claims = {"aud": "checklist-oauth-client", "azp": "checklist-oauth-client"}
     token = h.token(**claims)
@@ -94,6 +91,29 @@ def test_checklist_sdk_original_intent_and_denial(http_platform, tmp_path, caplo
     with pytest.raises(ValueError, match="use_recover_for_original_key"):
         journal.turn(sdk, target, lost_key, recover=False)
     assert Checklist(journal_path).turn(sdk, target, lost_key, recover=True)["content"]
+    assert len(h.llm.requests) == 2
+
+    # Current membership is reread for retained detail, preview, and send.
+    h.membership_file.write_text(
+        json.dumps(
+            {
+                "issuer": "https://accounts.google.com",
+                "subject": "synthetic-owner",
+                "workspace_id": "site",
+                "expires_at": 0,
+            }
+        )
+    )
+    for operation in (
+        lambda: sdk.detail(cid),
+        lambda: sdk.preview(cid, turn()),
+        lambda: sdk.continue_turn(cid, turn()),
+    ):
+        with pytest.raises(APIError) as error:
+            operation()
+        assert error.value.status in {403, 404}
+        assert "Private local item" not in str(error.value)
+        assert token not in str(error.value)
     assert len(h.llm.requests) == 2
 
     for denied in (

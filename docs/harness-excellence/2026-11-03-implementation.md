@@ -82,3 +82,7 @@ Independent exact-commit review and native-fenced installed conformance are
 pending. Issuer-bound send/revoke atomicity, monotonic original-key and forget
 authority after restore, verified deployment identity and account caps remain
 before-enablement gates.
+
+The subsequent Luna remediation is documented in the
+[2026-11-03 remediation record](2026-11-03-remediation.md). Its local results do
+not supersede the external gates above.

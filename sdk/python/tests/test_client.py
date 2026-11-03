@@ -44,6 +44,44 @@ def test_split_utf8_and_crlf():
     assert deltas == ["☕"]
 
 
+def test_zero_delta_completed_terminal():
+    stream = (
+        frame("message.created", {"message": {"id": USER, "role": "user"}})
+        + frame("message.created", {"message": {"id": ASSISTANT, "role": "assistant"}})
+        + frame("response.completed", {"message": {**MESSAGE, "content": "final result"}})
+    )
+    assert read_completion([stream])["content"] == "final result"
+
+
+def test_canonical_text_can_supersede_provisional_delta():
+    stream = (
+        frame("message.created", {"message": {"id": USER, "role": "user"}})
+        + frame("message.created", {"message": {"id": ASSISTANT, "role": "assistant"}})
+        + frame("response.delta", {"message_id": ASSISTANT, "delta": "draft"})
+        + frame("response.completed", {"message": {**MESSAGE, "content": "final result"}})
+    )
+    assert read_completion([stream])["content"] == "final result"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {**MESSAGE, "status": None},
+        {**MESSAGE, "status": "streaming"},
+        {**MESSAGE, "content": " "},
+        {**MESSAGE, "content": "x" * 20001},
+    ],
+)
+def test_invalid_canonical_terminal_is_rejected(message):
+    stream = (
+        frame("message.created", {"message": {"id": USER, "role": "user"}})
+        + frame("message.created", {"message": {"id": ASSISTANT, "role": "assistant"}})
+        + frame("response.completed", {"message": message})
+    )
+    with pytest.raises(UncertainTurn):
+        read_completion([stream])
+
+
 @pytest.mark.parametrize(
     "stream",
     [
@@ -100,6 +138,27 @@ def test_http_error_cannot_echo_token_or_body(sdk, monkeypatch, status):
     assert error.value.code == "request_failed"
     assert error.value.__cause__ is None
     assert "secret" not in str(error.value)
+
+
+def test_origin_denied_is_a_safe_typed_error(sdk, monkeypatch):
+    def deny(request, **kwargs):
+        raise HTTPError(
+            request.full_url,
+            403,
+            "secret",
+            Message(),
+            io.BytesIO(
+                b'{"error":{"code":"origin_denied","message":"synthetic-secret"}}'
+            ),
+        )
+
+    monkeypatch.setattr(sdk._opener, "open", deny)
+    with pytest.raises(APIError) as error:
+        sdk.continue_turn(CONVERSATION, BODY)
+    assert error.value.status == 403
+    assert error.value.code == "origin_denied"
+    assert "synthetic-secret" not in str(error.value)
+    assert "private prompt" not in str(error.value)
 
 
 def test_status_agreement_and_no_ambient_authority(sdk, monkeypatch):

@@ -4,14 +4,13 @@ Updated 2026-11-03. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance.
 Independent final review and external acceptance remain open.
 
-This revision also updates public onboarding, contributor/security guidance,
-documentation routing, and package license metadata. It changes no runtime
-behavior or acceptance gate; package builds and documentation checks are recorded
-in the [quality review](quality/repo-quality-review-2026-11-03.md). The broad
-offline backend run had one failure: the frozen PI-6 source identity includes
-`backend/pyproject.toml`, so the required license metadata changes its digest.
-The frozen lock and assertion remain unchanged; the package/evaluation identity
-conflict is open.
+The 2026-11-03 v27 check failed after required Apache-2.0 package metadata changed
+the frozen PI-6 source identity. HXE-0 addressed that with additive v28 and
+source-generation-2 identities while preserving v26, v27, v2 manifest, corpus,
+scorer, driver and non-promotion. This remediation adds another additive identity
+for the final commit's source bytes. The old failure remains historical evidence;
+current local verification and any remaining identity limitation are recorded in
+the dated [HXE-0 remediation receipt](harness-excellence/2026-11-03-remediation.md).
 
 ## Delivered locally
 
@@ -169,13 +168,14 @@ acceptance remain open.
 
 ## Harness excellence
 
-HXE-0 has a local **PARTIAL E1** development candidate with a provisional
-Python SDK, a separate Project Checklist consumer and operator-selected host,
-and a strict additive PI-6 source identity. The generated external contract
-remains v1.2.0. Signed ASGI conformance and isolated client installs passed.
-Fresh native-fenced installed server and PI-6 measurement remain blocked in
-the managed session. See the [capability inventory](harness-excellence/README.md)
-and [verification receipt](harness-excellence/2026-11-03-implementation.md).
+HXE-0 remains a local **PARTIAL E1** development candidate with the Python SDK,
+separate Project Checklist consumer and operator-selected host. The generated
+external contract remains v1.2.0. The independent-review remediation fixes all
+five findings and its bounded offline suite passes; native-fenced installed
+server and PI-6 measurement remain blocked in this managed session. Production
+remains **NO-GO**. See the [capability inventory](harness-excellence/README.md),
+[implementation receipt](harness-excellence/2026-11-03-implementation.md), and
+[remediation evidence](harness-excellence/2026-11-03-remediation.md).
 
 The integrated roadmap tracks 20 phase IDs. Seventeen require substantive new
 work from the planning baseline. MEM-0 through MEM-2 already have scoped

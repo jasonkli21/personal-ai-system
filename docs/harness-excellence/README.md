@@ -5,7 +5,8 @@ defines the durable boundaries. Start with the [SDK](../../sdk/python/README.md)
 and [Project Checklist](../../examples/project-checklist/README.md) for the
 developer flow. The [gate registry](../platform-independence/pi-cross-phase-gate-registry.md)
 owns release restrictions. The [implementation receipt](2026-11-03-implementation.md)
-records the checks for this candidate.
+records the original candidate checks; the [review remediation record](2026-11-03-remediation.md)
+records the scoped fixes and current evidence.
 
 ## Capabilities and evidence
 

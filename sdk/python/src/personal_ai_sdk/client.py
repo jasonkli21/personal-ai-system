@@ -87,6 +87,7 @@ SAFE_CODES = frozenset(
         "not_found",
         "application_not_registered",
         "application_scope_invalid",
+        "origin_denied",
         "request_scope_invalid",
         "request_body_timeout",
         "request_body_too_large",
@@ -202,15 +203,19 @@ def read_completion(
             raise UncertainTurn("response_error")
         elif event == "response.completed":
             completed = data.get("message")
+            content = completed.get("content") if isinstance(completed, dict) else None
             if (
                 not isinstance(completed, dict)
                 or completed.get("id") != assistant_id
                 or completed.get("role") != "assistant"
                 or completed.get("status") != "completed"
-                or completed.get("content") != text
-                or not text.strip()
+                or not isinstance(content, str)
+                or len(content) > 20000
+                or not content.strip()
             ):
                 raise UncertainTurn("invalid_terminal")
+        else:
+            raise UncertainTurn("invalid_event")
     if completed is None:
         raise UncertainTurn("terminal_missing")
     return cast(CompletedMessage, completed)

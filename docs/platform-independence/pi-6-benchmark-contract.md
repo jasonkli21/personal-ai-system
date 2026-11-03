@@ -86,3 +86,14 @@ measurement reports and non-promotion decision are preserved. The exact
 source/revision and runtime checks remain strict. See the
 [implementation receipt](../harness-excellence/2026-11-03-implementation.md)
 for verification and native-fence status.
+
+## Source generation 3 · 2026-11-03
+
+The HXE-0 review remediation adds an additive source-generation-3 manifest and
+planning lock v29 for the remediation source. They retain the v2 cases, scorer,
+driver, thresholds and non-promotion decision. The v26–v28 locks, earlier
+manifests, and all measurement inputs remain immutable. The lock binds the
+remediation parent commit and exact source digest; final-commit evaluation must
+be rerun after commit. The manifest binds the changed evaluator and current core
+tree without including itself. This identity supports local synthetic E1
+verification only and does not advance PI-6 acceptance.

@@ -261,7 +261,9 @@ def http_platform(tmp_path, monkeypatch, request):
         from fastapi.testclient import TestClient
 
         with TestClient(app) as raw:
-            yield SimpleNamespace(raw=raw, token=token, llm=llm)
+            yield SimpleNamespace(
+                raw=raw, token=token, llm=llm, membership_file=checklist_membership
+            )
         return
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

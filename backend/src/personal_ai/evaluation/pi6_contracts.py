@@ -24,7 +24,7 @@ V2_PROTOCOL_FILES = {
     "http": "pi6_http.py",
     "audit": "pi6_audit.py",
 }
-PROTOCOL_MANIFEST = "manifest-v2-source-2.json"
+PROTOCOL_MANIFEST = "manifest-v2-source-3.json"
 OPTIONAL_PACKAGES = {
     "reading_logbook_client": ("reading_logbook", "reading-logbook-client"),
     "reading_logbook_host": ("reading_logbook_host", "reading-logbook-host"),
