@@ -52,7 +52,8 @@ HISTORICAL_V23_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V24_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v24.json"
 HISTORICAL_V25_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v25.json"
 HISTORICAL_V26_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v26.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v27.json"
+HISTORICAL_V27_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v27.json"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v28.json"
 PLANNING_EVALUATOR_VERSION = "planning-evaluator-v7"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -96,8 +97,12 @@ SOURCE_IDENTITY_PATHS = tuple(
             for path in (REPOSITORY_ROOT / "backend/src/personal_ai").rglob("*")
             if path.is_file()
             and not path.name.startswith("planning-baseline-")
-            and path.relative_to(REPOSITORY_ROOT).as_posix()
-            != "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2.json"
+            # Generated protocol manifests bind this lock, so they cannot
+            # themselves be inputs to the planning source digest.
+            and path.relative_to(REPOSITORY_ROOT).as_posix() not in {
+                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2.json",
+                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-2.json",
+            }
             and "__pycache__" not in path.parts
             and path.suffix != ".pyc"
             and path.name != ".DS_Store"
@@ -116,7 +121,7 @@ def baseline_planner():
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v27",
+        "baseline_lock_version": "planning-baseline-lock-v28",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

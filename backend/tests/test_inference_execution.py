@@ -98,6 +98,11 @@ async def test_two_backends_use_canonical_chat_and_exact_local_count(profile):
     assert len(pair.generator.delegate.requests) == 2
 
 
+def test_alternate_fake_cannot_be_selected_in_strict_free_mode():
+    with pytest.raises(LLMInvalidConfigurationError, match="explicitly offline"):
+        compose_pair(settings(inference_profile="offline_fake_alt", inference_cost_mode="strict_free"))
+
+
 @pytest.mark.parametrize("profile", ["groq", "cloudflare_workers_ai", "evil.module:factory", ""])
 def test_unapproved_missing_counters_and_factories_fail_before_send(profile):
     config = settings().model_copy(update={"inference_profile": profile})

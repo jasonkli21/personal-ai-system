@@ -76,3 +76,13 @@ The local v2 evaluation is complete for its 68 scripted rows. Its score is not
 real-model utility, independent fixture validation, live provider behavior or
 production acceptance. The user closed this scoped review remediation with no
 further review required; the evidence boundary remains unchanged.
+
+## Source generation 2 · 2026-11-03
+
+HXE-0 adds `manifest-v2-source-2.json` and planning baseline lock v28.
+Source generation 2 binds the same v2 cases, scorer, rubric, thresholds and
+optional consumers to the current core source. The earlier locks, manifest,
+measurement reports and non-promotion decision are preserved. The exact
+source/revision and runtime checks remain strict. See the
+[implementation receipt](../harness-excellence/2026-11-03-implementation.md)
+for verification and native-fence status.

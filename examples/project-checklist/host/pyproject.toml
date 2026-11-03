@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling==1.27.0", "editables==0.5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "project-checklist-host"
+version = "0.1.0"
+description = "Operator-trusted, history-only Project Checklist registration"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["personal-ai-backend==0.1.0"]
+
+[project.entry-points."personal_ai.application_contributions"]
+project_checklist = "project_checklist_host:application"
+
+[project.entry-points."personal_ai.context_contributions"]
+project_checklist = "project_checklist_host:context"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/project_checklist_host"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/pyproject.toml", "/LICENSE"]

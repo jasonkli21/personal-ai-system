@@ -167,6 +167,21 @@ pass locally; see the [remediation evidence](platform-independence/pi-1-review-r
 PI-1 independent review, Linux/Python 3.12 CI, provider/cloud, and native-storage
 acceptance remain open.
 
+## Harness excellence
+
+HXE-0 has a local **PARTIAL E1** development candidate with a provisional
+Python SDK, a separate Project Checklist consumer and operator-selected host,
+and a strict additive PI-6 source identity. The generated external contract
+remains v1.2.0. Signed ASGI conformance and isolated client installs passed.
+Fresh native-fenced installed server and PI-6 measurement remain blocked in
+the managed session. See the [capability inventory](harness-excellence/README.md)
+and [verification receipt](harness-excellence/2026-11-03-implementation.md).
+
+The integrated roadmap tracks 20 phase IDs. Seventeen require substantive new
+work from the planning baseline. MEM-0 through MEM-2 already have scoped
+implementations with acceptance gates. MEM-3+ stays frozen. PI production
+remains NO_GO.
+
 ## MEM-0 research baseline
 
 MEM-0 remains an opt-in offline benchmark. The active v2 corpus has 30 synthetic

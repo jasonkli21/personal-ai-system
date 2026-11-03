@@ -12,6 +12,7 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | --- | --- |
 | Architecture and boundaries | [Architecture](architecture.md), [current state](current-state.md) |
 | Core startup and API | [API contract](api-contract.md), `backend/src/personal_ai/` |
+| Harness excellence, SDK and Checklist | [HXE-0 capability inventory](harness-excellence/README.md) |
 | HTTP consumers and reference apps | [Consumer contract](platform-independence/consumer-v1.md), [reference apps](../reference-apps/README.md), [Reading Logbook](../examples/reading-logbook/README.md) |
 | Inference and routing | [LLM README](../backend/src/personal_ai/llm/README.md), [routing README](../backend/src/personal_ai/routing/README.md) |
 | Context and chat | [API contract](api-contract.md), `backend/src/personal_ai/context/`, `services/chat/`, focused tests |

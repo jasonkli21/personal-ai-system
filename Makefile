@@ -221,3 +221,25 @@ pi8-check:
 	@test -n "$$PI8_EXPECTED_COMMIT" || { echo "Set PI8_EXPECTED_COMMIT to the full independently reviewed commit SHA" >&2; exit 2; }
 	$(PLATFORM_PYTHON) -I backend/scripts/pi8_check.py --expected-commit "$$PI8_EXPECTED_COMMIT"
 	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_pi8_check.py
+
+.PHONY: hxe0-build hxe0-check
+hxe0-build:
+	cd sdk/python && $(UV) build --no-build-isolation --python ../../backend/.venv/bin/python
+	cd examples/project-checklist/client && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
+	cd examples/project-checklist/host && $(UV) build --no-build-isolation --python ../../../backend/.venv/bin/python
+
+hxe0-check:
+	$(PLATFORM_PYTHON) backend/scripts/pi2_contract.py --check
+	PYTHONPATH=sdk/python/src:examples/project-checklist/client/src:examples/project-checklist/host/src \
+	  $(PLATFORM_PYTHON) backend/scripts/pi1_offline_checks.py -q -m 'not loopback_http' \
+	    sdk/python/tests backend/tests/test_hxe0_http.py backend/tests/test_openapi.py \
+	    backend/tests/test_planning_experiment.py backend/tests/test_pi6.py \
+	    backend/tests/test_pi2_client.py backend/tests/test_pi5_context.py \
+	    backend/tests/test_pi5_retrieval.py backend/tests/test_pi7_lifecycle.py \
+	    backend/tests/test_inference_execution.py backend/tests/test_provider_usage.py \
+	    backend/tests/test_memory_control_api.py backend/tests/test_memory_control_context.py \
+	    backend/tests/test_memory_knowledge.py
+
+.PHONY: hxe0-installed-check
+hxe0-installed-check: hxe0-build
+	$(PLATFORM_PYTHON) backend/scripts/hxe0_artifact_checks.py "$(UV)"

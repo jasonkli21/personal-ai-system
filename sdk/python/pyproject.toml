@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling==1.27.0", "editables==0.5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "personal-ai-sdk"
+version = "0.1.0"
+description = "Provisional Personal AI external consumer SDK"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/personal_ai_sdk"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/pyproject.toml", "/LICENSE"]

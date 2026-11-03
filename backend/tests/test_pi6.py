@@ -107,6 +107,12 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     assert v1.suite == "pi6-offline-v1" and v2.suite == "pi6-offline-v2"
     assert all(case.provenance == "authored_synthetic_v2" for case in v2.cases)
     assert not ({case.task.subject for case in v1.cases} & {case.task.subject for case in v2.cases})
+    historical_v2 = (FIXTURES / "manifest-v2.json").read_bytes()
+    assert sha(historical_v2) == "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c"
+    old_hashes = json.loads(historical_v2)["hashes"]
+    for name in old_hashes.keys() - {"core_runtime", "contracts"}:
+        assert manifest["hashes"][name] == old_hashes[name]
+    assert manifest["hashes"]["core_runtime"] != old_hashes["core_runtime"]
     assert manifest["frozen_before_measurement"] is True
     assert set(manifest["hashes"]) == {
         "cases",

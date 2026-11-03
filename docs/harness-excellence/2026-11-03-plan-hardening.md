@@ -1,0 +1,10 @@
+# HXE-0 plan hardening · 2026-11-03
+
+Base `b61d69890255ca3de736e7236581cee559358f32`. The five existing untracked planning files are inputs and stay outside the commit.
+
+- Preserve the generated 1.2.0 API. Its published operation list and operator-supplied version suffice for this provisional client. Runtime authorization stays with auth/scope, application policy and the service that owns each operation. Deployment discovery would need a separate contract.
+- Reproduce the v27 source assertion, then add a strict v28 lock with the current-or-direct-child guard. Since the selector itself changes core package bytes, also add a PI-6 protocol source generation over the same v2 corpus and scorer. Pin historical byte digests separately from current-generation equality. Freeze before running the evaluator.
+- Derive the SDK stream parser from Reading Logbook while preserving that frozen regression control. Use typed request and result boundaries, no ambient proxies or redirects, bounded parsing, static diagnostics, and no automatic replay. The caller owns the journal. The Checklist example persists the original intent before dispatch and uses the existing trusted host catalog with operator configuration.
+- Run signed synthetic HTTP with the Checklist host and SDK, reusing the PI-2 fixture. Reuse PI-3, PI-5 and MEM-1/2 port-level adversarial cases for the remaining canaries. The existing second PI-3 fake profile is the alternate provider. Adding a third adapter or a second memory/tool host would add no evidence at these boundaries.
+- Verify built wheels and wheels rebuilt from sdists in fresh client environments. Installed client isolation and native-fenced server acceptance are distinct. Use the PI-6 launcher only if its native fence can start. Keep independent acceptance and deploy/recovery/provider/issuer gates open.
+- Roll back by removing the opt-in client and host packages and reverting this source generation. Preserve local journals until reconciled, as well as canonical key and forget receipts. Older source locks remain historical and require their original checkout and environment.

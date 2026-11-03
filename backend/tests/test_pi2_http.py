@@ -86,6 +86,14 @@ def http_platform(tmp_path, monkeypatch, request):
         "enabled": True,
     }
 
+    checklist = getattr(request, "param", None) == "project_checklist"
+    if checklist:
+        binding_b.update(
+            audience="checklist-oauth-client",
+            authorized_party="checklist-oauth-client",
+            application_id="project_checklist",
+        )
+
     def write_policy(**updates):
         policy.write_text(
             json.dumps(
@@ -193,16 +201,23 @@ def http_platform(tmp_path, monkeypatch, request):
             definitions=(app_b_definition,),
             workspace_authorizers={"reading_logbook_b": MembershipB()},
         )
+        contributions = [
+            ("reading_logbook", application),
+            ("reading_logbook_b", lambda: contribution_b),
+        ]
+        contexts = [("reading_logbook", context), ("reading_logbook_b", context)]
+        if checklist:
+            from project_checklist_host import application as checklist_application
+            from project_checklist_host import context as checklist_context
+
+            checklist_membership = tmp_path / "checklist-membership.json"
+            checklist_membership.write_text(json.dumps({**membership, "workspace_id": "site"}))
+            monkeypatch.setenv("PROJECT_CHECKLIST_MEMBERSHIP_FILE", str(checklist_membership))
+            contributions.append(("project_checklist", checklist_application))
+            contexts.append(("project_checklist", checklist_context))
         app = create_app(
-            application_catalog=ApplicationContributionCatalog(
-                (
-                    ("reading_logbook", application),
-                    ("reading_logbook_b", lambda: contribution_b),
-                )
-            ),
-            context_runtime_catalog=ContextRuntimeContributionCatalog(
-                (("reading_logbook", context), ("reading_logbook_b", context))
-            ),
+            application_catalog=ApplicationContributionCatalog(tuple(contributions)),
+            context_runtime_catalog=ContextRuntimeContributionCatalog(tuple(contexts)),
         )
     conversations = InMemoryConversationRepository()
     messages = InMemoryMessageRepository(conversations)
@@ -241,6 +256,14 @@ def http_platform(tmp_path, monkeypatch, request):
         deps.get_llm_client: lambda: llm,
         deps.get_global_profile_repository: lambda: profile,
     }
+    if checklist:
+        # Same real middleware/verifier and fake ports, without kernel sockets.
+        from fastapi.testclient import TestClient
+
+        with TestClient(app) as raw:
+            yield SimpleNamespace(raw=raw, token=token, llm=llm)
+        return
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", 0))
     base = f"http://127.0.0.1:{sock.getsockname()[1]}"

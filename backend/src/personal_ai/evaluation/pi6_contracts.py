@@ -24,6 +24,7 @@ V2_PROTOCOL_FILES = {
     "http": "pi6_http.py",
     "audit": "pi6_audit.py",
 }
+PROTOCOL_MANIFEST = "manifest-v2-source-2.json"
 OPTIONAL_PACKAGES = {
     "reading_logbook_client": ("reading_logbook", "reading-logbook-client"),
     "reading_logbook_host": ("reading_logbook_host", "reading-logbook-host"),
@@ -164,7 +165,10 @@ def current_protocol_hashes() -> tuple[dict[str, str], tuple[str, ...]]:
     for key, name in V2_PROTOCOL_FILES.items():
         hashes[key] = sha(PACKAGE.joinpath(name).read_bytes())
     hashes["core_runtime"] = _package_tree_digest(
-        "personal_ai", exclude=("evaluation/fixtures/pi6/manifest-v2.json",)
+        "personal_ai", exclude=(
+            "evaluation/fixtures/pi6/manifest-v2.json",
+            f"evaluation/fixtures/pi6/{PROTOCOL_MANIFEST}",
+        ),
     )
     missing = []
     for key, (module, distribution) in OPTIONAL_PACKAGES.items():
@@ -196,7 +200,7 @@ def load_historical_v1() -> tuple[Corpus, dict]:
 def load_corpus() -> tuple[Corpus, dict]:
     """Load v2 and bind all locally available protocol and consumer sources."""
     raw = PACKAGE.joinpath("fixtures", "pi6", "cases-v2.json").read_bytes()
-    manifest = _read_manifest("manifest-v2.json")
+    manifest = _read_manifest(PROTOCOL_MANIFEST)
     current, missing = current_protocol_hashes()
     if manifest["suite"] != "pi6-offline-v2" or manifest["hashes"].get("cases") != sha(raw):
         raise ValueError("frozen_identity_mismatch")

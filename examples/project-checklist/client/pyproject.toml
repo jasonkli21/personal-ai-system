@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling==1.27.0", "editables==0.5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "project-checklist"
+version = "0.1.0"
+description = "Independent project checklist and Personal AI HTTP client"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["personal-ai-sdk==0.1.0"]
+
+[project.scripts]
+project-checklist = "project_checklist.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/project_checklist"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/pyproject.toml", "/LICENSE"]
