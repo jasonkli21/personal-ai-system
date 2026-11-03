@@ -216,6 +216,8 @@ pi7-check: pi7-cloud-plan
 	  $(PLATFORM_PYTHON) -E -s backend/scripts/pi2_http_checks.py -q backend/tests/test_pi7_operations.py backend/tests/test_deployment_script.py backend/tests/test_inference_execution.py backend/tests/test_litellm_gateway.py backend/tests/test_phase9_controls.py backend/tests/test_provider_usage.py backend/tests/test_retrieval_phase33.py
 
 .PHONY: pi8-check
+export PI8_EXPECTED_COMMIT
 pi8-check:
-	$(PLATFORM_PYTHON) -I backend/scripts/pi8_check.py
+	@test -n "$$PI8_EXPECTED_COMMIT" || { echo "Set PI8_EXPECTED_COMMIT to the full independently reviewed commit SHA" >&2; exit 2; }
+	$(PLATFORM_PYTHON) -I backend/scripts/pi8_check.py --expected-commit "$$PI8_EXPECTED_COMMIT"
 	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_pi8_check.py

@@ -141,7 +141,14 @@ physical erasure remain `blocked_unverified`, and release promotion remains
 `no_go`.
 See the [PI-7 operations runbook](platform-independence/pi-7-operations-runbook.md)
 and [verification ledger](platform-independence/pi-7-verification.json).
-PI-8 has a local [audit candidate](platform-independence/pi-8-readiness-assessment.md) with independent acceptance pending and production release no-go.
+PI-8 has a local [audit candidate](platform-independence/pi-8-readiness-assessment.md).
+The 2026-11-03 review remediation hardens its exact-commit structural checker and
+preserves its original v1 ledger; implementation evidence remains author-reported,
+independent acceptance remains pending, and production remains no-go. The
+[cross-phase gate registry](platform-independence/pi-cross-phase-gate-registry.md)
+carries PI-5 R01–R03/P5-24/28, PI-6 P6-02/15/29/32, PI-7 native/build/cloud/data
+gates, and the MEM-2 default-off/MEM-3+ freeze. No runtime behavior or release
+gate is promoted by the PI-8 tooling changes.
 The user-directed memory feature freeze stops at MEM-2:
 MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
 semantics and independent/security/production gates remain in force.

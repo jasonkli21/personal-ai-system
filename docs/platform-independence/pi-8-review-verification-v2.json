@@ -1,0 +1,183 @@
+{
+  "schema": "pi8-command-receipts-v2",
+  "reviewed_commit": "a80236648e2635a267f122ba0fd958cafa09c096",
+  "commands": [
+    {
+      "argv": [
+        "backend/.venv/bin/python",
+        "-I",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "backend/scripts",
+        "-p",
+        "test_pi8_check.py"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:eb7e8a921071cadfa401b76f4fcdfbc565d4db7b6bff8852b3d18de3cfe43b9e",
+      "cwd": ".",
+      "prerequisites": [
+        "prepared backend/.venv Python 3.11 environment",
+        "standard-library unittest only",
+        "no application, provider, cloud or external network execution"
+      ],
+      "class": "synthetic",
+      "fence": "no network-capable application code",
+      "exit": 0,
+      "counts": {
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "114c7ce48468842389436c3518533152f347b1b7a5d2e69c84522a4c67cde525",
+      "provenance": "AUTHOR_REPORTED"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:eb7e8a921071cadfa401b76f4fcdfbc565d4db7b6bff8852b3d18de3cfe43b9e",
+      "cwd": ".",
+      "prerequisites": [
+        "source and documentation changes present in current worktree"
+      ],
+      "class": "static",
+      "fence": "no application execution",
+      "exit": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "fa57f4d732b594c13fbfc1b14f510ddbfb850eaea379e7b0f506120c61ea8a14",
+      "provenance": "AUTHOR_REPORTED"
+    },
+    {
+      "argv": [
+        "backend/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "backend/scripts/pi8_check.py",
+        "backend/scripts/test_pi8_check.py"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:eb7e8a921071cadfa401b76f4fcdfbc565d4db7b6bff8852b3d18de3cfe43b9e",
+      "cwd": ".",
+      "prerequisites": [
+        "prepared backend/.venv containing ruff",
+        "only PI-8 checker and its regression tests linted"
+      ],
+      "class": "static",
+      "fence": "no application execution",
+      "exit": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "8059d3c5aba4cc2368cad3ab9dd0c4f4dd6ac450ef1cb14939afe4df97228da5",
+      "provenance": "AUTHOR_REPORTED"
+    },
+    {
+      "argv": [
+        "bash",
+        "-n",
+        "infrastructure/gcp/deploy.sh"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:eb7e8a921071cadfa401b76f4fcdfbc565d4db7b6bff8852b3d18de3cfe43b9e",
+      "cwd": ".",
+      "prerequisites": [
+        "bash syntax parse only; deployment was not invoked"
+      ],
+      "class": "static",
+      "fence": "no application execution",
+      "exit": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "d4cb6c64bead769e0db5a14e396111a594571816c500ebffe4f4c387c4c2fd8f",
+      "provenance": "AUTHOR_REPORTED"
+    },
+    {
+      "argv": [
+        "make",
+        "backend-lint"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:eb7e8a921071cadfa401b76f4fcdfbc565d4db7b6bff8852b3d18de3cfe43b9e",
+      "cwd": ".",
+      "prerequisites": [
+        "Makefile shell selected python from PATH, which is absent",
+        "equivalent focused ruff invocation passed from prepared backend/.venv"
+      ],
+      "class": "static",
+      "fence": "no application execution",
+      "exit": 2,
+      "counts": {
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "c409e7bc16fc2be1b8dd8c2d64889a32652f1c0865af9f56712b9283f4a406dc",
+      "provenance": "AUTHOR_REPORTED"
+    },
+    {
+      "argv": [
+        "make",
+        "-n",
+        "pi8-check",
+        "PI8_EXPECTED_COMMIT=0123456789abcdef0123456789abcdef01234567"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:9685a2bd50fa1a0ec8da656dfd02213ec28a58d89a1af38163a3a134abddf7c4",
+      "cwd": ".",
+      "prerequisites": [
+        "first dry-run exposed invalid target-specific export syntax",
+        "fixed Makefile uses shell environment expansion and was dry-run successfully"
+      ],
+      "class": "static",
+      "fence": "no application execution",
+      "exit": 2,
+      "counts": {
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "58737dadc66ff6183017d2165a3e152b2c8d484f7b1ea2f2215a620760b4dd02",
+      "provenance": "AUTHOR_REPORTED"
+    },
+    {
+      "argv": [
+        "make",
+        "-n",
+        "pi8-check",
+        "PI8_EXPECTED_COMMIT=0123456789abcdef0123456789abcdef01234567"
+      ],
+      "revision": "WORKTREE:a80236648e2635a267f122ba0fd958cafa09c096:eb7e8a921071cadfa401b76f4fcdfbc565d4db7b6bff8852b3d18de3cfe43b9e",
+      "cwd": ".",
+      "prerequisites": [
+        "dry-run only; dummy 40-character value verifies argument quoting",
+        "checker and unit tests were printed but not executed"
+      ],
+      "class": "static",
+      "fence": "no application execution",
+      "exit": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "warnings": 0,
+      "artifact_sha256": "070008b43bfa60bd08e4aafeba48d4835f19db6db9c63f5da14b931eab8ab46c",
+      "provenance": "AUTHOR_REPORTED"
+    }
+  ]
+}

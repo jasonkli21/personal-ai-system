@@ -361,4 +361,15 @@ The [local candidate report](pi-6-implementation-report.md) and
 The R01–R11 review remediation is complete with 68/68 source and installed
 observations; the user closed this scoped review with no further review required.
 This local status does not imply real-model utility or production readiness.
-PI-7/8 and MEM-3+ are not authorized by this exception.
+PI-7/8 require their own sequencing decisions; MEM-3+ remains frozen.
+
+## 2026-11-03 PI-8 review remediation and cross-phase gates
+
+The PI-8 remediation report and exact-commit structural checker are additive
+audit tooling. The original v1 ledger remains immutable; checker success means
+only that the pinned commit and evidence structure match. It is not independent
+acceptance or a production decision. The [cross-phase gate registry](pi-cross-phase-gate-registry.md)
+is the current carry-forward index for PI-5 source/send and journal recovery,
+PI-6 deferred production scenarios, PI-7 native/build/cloud/data acceptance,
+and the existing MEM-2 default-off / MEM-3+ freeze. These obligations remain
+pre-enablement gates and do not change phase plans or runtime defaults.

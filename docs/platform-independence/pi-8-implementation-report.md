@@ -95,8 +95,8 @@ PY
 
 | Distribution | Entries | SHA-256 |
 | --- | --- | --- |
-| Core wheel, built from sdist | 450 | `e72093fd67cba0966e75858b11e38747de2de714659520462f3881788ecc7b5a` |
-| Core sdist | 451 | `498996b786c37005ea14fefe3c3928c62b8ccfad5cd04a6fe18d06d052756867` |
+| Core wheel, offline checkout build | 450 | `e72093fd67cba0966e75858b11e38747de2de714659520462f3881788ecc7b5a` |
+| Core sdist, offline checkout build | 451 | `498996b786c37005ea14fefe3c3928c62b8ccfad5cd04a6fe18d06d052756867` |
 
 Earlier attempt A built both archives in 1.54 s. Inspection exited 1 when
 the output directory included an extra entry. Attempt B built both in

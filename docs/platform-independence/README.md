@@ -157,4 +157,12 @@ freeze continue to apply.
 
 Use the [verification ledger](pi-8-verification.json), [implementation report](pi-8-implementation-report.md)
 and [independent review handoff](pi-8-independent-review-handoff.md).
-`make pi8-check` validates the dated audit and its input hashes.
+The [2026-11-03 independent review remediation](pi-8-independent-review-remediation-2026-11-03.md)
+records R01–R04, the unchanged v1 ledger, focused regressions and remaining
+limits. The [v2 command receipt register](pi-8-review-verification-v2.json)
+labels implementation evidence as author-reported. Run
+`make pi8-check PI8_EXPECTED_COMMIT=<full-reviewed-sha>` from a clean checkout;
+it verifies that exact commit's tree and the immutable v1 blob, then reports
+structural validity only. It does not execute application commands or confer
+independent acceptance. The [cross-phase gate registry](pi-cross-phase-gate-registry.md)
+retains all predecessor, native, live, cloud, data-lifecycle and MEM-2 gates.
