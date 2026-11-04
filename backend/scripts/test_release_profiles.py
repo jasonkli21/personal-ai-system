@@ -88,6 +88,18 @@ class ProfileTest(unittest.TestCase):
         self.observe("validator", "FAIL")
         self.assertEqual(self.check()["candidate"], "FAIL")
 
+    def test_receipt_output_hashes_are_not_artifact_origin_verification(self):
+        for gate in OFFLINE:
+            self.observe(gate)
+        receipt = read_json(self.receipts["validator"])
+        receipt["artifacts"] = {"invented-output": "f" * 64}
+        self.receipts["validator"] = canonical(receipt)
+        self.pins["validator"] = sha(self.receipts["validator"])
+        result = self.check()
+        self.assertEqual(result["candidate"], "PASS")
+        self.assertEqual(result["release"], "NO_GO")
+        self.assertEqual(result["independent_acceptance"], "PENDING")
+
     def test_all_profiles_have_fixed_blocked_inventory(self):
         for profile in PROFILES:
             self.manifest = template(SOURCE.copy(), profile, "3.11.13")

@@ -56,14 +56,21 @@ backend/.venv/bin/python -E -s backend/scripts/release_artifacts.py build \
 ```
 
 Preflight contacts no provider, source or peer and starts no service. Measurement
-explicitly runs four inspected canonical fake suites under the existing Python
-socket audit fence, one process group, one attempt, 120-second wall/CPU caps and
-4 MB output/file cap. It reports argv, counts, redacted failing test identifiers,
-output digest, wall/child CPU and child high-water RSS. This is neither native
-isolation nor model utility. Setup, startup/idle CPU/RAM, TTFT and token/request
-counts remain null when unmeasured. A test error is not a successful measurement.
-External attempts observed by the Python fence fail the suite even if caught.
-Native subprocesses and deployment behavior are outside that fence's proof.
+explicitly runs four inspected canonical fake suites under the Python socket
+audit hook, one attempt, 120-second wall/CPU caps and 4 MB output/file caps. Linux
+also applies a 4 GB per-process address-space limit; this macOS host cannot apply
+that limit safely to its Python runtime and reports it unavailable. Signal
+cancellation sends TERM, then attempts KILL after a short grace period, only to
+the invocation's owned process group. If the host denies group signaling, the
+report marks cleanup BLOCKED and only the owned leader receives a direct-kill
+fallback. The portable runner cannot enforce aggregate process-tree memory or
+process count, or prevent descendants from creating a new session; its E2 result is
+therefore always BLOCKED. Unsupported per-process limits fail closed. This Python
+socket audit is synthetic evidence, not a native network fence or complete
+resource sandbox. Parsed test counts and network-attempt lines are untrusted
+display hints, not authenticated results. RSS is a supervisor-cumulative
+terminated-child high-water mark and per-invocation peak RSS is null. Setup,
+startup/idle CPU/RAM, TTFT and token/request counts remain null when unmeasured.
 
 ## Trust and machine-readable evidence
 
@@ -72,7 +79,12 @@ exact commit/tree, profile, scope, toolchain and receipt digest, and requires al
 gate rows in fixed order. A PASS/FAIL receipt includes schema `release-receipt-v1`,
 source `{commit, tree}`, profile, gate, scope, toolchain, nonempty argv and
 prerequisites, fence, integer exit, output artifact digest map and provenance
-`AUTHOR_REPORTED`. PASS needs exit 0; blocked/unrun cases have no observations.
+`AUTHOR_REPORTED`. The validator binds receipt bytes to an external receipt
+digest. Values in its `artifacts` map are author-reported digest strings; the
+validator does not fetch or hash those output files, so they do not prove artifact
+identity or origin. Operators must independently inspect and pin output bytes
+before treating them as artifact evidence. PASS needs exit 0; blocked/unrun cases
+have no observations.
 Source scope includes issuer, actor, application, workspace, purpose and operation.
 Use only content-free identifiers. No raw request, source passage, credential,
 endpoint or hidden reasoning belongs in diagnostics or evidence.
@@ -129,7 +141,23 @@ uv executable, Python, SDK wheel and its origin. Prepare a separate pin file:
 ```sh
 backend/.venv/bin/python -E -s backend/scripts/release_artifacts.py install \
   --uv /operator/approved/uv --wheel /operator/wheelhouse/personal_ai_sdk-0.1.0-py3-none-any.whl \
-  --pins /operator/controlled/sdk-origin.json
+  --pins /operator/controlled/sdk-origin.json \
+  --expected-commit "$REVIEWED_COMMIT" --expected-tree "$REVIEWED_TREE" \
+  --tool-digests /operator/controlled/release-tool-digests.json
+```
+
+The expected source identity and release-tool digest map must come from an
+independently controlled source review. Install refuses dirty checkouts, source
+mismatches or changed release scripts/probe bytes before native fencing or
+installer invocation. The tool map covers `release_artifacts.py`,
+`release_preflight.py`, `release_process.py`, `release_profiles.py` and
+`source_free_sdk_probe.py`. A local build report remains a reproducibility
+observation and does not establish authenticated tool or dependency origin.
+
+The externally controlled tool-digest file is a closed filename-to-SHA256 map:
+
+```json
+{"release_artifacts.py":"<sha256>","release_preflight.py":"<sha256>","release_process.py":"<sha256>","release_profiles.py":"<sha256>","source_free_sdk_probe.py":"<sha256>"}
 ```
 
 This path inspects inert wheel bytes before installation, rejects unexpected

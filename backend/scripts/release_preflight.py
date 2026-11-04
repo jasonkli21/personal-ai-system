@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import platform
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -71,7 +72,15 @@ def main():
                 "--tb=short",
                 *CANARY,
             ]
-            result["measurement"] = bounded_run(argv, cwd=ROOT, env=env)
+            try:
+                result["measurement"] = bounded_run(argv, cwd=ROOT, env=env)
+            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+                result["measurement"] = {
+                    "status": "BLOCKED",
+                    "reason": "bounded_runner_or_resource_control_unavailable",
+                    "tier": "E1",
+                    "resource_envelope": {"e2_resource_status": "BLOCKED"},
+                }
             result["measurement"].update(
                 {
                     "tier": "E1",
@@ -89,7 +98,9 @@ def main():
     print(canonical(result).decode())
     # Product/test failures differ from missing release prerequisites.
     measured = result["measurement"]
-    if measured and (measured["exit"] or measured["timed_out"] or measured["output_cap_reached"]):
+    if measured and measured.get("status") != "BLOCKED" and (
+        measured["exit"] or measured["timed_out"] or measured["output_cap_reached"]
+    ):
         return 1
     # Missing evidence is never converted into readiness by a successful test.
     return 3

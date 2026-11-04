@@ -22,6 +22,17 @@ Hosted/cloud/production data and optional peers remain off. See the
 [operator guide](harness-excellence/release-operator-guide.md) and
 [author verification receipt](harness-excellence/2026-11-03-release-verification.md).
 
+The 2026-11-03 independent-review remediation adds owned process-group signal
+cleanup, explicit per-process limits where the host supports them, and truthful
+BLOCKED resource status where aggregate process-tree controls are unavailable.
+Parsed stdout metrics are display-only, per-invocation RSS is reported null, and
+source-free install/build reports record source/tool digests; dirty or
+unverifiable install inputs cannot produce acceptance PASS. Receipt output hashes
+remain author assertions until operators inspect and pin the output bytes. The
+macOS execution environment cannot enforce address-space or forced group-kill
+controls under its sandbox, so native resource acceptance remains BLOCKED and all
+profiles remain NO_GO. See the [remediation receipt](harness-excellence/2026-11-03-luna-remediation.md).
+
 
 The 2026-11-03 v27 check failed after required Apache-2.0 package metadata changed
 the frozen PI-6 source identity. HXE-0 addressed that with additive v28 and

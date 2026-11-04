@@ -226,6 +226,8 @@ def repeat_build(uv):
         return {
             "schema": "artifact-build-v1",
             "source": revision,
+            "checkout": checkout_state(),
+            "release_tool_digests": release_tool_digests(),
             "inputs": inputs,
             "python": platform.python_version(),
             "platform": sys.platform,
@@ -259,13 +261,47 @@ def native_fence(root, env):
     return prefix
 
 
-def install(wheel, pins, uv):
+RELEASE_TOOL_NAMES = (
+    "release_artifacts.py",
+    "release_preflight.py",
+    "release_process.py",
+    "release_profiles.py",
+    "source_free_sdk_probe.py",
+)
+
+
+def release_tool_digests():
+    return {
+        name: digest((ROOT / "backend/scripts" / name).read_bytes())
+        for name in RELEASE_TOOL_NAMES
+    }
+
+
+def install(wheel, pins, uv, *, expected_source, expected_tool_digests):
     from release_profiles import closed, identity, read_json
 
     with pins.open("rb") as handle:
         trust = read_json(handle.read(262145))
     closed(trust, "schema source origin filename sha256 name version tools")
     revision = source()
+    identity(expected_source)
+    if revision != expected_source:
+        raise ValueError("expected_source_mismatch")
+    checkout = checkout_state()
+    if not checkout["clean"]:
+        raise ValueError("dirty_checkout")
+    actual_tool_digests = release_tool_digests()
+    closed(expected_tool_digests, " ".join(RELEASE_TOOL_NAMES))
+    if any(
+        not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+        for value in expected_tool_digests.values()
+    ):
+        raise ValueError("invalid_release_tool_pins")
+    if expected_tool_digests != actual_tool_digests:
+        raise ValueError("release_tool_digest_mismatch")
+    probe_bytes = (ROOT / "backend/scripts/source_free_sdk_probe.py").read_bytes()
+    if digest(probe_bytes) != expected_tool_digests["source_free_sdk_probe.py"]:
+        raise ValueError("release_tool_digest_mismatch")
     identity(trust["source"])
     if trust["source"] != revision:
         raise ValueError("wheel_source_identity")
@@ -326,18 +362,25 @@ def install(wheel, pins, uv):
         for name, pin in inspection["members"].items():
             if not name.endswith("/RECORD") and digest((site / name).read_bytes()) != pin:
                 raise ValueError("installed_member_digest")
-        probe = (Path(__file__).parent / "source_free_sdk_probe.py").read_bytes()
         probe_path = root / "consumer.py"
-        probe_path.write_bytes(probe)
+        probe_path.write_bytes(probe_bytes)
         run([*prefix, str(python), "-I", str(probe_path)], root, env)
-    if source() != revision:
+    final_checkout = checkout_state()
+    if (
+        source() != revision
+        or not final_checkout["clean"]
+        or release_tool_digests() != expected_tool_digests
+    ):
         raise ValueError("source_changed")
     return {
         "schema": "source-free-install-v1",
-        "status": "PASS",
+        "status": "NON_ACCEPTANCE",
+        "synthetic_install": "PASS",
+        "acceptance": "BLOCKED",
         "tier": "E2",
         "source": revision,
-        "checkout": checkout_state(),
+        "checkout": final_checkout,
+        "tool_digests": actual_tool_digests,
         "wheel": inspection,
         "origin": "OPERATOR_PIN_SUPPLIED",
         "identity": "BLOCKED: installed signed server not exercised",
@@ -351,14 +394,37 @@ def main():
     parser.add_argument("--uv", required=True, type=Path)
     parser.add_argument("--wheel", type=Path)
     parser.add_argument("--pins", type=Path)
+    parser.add_argument("--expected-commit")
+    parser.add_argument("--expected-tree")
+    parser.add_argument("--tool-digests", type=Path)
     args = parser.parse_args()
     try:
-        if args.mode == "install" and (args.wheel is None or args.pins is None):
-            raise ValueError("operator_pins_and_wheel_required")
+        if args.mode == "install" and (
+            args.wheel is None
+            or args.pins is None
+            or args.expected_commit is None
+            or args.expected_tree is None
+            or args.tool_digests is None
+        ):
+            raise ValueError("operator_source_tool_pins_required")
+        expected_source = None
+        expected_tools = None
+        if args.mode == "install":
+            from release_profiles import read_json
+
+            expected_source = {"commit": args.expected_commit, "tree": args.expected_tree}
+            with args.tool_digests.open("rb") as handle:
+                expected_tools = read_json(handle.read(262145))
         result = (
             repeat_build(args.uv)
             if args.mode == "build"
-            else install(args.wheel.absolute(), args.pins, args.uv)
+            else install(
+                args.wheel.absolute(),
+                args.pins,
+                args.uv,
+                expected_source=expected_source,
+                expected_tool_digests=expected_tools,
+            )
         )
     except (
         ValueError,
