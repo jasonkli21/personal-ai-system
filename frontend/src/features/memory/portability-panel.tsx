@@ -83,7 +83,11 @@ export function PortabilityPanel({ actor }: { actor: string | null }) {
     const available = await (await request("capabilities")).json() as Capabilities;
     if (!currentActor()) return;
     setCapabilities(available);
-    if (available.profile_correction) showProfile(await (await request("profile")).json() as Profile);
+    if (available.profile_correction) {
+      const loaded = await (await request("profile")).json() as Profile;
+      if (!currentActor()) return;
+      showProfile(loaded);
+    }
   }
 
   async function correct() {
@@ -94,6 +98,7 @@ export function PortabilityPanel({ actor }: { actor: string | null }) {
     const next = await (await request("profile", JSON.stringify({
       expected_revision: profile.revision, ...update,
     }))).json() as Profile;
+    if (!currentActor()) return;
     showProfile(next);
     setPreview(null);
     setMessage("Profile updated. Sharing this profile revision requires fresh grants.");
@@ -113,7 +118,9 @@ export function PortabilityPanel({ actor }: { actor: string | null }) {
   async function assess(file: File) {
     setPreview(null);
     if (file.size > 8192) throw new Error("Choose a JSON file no larger than 8 KiB.");
-    setPreview(await (await request("import-preview", file)).json() as Preview);
+    const result = await (await request("import-preview", file)).json() as Preview;
+    if (!currentActor()) return;
+    setPreview(result);
   }
 
   return <section aria-label="Profile and portability">

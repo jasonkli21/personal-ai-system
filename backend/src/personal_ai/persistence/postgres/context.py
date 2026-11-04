@@ -44,20 +44,8 @@ class PostgresGlobalProfileRepository(GlobalProfileRepository):
         return profile
 
     def get(self, owner_id: str) -> GlobalProfile:
-        with self.database.connection() as connection:
-            row = connection.execute(
-                "SELECT payload FROM global_profiles WHERE scope_id=%s AND record_id=%s "
-                "AND owner_id=%s AND application_id=%s AND workspace_id IS NULL",
-                (
-                    PostgresPayloadRepository.scope_id(owner_id, _PROFILE_SCOPE),
-                    _PROFILE_RECORD_ID,
-                    owner_id,
-                    STANDALONE_APPLICATION_ID,
-                ),
-            ).fetchone()
-        if row is None:
-            return GlobalProfile(owner_id=owner_id, revision=0, fields=(), updated_at=None)
-        return self._decode(row[0], owner_id)
+        with self.profile_snapshot(owner_id) as profile:
+            return profile
 
     @contextmanager
     def profile_snapshot(self, owner_id: str):

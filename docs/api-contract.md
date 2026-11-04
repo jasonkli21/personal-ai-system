@@ -40,7 +40,7 @@ identity for Travel.
 | --- | --- | --- | --- |
 | `GET` | `/health` | — | Existing readiness response: `{"status":"ok","service":"api"}` |
 | `GET` | `/v1/profile` | — | Sparse owner-wide `GlobalProfile` |
-| `PUT` | `/v1/profile` | `GlobalProfileUpdate` with explicit values; nonempty legacy share arrays rejected | Updated sparse owner-wide `GlobalProfile` |
+| `PUT` | `/v1/profile` | `ProfileCorrection` with required `expected_revision` and explicit values; nonempty legacy share arrays rejected | Updated sparse owner-wide `GlobalProfile`; stale revision returns 409 |
 | `POST` | `/v1/conversations` | Optional `title` | A `Conversation` |
 | `GET` | `/v1/conversations` | — | `{"conversations": [Conversation]}` |
 | `GET` | `/v1/conversations/{conversation_id}` | — | `{"conversation": Conversation, "messages": [Message]}` |
@@ -64,6 +64,12 @@ legacy `shared_with_applications` list, which must now be empty; a nonempty
 list is rejected and cannot grant profile consent consent. Omitted values remain absent. `remove_fields`
 removes selected fields. Responses include field-level `set_by: "user"` and
 `set_at` provenance plus a monotonically increasing profile revision.
+Both profile correction routes require recent authentication from the verified
+builtin owner audience. `PUT /v1/profile` and the portability correction route
+check the caller's expected revision in the canonical repository transaction;
+an old revision returns a content-free 409. `GET /v1/profile` uses the same
+owner-deletion fence as the portability snapshot route and returns
+`Cache-Control: private, no-store`.
 
 The `global_profile` context provider returns only fields selected by the
 planner and covered by a current, explicit profile consent grant for the exact actor,

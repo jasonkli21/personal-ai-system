@@ -238,6 +238,34 @@ def test_profile_correction_export_and_preview_are_scoped_and_bounded(portabilit
     assert client.post(url, json=manifest).json()["items"][0]["reason"] == "revision_conflict"
 
 
+def test_fenced_owner_cannot_read_profile_through_either_route(portability):
+    client, rt, root, repository = portability
+    assert client.get("/v1/profile").status_code == 200
+    assert client.get("/v1/profile").headers["cache-control"] == "private, no-store"
+    assert client.get(f"{root}/profile").status_code == 200
+    repository.fenced_owners.add(rt.scope.owner_id)
+    legacy = client.get("/v1/profile")
+    portable = client.get(f"{root}/profile")
+    assert legacy.status_code == portable.status_code == 503
+    assert rt.scope.owner_id not in legacy.text and rt.scope.owner_id not in portable.text
+
+
+def test_portable_manifest_rejects_rehashed_extra_grant_metadata_and_future_time(portability):
+    from datetime import UTC, datetime
+
+    from personal_ai.memory.portability import digest
+
+    client, _rt, root, _repository = portability
+    manifest = client.get(f"{root}/export").json()
+    unsigned = {key: value for key, value in manifest.items() if key != "digest"}
+    extra = {**unsigned, "fields": [{**unsigned["fields"][0], "shared_with_applications": []}]}
+    assert client.post(f"{root}/import-preview", json={**extra, "digest": digest(extra)}).status_code == 422
+    future = {**unsigned, "created_at": "9999-12-31T00:00:00+00:00"}
+    assert client.post(f"{root}/import-preview", json={**future, "digest": digest(future)}).status_code == 422
+    valid = {**unsigned, "created_at": datetime.now(UTC).isoformat()}
+    assert client.post(f"{root}/import-preview", json={**valid, "digest": digest(valid)}).status_code == 200
+
+
 @pytest.mark.parametrize("change", ["deletion_fence", "profile_revision"])
 def test_export_rechecks_authority_after_serialization(portability, monkeypatch, change):
     from personal_ai.api import memory_portability

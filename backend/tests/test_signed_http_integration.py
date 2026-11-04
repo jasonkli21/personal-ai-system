@@ -1022,7 +1022,7 @@ def test_signed_http_profile_consent_installed_consumer(
     h.app.dependency_overrides[deps.get_context_research_repository] = lambda: None
     h.app.dependency_overrides.pop(deps.get_context_assembler)
     ui = {"Authorization": "Bearer " + h.token(aud="builtin-web-client", azp="builtin-web-client")}
-    response = h.raw.put("/v1/profile", headers=ui, json={"fields": [
+    response = h.raw.put("/v1/profile", headers=ui, json={"expected_revision": 0, "fields": [
         {"field": "preferred_units", "value": "metric"},
         {"field": "locale", "value": "en-GB"},
     ]})
@@ -1065,7 +1065,7 @@ def test_signed_http_profile_consent_installed_consumer(
         response = h.raw.put(
             "/v1/profile",
             headers=ui,
-            json={"fields": [{"field": "preferred_units", "value": "imperial"}]},
+            json={"expected_revision": 1, "fields": [{"field": "preferred_units", "value": "imperial"}]},
         )
         assert response.status_code == 200, response.text
     elif invalidation == "expiry":
@@ -1177,7 +1177,7 @@ def test_builtin_owner_history_stays_visible_after_profile_revoke(http_platform)
     profile_response = h.raw.put(
         "/v1/profile",
         headers=ui,
-        json={"fields": [{"field": "preferred_units", "value": "metric"}]},
+        json={"expected_revision": 0, "fields": [{"field": "preferred_units", "value": "metric"}]},
     )
     assert profile_response.status_code == 200, profile_response.text
     grant = {

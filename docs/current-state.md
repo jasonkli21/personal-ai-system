@@ -336,12 +336,19 @@ remain unchanged. Planner v18 is a source-only non-promoting rebind of v17.
 
 The [owner controls](memory/owner-portability.md) have a default-off profile
 adapter for revision-checked preference editing, owner-fenced explicit profile
-export and bounded, inert import preview. It uses the existing private browser
-proxy and canonical profile writer. The two-consumer synthetic canary exercises
-the existing profile consent boundary. Verified knowledge revision, project
-knowledge export and applied import remain unavailable. See the
-[implementation evidence](harness-excellence/2026-11-03-memory-portability-verification.md)
-for checked behavior and enablement gates.
+export and bounded, inert import preview. Review remediation requires recent
+builtin-owner authentication and canonical revision CAS through both profile
+correction routes; both owner profile read routes honor the deletion fence. The
+portable v1 parser rejects grant-shaped metadata and creation times more than
+five minutes in the future. Browser tests cover download bytes and URL cleanup,
+inert file preview, owner changes during requests, bounded errors and stalled
+upload cancellation. Verified knowledge revision, project knowledge export
+and applied import remain unavailable. Production remains NO-GO pending the
+deployed identity, release-fence, restore and physical-erasure evidence in the
+[remediation receipt](harness-excellence/2026-11-03-memory-portability-remediation.md)
+and [enablement gate](platform-independence/pi-cross-phase-gate-registry.md).
+The remediation adds planning lock v35 and PI-6 source generation 9 while
+preserving earlier locks, manifests, cases, scoring and non-promotion.
 
 ## Identity and effect boundaries
 

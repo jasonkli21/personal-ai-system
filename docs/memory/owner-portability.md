@@ -23,9 +23,13 @@ remains unavailable.
 ## Profile and file operations
 
 Load profile controls to negotiate capabilities. Save one of the four explicit
-preferences or unset it. Each successful edit advances the canonical profile
-revision and invalidates existing grants, including when a value changes away
-and back. Manage fresh grants with the existing [profile consent API](../platform-independence/profile-sharing-v1.md).
+preferences or unset it. Every correction entry point requires recent verified
+builtin-owner authentication and the expected profile revision; a stale
+revision returns 409 and requires a reload. Each successful edit advances the
+canonical profile revision and invalidates existing grants, including when a
+value changes away and back. Manage fresh grants with the existing
+[profile consent API](../platform-independence/profile-sharing-v1.md).
+Owner profile reads are private and no-store, and honor the deletion fence.
 That API shows the exact destination, purpose, expiry and copy warning.
 
 The following routes use the private `/v1/memory/control/portability` prefix.
@@ -51,7 +55,10 @@ user-set provenance. `expires_at` and `embedding` are null. The
 `owner_copy_only` restriction carries no grant. `complete: true` refers to the
 bounded explicit profile snapshot. Project knowledge, pending suggestions, grant
 material, conversation data, and provider data are outside the format. Records
-are sorted by field name. The lowercase SHA-256 `digest` covers the object
+are sorted by field name. Each field has exactly `field`, `value`, `set_at`,
+and `set_by`; no sharing metadata is accepted, even when empty. Creation times
+more than five minutes in the future are rejected, while historical observation
+timestamps remain valid. The lowercase SHA-256 `digest` covers the object
 without the digest key using lexicographically sorted JSON keys, ASCII escapes
 and no whitespace between tokens. The digest checks integrity only. Copies leave
 Personal AI and cannot be recalled.

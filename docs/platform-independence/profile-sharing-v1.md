@@ -28,8 +28,9 @@ A grant does not authorize a provider or make shared data eligible for extractio
 
 ## Owner workflow
 
-1. Read `GET /v1/profile`. Set explicit values with the existing `PUT /v1/profile`,
-   then read its `revision`. Value-only PUT remains supported. A nonempty legacy
+1. Read `GET /v1/profile`. Set explicit values with `PUT /v1/profile`, including
+   the revision just read as `expected_revision`; a concurrent edit returns 409.
+   A nonempty legacy
    `shared_with_applications` list returns **409** `profile_sharing_requires_consent`
    (an unknown legacy destination still returns 422). It creates no consent.
 2. Read `GET /v1/profile/shares` with the owner credentials. It returns consent

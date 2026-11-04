@@ -374,6 +374,7 @@ def test_revoke_after_fetch_prevents_any_count_of_shared_value():
 
 def test_management_through_actual_middleware_and_legacy_put(monkeypatch, tmp_path):
     r = runtime()
+    original_external_check = deps.is_external_client_request
     app = create_app(selected_contributions=())
     app.state.application_registry = r.registry
     app.dependency_overrides.update({get_settings: lambda: r.settings,
@@ -389,10 +390,43 @@ def test_management_through_actual_middleware_and_legacy_put(monkeypatch, tmp_pa
         listing = client.get("/v1/profile/shares", headers=headers).json()
         assert listing["grants"][0]["value"] == "metric"
         assert "cannot be recalled" in listing["warning"]
-        assert client.put("/v1/profile", headers=headers, json={"fields": [{
+        assert client.put("/v1/profile", headers=headers, json={"expected_revision": 1, "fields": [{
             "field": "preferred_units", "value": "metric", "shared_with_applications": ["personal_ai"]}]}).status_code == 409
-        assert client.put("/v1/profile", headers=headers, json={"fields": [{
+        assert client.put("/v1/profile", headers=headers, json={"expected_revision": 1, "fields": [{
             "field": "locale", "value": "en-US"}]}).status_code == 200
+        r.settings.memory_user_management_enabled = True
+        r.settings.memory_portability_enabled = True
+        principal[0] = replace(r.principal, authenticated_at=int(time.time()) - 86400)
+        stale_body = {
+            "expected_revision": 2,
+            "fields": [{"field": "locale", "value": "en-CA"}],
+        }
+        denied_legacy = client.put("/v1/profile", headers=headers, json=stale_body)
+        denied_portability = client.post(
+            "/v1/memory/control/portability/profile", headers=headers, json=stale_body
+        )
+        assert denied_legacy.status_code == denied_portability.status_code == 401
+        assert r.repository.get(r.principal.owner_id).revision == 2
+        principal[0] = r.principal
+        stale_body = {
+            "expected_revision": 1,
+            "fields": [{"field": "locale", "value": "en-CA"}],
+        }
+        stale_legacy = client.put("/v1/profile", headers=headers, json=stale_body)
+        stale_portability = client.post(
+            "/v1/memory/control/portability/profile", headers=headers, json=stale_body
+        )
+        assert stale_legacy.status_code == stale_portability.status_code == 409
+        assert r.repository.get(r.principal.owner_id).revision == 2
+        principal[0] = replace(r.principal, audience="foreign-client")
+        wrong_audience = client.put("/v1/profile", headers=headers, json=stale_body)
+        assert wrong_audience.status_code in {403, 404}
+        principal[0] = r.principal
+        monkeypatch.setattr("personal_ai.api.dependencies.is_external_client_request", lambda: True)
+        external_client = client.put("/v1/profile", headers=headers, json=stale_body)
+        assert external_client.status_code == 404
+        assert r.repository.get(r.principal.owner_id).revision == 2
+        monkeypatch.setattr("personal_ai.api.dependencies.is_external_client_request", original_external_check)
         principal[0] = replace(r.principal, authenticated_at=int(time.time()) - 86400)
         assert client.get("/v1/profile/shares", headers=headers).status_code == 401
         principal[0] = r.principal

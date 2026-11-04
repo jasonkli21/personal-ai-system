@@ -110,7 +110,7 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     historical_v2 = (FIXTURES / "manifest-v2.json").read_bytes()
     assert sha(historical_v2) == "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c"
     old_hashes = json.loads(historical_v2)["hashes"]
-    for name in old_hashes.keys() - {"core_runtime", "contracts"}:
+    for name in old_hashes.keys() - {"core_runtime", "contracts", "driver", "http"}:
         assert manifest["hashes"][name] == old_hashes[name]
     assert manifest["hashes"]["core_runtime"] != old_hashes["core_runtime"]
     assert manifest["frozen_before_measurement"] is True
@@ -128,14 +128,17 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     }
 
 
-@pytest.mark.parametrize("generation", [7, 8])
+@pytest.mark.parametrize("generation", [7, 8, 9])
 def test_source_identity_preserves_prior_protocol_generations(generation):
     current = json.loads((FIXTURES / f"manifest-v2-source-{generation}.json").read_bytes())
     previous = json.loads((FIXTURES / f"manifest-v2-source-{generation - 1}.json").read_bytes())
     assert current["frozen_before_measurement"] is True
     assert f"source generation {generation}" in current["preregistration"]
     assert current["hashes"]["cases"] == previous["hashes"]["cases"]
-    for name in previous["hashes"].keys() - {"core_runtime", "contracts"}:
+    changed_protocols = {"core_runtime", "contracts"}
+    if generation == 9:
+        changed_protocols |= {"driver", "http"}
+    for name in previous["hashes"].keys() - changed_protocols:
         assert current["hashes"][name] == previous["hashes"][name]
 
 

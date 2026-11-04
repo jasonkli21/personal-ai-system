@@ -170,6 +170,8 @@ class InMemoryGlobalProfileRepository:
 
     def get(self, owner_id: str) -> GlobalProfile:
         with self._lock:
+            if owner_id in self.fenced_owners:
+                raise ValueError("owner_deletion_fenced")
             return self.records.get(
                 owner_id,
                 GlobalProfile(owner_id=owner_id, revision=0, fields=(), updated_at=None),

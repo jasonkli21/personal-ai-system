@@ -59,7 +59,8 @@ HISTORICAL_V30_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V31_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v31.json"
 HISTORICAL_V32_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v32.json"
 HISTORICAL_V33_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v33.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v34.json"
+HISTORICAL_V34_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v34.json"
+FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v35.json"
 PLANNING_EVALUATOR_VERSION = "planning-evaluator-v8"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -114,6 +115,7 @@ SOURCE_IDENTITY_PATHS = tuple(
                 "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-6.json",
                 "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-7.json",
                 "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-8.json",
+                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-9.json",
             }
             and "__pycache__" not in path.parts
             and path.suffix != ".pyc"
@@ -133,7 +135,7 @@ def baseline_planner():
 def freeze_identity():
     distributions = _runtime_distributions()
     return {
-        "baseline_lock_version": "planning-baseline-lock-v34",
+        "baseline_lock_version": "planning-baseline-lock-v35",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

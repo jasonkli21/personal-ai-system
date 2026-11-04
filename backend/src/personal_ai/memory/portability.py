@@ -3,28 +3,40 @@
 import hashlib
 import hmac
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
-from personal_ai.context.profile import GlobalProfile, GlobalProfileFieldRecord
+from personal_ai.context.profile import GlobalProfile, GlobalProfileFieldUpdate, ProfileField
 
 MAX_PORTABLE_BYTES = 8192
 DOWNLOAD_WARNING = "Downloaded copies leave Personal AI and cannot be recalled."
+_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
 
 
-class PortableProfileField(GlobalProfileFieldRecord):
-    # A portable field carries its observation, never an active sharing dependency.
-    shared_with_applications: tuple[()] = ()
+class PortableProfileField(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: ProfileField
+    value: str = Field(min_length=1, max_length=100)
     set_by: Literal["user"]
+    set_at: datetime
 
     @field_validator("set_at", mode="before")
     @classmethod
     def observed_as_text(cls, value):
         if not isinstance(value, str) or not 20 <= len(value) <= 40:
             raise ValueError("portable_observation_invalid")
-        return value
+        parsed = datetime.fromisoformat(value)
+        if parsed.utcoffset() is None:
+            raise ValueError("portable_observation_invalid")
+        return parsed.astimezone(UTC)
+
+    @model_validator(mode="after")
+    def public_value_is_valid(self):
+        GlobalProfileFieldUpdate(field=self.field, value=self.value)
+        return self
 
 
 class PortableProfile(BaseModel):
@@ -51,9 +63,11 @@ class PortableProfile(BaseModel):
     def check_observations(self):
         created = datetime.fromisoformat(self.created_at)
         names = [item.field for item in self.fields]
+        now = datetime.now(UTC)
         if (
             not self.complete
             or created.utcoffset() is None
+            or created > now + _FUTURE_CLOCK_SKEW
             or any(item.set_at > created for item in self.fields)
             or names != sorted(set(names))
             or (self.revision == 0 and names)

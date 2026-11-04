@@ -170,10 +170,10 @@ with TestClient(app) as client:
     )
     assert spoof.status_code == 201 and spoof.json()["owner_id"] == "local"
     updated = client.put(
-        "/v1/profile", json={"fields": [{"field": "response_style", "value": "concise"}]}
+        "/v1/profile", json={"expected_revision": 0, "fields": [{"field": "response_style", "value": "concise"}]}
     )
-    assert updated.status_code == 200, updated.text
-    assert client.get("/v1/profile").json()["fields"][0]["value"] == "concise"
+    assert updated.status_code == 401, updated.text
+    assert client.get("/v1/profile").json()["fields"] == []
     conversation = client.post("/v1/conversations", json={})
     assert conversation.status_code == 201, conversation.text
     conversation_id = conversation.json()["id"]

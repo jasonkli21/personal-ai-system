@@ -223,6 +223,7 @@ def http_task(task, arm):
                         "/v1/profile",
                         headers=ui,
                         json={
+                            "expected_revision": 1,
                             "fields": [
                                 {
                                     "field": "preferred_units",

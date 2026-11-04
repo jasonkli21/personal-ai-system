@@ -378,6 +378,7 @@ def profile_grant(h, task):
         "/v1/profile",
         headers=ui,
         json={
+            "expected_revision": 0,
             "fields": [
                 {"field": "preferred_units", "value": value},
                 {"field": "locale", "value": "en-GB"},

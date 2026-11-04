@@ -2,11 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from pydantic import Field
 
 from personal_ai.api.dependencies import (
     get_application_registry,
-    get_current_owner_id,
     get_global_profile_repository,
     get_request_scope,
     require_recent_builtin_owner,
@@ -17,6 +17,7 @@ from personal_ai.context.profile import (
     GlobalProfile,
     GlobalProfileRepository,
     GlobalProfileUpdate,
+    ProfileRevisionConflict,
 )
 from personal_ai.context.profile_consent import (
     ConsentError,
@@ -38,26 +39,33 @@ def _require_profile_owner_scope(scope: RequestScope) -> None:
 
 @router.get("", response_model=GlobalProfile)
 def read_profile(
-    owner_id: Annotated[str, Depends(get_current_owner_id)],
     scope: Annotated[RequestScope, Depends(get_request_scope)],
     repository: Annotated[GlobalProfileRepository, Depends(get_global_profile_repository)],
+    response: Response,
 ) -> GlobalProfile:
     _require_profile_owner_scope(scope)
+    response.headers["Cache-Control"] = "private, no-store"
     try:
-        return repository.get(owner_id)
-    except (PersistenceUnavailable, TimeoutError) as error:
+        with repository.profile_snapshot(scope.owner_id) as profile:
+            return profile
+    except Exception as error:
         raise StorageUnavailableError("profile storage unavailable") from error
+
+
+class ProfileCorrection(GlobalProfileUpdate):
+    expected_revision: int = Field(strict=True, ge=0, le=2**63 - 1)
 
 
 @router.put("", response_model=GlobalProfile)
 def update_profile(
-    update: GlobalProfileUpdate,
-    owner_id: Annotated[str, Depends(get_current_owner_id)],
+    correction: ProfileCorrection,
+    principal: Annotated[object, Depends(require_recent_builtin_owner)],
     scope: Annotated[RequestScope, Depends(get_request_scope)],
     registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
     repository: Annotated[GlobalProfileRepository, Depends(get_global_profile_repository)],
 ) -> GlobalProfile:
     _require_profile_owner_scope(scope)
+    update = GlobalProfileUpdate.model_validate(correction.model_dump(exclude={"expected_revision"}))
     if any(
         application_id not in registry.application_ids
         for entry in update.fields
@@ -67,11 +75,15 @@ def update_profile(
     if any(entry.shared_with_applications for entry in update.fields):
         raise HTTPException(status_code=409, detail="profile_sharing_requires_consent")
     try:
-        return repository.update(owner_id, update)
-    except (PersistenceUnavailable, TimeoutError) as error:
-        raise StorageUnavailableError("profile storage unavailable") from error
+        return repository.update(
+            principal.owner_id, update, expected_revision=correction.expected_revision
+        )
+    except ProfileRevisionConflict as error:
+        raise HTTPException(status_code=409, detail="profile_update_conflict") from error
     except PersistenceConflict as error:
         raise HTTPException(status_code=409, detail="profile_update_conflict") from error
+    except (PersistenceUnavailable, TimeoutError, ValueError) as error:
+        raise StorageUnavailableError("profile storage unavailable") from error
 
 
 def get_profile_consent_service(

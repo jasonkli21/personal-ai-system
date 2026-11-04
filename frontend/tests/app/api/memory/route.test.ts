@@ -44,3 +44,37 @@ it("passes the original bounded bytes without decoding malformed UTF-8", async (
   expect((await POST(request)).status).toBe(200);
   expect(proxy).toHaveBeenCalledWith(request, "/v1/memory/control/portability/import-preview", bytes);
 });
+
+it("returns content-free errors for the disabled portability gate and invalid media type", async () => {
+  vi.stubEnv("MEMORY_USER_MANAGEMENT_ENABLED", "true");
+  vi.stubEnv("MEMORY_PORTABILITY_ENABLED", "false");
+  const url = "http://localhost/api/memory/control/portability/import-preview";
+  expect((await POST(new NextRequest(url, {
+    method: "POST", body: "{}", headers: { "Content-Type": "application/json" },
+  }))).status).toBe(404);
+  vi.stubEnv("MEMORY_PORTABILITY_ENABLED", "true");
+  const response = await POST(new NextRequest(url, {
+    method: "POST", body: "{}", headers: { "Content-Type": "text/plain" },
+  }));
+  expect(response.status).toBe(415);
+  expect(await response.json()).toEqual({ error: { code: "portable_json_required" } });
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  expect(proxy).not.toHaveBeenCalled();
+});
+
+it("cancels a stalled upload at the receive deadline", async () => {
+  vi.useFakeTimers();
+  vi.stubEnv("MEMORY_USER_MANAGEMENT_ENABLED", "true");
+  vi.stubEnv("MEMORY_PORTABILITY_ENABLED", "true");
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({ cancel() { cancelled = true; } });
+  const pending = POST(new NextRequest("http://localhost/api/memory/control/portability/import-preview", {
+    method: "POST", body, headers: { "Content-Type": "application/json" },
+  }));
+  await vi.advanceTimersByTimeAsync(2000);
+  const response = await pending;
+  expect(response.status).toBe(408);
+  expect(await response.json()).toEqual({ error: { code: "body_interrupted" } });
+  expect(cancelled).toBe(true);
+  expect(proxy).not.toHaveBeenCalled();
+});
