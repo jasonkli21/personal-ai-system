@@ -49,7 +49,7 @@ def oidc_settings(**updates) -> Settings:
 @pytest.fixture
 def oidc_client() -> Iterator[tuple[TestClient, InMemoryPrincipalDirectory]]:
     directory = InMemoryPrincipalDirectory()
-    app.dependency_overrides[get_settings] = oidc_settings
+    app.dependency_overrides[get_settings] = lambda: oidc_settings()
     app.state.principal_directory = directory
     with TestClient(app) as client:
         yield client, directory
@@ -358,6 +358,7 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
         email="owner@example.com",
         issued_at=int(time.time()),
         authenticated=True,
+        authenticated_at=int(time.time()),
         audience="personal-ai-web-client",
         authorized_party="personal-ai-web-client",
         expires_at=int(time.time()) + 3600,
@@ -377,6 +378,7 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
         "/v1/profile",
         headers=headers,
         json={
+            "expected_revision": 0,
             "fields": [
                 {
                     "field": "preferred_units",
@@ -386,7 +388,7 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
             ]
         },
     )
-    assert updated.status_code == 200
+    assert updated.status_code == 200, updated.text
     assert updated.json()["fields"][0]["set_by"] == "user"
     assert updated.json()["fields"][0]["shared_with_applications"] == []
 
@@ -400,7 +402,8 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
         def get(self, _owner_id):
             raise PersistenceUnavailable("postgres-private-host SQL details")
 
-        def update(self, _owner_id, _update):
+        def update(self, _owner_id, _update, *, expected_revision):
+            assert expected_revision == 1
             raise TimeoutError("postgres-private-host SQL details")
 
     app.dependency_overrides[get_global_profile_repository] = (
@@ -410,7 +413,7 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
     unavailable_put = client.put(
         "/v1/profile",
         headers=headers,
-        json={"fields": [{"field": "locale", "value": "en-GB"}]},
+        json={"expected_revision": 1, "fields": [{"field": "locale", "value": "en-GB"}]},
     )
     for response in (unavailable_get, unavailable_put):
         assert response.status_code == 503
@@ -422,7 +425,8 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
         def get(self, _owner_id):
             raise AssertionError("GET does not update the profile")
 
-        def update(self, _owner_id, _update):
+        def update(self, _owner_id, _update, *, expected_revision):
+            assert expected_revision == 1
             raise PersistenceConflict("revision=9 SQL details")
 
     app.dependency_overrides[get_global_profile_repository] = (
@@ -431,7 +435,7 @@ def test_global_profile_api_requires_authenticated_owner_and_personal_ai_scope(
     conflict = client.put(
         "/v1/profile",
         headers=headers,
-        json={"fields": [{"field": "locale", "value": "en-GB"}]},
+        json={"expected_revision": 1, "fields": [{"field": "locale", "value": "en-GB"}]},
     )
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "profile_update_conflict"

@@ -63,3 +63,13 @@ tracks the scoped evidence.
 
 See the [adapter guide](../../adapters/mcp_source/README.md), [plan hardening](hxe-1-plan-hardening.md)
 and [verification receipt](2026-11-03-hxe1-implementation.md).
+
+## Profile evidence and operator tooling
+
+The [release operator guide](release-operator-guide.md) documents versioned profile
+manifests, closed evidence validation, repeat SDK builds, operator-pinned native
+installation and opt-in bounded synthetic measurement. `make release-profile-check`
+checks the new tooling; `make release-preflight` reports missing prerequisites
+without network execution. Current profile decisions remain release NO_GO with
+independent acceptance pending. Synthetic conformance does not close native,
+origin, signed installed server, real-model, hosted or cloud gates.

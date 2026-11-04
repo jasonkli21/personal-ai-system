@@ -24,7 +24,7 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | Persistence and recovery | [Persistence README](../backend/src/personal_ai/persistence/README.md), [operations](../stabilization/OPERATIONS.md) |
 | Frontend and sidecar | [chat feature README](../frontend/src/features/chat/README.md), [API contract](api-contract.md) |
 | Evaluation and experiments | `backend/src/personal_ai/evaluation/`, fixture/lock and focused tests; [current status](current-state.md) |
-| Operations and release gates | [Current verification](../stabilization/VERIFICATION.md), [operations](../stabilization/OPERATIONS.md), [current state](current-state.md) |
+| Operations and release gates | [Release profiles and operator guide](harness-excellence/release-operator-guide.md), [Current verification](../stabilization/VERIFICATION.md), [operations](../stabilization/OPERATIONS.md), [current state](current-state.md) |
 | Compatibility and independent acceptance | [Platform independence](platform-independence/README.md), then the relevant contract and dated evidence |
 | Maintainability or future work | [Quality assessment](../stabilization/CODE-QUALITY.md), then the specifically authorized plan |
 | Naming compatibility | [Naming exceptions](naming-exceptions.md), then the active paths and naming-policy check |

@@ -4,6 +4,25 @@ Updated 2026-11-03. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance.
 Independent final review and external acceptance remain open.
 
+## Release profile candidate tooling
+
+Versioned profile manifests, deterministic closed evidence validation, repeat
+committed SDK builds, inert wheel inspection and an unrelated source-free SDK
+synthetic probe are implemented. Preflight is read-only by default; opt-in bounded
+measurement composes existing canonical source/admission/attempt tests. No runtime
+contract, capability default or frozen benchmark source input changes.
+Author checks passed 18 tooling tests, 379 SDK conformance tests and 2404
+Python-fenced offline tests (264 unavailable cases deselected). The original
+full offline target and native installed/loopback checks did not pass; the receipt
+preserves those failures and the corrected auth fixture.
+All release profiles remain **NO_GO**, independent acceptance **pending**.
+Local preview is **BLOCKED** on authenticated dependency/tool origins, transitive
+license review, native install/signed server, real model/task/resources and review.
+Hosted/cloud/production data and optional peers remain off. See the
+[operator guide](harness-excellence/release-operator-guide.md) and
+[author verification receipt](harness-excellence/2026-11-03-release-verification.md).
+
+
 The 2026-11-03 v27 check failed after required Apache-2.0 package metadata changed
 the frozen PI-6 source identity. HXE-0 addressed that with additive v28 and
 source-generation-2 identities while preserving v26, v27, v2 manifest, corpus,

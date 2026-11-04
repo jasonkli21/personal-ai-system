@@ -58,3 +58,12 @@ and operator-granted rights. Unconfigured retrieval raises
 safe code. The SDK accepts caller-supplied ID tokens and has no token issuer,
 admin, memory control or general tool API. Diagnostics omit endpoint, token,
 scope values, request and response content.
+
+For a no-example unrelated consumer and operator-pinned native installation, use
+the [release operator guide](../../docs/harness-excellence/release-operator-guide.md).
+`make release-build-report` compares two committed SDK builds without downloading
+build dependencies. Input authenticity and transitive build-tool licensing need
+independent pins/review. `make release-profile-check` includes wheel tamper,
+startup-hook, source-import and source-free synthetic protocol negatives. Native
+install and signed installed server proof remain separate gates; these commands
+do not promote the provisional contract or enable a capability.

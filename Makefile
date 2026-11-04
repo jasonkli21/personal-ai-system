@@ -268,3 +268,17 @@ workflow-check:
 workflow-postgres-check:
 	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
 	cd backend && python -m pytest -q tests/persistence/test_workflow_postgres.py
+
+.PHONY: release-profile-check release-preflight release-build-report release-canary-check
+release-profile-check:
+	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p 'test_release_profiles.py'
+	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p 'test_release_artifacts.py'
+
+release-preflight:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/release_preflight.py
+
+release-build-report:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/release_artifacts.py build --uv "$$(command -v $(UV))"
+
+release-canary-check:
+	$(PLATFORM_PYTHON) -E -s backend/scripts/release_preflight.py --measure-synthetic
