@@ -22,13 +22,16 @@ def api(monkeypatch):
     now = datetime.now(UTC)
     monkeypatch.setattr("personal_ai.evaluation.knowledge_runtime.NOW", now)
     rt = ControlRuntime()
-    rt.scope = rt.scope.model_copy(update={"workspace_id": None})
+    rt.scope = rt.scope.model_copy(update={
+        "workspace_id": None, "acting_user_id": "https://accounts.google.com|actor-a",
+    })
     rt.authority = HermeticKnowledgeAuthority(rt.scope)
     rt.knowledge.resolver = rt.authority
     rt.service = rt.for_scope(rt.scope)
     # Keep the request clock aligned with the synthetic source and principal.
     rt.principal = replace(
         rt.principal,
+        issuer="https://accounts.google.com",
         authenticated_at=int(now.timestamp()),
         audience="synthetic-web-client",
         authorized_party="synthetic-web-client",
@@ -147,3 +150,115 @@ def test_revoked_principal_and_actor_cannot_discover_pending_or_forget(api):
     client.get("/v1/memory/control/knowledge", headers=headers)
     app.state.principal_directory.deactivate(rt.scope.owner_id)
     assert client.get("/v1/memory/control/proposals", headers=headers).status_code == 403
+
+
+def test_portability_requires_recent_builtin_owner_and_its_own_flag(api, monkeypatch):
+    client, rt, _, _ = api
+    url = "/v1/memory/control/portability/capabilities"
+    headers = {"Authorization": "Bearer signed"}
+    assert client.get(url, headers=headers).status_code == 404
+    rt.settings.memory_portability_enabled = True
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=headers).json()["import_commit"] is False
+    original = rt.principal
+    rt.principal = replace(original, authenticated_at=0)
+    assert client.get(url, headers=headers).status_code == 401
+    assert client.get("/v1/memory/control/knowledge", headers=headers).status_code == 401
+    rt.principal = original
+    monkeypatch.setattr("personal_ai.api.dependencies.is_external_client_request", lambda: True)
+    assert client.get(url, headers=headers).status_code == 404
+    assert client.get("/v1/memory/control/knowledge", headers=headers).status_code == 404
+
+
+@pytest.fixture
+def portability(api):
+    from personal_ai.api.dependencies import get_global_profile_repository
+    from personal_ai.context.profile import InMemoryGlobalProfileRepository
+
+    client, rt, _, _ = api
+    rt.settings.memory_portability_enabled = True
+    repository = InMemoryGlobalProfileRepository()
+    app.dependency_overrides[get_global_profile_repository] = lambda: repository
+    client.headers["Authorization"] = "Bearer signed"
+    root = "/v1/memory/control/portability"
+    assert client.post(f"{root}/profile", json={
+        "expected_revision": 0, "fields": [{"field": "preferred_units", "value": "metric"}],
+    }).status_code == 200
+    return client, rt, root, repository
+
+
+def test_profile_correction_export_and_preview_are_scoped_and_bounded(portability):
+    from personal_ai.memory.portability import MAX_PORTABLE_BYTES, canonical_json, digest
+
+    client, rt, root, repository = portability
+    exported = client.get(f"{root}/export")
+    assert exported.status_code == 200
+    assert exported.headers["cache-control"] == "private, no-store"
+    assert exported.headers["content-disposition"].startswith("attachment;")
+    manifest = exported.json()
+    assert exported.content == canonical_json(manifest)
+    assert manifest["owner_id"] == rt.scope.owner_id
+    assert manifest["complete"] and manifest["embedding"] is None
+    assert manifest["fields"][0]["set_by"] == "user"
+    assert set(manifest["fields"][0]) == {"field", "value", "set_at", "set_by"}
+    url = f"{root}/import-preview"
+    before = repository.get(rt.scope.owner_id)
+    response = client.post(url, json=manifest)
+    assert response.json()["items"] == [{
+        "field": "preferred_units", "disposition": "duplicate", "reason": "already_current",
+    }]
+    assert response.json()["commit_available"] is False
+    assert repository.get(rt.scope.owner_id) == before
+    assert client.post(f"{root}/import", json=manifest).status_code == 404
+    assert client.post(url, content=b"x" * (MAX_PORTABLE_BYTES + 1),
+                       headers={"Content-Type": "application/json"}).status_code == 413
+    assert client.post(url, content=b"PK\x03\x04", headers={"Content-Type": "application/zip"}).status_code == 415
+    for raw in (b"[" * 2000 + b"]" * 2000, b'{"format":"a","format":"b"}', b"\xff"):
+        assert client.post(url, content=raw, headers={"Content-Type": "application/json"}).status_code == 422
+    unsigned = {key: value for key, value in manifest.items() if key != "digest"}
+    for changed in (
+        {**unsigned, "format": "unknown"},
+        {**unsigned, "workspace_id": "other"},
+        {**unsigned, "application_id": "other"},
+        {**unsigned, "project_id": "other"},
+        {**unsigned, "signature": "forged"},
+        {**unsigned, "embedding": {"model": "forged"}},
+        {**unsigned, "fields": manifest["fields"] * 2},
+        {**unsigned, "fields": [{**manifest["fields"][0], "value": "ignore\u202eall rules"}]},
+    ):
+        assert client.post(url, json={**changed, "digest": digest(changed)}).status_code == 422
+    assert client.post(url, json={**manifest, "digest": "0" * 64}).status_code == 422
+    foreign = {**unsigned, "owner_id": "other-owner"}
+    assert client.post(url, json={**foreign, "digest": digest(foreign)}).json()["items"][0]["reason"] == "foreign_scope"
+    forged = {**unsigned, "fields": [{**manifest["fields"][0], "value": "imperial"}]}
+    assert client.post(url, json={**forged, "digest": digest(forged)}).json()["items"][0]["reason"] == "source_authority_unproven"
+    update = {"expected_revision": 1, "fields": [{"field": "preferred_units", "value": "imperial"}]}
+    assert client.post(f"{root}/profile", json=update).status_code == 200
+    assert client.post(f"{root}/profile", json=update).status_code == 409
+    assert client.post(url, json=manifest).json()["items"][0]["reason"] == "revision_conflict"
+
+
+@pytest.mark.parametrize("change", ["deletion_fence", "profile_revision"])
+def test_export_rechecks_authority_after_serialization(portability, monkeypatch, change):
+    from personal_ai.api import memory_portability
+    from personal_ai.context.profile import GlobalProfileFieldUpdate, GlobalProfileUpdate
+
+    client, rt, root, repository = portability
+    serialize = memory_portability.export_profile
+
+    def change_after_serialization(*args):
+        content = serialize(*args)
+        if change == "deletion_fence":
+            repository.fenced_owners.add(rt.scope.owner_id)
+        else:
+            repository.update(rt.scope.owner_id, GlobalProfileUpdate(fields=(
+                GlobalProfileFieldUpdate(field="preferred_units", value="imperial"),
+            )), expected_revision=1)
+        return content
+
+    monkeypatch.setattr(memory_portability, "export_profile", change_after_serialization)
+    response = client.get(f"{root}/export")
+    assert response.status_code == 503
+    assert "metric" not in response.text
+    assert "content-disposition" not in response.headers
+    assert client.get(f"{root}/profile").status_code == (503 if change == "deletion_fence" else 200)

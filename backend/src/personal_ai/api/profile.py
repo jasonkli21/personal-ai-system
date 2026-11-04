@@ -9,10 +9,9 @@ from personal_ai.api.dependencies import (
     get_current_owner_id,
     get_global_profile_repository,
     get_request_scope,
-    require_recent_auth,
+    require_recent_builtin_owner,
 )
 from personal_ai.applications.registry import ApplicationRegistry
-from personal_ai.auth.application_clients import is_external_client_request
 from personal_ai.auth.scope import STANDALONE_APPLICATION_ID, RequestScope
 from personal_ai.context.profile import (
     GlobalProfile,
@@ -78,22 +77,13 @@ def update_profile(
 def get_profile_consent_service(
     request: Request,
     scope: Annotated[RequestScope, Depends(get_request_scope)],
-    principal: Annotated[object, Depends(require_recent_auth)],
+    principal: Annotated[object, Depends(require_recent_builtin_owner)],
     settings: Annotated[Settings, Depends(get_settings)],
     registry: Annotated[ApplicationRegistry, Depends(get_application_registry)],
     repository: Annotated[GlobalProfileRepository, Depends(get_global_profile_repository)],
 ):
     _require_profile_owner_scope(scope)
     if not settings.profile_sharing_enabled:
-        raise HTTPException(status_code=404, detail="not_found")
-    if (
-        is_external_client_request()
-        or principal.audience != settings.auth_audience
-        or principal.authorized_party != settings.auth_audience
-        or principal.issuer != "https://accounts.google.com"
-        or principal.owner_id != scope.owner_id
-        or scope.acting_user_id != f"{principal.issuer}|{principal.subject}"
-    ):
         raise HTTPException(status_code=404, detail="not_found")
     return ProfileConsentService(repository, registry, principal)
 

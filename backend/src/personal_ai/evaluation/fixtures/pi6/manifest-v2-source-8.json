@@ -1,0 +1,17 @@
+{
+  "frozen_before_measurement": true,
+  "hashes": {
+    "audit": "0b33310df0ff73be2e3308257ec730f4e6827aaf6bc2c2dad6a12fc423490765",
+    "cases": "25df654eda27040c3b52695fd6ec695b53238a7cf76b82e1ed4e5d442b55205d",
+    "contracts": "9f5e3988ef83bfa3e2c8257e705b34a086ca1d14b9bdfec2665d405050a4d157",
+    "core_runtime": "7ef4cd7776b6f043e79cb22eaf689ad9da26617706bd08b93620f9f66fb7092e",
+    "driver": "d1b5a80c8c20afa7fb7e07c490109177b1669bf2db1ed49a524d5cf1f6efd446",
+    "http": "c961bb43f4a80766fbd909f63b3d43acf8b58d65db98abb40148171225ee5ea7",
+    "reading_logbook_client": "fc1d1b70448192532311261b00e08233da2ef9aba7419d5f971b33d4bca12c40",
+    "reading_logbook_host": "bbef3ec65cb0c991348742b160da74bf8dd8fd9eda46493e14641c506ce29d03",
+    "runner": "4e5a9371e7506507a1a96d151942231e8ab5fa05b4d9335256f24bceee3821d1",
+    "scoring": "88b5577bdec9c855d4a2d74e6eff6fc6ecead46f954dbe9568e6d346100beef1"
+  },
+  "preregistration": "PI-6 v2 frozen cases and scoring are unchanged; additive source generation 8 binds owner memory portability; synthetic E1 only; non-promotion.",
+  "suite": "pi6-offline-v2"
+}

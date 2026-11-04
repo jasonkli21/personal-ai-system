@@ -157,3 +157,15 @@ See the [control ADR](../../../../docs/memory/mem-2-control-adr.md),
 Run `make memory-control-eval`, `test_memory_control*.py` and opt-in native
 `tests/persistence/test_memory_control_postgres.py`. Synthetic checks do not close
 issuer/identity, physical-send, backup deletion, operation-ledger growth or live-model gates.
+
+
+## Owner profile portability
+
+`portability.py` defines a closed, bounded export of explicit profile values and
+a read-only import preview. The private API requires recent builtin owner
+authentication and `MEMORY_PORTABILITY_ENABLED` with user management enabled.
+It reads the canonical profile under its owner deletion fence, rechecks the
+snapshot after serialization and uses the existing profile writer for
+revision-checked corrections. Export and preview have no model calls or storage
+of portable files. Project knowledge export and import commit are unavailable.
+See [owner controls](../../../../docs/memory/owner-portability.md).

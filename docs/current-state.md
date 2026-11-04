@@ -332,6 +332,17 @@ review. Implementation of this narrowed slice is not full phase completion or
 production promotion. Historical MEM-0/MEM-1 reports, fixtures and acceptance gates
 remain unchanged. Planner v18 is a source-only non-promoting rebind of v17.
 
+## Owner profile portability
+
+The [owner controls](memory/owner-portability.md) have a default-off profile
+adapter for revision-checked preference editing, owner-fenced explicit profile
+export and bounded, inert import preview. It uses the existing private browser
+proxy and canonical profile writer. The two-consumer synthetic canary exercises
+the existing profile consent boundary. Verified knowledge revision, project
+knowledge export and applied import remain unavailable. See the
+[implementation evidence](harness-excellence/2026-11-03-memory-portability-verification.md)
+for checked behavior and enablement gates.
+
 ## Identity and effect boundaries
 
 Deployed requests require independently verified service IAM plus a bounded,

@@ -283,6 +283,7 @@ class Settings(BaseSettings):
     memory_knowledge_selection_enabled: bool = False
     memory_agent_tools_enabled: bool = False
     memory_user_management_enabled: bool = False
+    memory_portability_enabled: bool = False
     memory_user_mutations_enabled: bool = False
     memory_embedding_model: str = Field(default="gemini-embedding-001", min_length=1)
     memory_embedding_dimensions: int = Field(default=768, gt=0, le=2048)

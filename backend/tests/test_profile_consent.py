@@ -41,6 +41,7 @@ from personal_ai.context.profile_consent import (
     ConsentError,
     ProfileConsentService,
     ProfileShareIntent,
+    destination_allowed,
     share_dependency,
     shared_memory_view_status,
 )
@@ -776,3 +777,73 @@ def test_concurrent_builder_calls_cannot_overwrite_shared_count_guard():
             release.set()
         with pytest.raises(ContextError, match="authority_changed"):
             future.result(timeout=3)
+
+
+@pytest.mark.parametrize("change", ["revoke", "expiry", "correction", "membership"])
+def test_two_consumer_profile_projection_canary(change):
+    """Matched synthetic consumer output depends only on the granted projection."""
+    r = runtime()
+    sibling = ApplicationDefinition(
+        application_id="separate_reader", display_name="Separate Reader",
+        memory_namespace="separate_reader", workspace_kind="required",
+    )
+    class SiblingMembership:
+        def is_member(self, principal, app, workspace):
+            return app == sibling.application_id and workspace == "shelf" and principal.authenticated
+
+    r.registry = r.registry.with_contributions(ApplicationContribution(
+        definitions=(sibling,), workspace_authorizers={sibling.application_id: SiblingMembership()},
+    ))
+    sibling_destination = ApplicationScope(application_id=sibling.application_id, workspace_id="shelf")
+    assert destination_allowed(r.registry, r.principal, sibling_destination, "preferred_units")
+    r.factory.registry = r.validator.application_registry = r.registry
+    sibling_scope = r.scope.model_copy(update={"application_id": sibling.application_id})
+    sibling_registration = r.registry.registration(sibling.application_id)
+    sibling_context = ApplicationContextRequest(
+        definition=sibling_registration.definition, scope=sibling_scope,
+        context_provider_capabilities=sibling_registration.context_providers,
+    )
+
+    def consume(stage, scope, context):
+        start = time.perf_counter()
+        with bound(r, scope):
+            plan = r.assembler.plan_context("What units do I prefer?", context)
+            packed = r.assembler.assemble(
+                (), pending(r).model_copy(update={"application_id": scope.application_id}),
+                application_context=context, context_plan=plan, refresh=False,
+            )
+        # A deterministic synthetic consumer answers from the projection it receives.
+        output = "No preference available"
+        disclosed = 0
+        if packed.source_items:
+            item, = packed.source_items
+            output = item.payload.value
+            disclosed = len(item.payload.model_dump_json().encode("utf-8"))
+            dep, = item.permission_dependencies
+            assert dep.destination_application_id == scope.application_id
+            assert dep.source_scope == ApplicationScope()
+            assert item.authority == "user_asserted"
+            assert "metric" in " ".join(message.content for message in packed.messages)
+        else:
+            assert "metric" not in " ".join(message.content for message in packed.messages)
+        print(f"{stage} {scope.application_id}: {output}; projection_bytes={disclosed}; "
+              f"elapsed_ms={(time.perf_counter() - start) * 1000:.2f}")
+        return output
+
+    assert consume("absent", r.scope, r.context) == "No preference available"
+    r.service.mutate(r.intent)
+    assert consume("granted", r.scope, r.context) == "metric"
+    assert consume("wrong destination", sibling_scope, sibling_context) == "No preference available"
+    if change == "revoke":
+        revoke(r)
+    elif change == "expiry":
+        r.clock[0] = r.intent.expires_at
+    elif change == "correction":
+        r.repository.update(r.principal.owner_id, GlobalProfileUpdate(fields=(
+            GlobalProfileFieldUpdate(field="preferred_units", value="imperial"),
+        )), expected_revision=1)
+    else:
+        r.member.allowed = False
+    assert consume(change, r.scope, r.context) == "No preference available"
+    assert destination_allowed(r.registry, r.principal, sibling_destination, "preferred_units")
+    assert consume(change, sibling_scope, sibling_context) == "No preference available"

@@ -29,7 +29,7 @@ def native(isolated_postgres_dsn):
     rt = ControlRuntime()
     database = PostgresDatabase(isolated_postgres_dsn, environment="test")
     applied = database.migrate()
-    assert applied[-1] == 31
+    assert {30, 31}.issubset(applied)
     assert database.migrate() == ()
     rt.memories = PostgresMemoryRepository(database, object())
     rt.lifecycle = PostgresMemoryLifecycleRepository(rt.memories, object(), None)

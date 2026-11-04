@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from time import monotonic
 
@@ -11,6 +12,7 @@ from personal_ai.context.profile import (
     GlobalProfileFieldRecord,
     GlobalProfileRepository,
     GlobalProfileUpdate,
+    ProfileRevisionConflict,
 )
 from personal_ai.persistence.postgres import (
     PersistenceConflict,
@@ -57,7 +59,18 @@ class PostgresGlobalProfileRepository(GlobalProfileRepository):
             return GlobalProfile(owner_id=owner_id, revision=0, fields=(), updated_at=None)
         return self._decode(row[0], owner_id)
 
-    def update(self, owner_id: str, update: GlobalProfileUpdate) -> GlobalProfile:
+    @contextmanager
+    def profile_snapshot(self, owner_id: str):
+        deadline = monotonic() + 2
+        with self.database.transaction(deadline=deadline) as connection:
+            self._lock_owner(connection, owner_id)
+            yield self._read_profile(connection, owner_id)
+            if monotonic() >= deadline:
+                raise TimeoutError("profile snapshot deadline exceeded")
+
+    def update(
+        self, owner_id: str, update: GlobalProfileUpdate, *, expected_revision: int | None = None
+    ) -> GlobalProfile:
         if any(item.shared_with_applications for item in update.fields):
             raise ValueError("profile_sharing_requires_consent")
         if not owner_id or len(owner_id) > 200:
@@ -81,6 +94,8 @@ class PostgresGlobalProfileRepository(GlobalProfileRepository):
                             owner_id=owner_id, revision=0, fields=(), updated_at=None
                         )
                     )
+                    if expected_revision is not None and current.revision != expected_revision:
+                        raise ProfileRevisionConflict
                     fields = {item.field: item for item in current.fields}
                     for name in update.remove_fields:
                         fields.pop(name, None)
@@ -154,8 +169,10 @@ class PostgresGlobalProfileRepository(GlobalProfileRepository):
 
     def _read_profile(self, connection, owner_id):
         row = connection.execute(
-            "SELECT payload FROM global_profiles WHERE scope_id=%s AND record_id=%s AND owner_id=%s",
-            (PostgresPayloadRepository.scope_id(owner_id, _PROFILE_SCOPE), _PROFILE_RECORD_ID, owner_id),
+            "SELECT payload FROM global_profiles WHERE scope_id=%s AND record_id=%s "
+            "AND owner_id=%s AND application_id=%s AND workspace_id IS NULL",
+            (PostgresPayloadRepository.scope_id(owner_id, _PROFILE_SCOPE),
+             _PROFILE_RECORD_ID, owner_id, STANDALONE_APPLICATION_ID),
         ).fetchone()
         return self._decode(row[0], owner_id) if row else GlobalProfile(owner_id=owner_id, revision=0)
 

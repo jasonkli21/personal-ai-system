@@ -73,36 +73,36 @@ def test_actor_fence_migration_preserves_rows_and_scopes_revoke(
     real = files("personal_ai.persistence")
 
     class FilteredPackage:
-        def __init__(self, excluded):
-            self.excluded = excluded
+        def __init__(self, through):
+            self.through = through
 
         def joinpath(self, name):
             if name == "migrations":
 
                 class Directory:
-                    def __init__(self, excluded):
-                        self.excluded = excluded
+                    def __init__(self, through):
+                        self.through = through
 
                     def iterdir(self):
                         return [
                             f
                             for f in real.joinpath(name).iterdir()
-                            if not any(f.name.startswith(prefix) for prefix in self.excluded)
+                            if f.name.endswith(".sql") and int(f.name.split("_", 1)[0]) <= self.through
                         ]
 
-                return Directory(self.excluded)
+                return Directory(self.through)
             return real.joinpath(name)
 
     database = PostgresDatabase(isolated_postgres_dsn, environment="test")
     try:
         with monkeypatch.context() as patch:
             patch.setattr(
-                migrations, "files", lambda _: FilteredPackage({"028_", "029_", "030_", "031_"})
+                migrations, "files", lambda _: FilteredPackage(27)
             )
             assert max(database.migrate()) == 27
         with monkeypatch.context() as patch:
             patch.setattr(
-                migrations, "files", lambda _: FilteredPackage({"029_", "030_", "031_"})
+                migrations, "files", lambda _: FilteredPackage(28)
             )
             assert database.migrate() == (28,)
 
@@ -191,7 +191,10 @@ def test_actor_fence_migration_preserves_rows_and_scopes_revoke(
             patch.setattr(repo, "create_knowledge", legacy_create)
             _, record = admit(native, run_id="pre-actor-fence-migration")
 
-        assert database.migrate() == (29, 30)
+        with monkeypatch.context() as patch:
+            patch.setattr(migrations, "files", lambda _: FilteredPackage(30))
+            assert database.migrate() == (29, 30)
+        assert database.migrate()[0] == 31
         assert database.migrate() == ()
         with request(scope):
             assert repo.get_knowledge(owner_id=scope.owner_id, memory_id=record.id) == record

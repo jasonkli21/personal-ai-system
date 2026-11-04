@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { authenticatedFetch, getAuthIdentityKey, subscribeAuth } from "../../lib/auth";
+
+import { PortabilityPanel } from "./portability-panel";
 
 type Memory = {
   application_id: string; workspace_id: string | null;
   id: string; title: string; kind: string; historical_content: string;
   project: { project_id: string; revision: string; branch: string };
   authority: string; verification: string; state_version: number; expires_at: string;
-  source_ids: string[];
+  observed_at: string; validity_epoch: number; source_ids: string[];
 };
 type Proposal = {
   id: string; status: string; version: number; expires_at: string;
@@ -59,50 +61,46 @@ function removeStoredIntent() {
 
 async function request<T>(path: string, body?: Intent["body"]): Promise<T> {
   const response = await authenticatedFetch(`/api/memory/control/${path}`, {
-    method: body ? "POST" : "GET", cache: "no-store",
+    method: body ? "POST" : "GET", cache: "no-store", signal: AbortSignal.timeout(8000),
     ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
   });
   if (!response.ok) throw new Error("Memory controls are unavailable or require a recent sign-in.");
   return response.json() as Promise<T>;
 }
 
-export function MemoryPanel() {
+export function MemoryPanel({ portabilityEnabled = false }: { portabilityEnabled?: boolean }) {
+  const actor = useSyncExternalStore(subscribeAuth, getAuthIdentityKey, () => null);
+  return <OwnerMemoryPanel key={actor ?? ""} actor={actor} portabilityEnabled={portabilityEnabled} />;
+}
+
+function OwnerMemoryPanel({ actor, portabilityEnabled }: { actor: string | null; portabilityEnabled: boolean }) {
   const [items, setItems] = useState<Memory[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState<Intent | null>(null);
   const [confirmed, setConfirmed] = useState<string | null>(null);
 
   useEffect(() => {
-    function restorePendingIntent() {
-      const stored = readStoredIntent();
-      if (!stored) {
-        removeStoredIntent();
-        return;
-      }
-      const actor = getAuthIdentityKey();
-      if (!actor) return;
-      if (stored.actor !== actor) {
-        removeStoredIntent();
-        setUncertain(null);
-        return;
-      }
-      setUncertain(stored.intent);
-      setMessage(
-        "A previous operation has an unknown outcome. Reconcile this same operation before another action.",
-      );
+    const stored = readStoredIntent();
+    if (!stored) {
+      removeStoredIntent();
+      return;
     }
-    restorePendingIntent();
-    const unsubscribe = subscribeAuth(restorePendingIntent);
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+    if (!actor) return;
+    if (stored.actor !== actor) {
+      removeStoredIntent();
+      return;
+    }
+    setUncertain(stored.intent);
+    setMessage(
+      "A previous operation has an unknown outcome. Reconcile this same operation before another action.",
+    );
+  }, [actor]);
 
   function keepPendingIntent(intent: Intent) {
     setUncertain(intent);
-    const actor = getAuthIdentityKey();
     if (!actor) return;
     try {
       const stored: StoredIntent = { version: 1, actor, intent };
@@ -112,9 +110,12 @@ export function MemoryPanel() {
     }
   }
 
-  function clearPendingIntent() {
+  function clearPendingIntent(intent: Intent) {
     setUncertain(null);
-    removeStoredIntent();
+    const stored = readStoredIntent();
+    if (stored?.actor === actor && stored.intent.body.operation_id === intent.body.operation_id) {
+      removeStoredIntent();
+    }
   }
 
   async function refresh() {
@@ -122,7 +123,7 @@ export function MemoryPanel() {
     setItems([]); setProposals([]);
     try {
       const [knowledge, pending] = await Promise.all([
-        request<{ status: string; items: Memory[]; truncated: boolean }>("knowledge"),
+        request<{ status: string; items: Memory[]; truncated: boolean }>(query.trim() ? `knowledge?query=${encodeURIComponent(query.trim())}` : "knowledge"),
         request<{ status: string; proposals: Proposal[] }>("proposals"),
       ]);
       if (knowledge.status !== "found" || pending.status !== "found") {
@@ -131,13 +132,14 @@ export function MemoryPanel() {
         setItems(knowledge.items); setProposals(pending.proposals);
         setMessage(knowledge.truncated
           ? "Results are incomplete: only a bounded set of recent records was checked."
-          : "Inspection refreshed.");
+          : "Current eligible records in the selected project. This is a bounded inspection.");
       }
     } catch (error) { setMessage((error as Error).message); }
     finally { setBusy(false); }
   }
 
   async function apply(intent: Intent) {
+    if (!actor || getAuthIdentityKey() !== actor) return;
     setBusy(true); setItems([]); setProposals([]); setConfirmed(null);
     // Keep the exact intent until a durable result is known; transport failure is uncertain.
     keepPendingIntent(intent);
@@ -146,8 +148,9 @@ export function MemoryPanel() {
       setMessage(result.status === "applied"
         ? "Forgotten for future use. Input already sent to a provider cannot be recalled."
         : `Memory operation: ${result.status}${result.replayed ? " (reconciled)" : ""}.`);
+      if (getAuthIdentityKey() !== actor) return;
       if (result.status !== "unknown_commit" && result.status !== "temporarily_unavailable") {
-        clearPendingIntent();
+        clearPendingIntent(intent);
       }
     } catch { setMessage("Outcome unknown. Reconcile this same operation before another action."); }
     finally { setBusy(false); }
@@ -158,14 +161,18 @@ export function MemoryPanel() {
   }
 
   return <section aria-label="Memory controls">
-    <button disabled={busy} onClick={() => void refresh()}>Inspect memory</button>
+    {portabilityEnabled && <PortabilityPanel actor={actor} />}
+    <form onSubmit={event => { event.preventDefault(); void refresh(); }}>
+      <label>Search project memory <input value={query} maxLength={200} onChange={event => setQuery(event.target.value)} /></label>
+      <button disabled={busy} type="submit">Inspect memory</button>
+    </form>
     <p role="status">{message}</p>
     {uncertain && <button disabled={busy} onClick={() => void apply(uncertain)}>Reconcile original operation</button>}
     <p>Decision revision is unavailable until a trusted evidence issuer is registered.</p>
     {items.map(item => <article key={item.id}>
       <h2>{item.title}</h2>
       <p>{item.kind} · {item.authority} · {item.verification}</p>
-      <p>Scope {item.application_id}/{item.workspace_id ?? "personal"}. Project {item.project.project_id}, revision {item.project.revision}, branch {item.project.branch}; version {item.state_version}; expires {item.expires_at}.</p>
+      <p>Scope {item.application_id}/{item.workspace_id ?? "personal"}. Project {item.project.project_id}, revision {item.project.revision}, branch {item.project.branch}; version {item.state_version}; validity epoch {item.validity_epoch}. Observed {item.observed_at}; expires {item.expires_at}.</p>
       <pre style={{ whiteSpace: "pre-wrap" }}>{item.historical_content}</pre>
       <p>Sources: {item.source_ids.join(", ")}</p>
       <label><input type="checkbox" checked={confirmed === item.id} onChange={event => setConfirmed(event.target.checked ? item.id : null)} />Forget this record for future use. Previously sent input cannot be recalled.</label>

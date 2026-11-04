@@ -13,6 +13,7 @@ from personal_ai.applications.registry import (
     ApplicationRegistry,
     application_registry_for,
 )
+from personal_ai.auth.application_clients import is_external_client_request
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner
 from personal_ai.auth.scope import (
@@ -142,6 +143,24 @@ def require_recent_auth(
         or now - principal.authenticated_at > settings.auth_recent_token_seconds
     ):
         raise HTTPException(status_code=401, detail="reauthentication_required")
+    return principal
+
+
+def require_recent_builtin_owner(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_recent_auth)],
+    scope: Annotated[RequestScope, Depends(get_request_scope)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AuthenticatedPrincipal:
+    if (
+        is_external_client_request()
+        or not settings.auth_audience
+        or principal.audience != settings.auth_audience
+        or principal.authorized_party != settings.auth_audience
+        or principal.issuer != "https://accounts.google.com"
+        or principal.owner_id != scope.owner_id
+        or scope.acting_user_id != f"{principal.issuer}|{principal.subject}"
+    ):
+        raise HTTPException(status_code=404, detail="not_found")
     return principal
 
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from threading import RLock
 from time import monotonic
@@ -132,6 +133,10 @@ class GlobalProfileContextField(BaseModel):
     set_at: datetime
 
 
+class ProfileRevisionConflict(ValueError):
+    """The caller reviewed a different profile revision."""
+
+
 class GlobalProfileRepository(Protocol):
     """Owner-only profile storage, with filtered sharing reads for providers."""
 
@@ -139,7 +144,10 @@ class GlobalProfileRepository(Protocol):
     def get_consents(self, owner_id: str): ...
     def mutate_consent(self, owner_id: str, actor: str, intent): ...
     def authorized_fields(self, scope, fields, *, deadline=None): ...
-    def update(self, owner_id: str, update: GlobalProfileUpdate) -> GlobalProfile: ...
+    def profile_snapshot(self, owner_id: str) -> AbstractContextManager[GlobalProfile]: ...
+    def update(
+        self, owner_id: str, update: GlobalProfileUpdate, *, expected_revision: int | None = None
+    ) -> GlobalProfile: ...
     def shared_fields(
         self,
         owner_id: str,
@@ -167,7 +175,16 @@ class InMemoryGlobalProfileRepository:
                 GlobalProfile(owner_id=owner_id, revision=0, fields=(), updated_at=None),
             )
 
-    def update(self, owner_id: str, update: GlobalProfileUpdate) -> GlobalProfile:
+    @contextmanager
+    def profile_snapshot(self, owner_id: str) -> Iterator[GlobalProfile]:
+        with self._lock:
+            if owner_id in self.fenced_owners:
+                raise ValueError("owner_deletion_fenced")
+            yield self.get(owner_id)
+
+    def update(
+        self, owner_id: str, update: GlobalProfileUpdate, *, expected_revision: int | None = None
+    ) -> GlobalProfile:
         if any(item.shared_with_applications for item in update.fields):
             raise ValueError("profile_sharing_requires_consent")
         now = self._clock().astimezone(UTC)
@@ -175,6 +192,9 @@ class InMemoryGlobalProfileRepository:
             if owner_id in self.fenced_owners:
                 raise ValueError("owner_deletion_fenced")
             current = self.records.get(owner_id)
+            revision = current.revision if current else 0
+            if expected_revision is not None and revision != expected_revision:
+                raise ProfileRevisionConflict
             fields = {item.field: item for item in current.fields} if current else {}
             for name in update.remove_fields:
                 fields.pop(name, None)
@@ -184,7 +204,7 @@ class InMemoryGlobalProfileRepository:
                 )
             candidate = GlobalProfile(
                 owner_id=owner_id,
-                revision=(current.revision if current else 0) + 1,
+                revision=revision + 1,
                 fields=tuple(fields[key] for key in sorted(fields)),
                 updated_at=now,
             )

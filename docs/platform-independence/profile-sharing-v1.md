@@ -3,7 +3,10 @@
 2026-10-30. Local implementation candidate, pending separate independent review.
 The PI-2 consumer OpenAPI/version is unchanged. These are owner management routes,
 not additional external-app capabilities. Browser controls are not delivered;
-management is through the documented API using the existing authenticated gateway.
+grant management is through the documented API using the existing authenticated
+gateway. The separate [owner memory panel](../memory/owner-portability.md)
+supports revision-checked explicit preference editing. Each edit requires fresh
+consent for future sharing.
 
 ## Authority and consent
 

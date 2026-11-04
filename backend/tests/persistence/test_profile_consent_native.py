@@ -174,3 +174,36 @@ def test_native_failure_before_commit_rolls_back_grant_and_receipt(database):
     assert repository.get_consents(owner).revision == 0
     assert not repository.get_consents(owner).grants
     assert repository.mutate_consent(owner, actor, intent).revision == 1
+
+
+def test_profile_snapshot_and_expected_revision_share_owner_fence(database):
+    from personal_ai.context.profile import ProfileRevisionConflict
+    from personal_ai.memory.portability import export_profile, parse_portable_profile
+
+    repository = PostgresGlobalProfileRepository(database)
+    owner = f"portable-native-{uuid4()}"
+
+    def edit(value):
+        update = GlobalProfileUpdate(fields=(GlobalProfileFieldUpdate(
+            field="preferred_units", value=value,
+        ),))
+        try:
+            return repository.update(owner, update, expected_revision=0)
+        except ProfileRevisionConflict:
+            return None
+
+    with ThreadPoolExecutor(2) as pool:
+        results = tuple(pool.map(edit, ("metric", "imperial")))
+    winner, = (item for item in results if item is not None)
+    with repository.profile_snapshot(owner) as current:
+        assert current == winner
+        manifest = parse_portable_profile(export_profile(current, datetime.now(UTC)))
+        assert manifest.revision == 1
+        assert manifest.fields[0].value == winner.fields[0].value
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO owner_lifecycle_fences(owner_id,deletion_request_id) VALUES (%s,%s)",
+            (owner, uuid4()),
+        )
+    with pytest.raises(Exception, match="owner_deletion_fenced"), repository.profile_snapshot(owner):
+        pytest.fail("a fenced profile must not be read")

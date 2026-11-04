@@ -60,7 +60,7 @@ export async function backendAuthorizationHeaders(request: Request, apiBaseUrl: 
 }
 
 /** Proxy conversation API calls without exposing the backend URL to the browser. */
-export async function proxyApi(request: NextRequest, path: string) {
+export async function proxyApi(request: NextRequest, path: string, boundedBody?: Uint8Array<ArrayBuffer>) {
   const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
   const upstreamAbort = new AbortController();
   const abort = () => upstreamAbort.abort();
@@ -88,7 +88,7 @@ export async function proxyApi(request: NextRequest, path: string) {
 
     const response = await fetch(`${baseUrl}${path}`, {
       method: request.method,
-      body: request.method === "POST" ? await request.text() : undefined,
+      body: request.method === "POST" ? boundedBody ?? await request.text() : undefined,
       headers,
       cache: "no-store",
       signal: upstreamAbort.signal,
