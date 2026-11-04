@@ -43,6 +43,21 @@ preserving the v2 corpus, scorer, driver, and non-promotion. The old failure rem
 current local verification and any remaining identity limitation are recorded in
 the dated [HXE-0 remediation receipt](harness-excellence/2026-11-03-remediation.md).
 
+## Internal episode memory development component
+
+Owner-authorized synthetic development now includes default-off internal capture,
+bounded metadata listing/fetch, canonical lifecycle forget, expiry/source purge,
+retained original-run receipts, an in-memory repository, additive PostgreSQL
+migration 035/adapter and a canonical workflow receipt reader. No runtime source
+issuer, API/model tool, context injection or automatic account/purge registration
+is installed. Host source lease and authenticated original submission evidence
+remain mandatory. Service tests use synthetic host fixtures; native PostgreSQL
+checks are blocked by the missing disposable DSN. Source-lock migration and
+end-to-end workflow/model utility remain open. Full MEM-3 remains partial/NO_GO.
+See the [extension evidence and deferral rationale](memory/2026-11-03-episode-extension.md),
+[initial decision](memory/2026-11-03-episode-plan-hardening.md) and
+[blocker ledger](memory/episode-development-blockers.json).
+
 ## Delivered locally
 
 The Next.js frontend proxies the FastAPI API. Services own chat, active message

@@ -1,0 +1,234 @@
+{
+  "schema_version": "terminal-step-candidate-corpus-v1",
+  "scope": "structural-only; no authority or utility evidence",
+  "cases": [
+    {
+      "id": "episode-01",
+      "split": "development",
+      "scenario": "one_step",
+      "expected_supported": true
+    },
+    {
+      "id": "episode-02",
+      "split": "development",
+      "scenario": "ordered_steps",
+      "expected_supported": true
+    },
+    {
+      "id": "episode-03",
+      "split": "development",
+      "scenario": "independent_steps",
+      "expected_supported": true
+    },
+    {
+      "id": "episode-04",
+      "split": "reserved",
+      "scenario": "reserved",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-05",
+      "split": "development",
+      "scenario": "dispatched",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-06",
+      "split": "development",
+      "scenario": "abandoned",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-07",
+      "split": "development",
+      "scenario": "uncertain_attempt",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-08",
+      "split": "reserved",
+      "scenario": "failed_attempt",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-09",
+      "split": "development",
+      "scenario": "queued_run",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-10",
+      "split": "development",
+      "scenario": "running_run",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-11",
+      "split": "development",
+      "scenario": "failed_run",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-12",
+      "split": "reserved",
+      "scenario": "canceled_run",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-13",
+      "split": "development",
+      "scenario": "uncertain_run",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-14",
+      "split": "development",
+      "scenario": "cancel_requested",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-15",
+      "split": "development",
+      "scenario": "legacy_binding",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-16",
+      "split": "reserved",
+      "scenario": "wrong_intent",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-17",
+      "split": "development",
+      "scenario": "wrong_source",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-18",
+      "split": "development",
+      "scenario": "wrong_step_digest",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-19",
+      "split": "development",
+      "scenario": "reversed_steps",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-20",
+      "split": "reserved",
+      "scenario": "duplicate_attempt",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-21",
+      "split": "development",
+      "scenario": "duplicate_step",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-22",
+      "split": "development",
+      "scenario": "missing_attempt",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-23",
+      "split": "development",
+      "scenario": "extra_attempt",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-24",
+      "split": "reserved",
+      "scenario": "wrong_original_key",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-25",
+      "split": "development",
+      "scenario": "changed_query",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-26",
+      "split": "development",
+      "scenario": "changed_dependency",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-27",
+      "split": "development",
+      "scenario": "wrong_scope",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-28",
+      "split": "reserved",
+      "scenario": "unknown_tool",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-29",
+      "split": "development",
+      "scenario": "unknown_effect",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-30",
+      "split": "development",
+      "scenario": "nested_payload",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-31",
+      "split": "development",
+      "scenario": "reasoning_payload",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-32",
+      "split": "reserved",
+      "scenario": "encoded_secret",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-33",
+      "split": "development",
+      "scenario": "oversized_attempts",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-34",
+      "split": "development",
+      "scenario": "invalid_digest",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-35",
+      "split": "development",
+      "scenario": "forged_task_verification",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-36",
+      "split": "reserved",
+      "scenario": "changed_step_name",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-37",
+      "split": "development",
+      "scenario": "unknown_schema",
+      "expected_supported": false
+    },
+    {
+      "id": "episode-38",
+      "split": "development",
+      "scenario": "oversized_input",
+      "expected_supported": false
+    }
+  ]
+}

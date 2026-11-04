@@ -44,3 +44,15 @@ native and effect profiles are unavailable. See
 Run `make workflow-check` for contract and synthetic effect tests.
 `make workflow-postgres-check` uses the opt-in
 `PERSISTENCE_TEST_POSTGRES_DSN` local test role with CREATEDB and pgvector.
+
+The memory package has an offline structural terminal-step validator. It does
+not read this store, issue permissions or admit episodes. Terminal rows lack
+original project/branch and observation-time evidence; their deadline and event
+tail must never be used to fabricate that evidence. The workflow contract and
+original-key authority remain unchanged.
+
+`PostgresWorkflowStore.terminal_evidence` is an internal scope-filtered minimal
+receipt adapter for trusted episode hosts. It returns original key, intent/source
+fingerprints and attempt metadata without query, event tail or result copying.
+It grants no project/source authority; hosts must authenticate original submission
+bindings separately. Historical rows still lack original observation timestamps.

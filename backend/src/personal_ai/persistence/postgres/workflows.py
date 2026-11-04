@@ -219,3 +219,30 @@ class PostgresWorkflowStore:
                     "UPDATE workflow_runs SET record = %s, spec = %s WHERE run_id = %s",
                     (Jsonb(row.record), Jsonb(row.spec) if row.spec is not None else None, run_id),
                 )
+
+    def terminal_evidence(self, scope_digest, run_id):
+        """Minimal canonical receipt read; no spec, query, result or event-tail copy."""
+        with self.database.transaction(timeout_seconds=2) as connection:
+            row = connection.execute(
+                "SELECT original_key,intent_digest,source_digest,record FROM workflow_runs "
+                "WHERE scope_digest=%s AND run_id=%s",
+                (scope_digest, run_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("workflow_not_found")
+            from personal_ai.memory.episodes import TerminalReceiptEnvelope
+
+            return (
+                TerminalReceiptEnvelope(
+                    scope_digest=scope_digest,
+                    run_id=run_id,
+                    original_key=row[0],
+                    intent_digest=row[1],
+                    source_digest=row[2],
+                    state=row[3]["state"],
+                    cancel_requested=row[3]["cancel_requested"],
+                    attempts=row[3]["attempts"],
+                )
+                .model_dump_json()
+                .encode()
+            )

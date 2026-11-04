@@ -169,3 +169,41 @@ snapshot after serialization and uses the existing profile writer for
 revision-checked corrections. Export and preview have no model calls or storage
 of portable files. Project knowledge export and import commit are unavailable.
 See [owner controls](../../../../docs/memory/owner-portability.md).
+
+## Terminal-step candidate inspection
+
+`episodes.assess_terminal_steps` is a pure structural validator for an exact
+original workflow plan and a minimal terminal receipt envelope. It returns
+`structurally_supported` or a uniform content-free `unsupported` result. It
+checks original key, scope/intent/source/step fingerprints, tool/effect, exact
+successful attempt cardinality and topological order. It excludes failed,
+canceled, uncertain and recovered/abandoned histories. No tool/query text or
+step names appear in the projection; each candidate is at most 2 KiB, with at
+most eight candidates from two input documents of at most 16 KiB each.
+
+This function cannot authenticate input. Consistent fabricated input can pass.
+Candidates explicitly carry `structural_inspection_only`, unavailable completion
+time and no independent verification. They must not be persisted or consumed
+as authorized memory. There is no issuer, lease, admission, lookup, erasure,
+context integration, runtime registration or enablement flag. Existing memory
+behavior and fixed retrieval defaults remain unchanged. Run
+`make memory-episode-candidate-check` and `make memory-episode-candidate-eval`.
+The additive corpus measures consistency only; its reserved split is author-visible.
+See the [development decision](../../../../docs/memory/2026-11-03-episode-plan-hardening.md).
+
+## Internal episode operations
+
+`EpisodeService` in `episode_service.py` adds explicit host-only capture,
+`read(project_id, episode_id=..., limit=...)`, forget and purge. Constructor
+capture/selection options default false and require memory enabled, local/test,
+`synthetic_local`, verified principal and a trusted source authority's bounded
+lease/project/resolve/current contract. Application composition installs none.
+Postgres migration 035 and `PostgresEpisodeRepository` atomically retain bounded
+metadata, original-run receipts and canonical lifecycle transitions; the in-memory
+adapter stages equivalent updates. No raw tool/query payload is stored. Forget and
+purge erase payload without pruning replay authority. Restored stores must remain
+quarantined until authority is reconciled. No export or model tool is registered.
+Run `make memory-episode-check`; native SQL requires
+`make memory-episode-postgres-check` with a disposable DSN. See the
+[extension report](../../../../docs/memory/2026-11-03-episode-extension.md) for
+producer, native, source-lease and release gates still deferred.

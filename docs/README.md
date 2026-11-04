@@ -16,7 +16,7 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | HTTP consumers and reference apps | [Consumer contract](platform-independence/consumer-v1.md), [reference apps](../reference-apps/README.md), [Reading Logbook](../examples/reading-logbook/README.md) |
 | Inference and routing | [LLM README](../backend/src/personal_ai/llm/README.md), [routing README](../backend/src/personal_ai/routing/README.md) |
 | Context and chat | [API contract](api-contract.md), `backend/src/personal_ai/context/`, `services/chat/`, focused tests |
-| Memory | [Memory README](../backend/src/personal_ai/memory/README.md), [owner controls and portability](memory/owner-portability.md), [memory docs](memory/) |
+| Memory | [Memory README](../backend/src/personal_ai/memory/README.md), [owner controls and portability](memory/owner-portability.md), [terminal-step development boundary](memory/2026-11-03-episode-plan-hardening.md), [memory docs](memory/) |
 | Governed local workflows | [Workflow runtime](../backend/src/personal_ai/workflow/README.md), [execution authority](decisions/0025-workflow-lifecycle-authority.md) |
 | Retrieval and tools | [Retrieval README](../backend/src/personal_ai/retrieval/README.md), [retrieval contract](platform-independence/retrieval-v1.md) |
 | Research | [Research guide](research-agent.md), `backend/src/personal_ai/agents/research/` |

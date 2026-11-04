@@ -282,3 +282,18 @@ release-build-report:
 
 release-canary-check:
 	$(PLATFORM_PYTHON) -E -s backend/scripts/release_preflight.py --measure-synthetic
+
+.PHONY: memory-episode-candidate-eval memory-episode-candidate-check
+memory-episode-candidate-eval:
+	cd backend && python -m personal_ai.evaluation.episode_candidates
+
+memory-episode-candidate-check:
+	cd backend && python -m pytest -q tests/test_episode_candidates.py
+
+.PHONY: memory-episode-check memory-episode-postgres-check
+memory-episode-check:
+	cd backend && python -m pytest -q tests/test_episode_candidates.py tests/test_episode_service.py
+
+memory-episode-postgres-check:
+	test -n "$(PERSISTENCE_TEST_POSTGRES_DSN)"
+	cd backend && python -m pytest -q tests/persistence/test_episode_postgres.py
