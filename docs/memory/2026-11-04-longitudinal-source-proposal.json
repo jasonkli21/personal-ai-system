@@ -1,0 +1,37 @@
+{
+  "version": "memory-longitudinal-source-proposal-v1",
+  "status": "proposed_not_accepted",
+  "base_revision": "619d724bd91d9f633714b576a3fef8e7a8841b6d",
+  "research_source_generations": [
+    {
+      "file": "backend/src/personal_ai/evaluation/memory_longitudinal/source-lock-v1.json",
+      "sha256": "9f3f3777af3716b1fb40a1b5af365233250f6197fa81e965b5b77403212812cc",
+      "status": "preserved_historical"
+    },
+    {
+      "file": "backend/src/personal_ai/evaluation/memory_longitudinal/source-lock-v2.json",
+      "sha256": "4a19369b4eb997b3dbda7a37f1febd9a2e8e5165a1cc53c6a2584b1ada92d95f",
+      "status": "author_locked_E1_only"
+    }
+  ],
+  "compatibility": {
+    "manifest": "manifest-v2-source-9.json",
+    "frozen_core_runtime": "edca874e3d9330468bd9ce5667a9f6a7e221806d3624b1275edf39fe8c6638c9",
+    "original_HEAD_core_runtime": "0cb9d0d2989ac756142ca986df8a4e86044cb52e3acda3eb3dd593929f4c4a68",
+    "working_core_runtime": "6cecdb2a2ab7d55bbc3c4541798772c083522f7d63ccb01ed2a43b0e9c872ba9",
+    "original_HEAD_already_mismatched": true,
+    "mismatched_fields": [
+      "core_runtime"
+    ],
+    "missing_optional": [],
+    "acceptance": "blocked_independent_reconciliation_required"
+  },
+  "planning": {
+    "baseline_lock": "planning-baseline-lock-v35",
+    "frozen_source_identity": "4eb58162ae39387382c18b524017886c1be4e4fc27de5203ac064f5c6e889cc9",
+    "working_source_identity": "b5df72b36f9f69823b9996ab43e07684bfdc05137d74d1ff9effa45a8e928eb6",
+    "acceptance": "inherited_failure_preserved"
+  },
+  "runtime_enablement": "unchanged",
+  "promotion": "none"
+}

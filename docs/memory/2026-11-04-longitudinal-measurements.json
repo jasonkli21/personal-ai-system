@@ -1,0 +1,811 @@
+{
+  "version": "memory-longitudinal-evidence-v1",
+  "boundary": "IMPLEMENTED_E1_RESEARCH_PHASE_EXIT_BLOCKED",
+  "tested_revision": "619d724bd91d9f633714b576a3fef8e7a8841b6d",
+  "source_tree_dirty": true,
+  "final_package": "artifacts/memory-research/a7f60636f3fd7b6a693941e401607536d1b350a6f8b23d8fb0a23c80ef1a1656/80bb886850ee443285e9b128f63f901b",
+  "package_index_sha256": "98af52dbdb7b501e470554e431306fd1358a6a5e409143b24fdf7e52e5ae5e41",
+  "report": {
+    "actual_model_resources": null,
+    "attempted_rows": 3528,
+    "comparisons": [
+      {
+        "attempted_scenarios": 48,
+        "baseline": "no_memory",
+        "candidate": "lexical",
+        "delta_pp": 20.0,
+        "eligible_pairs": 25,
+        "excluded_pairs": 23,
+        "family_delta_pp": [
+          [
+            "correction",
+            33.33333333333333
+          ],
+          [
+            "poison",
+            12.5
+          ],
+          [
+            "resources",
+            66.66666666666666
+          ],
+          [
+            "revision",
+            0.0
+          ],
+          [
+            "rights",
+            0.0
+          ]
+        ],
+        "interval_pp": [
+          4.0,
+          36.0
+        ],
+        "losses": 0,
+        "ties": 20,
+        "variance": 0.16,
+        "wins": 5
+      },
+      {
+        "attempted_scenarios": 48,
+        "baseline": "lexical",
+        "candidate": "topic_hierarchical",
+        "delta_pp": 0.0,
+        "eligible_pairs": 24,
+        "excluded_pairs": 24,
+        "family_delta_pp": [
+          [
+            "correction",
+            0.0
+          ],
+          [
+            "poison",
+            0.0
+          ],
+          [
+            "resources",
+            0.0
+          ],
+          [
+            "revision",
+            0.0
+          ],
+          [
+            "rights",
+            0.0
+          ]
+        ],
+        "interval_pp": [
+          0.0,
+          0.0
+        ],
+        "losses": 0,
+        "ties": 24,
+        "variance": 0.0,
+        "wins": 0
+      },
+      {
+        "attempted_scenarios": 48,
+        "baseline": "lexical",
+        "candidate": "adaptive",
+        "delta_pp": 0.0,
+        "eligible_pairs": 25,
+        "excluded_pairs": 23,
+        "family_delta_pp": [
+          [
+            "correction",
+            0.0
+          ],
+          [
+            "poison",
+            0.0
+          ],
+          [
+            "resources",
+            0.0
+          ],
+          [
+            "revision",
+            0.0
+          ],
+          [
+            "rights",
+            0.0
+          ]
+        ],
+        "interval_pp": [
+          0.0,
+          0.0
+        ],
+        "losses": 0,
+        "ties": 25,
+        "variance": 0.0,
+        "wins": 0
+      },
+      {
+        "attempted_scenarios": 48,
+        "baseline": "lexical",
+        "candidate": "full_history",
+        "delta_pp": 0.0,
+        "eligible_pairs": 23,
+        "excluded_pairs": 25,
+        "family_delta_pp": [
+          [
+            "correction",
+            0.0
+          ],
+          [
+            "poison",
+            0.0
+          ],
+          [
+            "resources",
+            0.0
+          ],
+          [
+            "revision",
+            0.0
+          ],
+          [
+            "rights",
+            0.0
+          ]
+        ],
+        "interval_pp": [
+          0.0,
+          0.0
+        ],
+        "losses": 0,
+        "ties": 23,
+        "variance": 0.0,
+        "wins": 0
+      },
+      {
+        "attempted_scenarios": 48,
+        "baseline": "no_memory",
+        "candidate": "verified_knowledge",
+        "delta_pp": 75.0,
+        "eligible_pairs": 8,
+        "excluded_pairs": 40,
+        "family_delta_pp": [
+          [
+            "transfer",
+            75.0
+          ]
+        ],
+        "interval_pp": [
+          37.5,
+          100.0
+        ],
+        "losses": 0,
+        "ties": 2,
+        "variance": 0.1875,
+        "wins": 6
+      },
+      {
+        "attempted_scenarios": 48,
+        "baseline": "verified_knowledge",
+        "candidate": "tool_lookup",
+        "delta_pp": -100.0,
+        "eligible_pairs": 8,
+        "excluded_pairs": 40,
+        "family_delta_pp": [
+          [
+            "transfer",
+            -100.0
+          ]
+        ],
+        "interval_pp": [
+          -100.0,
+          -100.0
+        ],
+        "losses": 8,
+        "ties": 0,
+        "variance": 0.0,
+        "wins": 0
+      }
+    ],
+    "complete_grid": true,
+    "contamination": "author_visible_no_independent_blind_claim",
+    "limitations": [
+      "author_visible",
+      "scripted_action_proxy",
+      "no_real_embeddings",
+      "no_native_cost_or_model_utility",
+      "no_live_promotion",
+      "no_blind_acceptance",
+      "scenario_clusters_small_and_correlated",
+      "no_significance_claim"
+    ],
+    "native_resources": null,
+    "receipts_sha256": "fda1cb1b1008bb7ac5ac8f197723d8322abafc40582ac5e33b3327c9eaeec4c5",
+    "replay_match": true,
+    "run_sha256": "a7f60636f3fd7b6a693941e401607536d1b350a6f8b23d8fb0a23c80ef1a1656",
+    "safety_checks": [
+      [
+        "scope",
+        "pass"
+      ],
+      [
+        "source_revocation",
+        "pass"
+      ],
+      [
+        "forget_restore",
+        "pass"
+      ],
+      [
+        "correction",
+        "pass"
+      ],
+      [
+        "poisoning",
+        "pass"
+      ],
+      [
+        "intent_replay",
+        "pass"
+      ],
+      [
+        "tamper",
+        "pass"
+      ],
+      [
+        "cancellation",
+        "pass"
+      ],
+      [
+        "resource_bounds",
+        "pass"
+      ],
+      [
+        "scorer_isolation",
+        "pass"
+      ],
+      [
+        "configuration_unchanged",
+        "pass"
+      ]
+    ],
+    "safety_failures": [],
+    "semantic_replay_sha256": "f99823a9ae8c67011d2fa28112895e54798122c9e0adfccf2b9d1390370991dc",
+    "source_verified": true,
+    "status_counts": [
+      [
+        "cancelled",
+        10
+      ],
+      [
+        "complete",
+        342
+      ],
+      [
+        "denied",
+        144
+      ],
+      [
+        "error",
+        10
+      ],
+      [
+        "incomplete",
+        12
+      ],
+      [
+        "setup",
+        2304
+      ],
+      [
+        "timed_out",
+        10
+      ],
+      [
+        "unsupported",
+        696
+      ]
+    ],
+    "version": "memory-longitudinal-report-v1"
+  },
+  "metrics": {
+    "adaptive": {
+      "abstentions": 36,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 84,
+      "complete_terminal_denominator": 54,
+      "estimated_tokens": 1704,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 1.305999991018325,
+      "latency_p95_ms": 3.74850002117455,
+      "maintenance_calls": 46,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 18,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 16,
+        "cancelled": 2,
+        "generation_changed": 6,
+        "interrupted_checkpoint": 2,
+        "original_deadline": 2,
+        "partial_source_page": 2,
+        "source_setup": 192,
+        "terminal_observed": 54,
+        "unsupported_record_kind": 18
+      },
+      "rediscoveries": 34,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "cancelled": 2,
+        "complete": 54,
+        "denied": 22,
+        "error": 2,
+        "incomplete": 2,
+        "setup": 192,
+        "timed_out": 2,
+        "unsupported": 18
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 54,
+      "tool_calls": 106
+    },
+    "fixed": {
+      "abstentions": 0,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 10,
+      "complete_terminal_denominator": 0,
+      "estimated_tokens": 0,
+      "index_bytes_peak": 0,
+      "latency_p50_ms": 0.10979099897667766,
+      "latency_p95_ms": 1.6714580124244094,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 0,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 10,
+        "legacy_fixed_cannot_represent_project_facts": 92,
+        "source_setup": 192
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 2313,
+      "statuses": {
+        "denied": 10,
+        "setup": 192,
+        "unsupported": 92
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 0,
+      "tool_calls": 0
+    },
+    "full_history": {
+      "abstentions": 34,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 98,
+      "complete_terminal_denominator": 68,
+      "estimated_tokens": 2554,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 1.307833008468151,
+      "latency_p95_ms": 3.781458013691008,
+      "maintenance_calls": 46,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 34,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 16,
+        "cancelled": 2,
+        "eligible_full_context_infeasible": 4,
+        "generation_changed": 6,
+        "interrupted_checkpoint": 2,
+        "original_deadline": 2,
+        "partial_source_page": 2,
+        "source_setup": 192,
+        "terminal_observed": 68
+      },
+      "rediscoveries": 32,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "cancelled": 2,
+        "complete": 68,
+        "denied": 22,
+        "error": 2,
+        "incomplete": 2,
+        "setup": 192,
+        "timed_out": 2,
+        "unsupported": 4
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 68,
+      "tool_calls": 134
+    },
+    "hybrid": {
+      "abstentions": 0,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 10,
+      "complete_terminal_denominator": 0,
+      "estimated_tokens": 0,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 0.3459159634076059,
+      "latency_p95_ms": 1.7093329806812108,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 0,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 10,
+        "real_embeddings_unavailable": 74,
+        "source_setup": 192,
+        "unsupported_record_kind": 18
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "denied": 10,
+        "setup": 192,
+        "unsupported": 92
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 0,
+      "tool_calls": 0
+    },
+    "hybrid_reranked": {
+      "abstentions": 0,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 10,
+      "complete_terminal_denominator": 0,
+      "estimated_tokens": 0,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 0.3480419982224703,
+      "latency_p95_ms": 1.7125419690273702,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 0,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 10,
+        "real_embeddings_unavailable": 74,
+        "source_setup": 192,
+        "unsupported_record_kind": 18
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "denied": 10,
+        "setup": 192,
+        "unsupported": 92
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 0,
+      "tool_calls": 0
+    },
+    "lexical": {
+      "abstentions": 36,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 84,
+      "complete_terminal_denominator": 54,
+      "estimated_tokens": 1704,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 1.3072500005364418,
+      "latency_p95_ms": 3.71616700431332,
+      "maintenance_calls": 46,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 18,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 16,
+        "cancelled": 2,
+        "generation_changed": 6,
+        "interrupted_checkpoint": 2,
+        "original_deadline": 2,
+        "partial_source_page": 2,
+        "source_setup": 192,
+        "terminal_observed": 54,
+        "unsupported_record_kind": 18
+      },
+      "rediscoveries": 34,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "cancelled": 2,
+        "complete": 54,
+        "denied": 22,
+        "error": 2,
+        "incomplete": 2,
+        "setup": 192,
+        "timed_out": 2,
+        "unsupported": 18
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 54,
+      "tool_calls": 106
+    },
+    "no_memory": {
+      "abstentions": 70,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 102,
+      "complete_terminal_denominator": 78,
+      "estimated_tokens": 1836,
+      "index_bytes_peak": 0,
+      "latency_p50_ms": 0.21374999778345227,
+      "latency_p95_ms": 1.390000048559159,
+      "maintenance_calls": 46,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 8,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 16,
+        "cancelled": 2,
+        "interrupted_checkpoint": 2,
+        "original_deadline": 2,
+        "partial_source_page": 2,
+        "source_setup": 192,
+        "terminal_observed": 78
+      },
+      "rediscoveries": 70,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 0,
+      "statuses": {
+        "cancelled": 2,
+        "complete": 78,
+        "denied": 16,
+        "error": 2,
+        "incomplete": 2,
+        "setup": 192,
+        "timed_out": 2
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 44,
+      "tool_calls": 156
+    },
+    "pending_diagnostic": {
+      "abstentions": 0,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 0,
+      "complete_terminal_denominator": 0,
+      "estimated_tokens": 0,
+      "index_bytes_peak": 0,
+      "latency_p50_ms": 0.006832997314631939,
+      "latency_p95_ms": 1.69795798137784,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 0,
+      "provider_calls": 0,
+      "reasons": {
+        "pending_proposal_not_approved": 102,
+        "source_setup": 192
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 2313,
+      "statuses": {
+        "setup": 192,
+        "unsupported": 102
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 0,
+      "tool_calls": 0
+    },
+    "semantic": {
+      "abstentions": 0,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 10,
+      "complete_terminal_denominator": 0,
+      "estimated_tokens": 0,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 0.3464579931460321,
+      "latency_p95_ms": 1.7193329986184835,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 0,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 10,
+        "real_embeddings_unavailable": 74,
+        "source_setup": 192,
+        "unsupported_record_kind": 18
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "denied": 10,
+        "setup": 192,
+        "unsupported": 92
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 0,
+      "tool_calls": 0
+    },
+    "tool_lookup": {
+      "abstentions": 18,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 18,
+      "complete_terminal_denominator": 18,
+      "estimated_tokens": 1002,
+      "index_bytes_peak": 0,
+      "latency_p50_ms": 0.006792019121348858,
+      "latency_p95_ms": 1.6836660215631127,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 0,
+      "provider_calls": 0,
+      "reasons": {
+        "source_setup": 192,
+        "terminal_observed": 18,
+        "unsupported_record_kind": 84
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 2313,
+      "statuses": {
+        "complete": 18,
+        "setup": 192,
+        "unsupported": 84
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 0,
+      "tool_calls": 36
+    },
+    "topic_hierarchical": {
+      "abstentions": 36,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 84,
+      "complete_terminal_denominator": 52,
+      "estimated_tokens": 1588,
+      "index_bytes_peak": 10805,
+      "latency_p50_ms": 1.314709021244198,
+      "latency_p95_ms": 5.414207989815623,
+      "maintenance_calls": 46,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 16,
+      "provider_calls": 0,
+      "reasons": {
+        "authority_denied": 16,
+        "cancelled": 2,
+        "generation_changed": 6,
+        "interrupted_checkpoint": 2,
+        "original_deadline": 2,
+        "partial_source_page": 2,
+        "source_setup": 192,
+        "terminal_observed": 52,
+        "topic_page_cap": 2,
+        "unsupported_record_kind": 18
+      },
+      "rediscoveries": 34,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 10805,
+      "statuses": {
+        "cancelled": 2,
+        "complete": 52,
+        "denied": 22,
+        "error": 2,
+        "incomplete": 4,
+        "setup": 192,
+        "timed_out": 2,
+        "unsupported": 18
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 52,
+      "tool_calls": 102
+    },
+    "verified_knowledge": {
+      "abstentions": 0,
+      "actual_tokens": null,
+      "attempted_rows": 294,
+      "billed_cost": null,
+      "boundary_correct": 18,
+      "complete_terminal_denominator": 18,
+      "estimated_tokens": 1002,
+      "index_bytes_peak": 0,
+      "latency_p50_ms": 0.0069579691626131535,
+      "latency_p95_ms": 1.6742500010877848,
+      "maintenance_calls": 26,
+      "model_utility": "not_observed",
+      "native_resources": null,
+      "observed_actions": 18,
+      "provider_calls": 0,
+      "reasons": {
+        "source_setup": 192,
+        "terminal_observed": 18,
+        "unsupported_record_kind": 84
+      },
+      "rediscoveries": 0,
+      "rejected_actions": 0,
+      "retained_bytes_peak": 2313,
+      "statuses": {
+        "complete": 18,
+        "setup": 192,
+        "unsupported": 84
+      },
+      "terminal_attempts": 102,
+      "terminal_successes": 18,
+      "tool_calls": 36
+    }
+  },
+  "decision": {
+    "effective_policy": "unchanged",
+    "evidence_key": "87b4a2d0c82e750f6fb366a312ce06b8e422d2947be99014c88ae53476fc964f",
+    "live_promotion": false,
+    "previous_decision": null,
+    "prior_failure": null,
+    "reasons": [
+      "independent_review_missing"
+    ],
+    "report_sha256": "94e8e9b6de8efdb301fa281b06ae14b9349e93f029e898f20e835cc714a4131e",
+    "reviewer": null,
+    "status": "needs_independent_review",
+    "version": "memory-research-decision-v1"
+  },
+  "source_lock_sha256": "4a19369b4eb997b3dbda7a37f1febd9a2e8e5165a1cc53c6a2584b1ada92d95f",
+  "source_fixture_sha256": "da7ccb44d7cf6076d33d4a14dfda04b2f907d5bb529fe05ee177bfc1abae8d6c",
+  "scorer_fixture_sha256": "69a3f4d91335ec3f72e9b8e5188b1cc221d7c5bd26bb72aaabff746fdf2dffeb",
+  "environment": {
+    "machine": "arm64",
+    "model_transport": "disabled",
+    "native": "not_observed",
+    "platform": "Darwin-27.0.0",
+    "pydantic": "2.13.5",
+    "python": "3.11.15"
+  },
+  "model": {
+    "actual_model_tokens": null,
+    "billed_cost": null,
+    "build": null,
+    "capability": "deterministic_action_proxy",
+    "configuration_sha256": "0860c965f9448d18d8def34225a0268246212f0c350dd1ff81110785d915cf13",
+    "cost_profile": "no_transport",
+    "endpoint": null,
+    "mode": "scripted_no_transport",
+    "model": null,
+    "privacy": "public_synthetic_only",
+    "provider": null,
+    "seed": 719,
+    "temperature": null,
+    "tokenizer": "fixture_word_estimate",
+    "version": "memory-research-model-v1",
+    "weights_sha256": null
+  },
+  "predecessor": {
+    "run_sha256": "f6dc90e5059103d601610e34b3c6cf0f21a585545cb5c60cce4590d8bae4b14d",
+    "source_lock_sha256": "9f3f3777af3716b1fb40a1b5af365233250f6197fa81e965b5b77403212812cc",
+    "semantic_sha256": "f99823a9ae8c67011d2fa28112895e54798122c9e0adfccf2b9d1390370991dc",
+    "status": "historical_verified_before_additive_custody_hardening"
+  }
+}

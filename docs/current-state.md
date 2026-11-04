@@ -128,6 +128,34 @@ independent acceptance pending and production **NO_GO**. See the
 [implementation and verification receipt](memory/2026-11-04-retrieval-implementation.md)
 and [review remediation with additive v2 accounting](memory/2026-11-04-retrieval-remediation.md).
 
+## Longitudinal offline memory research
+
+An explicitly invoked public/synthetic study adds bounded versioned experiment
+contracts, source/scorer custody, complete attempted receipts, scenario-clustered
+paired reports and append-only research decisions. Its 48 author-visible cases
+cover six families, with three or more temporal steps and separate simulated
+sessions. Twelve arms and two repetitions retain 3,528 rows, including setup,
+unsupported and fault outcomes. Setup receipts cannot count as later task success.
+Canonical verified knowledge/control reads and sealed navigation remain separate
+compatible source cohorts; no episode intake or pending-proposal admission is added.
+
+The additive final source generation reproduces the same semantic outcome digest
+as the preserved initial generation. Lexical versus no memory has 25/48 eligible
+scenario pairs: five wins, no losses, 20 ties, +20 percentage points with a fixed-seed
+descriptive 95% interval of [4, 36]. Topic/adaptive/full-history contrasts show zero
+paired change on their supported subsets. Explicit tool lookup loses all eight
+canonical pairs under the shared two-call budget; that negative result is retained.
+These are scripted action proxies, not model utility or independent acceptance.
+
+Pure canary/rollback plans cannot change configuration, storage or lifecycle.
+The research decision is `needs_independent_review`; actual model tokens, billed
+costs and native resources are unobserved. Legacy fixed and real semantic/hybrid
+comparisons remain unsupported for these fixtures. Research is implemented at
+E0/E1 only; scientific phase exit and production remain **BLOCKED / NO_GO**.
+Existing default-off controls and hard-disabled episode behavior remain effective.
+See [implementation and verification evidence](memory/2026-11-04-longitudinal-implementation.md)
+and the [blocker registry](memory/2026-11-04-longitudinal-blockers.json).
+
 ## Delivered locally
 
 The Next.js frontend proxies the FastAPI API. Services own chat, active message

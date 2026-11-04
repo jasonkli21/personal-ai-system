@@ -363,3 +363,70 @@ native index/source integration. Disable the constructor gate and discard caches
 for rollback; no canonical data or migration changes. See the
 [hardening decision](../../../../docs/memory/2026-11-04-retrieval-plan-hardening.md)
 and [implementation receipt](../../../../docs/memory/2026-11-04-retrieval-implementation.md).
+
+## Longitudinal offline research
+
+`research/experiments/` defines bounded typed manifests, attempt receipts,
+content-addressed local packages, an append-only research decision chain and pure
+canary/rollback proposals. It has no application registration, environment flag,
+provider transport or effective-policy writer. `fixed` remains the runtime default;
+episode capture/selection and pending-proposal admission remain unavailable.
+
+Run `make memory-research-check memory-research-eval` with the backend virtualenv
+on `PATH`. The explicit offline command writes an immutable package below ignored
+`artifacts/memory-research/<run digest>/<invocation id>/`, including the protocol
+before measurement, every requested arm/step/repetition, status denominators,
+resource observations, report, decision and blocked canary/rollback requests.
+Preserve `package.json` and the run digest as external integrity anchors. The local
+`decisions/` chain retains unsuccessful hypotheses; it is bounded to 128 entries
+and never prunes failures automatically. These public synthetic artifacts contain
+no private source payloads and can be archived or removed explicitly. They do not
+establish production retention, native durability or owner deletion semantics.
+
+For independent-process reproduction, run
+`make memory-research-replay MEMORY_RESEARCH_PACKAGE=/absolute/path/to/package`.
+Verification checks the package, complete receipt grid, source/model/environment
+identity and scorer, then executes two fresh semantic replays. Hashes are custody
+checks, not signatures or authorization. Source drift requires an additive study
+generation; never update an earlier accepted lock to obtain a pass.
+
+The source-only and scorer-only fixtures contain 48 author-visible trajectories
+across transfer, revision, correction, rights, poison and resource families. Each
+has at least three time steps and separate simulated sessions; 24/12/12 splits
+include author-visible validation and challenge slots. `inspect_challenge`
+validates external source packages of 12–96 tasks without installing a source or
+certifying independence. All splits were inspected during implementation.
+
+A later action is observed by the existing hermetic original-intent task host,
+not inferred from a driver's success label or historical receipt. The consumer
+sees packed cards only. Navigation uses a separately sealed fixture authority and
+the existing lexical/topic/adaptive engine and canonical `ContextBuilder`.
+Canonical knowledge and control lookup use the existing admission, selection,
+packing and final-consumption guards in a separate compatible source cohort.
+Legacy fixed, real semantic/hybrid and pending consolidation comparators retain
+unsupported rows where their source contracts cannot represent these facts.
+Pending diagnostics cannot become trusted context. Existing consolidation
+commands remain the separate diagnostic study for its own sealed source profile.
+
+The preregistered six contrasts use final scenario outcomes and fixed-seed paired
+cluster bootstrap intervals. Repetitions and setup steps do not inflate sample
+size. Explicit lookup calls consume the same task-tool budget; full history must
+fit the same context ceilings in full. Failed/unsupported attempts retain work
+counters. Reported tokens are fixture word estimates; actual model tokens, billed
+costs and native resources remain null. There is no statistical-significance,
+blind-acceptance or real-model utility claim.
+
+Decision proposals require verified custody; offline canary eligibility additionally
+requires a distinct trusted reviewer supplied by an independent host. No reviewer
+issuer is installed here. Imported metadata cannot authorize a review, lower a
+veto or change model space. A protocol-only model manifest can describe an intended
+owned loopback trial, but executable study manifests reject all transport modes.
+See [decision authority](../../../../docs/decisions/0026-offline-memory-research-custody.md)
+and [implementation evidence](../../../../docs/memory/2026-11-04-longitudinal-implementation.md).
+
+Retained-byte counters describe serialized synthetic knowledge records and
+rebuildable derivative indexes. Common immutable fixture bytes are identified in
+the dataset manifest; these counters do not measure process RSS or native database
+storage. The initial study source lock is retained unchanged. An additive second
+source generation strengthens package-summary/decision verification without
+changing corpus bytes, scorer, protocol or semantic outcomes.

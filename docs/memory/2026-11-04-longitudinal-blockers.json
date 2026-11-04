@@ -1,0 +1,71 @@
+{
+  "version": "memory-longitudinal-blockers-v1",
+  "implementation_boundary": "E0_E1_public_synthetic_only",
+  "phase_exit": "blocked",
+  "production": "NO_GO",
+  "blockers": [
+    {
+      "id": "independent-custody",
+      "owner": "independent memory research reviewer",
+      "status": "blocked",
+      "needed": "Separately authored and sealed challenge/scorer/source custody, distinct reviewer sign-off and adequate trajectory diversity.",
+      "reentry_test": "New additive dataset and source generation; validate challenge manifest, replay in a fresh process, audit gold isolation and sign the exact immutable report. Existing author-visible splits cannot be relabeled blind."
+    },
+    {
+      "id": "native-component",
+      "owner": "repository operator",
+      "status": "blocked",
+      "needed": "Already approved disposable PostgreSQL/pgvector DSN; none configured in this session.",
+      "reentry_test": "PERSISTENCE_TEST_POSTGRES_DSN set for isolated infrastructure, then make memory-navigation-postgres-check. This checks existing canonical components, not a new research database."
+    },
+    {
+      "id": "real-embedding-comparison",
+      "owner": "memory and inference maintainers",
+      "status": "blocked",
+      "needed": "Actual compatible authorized embedding/knowledge adapter, matched universe and source identities, approved resources and new study generation.",
+      "reentry_test": "CanonicalSemanticRanks validation with genuine adapter provenance and complete eligible universe; real semantic/hybrid arms must complete matched cases without fake vectors."
+    },
+    {
+      "id": "source-issuer-and-episode-rights",
+      "owner": "memory source host maintainers",
+      "status": "blocked",
+      "needed": "Production source issuer, current authorization/source leases, monotonic permission epochs and canonical deletion integration. Episode capture and reads remain hard-disabled.",
+      "reentry_test": "Existing episode/service and source-consumption contracts plus independently verified revoke/regrant at retrieval, packing and physical consumption; no source metadata may grant itself authority."
+    },
+    {
+      "id": "deployed-forget-and-restore",
+      "owner": "persistence and platform operators",
+      "status": "blocked",
+      "needed": "Independent cold-restore anti-rollback authority, deployed owner deletion, backup/physical erasure and recovery proof.",
+      "reentry_test": "Native mixed-age restore/forget recovery with a surviving external authority epoch and same-original-key reconciliation. In-process synthetic tombstones cannot close this gate."
+    },
+    {
+      "id": "real-task-model-and-cost",
+      "owner": "owner and inference/evaluation maintainers",
+      "status": "blocked",
+      "needed": "Explicit owned endpoint/account, approved public data/rights, quotas, cost/no-charge proof, shared inference transport and independent longitudinal real-task outcomes.",
+      "reentry_test": "Separately authorized model driver using canonical context/inference/attempt plumbing, actual usage/cost observations and independent E5 task trajectories. Protocol-only model manifests remain non-executable here."
+    },
+    {
+      "id": "planning-source-baseline",
+      "owner": "planning baseline evidence owner",
+      "status": "inherited_failure",
+      "needed": "Independent source-generation reconciliation outside this change; frozen baseline remains unchanged.",
+      "reentry_test": "make planning-eval; current failure is planning_baseline_changed_requires_new_version."
+    },
+    {
+      "id": "compatibility-source-baseline",
+      "owner": "independent compatibility evidence owner",
+      "status": "inherited_failure",
+      "needed": "PI-6 frozen core-runtime hash reconciliation. The original HEAD already differs from manifest-v2-source-9; this change adds another explicit source drift. No historical manifest is rebound.",
+      "reentry_test": "Reconcile an independently accepted additive PI-6 source generation, then run make sdk-check and the full offline suite. Existing failure is frozen_protocol_mismatch."
+    },
+    {
+      "id": "runtime-and-release-authorization",
+      "owner": "owner and independent release reviewer",
+      "status": "blocked",
+      "needed": "Prior source/identity/forget/provider/billing/recovery gates, explicit owner opt-in and approved real canary/rollback authority.",
+      "reentry_test": "Separate reviewed release decision with E2/E3/E4/E5 where applicable. No command in this package can make a policy effective."
+    }
+  ]
+}

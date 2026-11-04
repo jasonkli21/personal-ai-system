@@ -322,3 +322,14 @@ memory-navigation-postgres-check:
 	cd backend && python -c 'import os, sys; sys.exit(0 if os.environ.get("PERSISTENCE_TEST_POSTGRES_DSN") else "BLOCKED: configure a disposable PERSISTENCE_TEST_POSTGRES_DSN")'
 	cd backend && python -m pytest -q tests/persistence/test_local_persistence.py -k pgvector
 	cd backend && python -m pytest -q tests/persistence/test_verified_knowledge_postgres.py
+
+.PHONY: memory-research-check memory-research-eval memory-research-replay
+memory-research-check:
+	cd backend && python -m pytest -q tests/test_memory_research_contracts.py tests/test_memory_research_study.py tests/test_memory_research_governance.py
+
+memory-research-eval:
+	cd backend && python -m personal_ai.evaluation.memory_longitudinal
+
+memory-research-replay:
+	test -n "$(MEMORY_RESEARCH_PACKAGE)"
+	cd backend && python -m personal_ai.evaluation.memory_longitudinal --verify "$(MEMORY_RESEARCH_PACKAGE)"
