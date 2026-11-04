@@ -1,6 +1,8 @@
 """Standalone bounded use case. No persistence of passages or model integration."""
 
 import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import BoundedSemaphore
 from time import monotonic
@@ -16,6 +18,17 @@ from personal_ai.search.contracts import SearchDispatch
 
 # Process bound, independent of application service instances/event loops.
 _SLOTS = BoundedSemaphore(2)
+
+
+@dataclass(frozen=True, slots=True)
+class PinnedToolGuard:
+    """Bind a trusted caller's guard to the snapshot the tool actually reads."""
+
+    source_digest: str
+    check: Callable[[], None]
+
+    def __call__(self):
+        self.check()
 
 
 class RetrievalService:
@@ -60,6 +73,8 @@ class RetrievalService:
                 or not bridge.current(current_settings)
             )
         ):
+            raise ValueError("source_authority_changed")
+        if isinstance(tool_guard, PinnedToolGuard) and tool_guard.source_digest != snapshot.digest:
             raise ValueError("source_authority_changed")
         if tool_guard:
             tool_guard()

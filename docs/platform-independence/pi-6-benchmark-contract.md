@@ -115,3 +115,11 @@ receipts remain unchanged. The new identity binds the closed task evaluator and
 local counting, trace, and retrieval-observation changes to the reviewed parent
 commit. It supports synthetic E1 plumbing only; model utility and production
 acceptance remain unmeasured.
+
+## Source generation 6 · 2026-11-03
+
+`manifest-v2-source-6.json` and planning baseline lock v32 bind the governed
+workflow source and additive PostgreSQL migration. The prior manifests, locks,
+corpora, scorer, driver, thresholds, and non-promotion decision are preserved.
+The planning lock uses the implementation parent and the exact source digest
+under the existing direct-child check.

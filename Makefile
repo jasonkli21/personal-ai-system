@@ -260,3 +260,11 @@ mcp-adapter-check:
 	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
 	  PYTHONPATH="$(MCP_ADAPTER_IMPORT_PATH)" $(MCP_ADAPTER_PYTHON) -s backend/scripts/offline_test_runner.py \
 	    -q adapters/mcp_source/tests
+
+.PHONY: workflow-check workflow-postgres-check
+workflow-check:
+	cd backend && python -m pytest -q tests/test_workflow_contract.py tests/test_mutations.py
+
+workflow-postgres-check:
+	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
+	cd backend && python -m pytest -q tests/persistence/test_workflow_postgres.py

@@ -1026,14 +1026,14 @@ def test_v27_pi6_review_rebind_preserves_v26_and_non_promotion():
 
 
 def test_v30_is_preserved_and_v31_binds_review_remediation_source():
-    current = json.loads(planning.FREEZE_PATH.read_text())
+    current = json.loads(planning.HISTORICAL_V31_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V30_FREEZE_PATH.read_text())
-    identity = planning.freeze_identity()
-    assert current["baseline_lock_version"] == identity["baseline_lock_version"]
     assert current["baseline_lock_version"] == "planning-baseline-lock-v31"
     assert current["supersedes"] == previous["baseline_lock_version"]
     assert current["source_revision"] == "35c26de9b75d9eab1ebef2d7f4aad30b72ae5d11"
-    assert current["source_identity_digest"] == identity["source_identity_digest"]
+    assert current["source_identity_digest"] == (
+        "57f448e2ead4bc00453b2ed120f502aa02db6eebb0198cbb37cb350224ab5236"
+    )
     assert current["source_identity_digest"] != previous["source_identity_digest"]
     assert previous["baseline_lock_version"] == "planning-baseline-lock-v30"
     for field in (
@@ -1047,3 +1047,17 @@ def test_v30_is_preserved_and_v31_binds_review_remediation_source():
         assert current[field] == previous[field]
     assert current["evaluator_version"] == "planning-evaluator-v8"
     assert current["evaluator_version"] != previous["evaluator_version"]
+
+
+def test_current_planning_lock_binds_workflow_source_without_promoting():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V31_FREEZE_PATH.read_text())
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["source_revision"] == "6d9fd3c4252e3e2bde6563af76d7a896af7de5f8"
+    assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
+    assert current["source_identity_digest"] != previous["source_identity_digest"]
+    for field in (
+        "baseline_version", "configuration_digest", "corpus_digest", "counter_identity",
+        "evaluator_version", "fixture_dependency_digest", "promotion_decision",
+    ):
+        assert current[field] == previous[field]

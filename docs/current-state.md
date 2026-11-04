@@ -25,6 +25,7 @@ external evidence retain different authority and freshness semantics.
 | --- | --- | --- |
 | Context and inference | Shared assembler, deterministic planner, bounded inspection, field/sensitivity policy, provider-neutral gateway and LiteLLM transport | Immutable source/policy references and deployed membership/revocation; live provider token/account/privacy semantics |
 | Persistence and artifacts | PostgreSQL/pgvector adapters, DynamoDB adapters, private artifact tier, owner lifecycle and retention operations | DynamoDB engine, cloud object storage, physical deletion and cloud recovery beyond the exercised PostgreSQL subset |
+| Local workflow execution | Default-off internal foreground service for bounded local retrieval DAGs. PostgreSQL stores the scoped original key, attempts, cancellation and ordered progress. Live outputs are transient | Independent review, installed workflow consumer, external issuer, native isolation and restore; background and generic effect profiles unavailable |
 | Routing and evaluation | Endpoint admission, physical-send accounting, deterministic routing, bounded tasks, shadow experiments and paired evaluators | Workflows remain gated; no adaptive, memory or search coverage is promoted by synthetic evidence |
 | External and domain context | Typed Travel, Shopping and Finance reads; separate broad Health read and narrow signed Health exports; owner-scoped grants and opaque choices | Broad Health still requires a Firebase user token; native linked identity, cloud IAM, domain/browser and grant UX acceptance |
 | Delegated Shopping tasks | Canonical closed wire, signed source ingress, domain capability metadata, existing confirmation/reservation/reconciliation lifecycle; budget and append-note adapters | Default-off, deployment-managed single-owner origin trust; actual cloud identity and browser/device acceptance |
@@ -37,6 +38,9 @@ consented destination/dates → Shopping note, and Health consented ergonomic
 constraint → Shopping note. Domain apps retain canonical data, UI, revisions,
 validation and consent. Personal AI persists only orchestration intent and
 outcomes. Tasks do not invoke model providers or automate purchases.
+
+The [workflow evidence](harness-excellence/2026-11-03-workflow-verification.md)
+separates local workflow tests from installed, live and deployed acceptance.
 
 ## Platform Independence / freeze status
 

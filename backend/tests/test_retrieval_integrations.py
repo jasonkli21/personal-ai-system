@@ -980,3 +980,12 @@ async def test_operator_read_only_registry_closed_schema_and_second_registration
         tools.registrations[second.tool_id] = original
     with pytest.raises(FrozenInstanceError):
         tools.registrations = {}
+
+
+def test_pinned_tool_guard_rejects_the_actual_snapshot_before_callback(runtime):
+    from personal_ai.retrieval.service import PinnedToolGuard
+
+    snapshot = load_snapshot(runtime.path)
+    guard = PinnedToolGuard("0" * 64, lambda: pytest.fail("different snapshot was authorized"))
+    with pytest.raises(ValueError, match="source_authority_changed"):
+        runtime.service.guard(snapshot, tool=True, tool_guard=guard)
