@@ -60,6 +60,33 @@ validation. Full MEM-3 remains partial/BLOCKED and production NO_GO. See the
 [extension report](memory/2026-11-03-episode-extension.md) (superseded where it
 describes capture/selection as usable).
 
+## Bounded offline consolidation
+
+MEM-4 has an isolated synthetic candidate with E0/E1 and native PostgreSQL
+**E2 component evidence**, not full phase exit. The same bounded transition now
+supports in-memory and durable SQL checkpoint/proposal/original-key transactions,
+independent-process CAS, lease fencing, abrupt process death, lost ACK and stale
+checkpoint detection. Migration 036 reuses canonical owner deletion locks;
+source authority remains a frozen synthetic simulator. Whole-authority rollback
+across cold restart and deployed lifecycle/erasure remain unverified.
+
+Exact typed entailment, correction dominance after withdrawal, contradictory user
+corrections, explicit backfill generations, fresh regrant evidence, legitimate
+nullable/cross-app/actor scopes and natural quota exhaustion have adversarial tests.
+Authenticated MEM-2 dry-run previews cover all three candidate kinds without
+persisting or admitting memory. The additive 14-case shared-builder/fresh-consumer
+benchmark measures scripted answer quality and leakage; model/longitudinal utility
+and independent holdouts remain unverified. An optional local-only pilot uses the
+existing chat/admission/accounting path; no pinned model/runtime/socket is installed
+or configured here, so no real model ran.
+
+No runtime producer, episode read, scheduler, UI/API/tool, automatic approval or
+production enablement is added. MEM-3 stays hard disabled. Full MEM-4 remains
+**PARTIAL/BLOCKED**, independent acceptance pending and production **NO_GO**.
+See the [reassessment](memory/2026-11-03-consolidation-continuation-decision.md),
+[latest evidence](memory/2026-11-03-consolidation-continuation.md) and
+[precise dependency ledger](memory/consolidation-development-blockers.json).
+
 ## Delivered locally
 
 The Next.js frontend proxies the FastAPI API. Services own chat, active message
@@ -265,7 +292,8 @@ The integrated roadmap tracks 20 phase IDs. Seventeen require substantive new
 work from the planning baseline. MEM-0 through MEM-2 already have scoped
 implementations with acceptance gates. Only local source-only E0/E1 synthetic
 development is unfreezed for terminal-step candidates; MEM-3 acceptance remains
-blocked and MEM-4+ stays frozen. PI production remains NO_GO.
+blocked. MEM-4 now permits the separately authorized synthetic-only component
+described above; integrated MEM-4 and MEM-5+ stay frozen. PI production remains NO_GO.
 
 ## MEM-0 research baseline
 

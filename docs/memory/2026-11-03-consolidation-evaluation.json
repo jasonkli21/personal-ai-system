@@ -1,0 +1,61 @@
+{
+  "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make memory-consolidation-check memory-consolidation-eval backend-lint naming-policy-check",
+  "date": "2026-11-03",
+  "delivery_revision": "08dd5f0f1d61b29491e02095501515ce49a0bddf",
+  "entry_revision": "e906bfc1007d27bc75e97b4ad852bac901da931c",
+  "evaluation": {
+    "corpus_sha256": "137b432e57ff35a2184c4cc4ace58befd2c27468b01ceadde0dd658c1253becf",
+    "denominators": {
+      "development": 7,
+      "reserved_author_visible": 5
+    },
+    "elapsed_seconds": 0.017675,
+    "evidence_tier": "E1",
+    "metric": "exact_pending_shape_scripted_only",
+    "model_utility": "unverified",
+    "production_promotable": false,
+    "reserved_independent": false,
+    "resources": {
+      "automatic_retries": 0,
+      "checkpoints": 26,
+      "provider_calls": 0,
+      "provider_tokens": 0,
+      "receipts": 13,
+      "retained_proposals": 10,
+      "streams": 12
+    },
+    "schema_version": "offline-consolidation-evaluation-v1",
+    "scores": {
+      "deterministic_pending": {
+        "development": 7,
+        "reserved_author_visible": 5
+      },
+      "eligible_source_oracle": {
+        "development": 7,
+        "reserved_author_visible": 5
+      },
+      "fixed_first_assertion": {
+        "development": 4,
+        "reserved_author_visible": 3
+      },
+      "no_consolidation": {
+        "development": 1,
+        "reserved_author_visible": 1
+      }
+    }
+  },
+  "focused_tests_passed": 74,
+  "historical_initial_receipt": true,
+  "independent_review": "pending",
+  "schema_version": "offline-consolidation-author-receipt-v1",
+  "source_files_sha256": {
+    "backend/src/personal_ai/evaluation/consolidation.py": "10b7ea558dd93b8f02b74d4167639d16659ecb55e338c5c9e70b09e3c63ddfc6",
+    "backend/src/personal_ai/evaluation/fixtures/memory/offline-consolidation-v1.json": "137b432e57ff35a2184c4cc4ace58befd2c27468b01ceadde0dd658c1253becf",
+    "backend/src/personal_ai/memory/consolidation/__init__.py": "ab7e15a430bca304646fbabd83332ad09bb7bf2893b7f475ac50966a1fc5a595",
+    "backend/src/personal_ai/memory/consolidation/contracts.py": "c712453ad65b34795ac923748d9baf08061f35cb63f609efefec4e66dc7f980c",
+    "backend/src/personal_ai/memory/consolidation/policy.py": "ae0b8da5a244a53931a9f93565fdfc8020e45644621fcfb38e194f47648ba291",
+    "backend/src/personal_ai/memory/consolidation/repository.py": "3bfbe0251a314505a1b23bc2fbf12f853d20c0c983c7d2cd54b66dc85cbbcf69",
+    "backend/src/personal_ai/memory/consolidation/sources.py": "7be35d95dc27ec18f81f73b7d4a03206e22e473ff5f7a3b206935950be6f3d37",
+    "backend/tests/test_offline_consolidation.py": "bcf157e655ad188521ff6ca1fce17505061f43a826142c9b39f89b9cd3043519"
+  }
+}

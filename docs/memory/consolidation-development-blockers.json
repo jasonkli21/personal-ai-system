@@ -1,0 +1,115 @@
+{
+  "schema_version": "offline-consolidation-blockers-v1",
+  "date": "2026-11-03",
+  "entry_revision": "e906bfc1007d27bc75e97b4ad852bac901da931c",
+  "independently_accepted": false,
+  "production_promotable": false,
+  "runtime_consumers": [],
+  "inherited_episode_blockers": "episode-development-blockers.json",
+  "continuation_entry_revision": "08dd5f0f1d61b29491e02095501515ce49a0bddf",
+  "code_status": "isolated_synthetic_candidate_with_native_component_evidence",
+  "report": "2026-11-03-consolidation-continuation.md",
+  "initial_report": "2026-11-03-consolidation-implementation.md",
+  "evidence_tiers": {
+    "E0": "implemented_contracts",
+    "E1": "synthetic_offline_and_scripted_consumer",
+    "E2_component": "native_PostgreSQL_only",
+    "E3_E5": "unverified"
+  },
+  "completed_from_prior_deferrals": [
+    {
+      "id": "native-checkpoint-atomicity",
+      "status": "implemented_native_tested",
+      "completed": "Migration 036, shared in-memory/SQL transition, canonical owner locks, scoped durable source/checkpoint/proposal/original-key transaction, independent-process CAS and real abrupt process death before/after commit. No runtime registration."
+    },
+    {
+      "id": "authenticated-review-dry-run",
+      "status": "implemented_hermetically_tested",
+      "completed": "Exact recent canonical user/project/client authority and source guards; canonical propose preview for procedures and canonical review CAS/expiry over never-persisted typed lesson/conflict tickets; all three kinds remain pending and never admitted."
+    },
+    {
+      "id": "bounded-backfill-and-capacity",
+      "status": "implemented_tested",
+      "completed": "Two explicit allowlisted generation namespaces with independent cursor/key ledgers. Fresh epoch/revision evidence works after regrant; original receipts cannot reset. Natural byte-pressure tests preserve checkpoints and forget. Finite deny-without-pruning satisfies the contract; unbounded compaction is not a required feature."
+    },
+    {
+      "id": "evaluation-infrastructure",
+      "status": "implemented_tested",
+      "completed": "Preserved v1 corpus plus additive frozen v2: 88 records, 14 shared-builder/fresh-consumer tasks, nullable and multiple valid owner/app/actor/client scopes, exact support/leakage metrics. Local pilot reuses existing assembler/admission/accounting but no real model is available."
+    }
+  ],
+  "blockers": [
+    {
+      "id": "trusted-source-producer",
+      "status": "blocked",
+      "blocking_dependency": "MEM-3 original submission provenance, observed-at metadata, verified original actor/client/project/session bindings, current grants and recoverable issuer-backed monotonic source leases are not installed. Capture/selection is hard disabled.",
+      "why_not_resolved_here": "Existing terminal receipts lack the original authoritative facts; the data cannot safely be inferred from deadlines, event tails or host booleans. Enabling an experimental projection would bypass the explicit inherited gate. No real-source producer or external issuer can be proved from synthetic fixtures.",
+      "completed_independently": "Immutable versioned exact fixture membership, durable synthetic issuer epochs/revisions, withdrawal/regrant, correction barriers, provenance entailment, CAS and native source mutation fencing.",
+      "unblocking_steps": [
+        "Implement original-source provenance at the trusted producer and issuer boundary without fabricating historical fields.",
+        "Wire current project/source grants and a recoverable lease through commit, lookup, review and disclosure.",
+        "Independently validate MEM-3 and canonical lifecycle before registering any live consolidation reader."
+      ]
+    },
+    {
+      "id": "canonical-erasure-and-cold-restore",
+      "status": "blocked",
+      "blocking_dependency": "An external surviving issuer/restore epoch plus canonical producer/project/account erasure orchestration and actual replica/backup infrastructure.",
+      "why_not_resolved_here": "A cold process given a rollback of both the authority row and derived database has no independent surviving observation with which to distinguish old state. This session has no deployed issuer or replica/backup deletion system; public disposable fixtures cannot prove their physical behavior.",
+      "completed_independently": "Canonical owner locks/fences; project/owner forget and expiry body purge; durable content-free receipts/heads; stale derived-row restore denial; per-process source revision floor; native rollback/process-crash tests.",
+      "unblocking_steps": [
+        "Supply a restore epoch outside the restored database and deny reads until current issuer reconciliation completes.",
+        "Connect actual source/project/account withdrawal events to canonical maintenance and reverse dependencies.",
+        "Verify erasure/recovery across real replicas, backups and cold independent processes; retain fences during rollback."
+      ]
+    },
+    {
+      "id": "runtime-review-and-selection-integration",
+      "status": "blocked",
+      "blocking_dependency": "A trusted source producer and a versioned canonical queue/permission-dependency contract carrying these exact offline edges, generations and lesson/conflict semantics.",
+      "why_not_resolved_here": "Existing MEM-2 persisted ProposalInput supports procedure/project_decision content and has no consolidation source/checkpoint dependency. Persisting a bodyless dry-run ticket or coercing a lesson into a project decision would lose meaning/provenance. The explicit task boundary prohibits unverified real-source ingestion and automatic approval.",
+      "completed_independently": "Read-only authenticated canonical propose/review CAS/expiry contracts for all three kinds, explicit typed review-only mappings, revalidation at release, current client matching, no mutation/API/tool registration.",
+      "unblocking_steps": [
+        "Design a separately versioned queue payload and final source dependency mapping, preserving old readers and review-is-not-admission.",
+        "Integrate under the accepted producer/source lease and canonical lifecycle transaction.",
+        "Keep review/admission/selection separate and test stale permissions and erasure at every handoff before registration."
+      ]
+    },
+    {
+      "id": "real-local-model-measurement",
+      "status": "blocked",
+      "blocking_dependency": "No llama-server executable, llama_cpp package, pinned model hash/build or configured private socket is available; no operator model profile is installed.",
+      "why_not_resolved_here": "Invented pins, a fake adapter or a model download would not establish the existing local runtime/admission contract. Selecting/installing and hardware-validating a new runtime/model is outside the requested use of available infrastructure. No hosted fallback or source disclosure is authorized.",
+      "completed_independently": "Bounded optional local pilot over public synthetic cards with normal ChatTurnService/assembler, canonical compose_pair and usage accounting; three equal-budget arms; preflight and fake orchestration tests; explicit unavailable result, zero actual model calls.",
+      "unblocking_steps": [
+        "Install and independently pin a compatible llama.cpp build and GGUF; follow docs/harness-excellence/local-inference.md for private socket, OS egress fence and identity checks.",
+        "Configure the local-only profile and durable usage store, then run consolidation_quality --local-preflight.",
+        "Explicitly run a development --local-case pilot under the 4096/128-token, 30-second request bounds and retain native usage/latency/hardware evidence."
+      ]
+    },
+    {
+      "id": "independent-longitudinal-utility",
+      "status": "blocked",
+      "blocking_dependency": "A real model/runtime and genuinely independent held-out multi-session tasks/review under matched budgets.",
+      "why_not_resolved_here": "The author can create reproducible consumer/evaluation infrastructure but cannot make author-visible cases independently held out or convert a scripted parser into real agent utility. The requested separate Sol High review and external longitudinal observations have not occurred.",
+      "completed_independently": "Frozen v1/v2 manifests and arms, full-source oracle, fresh serialized-card consumer through shared context packing, exact outcome/false-support/entailment/leakage metrics and optional local three-arm pilot.",
+      "unblocking_steps": [
+        "Independently review/freeze task and comparator identities with a blinded longitudinal split.",
+        "Run actual fresh-session task sequences on a pinned model with equal budgets and current source/lifecycle controls.",
+        "Measure task success, source precision, stale/privacy/correction regressions, physical calls/tokens, latency and cost; do not promote from proxy scores."
+      ]
+    },
+    {
+      "id": "independent-release-evidence",
+      "status": "blocked",
+      "blocking_dependency": "Independent exact amended-commit review, canonical additive release source-identity generation/installed-artifact evidence, and deployed source/disclosure/security acceptance.",
+      "why_not_resolved_here": "Frozen v35 and protocol source identities predate the new code and already failed on the predecessor. Rewriting them or representing author source hashes as independent acceptance would erase historical evidence. Release promotion is outside this implementation and the user explicitly requires a subsequent separate review.",
+      "completed_independently": "Exact new source/fixture/migration hashes and failure records, native and offline verification, unchanged old corpus/lock bytes, no push/deploy/enablement. The evidence manifest makes a future additive identity review concrete.",
+      "unblocking_steps": [
+        "Review the amended commit and reproduce its source/file identities and native evidence.",
+        "Prepare/review the canonical additive non-promoting planning/protocol source generation and installed-artifact manifests without editing old locks or failures.",
+        "Obtain the remaining live issuer/provider, restore/erasure, deployment and security acceptance before any production promotion."
+      ]
+    }
+  ]
+}

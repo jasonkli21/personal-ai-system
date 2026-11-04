@@ -17,6 +17,15 @@ http_platform = signed_http_fixture
 pytestmark = pytest.mark.loopback_http
 
 
+@pytest.fixture(autouse=True)
+def synthetic_restore_capabilities(monkeypatch):
+    # The shared HTTP fixture otherwise enables these capabilities by test-name
+    # prefix. This restore test requires the same explicit synthetic grant before
+    # it can verify withdrawal; all post-withdrawal denial assertions still apply.
+    monkeypatch.setenv("READING_LOGBOOK_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setenv("READING_LOGBOOK_RETRIEVAL_CONTEXT_ENABLED", "true")
+
+
 def test_stale_derived_restore_keeps_revocation_and_original_keys(
     http_platform, tmp_path, monkeypatch
 ):

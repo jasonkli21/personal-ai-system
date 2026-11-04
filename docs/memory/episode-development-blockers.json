@@ -6,6 +6,13 @@
   "independently_accepted": false,
   "production_promotable": false,
   "new_runtime_flags": [],
+  "offline_consolidation": {
+    "status": "synthetic_only_no_episode_consumption",
+    "report": "2026-11-03-consolidation-continuation.md",
+    "blockers": "consolidation-development-blockers.json",
+    "closes_episode_blockers": false,
+    "native_component_evidence": "isolated_consolidation_only_no_episode_enablement"
+  },
   "blockers": [
     {
       "id": "original-provenance",

@@ -518,18 +518,26 @@ def test_oversized_tool_result_stops_dependents(runtime):
 def test_deadline_expiring_after_first_step_stops_dependents(runtime, monkeypatch):
     service = runtime.service
     run_id = service.submit(spec(step("first"), step("second")))
-    original = service.retrieval.query
+    original = service._tool
 
-    async def expire(*args, **kwargs):
-        result = await original(*args, **kwargs)
-        with runtime.database.transaction() as connection:
-            connection.execute(
-                "UPDATE workflow_runs SET deadline = clock_timestamp() WHERE run_id = %s",
-                (run_id,),
-            )
-        return result
+    def tool(*args, **kwargs):
+        snapshot, invoke = original(*args, **kwargs)
 
-    monkeypatch.setattr(service.retrieval, "query", expire)
+        async def expire(*invoke_args, **invoke_kwargs):
+            # Expire after the trusted invocation returns an observed result.
+            # Expiring inside query would fail its final source guard and leave
+            # the workflow with an unobserved (therefore uncertain) dispatch.
+            result = await invoke(*invoke_args, **invoke_kwargs)
+            with runtime.database.transaction() as connection:
+                connection.execute(
+                    "UPDATE workflow_runs SET deadline = clock_timestamp() WHERE run_id = %s",
+                    (run_id,),
+                )
+            return result
+
+        return snapshot, expire
+
+    monkeypatch.setattr(service, "_tool", tool)
     progress, outputs = asyncio.run(service.execute(run_id))
     assert progress.state == "failed" and progress.reason == "deadline" and not outputs
     assert [a.step for a in progress.attempts] == ["first"]

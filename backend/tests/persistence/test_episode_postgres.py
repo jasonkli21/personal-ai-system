@@ -8,19 +8,25 @@ import pytest
 
 from personal_ai.persistence.postgres.episodes import PostgresEpisodeRepository
 from tests.persistence.test_workflow_postgres import database  # noqa: F401
-from tests.test_episode_service import runtime  # noqa: F401
+from tests.test_episode_service import runtime, seed_episode  # noqa: F401
 
 pytestmark = pytest.mark.persistence_integration
 
 
-def test_episode_capture_forget_roundtrip(database, runtime):
+def test_disabled_episode_capture_and_native_seeded_maintenance(database, runtime):
     rt = runtime
     rt.service.repository = PostgresEpisodeRepository(database)
-    assert rt.service.capture("project", rt.run_id).status == "saved"
-    identity = rt.service.read("project").items[0].candidate.id
+    assert rt.service.capture("project", rt.run_id).status == "disabled"
+    assert rt.service.read("project").status == "disabled"
+    # Direct synthetic seeding exercises maintenance without enabling ingestion.
+    identity = seed_episode(rt)[0].id
     assert rt.service.forget("project", identity).status == "forgotten"
-    assert rt.service.capture("project", rt.run_id).status == "replayed"
-    assert rt.service.read("project", episode_id=identity).status == "denied"
+    assert rt.service.capture("project", rt.run_id).status == "disabled"
+    assert rt.service.read("project", episode_id=identity).status == "disabled"
+    with rt.service.guard("project", maintenance=True) as (_, _, bucket, _):
+        assert str(identity) not in bucket["records"]
+        assert bucket["states"][str(identity)]["retrieval_status"] == "forgotten"
+        assert bucket["receipts"]
 
 
 def test_episode_transaction_rollback_and_connection_serialization(database):

@@ -57,3 +57,19 @@ restore anti-rollback and automatic erasure remain separate gates. Drain old
 readers before migration/enablement; rollback keeps strict readers and migration,
 and disables `PROFILE_SHARING_ENABLED` for selection **and** persisted dependency
 reuse. See [API/operations](../../../../docs/platform-independence/profile-sharing-v1.md).
+
+
+## Isolated offline consolidation
+
+Migration 036 and `postgres/consolidation.py` are explicit synthetic-only adapters,
+not runtime-composed storage. They reuse the shared consolidation transition and
+canonical owner deletion locks. One transaction owns source authority, checkpoint,
+pending proposals and original-key receipts. Content-free authority heads detect
+stale derived checkpoint restores; a per-process revision floor detects observed
+issuer rollback. Full authority/database rollback after a cold restart needs an
+external monotonic fence. These tables contain public fixtures only and are not
+an accepted second memory lifecycle. Existing schema-1/2/3 memory, lifecycle and
+control tables remain unchanged. No accepted-memory writer, worker or export
+registration is added. Run `make memory-consolidation-postgres-check` with the
+normal isolated native test prerequisites. See the
+[continuation report](../../../../docs/memory/2026-11-03-consolidation-continuation.md).

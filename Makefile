@@ -297,3 +297,16 @@ memory-episode-check:
 memory-episode-postgres-check:
 	test -n "$(PERSISTENCE_TEST_POSTGRES_DSN)"
 	cd backend && python -m pytest -q tests/persistence/test_episode_postgres.py
+
+.PHONY: memory-consolidation-check memory-consolidation-eval
+memory-consolidation-check:
+	cd backend && python -m pytest -q tests/test_offline_consolidation.py tests/test_consolidation_adversarial.py
+
+memory-consolidation-eval:
+	cd backend && python -m personal_ai.evaluation.consolidation
+	cd backend && python -m personal_ai.evaluation.consolidation_quality
+
+.PHONY: memory-consolidation-postgres-check
+memory-consolidation-postgres-check:
+	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
+	cd backend && python -m pytest -q tests/persistence/test_consolidation_postgres.py

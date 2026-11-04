@@ -1,0 +1,2686 @@
+{
+  "schema_version": "offline-consolidation-corpus-v2",
+  "classification": "synthetic",
+  "preregistration": {
+    "arms": [
+      "no_consolidation",
+      "fixed_first_assertion",
+      "deterministic_pending",
+      "eligible_source_oracle"
+    ],
+    "metrics": [
+      "consumer_answer_accuracy",
+      "false_support",
+      "ineligible_edge_leakage",
+      "exact_evidence_entailment",
+      "cross_scope_leakage",
+      "checkpoint_coverage"
+    ],
+    "model_utility": "unverified",
+    "reserved_independence": false
+  },
+  "records": [
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "multi-command"
+      },
+      "source_id": "multi-command-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "multi-command"
+      },
+      "source_id": "multi-command-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "multi-command"
+      },
+      "source_id": "multi-command-3",
+      "sequence": 3,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "user-conflict"
+      },
+      "source_id": "user-conflict-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "user_correction",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "user-conflict"
+      },
+      "source_id": "user-conflict-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "user_correction",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "observed-only"
+      },
+      "source_id": "observed-only-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "observed_completion",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "user-correction"
+      },
+      "source_id": "user-correction-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "user-correction"
+      },
+      "source_id": "user-correction-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "user_correction",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "user-correction"
+      },
+      "source_id": "user-correction-3",
+      "sequence": 3,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "correction-withdrawn"
+      },
+      "source_id": "correction-withdrawn-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "correction-withdrawn"
+      },
+      "source_id": "correction-withdrawn-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "user_correction",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "fresh-regrant"
+      },
+      "source_id": "renewable",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "fresh-regrant"
+      },
+      "source_id": "renewable",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 2,
+      "epoch": 3,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "revision-supersession"
+      },
+      "source_id": "revision-supersession-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "revision-supersession"
+      },
+      "source_id": "revision-supersession-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-b"
+      },
+      "supersedes": "revision-supersession-1"
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": null,
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "nullable-actor"
+      },
+      "source_id": "nullable-actor-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "other-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "other-application"
+      },
+      "source_id": "other-application-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-b",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "other-actor"
+      },
+      "source_id": "other-actor-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-other",
+        "application": "fixture-app",
+        "workspace": null,
+        "project": "other-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "other-owner-project"
+      },
+      "source_id": "other-owner-project-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "other-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "other-client"
+      },
+      "source_id": "other-client-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "expired-pending"
+      },
+      "source_id": "expired-pending-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "conflicting-checks"
+      },
+      "source_id": "conflicting-checks-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "conflicting-checks"
+      },
+      "source_id": "conflicting-checks-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "failed",
+        "revision": "revision-a"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-1",
+      "sequence": 1,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-0"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-2",
+      "sequence": 2,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-1"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-3",
+      "sequence": 3,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-2"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-4",
+      "sequence": 4,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-3"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-5",
+      "sequence": 5,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-4"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-6",
+      "sequence": 6,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-5"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-7",
+      "sequence": 7,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-6"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-8",
+      "sequence": 8,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-7"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-9",
+      "sequence": 9,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-8"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-10",
+      "sequence": 10,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-9"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-11",
+      "sequence": 11,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-10"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-12",
+      "sequence": 12,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-11"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-13",
+      "sequence": 13,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-12"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-14",
+      "sequence": 14,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-13"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-15",
+      "sequence": 15,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-14"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-16",
+      "sequence": 16,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-15"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-17",
+      "sequence": 17,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-16"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-18",
+      "sequence": 18,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-17"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-19",
+      "sequence": 19,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-18"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-20",
+      "sequence": 20,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-19"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-21",
+      "sequence": 21,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-20"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-22",
+      "sequence": 22,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-21"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-23",
+      "sequence": 23,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-22"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-24",
+      "sequence": 24,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-23"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-25",
+      "sequence": 25,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-24"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-26",
+      "sequence": 26,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-25"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-27",
+      "sequence": 27,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-26"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-28",
+      "sequence": 28,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-27"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-29",
+      "sequence": 29,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-28"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-30",
+      "sequence": 30,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-29"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-31",
+      "sequence": 31,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-30"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-32",
+      "sequence": 32,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-31"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-33",
+      "sequence": 33,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-32"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-34",
+      "sequence": 34,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-33"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-35",
+      "sequence": 35,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-34"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-36",
+      "sequence": 36,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-35"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-37",
+      "sequence": 37,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-36"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-38",
+      "sequence": 38,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-37"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-39",
+      "sequence": 39,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-38"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-40",
+      "sequence": 40,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-39"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-41",
+      "sequence": 41,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-40"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-42",
+      "sequence": 42,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-41"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-43",
+      "sequence": 43,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-42"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-44",
+      "sequence": 44,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-43"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-45",
+      "sequence": 45,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-44"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-46",
+      "sequence": 46,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-45"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-47",
+      "sequence": 47,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-46"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-48",
+      "sequence": 48,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-47"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-49",
+      "sequence": 49,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-48"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-50",
+      "sequence": 50,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-49"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-51",
+      "sequence": 51,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-50"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-52",
+      "sequence": 52,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-51"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-53",
+      "sequence": 53,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-52"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-54",
+      "sequence": 54,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-53"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-55",
+      "sequence": 55,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-54"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-56",
+      "sequence": 56,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-55"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-57",
+      "sequence": 57,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-56"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-58",
+      "sequence": 58,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-57"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-59",
+      "sequence": 59,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-58"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-60",
+      "sequence": 60,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-59"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-61",
+      "sequence": 61,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-60"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-62",
+      "sequence": 62,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-61"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-63",
+      "sequence": 63,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make memory-eval",
+        "outcome": "passed",
+        "revision": "revision-62"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-64",
+      "sequence": 64,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-lint",
+        "outcome": "passed",
+        "revision": "revision-63"
+      },
+      "supersedes": null
+    },
+    {
+      "schema_version": "consolidation-source-v1",
+      "scope": {
+        "owner": "synthetic-owner",
+        "application": "fixture-app",
+        "workspace": "fixture-workspace",
+        "project": "fixture-project",
+        "actor": "fixture-issuer|actor-a",
+        "client": "fixture-client",
+        "purpose": "offline_synthetic_consolidation",
+        "session": "capacity-pressure"
+      },
+      "source_id": "capacity-pressure-65",
+      "sequence": 65,
+      "issuer": "frozen-synthetic-issuer-v1",
+      "classification": "synthetic",
+      "revision": 1,
+      "epoch": 1,
+      "observed_at": "2026-11-03T12:00:00Z",
+      "expires_at": "2026-11-04T12:00:00Z",
+      "evidence": "fixture_independent_check",
+      "fact": {
+        "command": "make backend-test-offline",
+        "outcome": "passed",
+        "revision": "revision-64"
+      },
+      "supersedes": null
+    }
+  ],
+  "tasks": [
+    {
+      "session": "multi-command",
+      "split": "development",
+      "events": [],
+      "query": {
+        "command": "make memory-eval",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "passed"
+      }
+    },
+    {
+      "session": "user-conflict",
+      "split": "development",
+      "events": [],
+      "query": {
+        "command": "make backend-lint",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "conflict",
+        "outcome": null
+      }
+    },
+    {
+      "session": "observed-only",
+      "split": "development",
+      "events": [],
+      "query": {
+        "command": "make backend-test-offline",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "abstain",
+        "outcome": null
+      }
+    },
+    {
+      "session": "user-correction",
+      "split": "development",
+      "events": [],
+      "query": {
+        "command": "make backend-lint",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "failed"
+      }
+    },
+    {
+      "session": "correction-withdrawn",
+      "split": "development",
+      "events": [
+        {
+          "action": "withdraw",
+          "source_id": "correction-withdrawn-2"
+        }
+      ],
+      "query": {
+        "command": "make backend-test-offline",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "abstain",
+        "outcome": null
+      }
+    },
+    {
+      "session": "fresh-regrant",
+      "split": "development",
+      "events": [
+        {
+          "action": "regrant",
+          "source_id": "renewable"
+        }
+      ],
+      "query": {
+        "command": "make memory-eval",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "failed"
+      }
+    },
+    {
+      "session": "revision-supersession",
+      "split": "development",
+      "events": [],
+      "query": {
+        "command": "make backend-lint",
+        "revision": "revision-b"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "passed"
+      }
+    },
+    {
+      "session": "nullable-actor",
+      "split": "reserved_author_visible",
+      "events": [],
+      "query": {
+        "command": "make backend-test-offline",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "failed"
+      }
+    },
+    {
+      "session": "other-application",
+      "split": "reserved_author_visible",
+      "events": [],
+      "query": {
+        "command": "make backend-test-offline",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "passed"
+      }
+    },
+    {
+      "session": "other-actor",
+      "split": "reserved_author_visible",
+      "events": [],
+      "query": {
+        "command": "make memory-eval",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "failed"
+      }
+    },
+    {
+      "session": "other-owner-project",
+      "split": "reserved_author_visible",
+      "events": [],
+      "query": {
+        "command": "make backend-lint",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "passed"
+      }
+    },
+    {
+      "session": "other-client",
+      "split": "reserved_author_visible",
+      "events": [],
+      "query": {
+        "command": "make backend-lint",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "advice",
+        "outcome": "failed"
+      }
+    },
+    {
+      "session": "expired-pending",
+      "split": "reserved_author_visible",
+      "events": [
+        {
+          "action": "expire"
+        }
+      ],
+      "query": {
+        "command": "make memory-eval",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "abstain",
+        "outcome": null
+      }
+    },
+    {
+      "session": "conflicting-checks",
+      "split": "reserved_author_visible",
+      "events": [],
+      "query": {
+        "command": "make backend-test-offline",
+        "revision": "revision-a"
+      },
+      "expected": {
+        "status": "conflict",
+        "outcome": null
+      }
+    }
+  ]
+}

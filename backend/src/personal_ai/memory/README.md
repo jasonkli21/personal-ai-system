@@ -158,6 +158,77 @@ Run `make memory-control-eval`, `test_memory_control*.py` and opt-in native
 `tests/persistence/test_memory_control_postgres.py`. Synthetic checks do not close
 issuer/identity, physical-send, backup deletion, operation-ledger growth or live-model gates.
 
+## Bounded offline proposals
+
+`consolidation/` accepts only two bundled, hash-pinned synthetic corpora. It has
+no runtime factory, episode reader, scheduler, API/tool, acceptance operation or
+production enablement. Scope binds owner/application/workspace/project/actor
+(including null)/client/purpose/session. Closed command/outcome/revision facts
+produce pending procedure/lesson/conflict candidates with exact versioned edges.
+Every read checks both current eligibility and typed entailment. Tool completion
+is unsupported. A published correction permanently suppresses older inferred
+assertions for that subject, even after the correction is withdrawn. Conflicting
+user corrections remain unresolved. Supersession never merges unrelated commands.
+
+`OfflineProposalRepository` and the opt-in
+`persistence.postgres.consolidation.PostgresProposalRepository` use the same
+transition algorithm. Migration 036 stores checkpoints/proposals/original-key
+receipts atomically with a separate **synthetic** issuer authority and content-free
+checkpoint heads. Native row/advisory locks and canonical owner deletion locks
+serialize independent processes. Lost ACK reconciles by the original key; changed
+payload conflicts. True process-death tests cover both sides of commit. Restoring
+only derived checkpoints is detected against surviving authority heads. A live
+source instance also rejects decreasing authority revisions. Restoring the whole
+authority and DB across a cold restart still requires an external surviving epoch.
+No native result authenticates real sources or establishes deployed erasure.
+
+The fixed v2 generation `synthetic-source-v2:bounded-extractor-v2:pending-policy-v2`
+is an explicit backfill namespace: new cursors and keys, no reset of the original
+stream. Fresh frozen evidence at a regranted epoch can be proposed; old evidence
+cannot revive. Forget and expiry suppress cached output and bounded explicit
+maintenance removes proposal bodies while retaining content-free replay barriers.
+Canonical owner fences also block the SQL adapter. Public fixture files and SQL
+MVCC/backup retention are not private-data physical-erasure evidence.
+
+Limits are four sources/page, 128 sources/corpus, 2 KiB/envelope, 16 KiB/page and
+retained proposal content/stream, 64 proposals/receipts and 32 claims/stream,
+five-second leases, two-second lock acquisition/commit/SQL budgets, and two
+allowlisted generations. Capacity denies without pruning keys or tombstones.
+Pending content expires no later than 24 hours after evidence observation.
+No automatic retry, provider call or token use occurs in extraction.
+
+`governance.ProposalReviewPreview` requires the canonical control service's current
+project/source lease, exact authenticated request/actor and recent-user check.
+It uses the canonical pure propose/review decisions without writing. Procedures have a
+canonical content preview; lesson/conflict bodies remain typed beside a bodyless,
+never-persisted canonical review ticket. This supports dry-run review CAS without
+changing the controls' wire kinds, misclassifying lessons as decisions, or approving
+memory. Cached/revoked suggestions cannot authorize a later review preview.
+
+Run `make memory-consolidation-check memory-consolidation-eval`. V1's 12-case
+shape benchmark is preserved. Additive v2 has 88 records, 14 scripted consumer
+cases, eligible nullable/cross-app/actor scopes, regrant, contradictory corrections
+and 65-source capacity pressure. Its four arms use the shared context builder;
+the fresh consumer receives serialized cards only. Outcome accuracy, false support,
+exact entailment and scope/source leakage are E1 synthetic evidence, not model
+or independently held-out utility. The fixed-first arm is a synthetic heuristic,
+not legacy fixed retrieval, whose schema cannot represent these project facts.
+
+`make memory-consolidation-postgres-check` requires a disposable local
+`PERSISTENCE_TEST_POSTGRES_DSN` with CREATEDB and pgvector; it uses the canonical
+migration runner and creates isolated databases. Do not point it at user data.
+`python -m personal_ai.evaluation.consolidation_quality --local-preflight` reports
+local-runtime prerequisites without sending. An explicit `--local-case SESSION`
+pilot uses only public synthetic pending cards, the existing private local profile,
+normal chat assembler, admission and physical-attempt accounting. It needs a pinned
+model/build/private socket and durable usage store; it never falls back to hosted
+inference. Three arms share 4,096 context/128 response tokens and 30-second request
+limits. Real-model results remain unmeasured when that infrastructure is absent.
+
+See the [continuation decision](../../../../docs/memory/2026-11-03-consolidation-continuation-decision.md),
+[latest evidence](../../../../docs/memory/2026-11-03-consolidation-continuation.md)
+and [remaining dependencies](../../../../docs/memory/consolidation-development-blockers.json).
+
 
 ## Owner profile portability
 
