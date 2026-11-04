@@ -100,6 +100,24 @@ def test_invalid_input_returns_uniform_content_free_denial(payload):
         }
 
 
+def test_combined_input_size_is_bounded_at_sixteen_kibibytes():
+    spec, receipt = example()
+    spec_bytes = canonical_bytes(spec)
+    receipt_bytes = canonical_bytes(receipt)
+    first_padding = (16384 - len(spec_bytes)) // 2
+    second_padding = 16384 - len(spec_bytes) - first_padding
+    oversized_pair = (
+        spec_bytes + b" " * first_padding,
+        receipt_bytes + b" " * second_padding,
+    )
+    assert len(oversized_pair[0]) <= 16384
+    assert len(oversized_pair[1]) <= 16384
+    assert sum(map(len, oversized_pair)) > 16384
+    assert assess_terminal_steps(
+        *oversized_pair, expected_scope_digest=SCOPE
+    ).status == "unsupported"
+
+
 def test_changed_valid_identity_never_aliases_prior_candidate():
     spec, receipt = example()
     first = assess(spec, receipt).candidates[0]

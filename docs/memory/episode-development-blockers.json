@@ -2,7 +2,7 @@
   "schema_version": "episode-development-blockers-v1",
   "date": "2026-11-03",
   "entry_revision": "42f00b0f93b0987f615657d4d8b9c145c6c6b016",
-  "code_status": "partial_internal_episode_service",
+  "code_status": "read_disabled_experimental_projection",
   "independently_accepted": false,
   "production_promotable": false,
   "new_runtime_flags": [],
@@ -19,18 +19,18 @@
     },
     {
       "id": "canonical-lifecycle",
-      "status": "partial",
-      "remaining_work": "Internal local service and bounded transactional adapters implemented; native verification, real producer/issuer and production/restore/disclosure integration remain deferred with rationale in extension report."
+      "status": "blocked",
+      "remaining_work": "Migration 035 and the isolated JSON projection do not join the canonical memory lifecycle/erasure orchestration. Capture and selection are hard-disabled until a typed adapter can share that authority with atomicity evidence."
     },
     {
       "id": "replay-and-capacity",
-      "status": "partial",
-      "remaining_work": "Internal local service and bounded transactional adapters implemented; native verification, real producer/issuer and production/restore/disclosure integration remain deferred with rationale in extension report."
+      "status": "blocked",
+      "remaining_work": "Persisted receipts remain in the experimental adapter, but capture is disabled. Native transaction, lost-ACK, cross-process concurrency, stale-restore and durable capacity behavior have not been independently reproduced."
     },
     {
       "id": "lookup-and-disclosure",
-      "status": "partial",
-      "remaining_work": "Internal local service and bounded transactional adapters implemented; native verification, real producer/issuer and production/restore/disclosure integration remain deferred with rationale in extension report."
+      "status": "blocked",
+      "remaining_work": "Selection is hard-disabled. A future useful vertical slice needs a verified narrow procedure/outcome, trusted source epoch and final disclosure fence; no context consumer exists."
     },
     {
       "id": "native-workflow",
@@ -53,5 +53,6 @@
       "remaining_work": "New source files change the planning source digest: native provider-isolation has 845 passed/1 failed at the v35 source binding assertion. Preserve frozen locks; separately review an additive source-identity migration and dependent manifests before release. No green broad-gate claim."
     }
   ],
-  "extension_report": "2026-11-03-episode-extension.md"
+  "extension_report": "2026-11-03-episode-extension.md",
+  "remediation_report": "2026-11-03-luna-remediation.md"
 }

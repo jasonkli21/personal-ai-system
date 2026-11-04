@@ -81,8 +81,7 @@ def assess_terminal_steps(
     if (
         type(original_spec) is not bytes
         or type(receipt_envelope) is not bytes
-        or len(original_spec) > _INPUT_BYTES
-        or len(receipt_envelope) > _INPUT_BYTES
+        or len(original_spec) + len(receipt_envelope) > _INPUT_BYTES
     ):
         return denied
     try:

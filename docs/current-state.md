@@ -43,20 +43,22 @@ preserving the v2 corpus, scorer, driver, and non-promotion. The old failure rem
 current local verification and any remaining identity limitation are recorded in
 the dated [HXE-0 remediation receipt](harness-excellence/2026-11-03-remediation.md).
 
-## Internal episode memory development component
+## Experimental terminal-step candidates
 
-Owner-authorized synthetic development now includes default-off internal capture,
-bounded metadata listing/fetch, canonical lifecycle forget, expiry/source purge,
-retained original-run receipts, an in-memory repository, additive PostgreSQL
-migration 035/adapter and a canonical workflow receipt reader. No runtime source
-issuer, API/model tool, context injection or automatic account/purge registration
-is installed. Host source lease and authenticated original submission evidence
-remain mandatory. Service tests use synthetic host fixtures; native PostgreSQL
-checks are blocked by the missing disposable DSN. Source-lock migration and
-end-to-end workflow/model utility remain open. Full MEM-3 remains partial/NO_GO.
-See the [extension evidence and deferral rationale](memory/2026-11-03-episode-extension.md),
-[initial decision](memory/2026-11-03-episode-plan-hardening.md) and
-[blocker ledger](memory/episode-development-blockers.json).
+The owner-authorized local development boundary covers source-only structural
+validation and synthetic fixtures. The durable episode projection from migration
+035 is experimental and read-disabled: capture and selection return `disabled`
+even when constructor flags are set. Authenticated local forget and purge operate
+on an exact identity-derived namespace without resolving a live project. A trusted
+issuer with monotonic source epochs, canonical memory lifecycle integration,
+original-submission provenance, and native deletion/restore evidence is not
+installed. No model context, runtime producer, export, automatic purge, or external
+send is registered. The 16 KiB combined input bound applies to structural
+validation. Full MEM-3 remains partial/BLOCKED and production NO_GO. See the
+[remediation evidence](memory/2026-11-03-luna-remediation.md),
+[blocker ledger](memory/episode-development-blockers.json), and earlier
+[extension report](memory/2026-11-03-episode-extension.md) (superseded where it
+describes capture/selection as usable).
 
 ## Delivered locally
 
@@ -209,11 +211,10 @@ preserves its original v1 ledger; implementation evidence remains author-reporte
 independent acceptance remains pending, and production remains no-go. The
 [cross-phase gate registry](platform-independence/pi-cross-phase-gate-registry.md)
 carries PI-5 R01–R03/P5-24/28, PI-6 P6-02/15/29/32, PI-7 native/build/cloud/data
-gates, and the MEM-2 default-off/MEM-3+ freeze. No runtime behavior or release
-gate is promoted by the PI-8 tooling changes.
-The user-directed memory feature freeze stops at MEM-2:
-MEM-3+ is frozen, MEM-2 is not promoted, and all existing default-off memory
-semantics and independent/security/production gates remain in force.
+gates, and the MEM-2 default-off/MEM-3+ freeze. A narrow owner unfreeze permits
+only local source-only E0/E1 synthetic development; it does not authorize a runtime
+producer, private data, model context, E2+ evidence, production, or MEM-4. MEM-2 is
+not promoted, and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
 the stale reference-evaluation module invocation, and the platform-specific
 artifact-check temporary path. Offline wheel/sdist and installed-profile checks
@@ -262,8 +263,9 @@ remains **NO-GO**. See the [capability inventory](harness-excellence/README.md),
 
 The integrated roadmap tracks 20 phase IDs. Seventeen require substantive new
 work from the planning baseline. MEM-0 through MEM-2 already have scoped
-implementations with acceptance gates. MEM-3+ stays frozen. PI production
-remains NO_GO.
+implementations with acceptance gates. Only local source-only E0/E1 synthetic
+development is unfreezed for terminal-step candidates; MEM-3 acceptance remains
+blocked and MEM-4+ stays frozen. PI production remains NO_GO.
 
 ## MEM-0 research baseline
 

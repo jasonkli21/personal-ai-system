@@ -179,7 +179,7 @@ checks original key, scope/intent/source/step fingerprints, tool/effect, exact
 successful attempt cardinality and topological order. It excludes failed,
 canceled, uncertain and recovered/abandoned histories. No tool/query text or
 step names appear in the projection; each candidate is at most 2 KiB, with at
-most eight candidates from two input documents of at most 16 KiB each.
+most eight candidates from two input documents totaling at most 16 KiB combined.
 
 This function cannot authenticate input. Consistent fabricated input can pass.
 Candidates explicitly carry `structural_inspection_only`, unavailable completion
@@ -191,19 +191,19 @@ behavior and fixed retrieval defaults remain unchanged. Run
 The additive corpus measures consistency only; its reserved split is author-visible.
 See the [development decision](../../../../docs/memory/2026-11-03-episode-plan-hardening.md).
 
-## Internal episode operations
+## Experimental episode projection
 
-`EpisodeService` in `episode_service.py` adds explicit host-only capture,
-`read(project_id, episode_id=..., limit=...)`, forget and purge. Constructor
-capture/selection options default false and require memory enabled, local/test,
-`synthetic_local`, verified principal and a trusted source authority's bounded
-lease/project/resolve/current contract. Application composition installs none.
-Postgres migration 035 and `PostgresEpisodeRepository` atomically retain bounded
-metadata, original-run receipts and canonical lifecycle transitions; the in-memory
-adapter stages equivalent updates. No raw tool/query payload is stored. Forget and
-purge erase payload without pruning replay authority. Restored stores must remain
-quarantined until authority is reconciled. No export or model tool is registered.
-Run `make memory-episode-check`; native SQL requires
+`EpisodeService.capture` and `read` always return `disabled`. Host booleans cannot
+enable the projection until a trusted issuer supplies monotonic source epochs and
+the data joins the canonical memory lifecycle and deletion path. Migration 035 and
+the repository adapters remain read-disabled experimental storage; they are not a
+second accepted memory lifecycle. The authenticated local `forget` and `purge`
+maintenance operations address only the exact owner/app/workspace/actor/client/
+project namespace and do not resolve a live source project. They remove payloads,
+retain original-key receipts, and write forgotten lifecycle projections where
+available. Account-wide erasure orchestration and restore quarantine are not
+registered. No export or model tool is registered. Run
+`make memory-episode-check`; native SQL requires
 `make memory-episode-postgres-check` with a disposable DSN. See the
-[extension report](../../../../docs/memory/2026-11-03-episode-extension.md) for
-producer, native, source-lease and release gates still deferred.
+[remediation report](../../../../docs/memory/2026-11-03-luna-remediation.md) for
+the blocked issuer, lifecycle, producer, native and release gates.
