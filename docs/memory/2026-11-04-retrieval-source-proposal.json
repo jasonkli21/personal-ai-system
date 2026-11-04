@@ -1,0 +1,26 @@
+{
+  "baseline_commit": "fe1915ec50d075eb9eba7b4d51c8d56527adc3fc",
+  "candidate_identity": {
+    "baseline_lock_version": "planning-baseline-lock-v35",
+    "baseline_version": "deterministic-context-planner-v1",
+    "configuration_digest": "c1e4f6057781add8a9ddc8b8372d988904ab04f793c7c21f9838ed705e45d7fe",
+    "corpus_digest": "81a86e712ef841b0bda90999a89b02f6903e40c2ac812157e08a5167e288f735",
+    "counter_identity": "phase13-envelope-byte-estimate-v1",
+    "evaluator_version": "planning-evaluator-v8",
+    "fixture_dependency_digest": "68ca875f87a7f7f5e34d5cda542f5ad88895eddabf5675beefa1339a58a90f91",
+    "platform_runtime": "macOS-27.0.1-arm64-arm-64bit",
+    "pydantic_runtime": "2.13.5",
+    "python_abi": "cpython-311",
+    "python_implementation": "CPython",
+    "python_runtime": "3.11.15",
+    "runtime_dependency_digest": "26cd4eaf5e7c34587c692aea8770a617c5b0e70d2880d5b2a2925d13beee004d",
+    "runtime_distribution_count": 94,
+    "source_identity_digest": "87283a5946c0d8087641e854aaa45eb4576eb6cccd2bd62b2a74cd278148d432"
+  },
+  "decision": "Preserve v35 failure and all historical corpora. Independent reviewer must verify source bytes before creating any new accepted lock; no promotion or default change.",
+  "frozen_lock": "planning-baseline-v35.json",
+  "frozen_source_identity": "4eb58162ae39387382c18b524017886c1be4e4fc27de5203ac064f5c6e889cc9",
+  "inherited_prior_measured_source_identity": "18aa41f9e99bfa2436ec00a5028b51992106f86aff2a1c9c236f9b6f414eaa03",
+  "status": "proposed_not_accepted",
+  "version": "memory-navigation-source-generation-proposal-v1"
+}

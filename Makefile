@@ -310,3 +310,15 @@ memory-consolidation-eval:
 memory-consolidation-postgres-check:
 	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
 	cd backend && python -m pytest -q tests/persistence/test_consolidation_postgres.py
+
+.PHONY: memory-navigation-check memory-navigation-eval memory-navigation-postgres-check
+memory-navigation-check:
+	cd backend && python -m pytest -q tests/test_memory_navigation.py tests/test_memory_navigation_evaluation.py
+
+memory-navigation-eval:
+	cd backend && python -m personal_ai.evaluation.memory_navigation
+
+memory-navigation-postgres-check:
+	cd backend && python -c 'import os, sys; sys.exit(0 if os.environ.get("PERSISTENCE_TEST_POSTGRES_DSN") else "BLOCKED: configure a disposable PERSISTENCE_TEST_POSTGRES_DSN")'
+	cd backend && python -m pytest -q tests/persistence/test_local_persistence.py -k pgvector
+	cd backend && python -m pytest -q tests/persistence/test_verified_knowledge_postgres.py

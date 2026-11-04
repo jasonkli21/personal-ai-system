@@ -84,8 +84,9 @@ the opt-in `compact` variant also removes facts already present in the current
 conversation. A selected original is the fallback representation until a valid
 derived view exists. The shared builder reduces its optional memory budget when domain
 current context or external evidence already occupies the request; final counts and
-packing remain endpoint-counted by the same builder. There is no lexical/ANN index,
-new embedding space, paraphrase compression, or model adjudicator.
+packing remain endpoint-counted by the same builder. The canonical runtime has no lexical/ANN index,
+new embedding space, paraphrase compression, or model adjudicator. The sealed
+research experiment described below is separate from that runtime.
 
 Existing bounded lifecycle jobs discover at most four compatible originals within
 a one-year observation horizon. A rotating bounded corpus sweep runs after completed
@@ -307,3 +308,58 @@ registered. No export or model tool is registered. Run
 `make memory-episode-postgres-check` with a disposable DSN. See the
 [remediation report](../../../../docs/memory/2026-11-03-luna-remediation.md) for
 the blocked issuer, lifecycle, producer, native and release gates.
+
+## Sealed memory navigation research
+
+`research/` is a private, default-off experiment over one hash-pinned public
+synthetic corpus. Construct `MemoryNavigationResearch(FixtureAuthority(),
+enabled=True)` explicitly in offline evaluation; no application factory, API,
+agent tool, background worker or environment flag registers it. Its immutable
+`ResearchQuery` wraps the server-built `MemoryQuery`; the synthetic source profile
+is separate from canonical legacy and schema-3 admission. It never reads episode
+projections or pending consolidation proposals. Production source adapters remain
+unsupported, and legacy `fixed` code and defaults are unchanged.
+
+The ephemeral cache retains bounded normalized terms, sanitized two-level topics,
+leaf IDs and content/record/permission fingerprints. Exact owner, app, workspace,
+actor, project, lifecycle, retention, source revision/epoch, sensitivity and
+trusted metadata/time filters precede ranking. Complete eligible universes are
+capped at the canonical query's candidate limit (at most 100); overflow returns
+`incomplete`. Topics are navigation data, never grants. Browse, paged leaf fetch,
+packing and locked scripted consumption independently resolve current authority.
+Terminal tombstones prevent same-identity regrant. An authority-instance nonce
+rejects prior-process caches and dependencies; it does not authenticate a cold
+restored issuer. Public fixture bytes remain available after synthetic purge;
+no private-data physical erasure is claimed.
+
+Lexical recall is deterministic. The semantic adapter consumes complete canonical
+`MemoryRetriever` results with matching universe, scope, content and embedding
+identities; it makes no embedding calls. Fusion/reranking have explicit fake-vector
+contract tests, excluded from benchmark results. Real semantic/hybrid benchmark
+arms are unsupported without genuine embeddings. The corpus's project facts also
+make legacy `fixed` unsupported; that denominator is retained. No model utility
+is measured.
+
+Fixed, request-aware and adaptive memory allocations narrow existing
+`ContextBuildPolicy` ceilings and use `ContextBuilder` with original source refs,
+permission dependencies, historical authority labels and atomic conflict groups.
+Required current context is packed first. The counter is the local fixture word
+estimate, never a provider count. Consumption accepts only matching serialized
+source cards and has no model/command dispatch callback. There is no production
+physical-send boundary for this experiment.
+
+Limits: 128 corpus records, 256 KiB corpus/cache, 4 KiB/record, 128 terms/record,
+64 characters/term, 32 topics, depth two, eight leaves/page and one extra page,
+16 selected records, 2 KiB queries, two-second original deadlines, leases capped
+at five seconds (and always the remaining request deadline), 1,024 memory and
+4,096 total fixture token units. Full eligible context may exceed top-K but must
+fit completely under the same builder ceilings. Unknown authority, stale cache,
+cancellation and timeout retain explicit statuses without payloads.
+
+Run `make memory-navigation-check memory-navigation-eval`. The separate
+`memory-navigation-postgres-check` requires a disposable test DSN and runs existing
+canonical pgvector and verified-knowledge contracts; it does not establish a new
+native index/source integration. Disable the constructor gate and discard caches
+for rollback; no canonical data or migration changes. See the
+[hardening decision](../../../../docs/memory/2026-11-04-retrieval-plan-hardening.md)
+and [implementation receipt](../../../../docs/memory/2026-11-04-retrieval-implementation.md).

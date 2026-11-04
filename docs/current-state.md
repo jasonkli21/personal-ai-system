@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-11-03. This is the living implementation boundary. Code, contracts,
+Updated 2026-11-04. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance.
 Independent final review and external acceptance remain open.
 
@@ -104,6 +104,28 @@ production enablement is added. MEM-3 stays hard disabled. Full MEM-4 remains
 See the [reassessment](memory/2026-11-03-consolidation-continuation-decision.md),
 [latest evidence](memory/2026-11-03-consolidation-continuation.md) and
 [precise dependency ledger](memory/consolidation-development-blockers.json).
+
+## Sealed memory navigation research
+
+A private default-off public/synthetic research slice adds bounded lexical/topic
+indexes, independently revalidated leaf navigation, metadata/time filters,
+complete-universe semantic-result adaptation and fusion/reranking contract tests.
+Correction suppression and atomic conflicts survive packing through the canonical
+builder. Request-aware/adaptive policies narrow its ceilings; late scripted
+consumption runs under the fixture authority fence. Prior authority-instance
+caches and same-source regrants cannot restore stale eligibility.
+
+The additive 40-case, ten-arm study retains 400 rows and measured scripted answer,
+attribution, safety, token and latency outcomes. Lexical/adaptive complete 29 of
+30 ordinary cases correctly, plus ten expected boundary outcomes; the unmatched
+paraphrase abstains. Real semantic/hybrid and legacy fixed comparisons for these
+project-shaped facts remain unsupported. There is no real-model utility or blind
+holdout evidence. Native reproduction is BLOCKED without a disposable DSN; the
+existing planning v35 source-identity gate remains failed. An additive source
+proposal preserves the frozen lock. No migration, runtime consumer, provider call,
+episode read or proposal admission is added. Full MEM-5 is **PARTIAL/BLOCKED**,
+independent acceptance pending and production **NO_GO**. See the
+[implementation and verification receipt](memory/2026-11-04-retrieval-implementation.md).
 
 ## Delivered locally
 
