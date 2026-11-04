@@ -5,6 +5,9 @@ from personal_ai.evaluation.memory_navigation import run_study, study
 
 def test_study_retains_all_arms_cases_and_safety_negatives_with_repeatable_outcomes():
     manifest = study()
+    assert manifest["version"] == "memory-navigation-study-v2"
+    assert manifest["independent"] is False
+    assert "no new task-utility claim" in manifest["study_purpose"]
     first, second = run_study(), run_study()
     assert first["semantic_replay_digest"] == second["semantic_replay_digest"]
     assert len(first["rows"]) == manifest["cases"] * len(manifest["arms"]) == 400

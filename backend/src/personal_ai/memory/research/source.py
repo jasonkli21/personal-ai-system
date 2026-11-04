@@ -59,8 +59,6 @@ class FixtureAuthority:
         self._tombstones = set()
         self._purged = set()
         self._available = True
-        # Corrections retain their suppression after later withdrawal.
-        self._superseded = frozenset(i for r in self._records.values() for i in r.supersedes)
 
     def now(self):
         return self._clock()
@@ -104,14 +102,27 @@ class FixtureAuthority:
             raise ResearchFailure("denied", "authority_denied")
 
     def eligible(self, record, query):
+        # Historical views use only corrections already observed at that time.
+        # A correction that was observed and later withdrawn remains a durable
+        # barrier for views at or after its observation time.
+        superseded = any(
+            record.id in correction.supersedes
+            and correction.scope == record.scope
+            and correction.project == record.project
+            and correction.subject == record.subject
+            and correction.observed_at <= query.canonical.as_of
+            for correction in self._records.values()
+        )
         return (
             record.scope == ResearchScope.from_request(query.canonical.scope)
             and record.project == query.project
             and record.lifecycle == "active"
             and record.sensitivity == "public"
-            and record.id not in self._tombstones | self._superseded
+            and record.id not in self._tombstones
+            and not superseded
             and record.scope.owner_id not in self._purged
             and record.observed_at <= self.now()
+            and record.observed_at <= query.canonical.as_of
             and record.effective_at <= query.canonical.as_of
             and record.expires_at > self.now()
             and (not query.kinds or record.kind in query.kinds)
@@ -190,10 +201,38 @@ class FixtureAuthority:
                 and record.lifecycle == "active"
                 and record.sensitivity == "public"
                 and record.expires_at > self.now()
-                and record.id not in self._tombstones | self._superseded
+                and record.id not in self._tombstones
                 and record.scope.owner_id not in self._purged
+                and (digest(record.scope), record.project) in self._grants
                 and self.dependency(record) == dependency
             )
+
+    def revoke_grant(self, scope, project):
+        """Revoke one exact synthetic grant and advance the issuer revision."""
+        grant = (digest(self._scope_value(scope)), project)
+        with self._lock:
+            if grant not in self._grants:
+                return False
+            self._grants = self._grants - {grant}
+            self._revision += 1
+            return True
+
+    def regrant(self, scope, project):
+        """Issue a fresh synthetic grant epoch for a previously revoked scope."""
+        grant = (digest(self._scope_value(scope)), project)
+        with self._lock:
+            if grant in self._grants:
+                return False
+            self._grants = self._grants | {grant}
+            self._revision += 1
+            return True
+
+    @staticmethod
+    def _scope_value(scope):
+        if isinstance(scope, dict):
+            scope = {key: scope[key] for key in ResearchScope.model_fields if key in scope}
+            return ResearchScope.model_validate(scope)
+        return ResearchScope.from_request(scope)
 
     def fetch(self, index, query, ids):
         with self.lease(query):

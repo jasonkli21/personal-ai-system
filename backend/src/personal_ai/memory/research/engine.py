@@ -26,6 +26,7 @@ from personal_ai.memory.research.index import (
     terms,
     validate_index,
 )
+from personal_ai.memory.research.semantic import CanonicalSemanticRanks
 from personal_ai.memory.research.source import FixtureAuthority
 
 
@@ -129,9 +130,16 @@ class MemoryNavigationResearch:
             return (), 0
         lexical = lexical_ranks(index, query.text)
         if query.arm in ("semantic", "hybrid", "hybrid_reranked"):
-            if semantic is None:
+            # FixtureAuthority never has a trusted canonical vector issuer.
+            # A caller-built rank frame, including one labelled canonical, is
+            # metadata and cannot turn fixture vectors into real evidence.
+            if (
+                type(semantic) is not CanonicalSemanticRanks
+                or semantic.origin != "fake_vector_contract"
+                or not allow_fake
+            ):
                 raise ResearchFailure("unsupported", "real_embeddings_unavailable")
-            semantic_rank = semantic.validated(query, index, allow_fake=allow_fake)
+            semantic_rank = semantic.validated(query, index, allow_fake=True)
             ranked = semantic_rank if query.arm == "semantic" else fuse(lexical, semantic_rank)
         elif query.arm == "eligible_full_context":
             ranked = tuple(e.record_id for e in index.entries)
@@ -140,12 +148,12 @@ class MemoryNavigationResearch:
         pages = 0
         if query.arm == "topic_hierarchical":
             roots = browse(self.source, index, query)
-            leaves = tuple(
-                child
-                for root in roots
-                for child in browse(self.source, index, query, parent_id=root.id)
-            )
-            topics = {t.id: t for t in leaves}
+            targets = []
+            for root in roots:
+                children = browse(self.source, index, query, parent_id=root.id)
+                targets.append(root)
+                targets.extend(children)
+            topics = {t.id: t for t in targets}
             entry_topics = {e.record_id: e.topic_id for e in index.entries}
             fetched = set()
             for identifier in ranked:
@@ -164,13 +172,26 @@ class MemoryNavigationResearch:
         all_records = {r.id: r for r in self.source.universe(query)}
         if query.arm == "hybrid_reranked":
             positions = {i: n for n, i in enumerate(ranked)}
+            correction_for = {
+                old_id: correction.id
+                for correction in all_records.values()
+                if correction.kind == "explicit_correction"
+                for old_id in correction.supersedes
+                if old_id in positions and correction.id in positions
+                and correction.subject == all_records[old_id].subject
+            }
+            rank_position = dict(positions)
+            for old_id, correction_id in correction_for.items():
+                shared_position = min(positions[old_id], positions[correction_id])
+                rank_position[old_id] = shared_position
+                rank_position[correction_id] = shared_position
             ranked = tuple(
                 sorted(
                     ranked,
                     key=lambda i: (
-                        all_records[i].kind != "explicit_correction",
+                        rank_position[i],
+                        0 if i in correction_for.values() else 1,
                         all_records[i].authority != "tool_receipt_verified",
-                        positions[i],
                         -all_records[i].effective_at.timestamp(),
                         i,
                     ),
@@ -303,6 +324,9 @@ class MemoryNavigationResearch:
         protected=(),
     ):
         started = monotonic()
+        index_bytes = 0
+        build_ms = 0.0
+        preflight_ms = retrieval_ms = packing_ms = consume_ms = 0.0
         try:
             self._ready()
             # Each stage shares one original deadline, rather than renewing it.
@@ -319,23 +343,54 @@ class MemoryNavigationResearch:
                     )
                 }
             )
+            # Keep the same source and grant preflight, but the null baseline
+            # performs no index build or memory retrieval work.
+            phase_started = monotonic()
+            self.source.check(query, cancelled=cancelled)
+            preflight_ms = (monotonic() - phase_started) * 1000
+            if query.arm == "no_memory":
+                return ResearchResult(
+                    status="ok",
+                    reason="complete",
+                    preflight_ms=preflight_ms,
+                    elapsed_ms=(monotonic() - started) * 1000,
+                )
+            if query.arm == "fixed":
+                self._selection(query, None, semantic=semantic)
             index_started = monotonic()
             index = self.index(query, cancelled=cancelled)
             build_ms = (monotonic() - index_started) * 1000
-            with self.source.lease(query, cancelled=cancelled):
-                selected, pages = self._selection(
-                    query,
-                    index,
-                    semantic=semantic,
-                    allow_fake=allow_fake_vectors_for_contract_test,
-                )
+            index_bytes = len(index.model_dump_json().encode())
+            phase_started = monotonic()
+            try:
+                with self.source.lease(query, cancelled=cancelled):
+                    selected, pages = self._selection(
+                        query,
+                        index,
+                        semantic=semantic,
+                        allow_fake=allow_fake_vectors_for_contract_test,
+                    )
+            finally:
+                retrieval_ms = (monotonic() - phase_started) * 1000
             hook("ranked")
-            packed = self.pack(
-                query, index, selected, policy, protected=protected, cancelled=cancelled
-            )
+            phase_started = monotonic()
+            try:
+                packed = self.pack(
+                    query, index, selected, policy, protected=protected, cancelled=cancelled
+                )
+            finally:
+                packing_ms = (monotonic() - phase_started) * 1000
             hook("packed")
             hook("consume")
-            answer, citations = self.consume(packed, cancelled=cancelled)
+            phase_started = monotonic()
+            try:
+                answer, citations = self.consume(packed, cancelled=cancelled)
+                # Synthetic final disclosure seam: still no transport or model send.
+                hook("pre_send")
+                with self.source.lease(query, cancelled=cancelled):
+                    validate_index(self.source, index, query)
+            finally:
+                consume_ms = (monotonic() - phase_started) * 1000
             return ResearchResult(
                 status="ok",
                 reason="complete",
@@ -344,8 +399,12 @@ class MemoryNavigationResearch:
                 packed_ids=tuple(i for i in packed.build.included_item_ids if i in selected),
                 tokens=packed.build.token_count,
                 memory_tokens=packed.build.memory_tokens,
-                index_bytes=len(index.model_dump_json().encode()),
+                index_bytes=index_bytes,
                 index_build_ms=build_ms,
+                preflight_ms=preflight_ms,
+                retrieval_ms=retrieval_ms,
+                packing_ms=packing_ms,
+                consume_ms=consume_ms,
                 elapsed_ms=(monotonic() - started) * 1000,
                 fetch_pages=pages,
                 answer=answer,
@@ -353,15 +412,32 @@ class MemoryNavigationResearch:
             )
         except ResearchFailure as exc:
             return ResearchResult(
-                status=exc.status, reason=exc.reason, elapsed_ms=(monotonic() - started) * 1000
+                status=exc.status,
+                reason=exc.reason,
+                index_bytes=index_bytes,
+                index_build_ms=build_ms,
+                preflight_ms=preflight_ms,
+                retrieval_ms=retrieval_ms,
+                packing_ms=packing_ms,
+                consume_ms=consume_ms,
+                elapsed_ms=(monotonic() - started) * 1000,
             )
         except ValidationError:
             return ResearchResult(
-                status="denied", reason="query_invalid", elapsed_ms=(monotonic() - started) * 1000
+                status="denied", reason="query_invalid", index_bytes=index_bytes,
+                index_build_ms=build_ms, preflight_ms=preflight_ms,
+                retrieval_ms=retrieval_ms, packing_ms=packing_ms, consume_ms=consume_ms,
+                elapsed_ms=(monotonic() - started) * 1000
             )
         except ContextError:
             return ResearchResult(
                 status="denied",
                 reason="context_unavailable",
+                index_bytes=index_bytes,
+                index_build_ms=build_ms,
+                preflight_ms=preflight_ms,
+                retrieval_ms=retrieval_ms,
+                packing_ms=packing_ms,
+                consume_ms=consume_ms,
                 elapsed_ms=(monotonic() - started) * 1000,
             )

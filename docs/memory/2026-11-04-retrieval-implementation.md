@@ -10,8 +10,8 @@ All release profiles remain **NO_GO**. No subagents were used.
 
 The [in-session hardening decision](2026-11-04-retrieval-plan-hardening.md)
 preceded code. The supplied untracked MEM-5 plan remains untouched. The planned
-study grew from a minimum of 30 to **40** pre-registered public cases, all
-visible to the author. There is no independent holdout. No SQL cache is justified:
+study grew from a minimum of 30 to **40** author-locked, author-visible public
+cases. No independent registration receipt or blind holdout exists. No SQL cache is justified:
 the measured scoped index is at most **8,209 bytes**, with millisecond-scale
 synthetic construction; caches are discarded and rebuilt.
 
@@ -75,8 +75,10 @@ All arms share grants, source/currentness preflight, serializer, task text, cloc
 4096/1024 context/memory ceilings, output ceiling declaration 128 and two-second
 request deadline. There is no generated output or model to meter. The scripted
 consumer receives only serialized cards and query text, never the rubric/source.
-Latency includes common index/preflight overhead even for no-memory/full-context;
-it is not a production serving latency comparison. All token counts below are
+The original v1 latency includes common index/preflight overhead even for
+no-memory/full-context; it is not a production serving latency comparison. The
+additive remediation v2 skips index construction for no-memory and reports stage
+timings in its separate receipt. All token counts below are
 actual builder counts in **estimated fixture word units**, not provider tokens.
 Real usage and model quality are unmeasured; provider calls and charged cost are
 zero, classified `offline_no_charge`.

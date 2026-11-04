@@ -125,7 +125,8 @@ existing planning v35 source-identity gate remains failed. An additive source
 proposal preserves the frozen lock. No migration, runtime consumer, provider call,
 episode read or proposal admission is added. Full MEM-5 is **PARTIAL/BLOCKED**,
 independent acceptance pending and production **NO_GO**. See the
-[implementation and verification receipt](memory/2026-11-04-retrieval-implementation.md).
+[implementation and verification receipt](memory/2026-11-04-retrieval-implementation.md)
+and [review remediation with additive v2 accounting](memory/2026-11-04-retrieval-remediation.md).
 
 ## Delivered locally
 

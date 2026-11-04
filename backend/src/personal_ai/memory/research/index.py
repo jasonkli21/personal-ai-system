@@ -40,8 +40,26 @@ STOP = frozenset(
 
 
 def terms(text):
-    words = re.findall(r"[\w-]+", unicodedata.normalize("NFKC", text).casefold())
-    values = tuple(sorted(set(words) - STOP))
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    normalized = re.sub(r"[\u2010-\u2015\u2212\ufe58\ufe63\uff0d]", "-", normalized)
+    words = re.findall(r"[^\W_]+(?:-[^\W_]+)*", normalized, flags=re.UNICODE)
+    # Treat common letter-plus-number identifiers consistently across a hyphen
+    # or whitespace boundary, while retaining exact full-token matching.
+    folded = []
+    position = 0
+    while position < len(words):
+        current = words[position]
+        if (
+            position + 1 < len(words)
+            and re.fullmatch(r"[a-z]+", current)
+            and re.fullmatch(r"\d+", words[position + 1])
+        ):
+            folded.append(f"{current}-{words[position + 1]}")
+            position += 2
+        else:
+            folded.append(current)
+            position += 1
+    values = tuple(sorted(set(folded) - STOP))
     if len(values) > 128 or any(len(v) > 64 for v in values):
         raise ResearchFailure("incomplete", "term_cap")
     return values

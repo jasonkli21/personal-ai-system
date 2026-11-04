@@ -18,13 +18,13 @@ from personal_ai.memory.research.contracts import ResearchQuery, ResearchResult,
 from personal_ai.memory.research.engine import MemoryNavigationResearch
 from personal_ai.memory.research.source import CORPUS_SHA256, FixtureAuthority, fixture
 
-MANIFEST_SHA256 = "56e8f0b96edb64b3b612479b4ce6368c48776f3e8663af789d6691c5a479ab7f"
+MANIFEST_SHA256 = "871fd335e6233981b27251d00b98d3236fdcb3667fae6a5fb944e84addbc0ba5"
 
 
 def study():
     payload = (
         files("personal_ai.evaluation")
-        .joinpath("fixtures/memory/memory-navigation-study-v1.json")
+        .joinpath("fixtures/memory/memory-navigation-study-v2.json")
         .read_bytes()
     )
     if sha256(payload).hexdigest() != MANIFEST_SHA256:
@@ -120,11 +120,22 @@ def score(case, result, source, query):
 
 
 def source_identities():
+    source_root = Path(__file__).parents[1]
+    dependencies = (
+        source_root / "context/builder.py",
+        source_root / "context/tokens.py",
+        source_root / "context/contracts.py",
+        source_root / "memory/contracts.py",
+        source_root / "memory/services.py",
+        source_root / "memory/dependencies.py",
+        source_root / "retrieval/service.py",
+        source_root / "llm/client.py",
+    )
+    paths = [Path(__file__), *source_root.joinpath("memory/research").glob("*.py"), *dependencies]
     return {
         str(path.relative_to(Path(__file__).parents[1])): sha256(path.read_bytes()).hexdigest()
-        for path in sorted(
-            [Path(__file__), *Path(__file__).parents[1].joinpath("memory/research").glob("*.py")]
-        )
+        for path in sorted(paths)
+        if path.is_file()
     }
 
 
@@ -191,8 +202,20 @@ def run_study():
             else None,
             "mean_latency_ms": mean(r["result"]["elapsed_ms"] for r in attempted),
             "max_index_bytes": max(r["result"]["index_bytes"] for r in attempted),
-            "mean_index_build_ms": mean(r["result"]["index_build_ms"] for r in complete)
-            if complete
+            "mean_index_build_ms": mean(r["result"]["index_build_ms"] for r in attempted)
+            if attempted
+            else None,
+            "mean_preflight_ms": mean(r["result"]["preflight_ms"] for r in attempted)
+            if attempted
+            else None,
+            "mean_retrieval_ms": mean(r["result"]["retrieval_ms"] for r in attempted)
+            if attempted
+            else None,
+            "mean_packing_ms": mean(r["result"]["packing_ms"] for r in attempted)
+            if attempted
+            else None,
+            "mean_consume_ms": mean(r["result"]["consume_ms"] for r in attempted)
+            if attempted
             else None,
             "recall": mean(r["recall"] for r in complete if r["recall"] is not None)
             if any(r["recall"] is not None for r in complete)
@@ -226,7 +249,16 @@ def run_study():
             "result": {
                 k: v
                 for k, v in row["result"].items()
-                if k not in ("elapsed_ms", "index_build_ms", "generation")
+                if k
+                not in (
+                    "elapsed_ms",
+                    "index_build_ms",
+                    "preflight_ms",
+                    "retrieval_ms",
+                    "packing_ms",
+                    "consume_ms",
+                    "generation",
+                )
             }
         }
         for row in rows

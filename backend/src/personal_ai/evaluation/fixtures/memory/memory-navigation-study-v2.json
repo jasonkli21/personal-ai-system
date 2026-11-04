@@ -1,0 +1,30 @@
+{
+  "arms": [
+    "no_memory",
+    "fixed",
+    "lexical",
+    "semantic",
+    "hybrid",
+    "hybrid_reranked",
+    "topic_hierarchical",
+    "request_aware",
+    "adaptive",
+    "eligible_full_context"
+  ],
+  "cases": 40,
+  "counter": "fixture-word-estimate-v1",
+  "deadline_seconds": 2,
+  "evidence": "E1_author_visible",
+  "fixture_sha256": "d7cf41366fa77e01fb9480eed0d617048d9abcfd468dca014417d91492b95d7a",
+  "global_tokens": 4096,
+  "independent": false,
+  "memory_tokens": 1024,
+  "model": null,
+  "output_tokens": 128,
+  "policy": "bounded-navigation-v1",
+  "scorer": "exact-scripted-answer-v1",
+  "serializer": "source-card-json-v1",
+  "study_purpose": "additive remediation replay with explicit retrieval-work accounting; no new task-utility claim",
+  "top_k": 8,
+  "version": "memory-navigation-study-v2"
+}

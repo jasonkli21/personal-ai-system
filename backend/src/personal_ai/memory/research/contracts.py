@@ -162,7 +162,7 @@ class ResearchIndex(Strict):
 
 
 class ResearchResult(Strict):
-    version: Literal["memory-navigation-result-v1"] = "memory-navigation-result-v1"
+    version: Literal["memory-navigation-result-v2"] = "memory-navigation-result-v2"
     status: Status
     reason: str = Field(max_length=80)
     generation: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -172,6 +172,10 @@ class ResearchResult(Strict):
     memory_tokens: int = Field(default=0, ge=0, le=1024)
     index_bytes: int = Field(default=0, ge=0, le=MAX_BYTES)
     index_build_ms: float = Field(default=0, ge=0, allow_inf_nan=False)
+    preflight_ms: float = Field(default=0, ge=0, allow_inf_nan=False)
+    retrieval_ms: float = Field(default=0, ge=0, allow_inf_nan=False)
+    packing_ms: float = Field(default=0, ge=0, allow_inf_nan=False)
+    consume_ms: float = Field(default=0, ge=0, allow_inf_nan=False)
     elapsed_ms: float = Field(default=0, ge=0, allow_inf_nan=False)
     fetch_pages: int = Field(default=0, ge=0, le=2)
     answer: str | None = Field(default=None, max_length=400)

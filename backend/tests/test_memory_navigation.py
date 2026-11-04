@@ -51,6 +51,9 @@ def test_scope_fences_before_scoring(field, value):
 
 def test_index_excludes_other_scopes_expiry_corrections_future_and_restricted():
     source, engine, query = setup()
+    source._records["other-app"] = source._records["other-app"].model_copy(
+        update={"content": "ALPHA-17 make backend-lint"}
+    )
     index = engine.index(query)
     ids = {e.record_id for e in index.entries}
     assert {"check", "version-new", "conflict-a", "conflict-b"} <= ids
@@ -166,6 +169,79 @@ def test_current_time_expiry_invalidates_without_any_mutation_event():
     source._clock = lambda: query.canonical.as_of + timedelta(days=30)
     with pytest.raises(ResearchFailure, match="generation_changed"):
         browse(source, index, query)
+
+
+def test_historical_as_of_excludes_future_observation_and_keeps_prior_fact_visible():
+    source, engine, query = setup()
+    as_of = query.canonical.as_of - timedelta(days=5)
+    old = source._records["check"].model_copy(
+        update={"observed_at": as_of + timedelta(hours=1), "effective_at": as_of - timedelta(days=1)}
+    )
+    prior = source._records["version-old"].model_copy(
+        update={"observed_at": as_of - timedelta(days=2), "effective_at": as_of - timedelta(days=3)}
+    )
+    source._records["check"] = old
+    source._records["version-old"] = prior
+    historical = query.model_copy(
+        update={"canonical": query.canonical.model_copy(update={"as_of": as_of})}
+    )
+    ids = {entry.record_id for entry in engine.index(historical).entries}
+    assert "check" not in ids
+    assert "version-old" in ids
+    source._records["check"] = old.model_copy(update={"observed_at": as_of})
+    assert "check" in {entry.record_id for entry in engine.index(historical).entries}
+
+
+def test_grant_revocation_invalidates_dependency_and_regrant_issues_new_epoch():
+    source, engine, query = setup()
+    record = source._records["check"]
+    dependency = source.dependency(record)
+    index = engine.index(query)
+    scope = query.canonical.scope.model_dump()
+    assert source.is_current(dependency)
+    assert source.revoke_grant(scope, query.project)
+    assert not source.is_current(dependency)
+    with pytest.raises(ResearchFailure, match="authority_denied"):
+        browse(source, index, query)
+    assert source.regrant(scope, query.project)
+    assert source.is_current(source.dependency(record))
+    with pytest.raises(ResearchFailure, match="generation_changed"):
+        browse(source, index, query)
+
+
+def test_positive_grant_is_bound_to_exact_application_project_and_actor():
+    from personal_ai.memory.research.contracts import ResearchScope
+
+    source, engine, query = setup()
+    new_request_scope = query.canonical.scope.model_copy(
+        update={"application_id": "reading", "acting_user_id": "authorized-reader"}
+    )
+    new_scope = ResearchScope.from_request(new_request_scope)
+    source._records["check-alt-scope"] = source._records["check"].model_copy(
+        update={"id": "check-alt-scope", "source_id": "source-check-alt", "scope": new_scope}
+    )
+    assert source.regrant(new_scope, "project-beta")
+    source._records["check-alt-scope"] = source._records["check-alt-scope"].model_copy(
+        update={"project": "project-beta"}
+    )
+    authorized = query.model_copy(
+        update={
+            "canonical": query.canonical.model_copy(update={"scope": new_request_scope}),
+            "project": "project-beta",
+        }
+    )
+    result = engine.run(authorized, policy())
+    assert result.status == "ok" and "check-alt-scope" in result.selected_ids
+    wrong_actor = authorized.model_copy(
+        update={
+            "canonical": authorized.canonical.model_copy(
+                update={"scope": new_request_scope.model_copy(update={"acting_user_id": "intruder"})}
+            )
+        }
+    )
+    assert engine.run(wrong_actor, policy()).status == "denied"
+    wrong_project = authorized.model_copy(update={"project": "project-alpha"})
+    assert engine.run(wrong_project, policy()).status == "denied"
 
 
 def test_correction_remains_dominant_even_after_withdrawal():
@@ -286,6 +362,16 @@ def test_hierarchical_arm_uses_at_most_one_extra_page_and_preserves_exact_fetch(
     assert result.citations == ("source-paraphrase",)
 
 
+def test_hierarchical_arm_accepts_a_terminal_one_level_topic():
+    source, engine, query = setup("topic_hierarchical", query="ALPHA-17")
+    source._records["check"] = source._records["check"].model_copy(
+        update={"topic": ("Engineering",)}
+    )
+    result = engine.run(query, policy())
+    assert result.status == "ok"
+    assert result.answer == "make backend-lint"
+
+
 def test_semantic_hybrid_require_matching_complete_eligible_universe():
     source, engine, query = setup("hybrid_reranked", query="compiler version")
     index = engine.index(query)
@@ -299,6 +385,19 @@ def test_semantic_hybrid_require_matching_complete_eligible_universe():
         universe=ids,
         ranking=tuple(reversed(ids)),
     )
+    forged = frame.model_copy(update={"origin": "canonical"})
+    for arm in ("semantic", "hybrid", "hybrid_reranked"):
+        candidate = query.model_copy(update={"arm": arm})
+        assert engine.run(candidate, policy(), semantic=forged).status == "unsupported"
+        assert (
+            engine.run(
+                candidate,
+                policy(),
+                semantic=forged,
+                allow_fake_vectors_for_contract_test=True,
+            ).status
+            == "unsupported"
+        )
     assert engine.run(query, policy(), semantic=frame).status == "unsupported"
     result = engine.run(query, policy(), semantic=frame, allow_fake_vectors_for_contract_test=True)
     assert result.status == "ok" and result.selected_ids[0] == "version-new"
@@ -325,6 +424,45 @@ def test_semantic_hybrid_require_matching_complete_eligible_universe():
     assert fuse(("exact", "paraphrase"), ("paraphrase", "exact")) == ("exact", "paraphrase")
 
 
+def test_reranking_keeps_relevance_ahead_of_unrelated_corrections_at_top_k_one():
+    _, engine, query = setup("hybrid_reranked", query="ALPHA 17")
+    index = engine.index(query)
+    ids = tuple(entry.record_id for entry in index.entries)
+    frame = CanonicalSemanticRanks(
+        origin="fake_vector_contract",
+        generation=index.generation,
+        query_identity=index.query_identity,
+        query_fingerprint=query.canonical.query_fingerprint,
+        embedding_identity=query.canonical.embedding_space.identity,
+        universe=ids,
+        ranking=tuple(reversed(ids)),
+    )
+    result = engine.run(
+        query.model_copy(update={"top_k": 1}),
+        policy(),
+        semantic=frame,
+        allow_fake_vectors_for_contract_test=True,
+    )
+    assert result.status == "ok" and result.selected_ids == ("check",)
+
+
+def test_no_memory_skips_index_and_unsupported_semantic_retains_attempt_cost():
+    _, engine, query = setup("no_memory")
+    baseline = engine.run(query, policy())
+    assert baseline.status == "ok" and baseline.index_bytes == baseline.index_build_ms == 0
+    assert baseline.preflight_ms > 0
+    assert baseline.retrieval_ms == baseline.packing_ms == baseline.consume_ms == 0
+    semantic = engine.run(query.model_copy(update={"arm": "semantic"}), policy())
+    assert semantic.status == "unsupported" and semantic.index_bytes > 0
+    assert semantic.index_build_ms > 0 and semantic.retrieval_ms > 0
+
+
+def test_identifier_normalization_is_nfkc_dash_and_whitespace_stable():
+    assert terms("ALPHA-17") == terms("ＡＬＰＨＡ 17") == terms("alpha—17")
+    assert terms("ZEBRA 908") == terms("zebra‑908")
+    assert terms("ALPHA-18") != terms("ALPHA 17")
+
+
 def test_lease_unavailable_and_cancellation_between_pack_and_consume_fail_closed():
     source, engine, query = setup()
     assert (
@@ -346,6 +484,19 @@ def test_lease_unavailable_and_cancellation_between_pack_and_consume_fail_closed
         hook=lambda stage: cancelled.set() if stage == "packed" else None,
     )
     assert result.status == "cancelled" and not result.packed_ids
+
+
+def test_synthetic_pre_send_fence_denies_revoked_grant_without_transport():
+    source, engine, query = setup()
+    result = engine.run(
+        query,
+        policy(),
+        hook=lambda stage: source.revoke_grant(query.canonical.scope, query.project)
+        if stage == "pre_send"
+        else None,
+    )
+    assert result.status == "denied"
+    assert result.reason == "authority_denied"
 
 
 def test_cold_authority_restart_refuses_a_prior_process_cache_and_dependency():
