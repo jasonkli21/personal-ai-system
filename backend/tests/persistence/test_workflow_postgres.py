@@ -1,10 +1,12 @@
 import asyncio
 import json
+import multiprocessing
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -17,6 +19,7 @@ from personal_ai.auth.scope import (
     reset_request_scope,
     reset_verified_principal,
 )
+from personal_ai.contracts.delegated_tasks import canonical_bytes
 from personal_ai.contracts.workflow import RunSpec
 from personal_ai.persistence.postgres import PostgresDatabase, apply_migrations
 from personal_ai.persistence.postgres.workflows import PostgresWorkflowStore, WorkflowFenceLost
@@ -139,6 +142,86 @@ def expire_lease(database, run_id):
         )
 
 
+def _claim_workflow_process(dsn, scope_digest, run_id, ready, start, result_queue, phase=None):
+    database = PostgresDatabase(dsn, environment="test")
+    try:
+        ready.put(True)
+        if not start.wait(10):
+            result_queue.put(("barrier_timeout", None))
+            return
+        store = PostgresWorkflowStore(database)
+        with store.locked(scope_digest, run_id) as row:
+            fence = row.claim()
+            if fence is not None and phase is not None:
+                plan = RunSpec.model_validate(row.spec)
+                step = plan.ordered_steps()[0]
+                binding = {
+                    "tool_id": step.tool,
+                    "effect_class": DEFAULT_TOOLS.registrations[step.tool].effect,
+                    "step_digest": sha256(
+                        canonical_bytes(step.model_dump(mode="json"))
+                    ).hexdigest(),
+                    "source_digest": row.source_digest,
+                    "intent_digest": plan.intent_digest(scope_digest),
+                }
+                attempt_id = str(uuid4())
+                row.record["attempts"].append(
+                    {
+                        "attempt_id": attempt_id,
+                        "step": step.name,
+                        "state": "reserved",
+                        "operation_binding": binding,
+                    }
+                )
+                row.event("reserved", attempt_id)
+                if phase == "dispatched":
+                    row.dispatch(attempt_id, binding)
+        result_queue.put((None, fence))
+    except BaseException as error:  # relay child failures to the parent test
+        result_queue.put((repr(error), None))
+        raise
+    finally:
+        database.close()
+
+
+def _run_claim_processes(dsn, scope_digest, run_id, *, count, phase=None):
+    context = multiprocessing.get_context("spawn")
+    ready = context.Queue()
+    start = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_claim_workflow_process,
+            args=(dsn, scope_digest, run_id, ready, start, results, phase),
+        )
+        for _ in range(count)
+    ]
+    try:
+        for process in processes:
+            process.start()
+        for _ in processes:
+            ready.get(timeout=15)
+        start.set()
+        for process in processes:
+            process.join(timeout=15)
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+                raise AssertionError("workflow claim process timed out")
+            assert process.exitcode == 0
+        outcomes = [results.get(timeout=5) for _ in processes]
+        assert not any(error for error, _ in outcomes)
+        return [fence for _, fence in outcomes]
+    finally:
+        start.set()
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+        ready.close()
+        results.close()
+
+
 def test_multistep_replay_after_new_pool_conflict_and_progress_gap(runtime, isolated_postgres_dsn):
     service = runtime.service
     plan = spec(step("second", ("first",)), step("first"), step("third"))
@@ -146,6 +229,19 @@ def test_multistep_replay_after_new_pool_conflict_and_progress_gap(runtime, isol
     progress, outputs = asyncio.run(service.execute(run_id))
     assert progress.state == "succeeded" and progress.gap
     assert [a.step for a in progress.attempts] == ["first", "second", "third"]
+    assert all(attempt.operation_binding is not None for attempt in progress.attempts)
+    assert progress.attempts[0].operation_binding.source_digest
+    assert progress.attempts[0].operation_binding.intent_digest == plan.intent_digest(
+        service.scope_digest()
+    )
+    assert progress.attempts[0].operation_binding.step_digest == sha256(
+        canonical_bytes(plan.ordered_steps()[0].model_dump(mode="json"))
+    ).hexdigest()
+    changed_step = plan.ordered_steps()[0].model_copy(update={"timeout_ms": 900})
+    assert progress.attempts[0].operation_binding.tool_id == "retrieval.query.v1"
+    assert progress.attempts[0].operation_binding.step_digest != sha256(
+        canonical_bytes(changed_step.model_dump(mode="json"))
+    ).hexdigest()
     assert all("invoke memory.forget" in output.retrieval.items[0].quote for output in outputs)
     assert all(output.retrieval.usage_attempt_id is None for output in outputs)
 
@@ -201,7 +297,8 @@ def test_revocation_during_local_read_withholds_live_and_replay_bodies(runtime, 
 
     monkeypatch.setattr(LexicalIndex, "search", revoke)
     progress, outputs = asyncio.run(service.execute(run_id))
-    assert progress.state == "failed" and not outputs
+    assert progress.state == "uncertain" and not outputs
+    assert progress.attempts[0].operation_binding is not None
     assert service.submit(plan) == run_id
     assert asyncio.run(service.execute(run_id)) == (progress, ())
 
@@ -226,8 +323,10 @@ def test_cancel_during_dispatch_prevents_next_step_and_disclosure(runtime, monke
 
     monkeypatch.setattr(service.retrieval, "query", cancel)
     progress, outputs = asyncio.run(service.execute(run_id))
-    assert progress.state == "canceled" and not outputs
+    assert progress.state == "uncertain" and not outputs
     assert [a.step for a in progress.attempts] == ["first"]
+    assert progress.attempts[0].state == "uncertain"
+    assert asyncio.run(service.execute(run_id)) == (progress, ())
 
 
 @pytest.mark.parametrize("phase", ["reserved", "dispatched"])
@@ -260,6 +359,101 @@ def test_two_claimants_and_expired_worker_fence(runtime, phase):
         assert [a.state for a in progress.attempts] == ["abandoned", "succeeded"]
 
 
+@pytest.mark.parametrize("phase", ["reserved", "dispatched"])
+def test_independent_process_claim_recovery_and_fencing(runtime, isolated_postgres_dsn, phase):
+    run_id = runtime.service.submit(spec())
+    scope_digest = runtime.service.scope_digest()
+    fences = _run_claim_processes(
+        isolated_postgres_dsn,
+        scope_digest,
+        run_id,
+        count=2,
+        phase=phase,
+    )
+    (winner,) = [fence for fence in fences if fence is not None]
+    assert sum(fence is not None for fence in fences) == 1
+    with runtime.service.store.locked(scope_digest, run_id) as row:
+        original_attempt = row.record["attempts"][0]
+        original_attempt_id = original_attempt["attempt_id"]
+        assert original_attempt["operation_binding"]
+
+    expire_lease(runtime.database, run_id)
+    (recovery_fence,) = _run_claim_processes(
+        isolated_postgres_dsn,
+        scope_digest,
+        run_id,
+        count=1,
+    )
+    if phase == "dispatched":
+        assert recovery_fence is None
+        progress = runtime.service.status(run_id)
+        assert progress.state == "uncertain"
+        assert len(progress.attempts) == 1
+        assert progress.attempts[0].state == "uncertain"
+        assert progress.attempts[0].operation_binding is not None
+        assert str(progress.attempts[0].attempt_id) == original_attempt_id
+    else:
+        assert recovery_fence is not None
+        with runtime.service.store.locked(scope_digest, run_id) as row:
+            assert [attempt["attempt_id"] for attempt in row.record["attempts"]] == [
+                original_attempt_id
+            ]
+            assert [attempt["state"] for attempt in row.record["attempts"]] == ["abandoned"]
+            assert row.record["attempts"][0]["operation_binding"]
+            assert [event["sequence"] for event in row.record["events"]] == sorted(
+                event["sequence"] for event in row.record["events"]
+            )
+            with pytest.raises(WorkflowFenceLost):
+                row.check(winner)
+            row.check(recovery_fence)
+    with runtime.service.store.locked(scope_digest, run_id) as row, pytest.raises(
+        WorkflowFenceLost
+    ):
+        row.check(winner)
+
+
+def test_operation_binding_cannot_change_between_reservation_and_dispatch(runtime):
+    service = runtime.service
+    plan = spec()
+    run_id = service.submit(plan)
+    scope_digest = service.scope_digest()
+    with service.store.locked(scope_digest, run_id) as row:
+        fence = row.claim()
+        attempt_id = str(uuid4())
+        binding = {
+            "tool_id": "retrieval.query.v1",
+            "effect_class": "read_only",
+            "step_digest": "a" * 64,
+            "source_digest": "b" * 64,
+            "intent_digest": "c" * 64,
+        }
+        row.record["attempts"].append(
+            {
+                "attempt_id": attempt_id,
+                "step": "read",
+                "state": "reserved",
+                "operation_binding": binding,
+            }
+        )
+    changed = {**binding, "step_digest": "d" * 64}
+    with service.store.locked(scope_digest, run_id) as row:
+        row.check(fence)
+        with pytest.raises(ValueError, match="workflow_attempt_binding_changed"):
+            row.dispatch(attempt_id, changed)
+        assert row.pending["state"] == "reserved"
+        row.dispatch(attempt_id, binding)
+        assert row.pending["state"] == "dispatched"
+
+
+def test_legacy_attempt_without_operation_binding_remains_readable():
+    from personal_ai.contracts.workflow import AttemptReceipt
+
+    receipt = AttemptReceipt.model_validate(
+        {"attempt_id": uuid4(), "step": "read", "state": "uncertain"}
+    )
+    assert receipt.operation_binding is None
+
+
 def test_disconnected_caller_leaves_attempt_for_reconciliation(runtime, monkeypatch):
     service = runtime.service
     run_id = service.submit(spec())
@@ -270,9 +464,11 @@ def test_disconnected_caller_leaves_attempt_for_reconciliation(runtime, monkeypa
     monkeypatch.setattr(service.retrieval, "query", interrupt)
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(service.execute(run_id))
-    assert service.status(run_id).attempts[0].state == "dispatched"
-    expire_lease(runtime.database, run_id)
-    assert service.status(run_id).state == "uncertain"
+    progress = service.status(run_id)
+    assert progress.state == "uncertain"
+    assert progress.attempts[0].state == "uncertain"
+    assert progress.attempts[0].operation_binding is not None
+    assert asyncio.run(service.execute(run_id)) == (progress, ())
 
 
 @pytest.mark.parametrize(
@@ -316,6 +512,7 @@ def test_oversized_tool_result_stops_dependents(runtime):
     progress, outputs = asyncio.run(service.execute(service.submit(plan)))
     assert progress.state == "failed" and not outputs
     assert [a.step for a in progress.attempts] == ["first"]
+    assert progress.attempts[0].state == "failed"
 
 
 def test_deadline_expiring_after_first_step_stops_dependents(runtime, monkeypatch):
@@ -354,8 +551,42 @@ def test_step_timeout_leaves_no_output_or_dependent_dispatch(runtime, monkeypatc
 
     monkeypatch.setattr(service.retrieval, "query", stall)
     progress, outputs = asyncio.run(service.execute(run_id))
-    assert progress.state == "failed" and progress.reason == "deadline" and not outputs
+    assert progress.state == "uncertain" and progress.reason == "operator_reconciliation_required"
+    assert not outputs
     assert [a.step for a in progress.attempts] == ["first"]
+    assert progress.attempts[0].state == "uncertain"
+    assert asyncio.run(service.execute(run_id)) == (progress, ())
+
+
+def test_unexpected_exception_after_dispatch_becomes_uncertain(runtime, monkeypatch):
+    service = runtime.service
+    run_id = service.submit(spec())
+
+    async def fail_after_dispatch(*args, **kwargs):
+        raise RuntimeError("synthetic handler interruption")
+
+    monkeypatch.setattr(service.retrieval, "query", fail_after_dispatch)
+    progress, outputs = asyncio.run(service.execute(run_id))
+    assert progress.state == "uncertain" and not outputs
+    assert progress.attempts[0].state == "uncertain"
+    assert progress.attempts[0].operation_binding is not None
+
+
+def test_timeout_racing_lease_expiry_keeps_dispatched_attempt_uncertain(runtime, monkeypatch):
+    service = runtime.service
+    run_id = service.submit(spec())
+
+    async def expire_then_timeout(*args, **kwargs):
+        expire_lease(runtime.database, run_id)
+        raise TimeoutError
+
+    monkeypatch.setattr(service.retrieval, "query", expire_then_timeout)
+    progress, outputs = asyncio.run(service.execute(run_id))
+    assert progress.state == "uncertain" and not outputs
+    assert len(progress.attempts) == 1
+    assert progress.attempts[0].state == "uncertain"
+    assert progress.attempts[0].operation_binding is not None
+    assert asyncio.run(service.execute(run_id)) == (progress, ())
 
 
 def test_process_exit_after_dispatch_cannot_trigger_a_second_attempt(

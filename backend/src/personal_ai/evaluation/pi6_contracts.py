@@ -24,7 +24,7 @@ V2_PROTOCOL_FILES = {
     "http": "pi6_http.py",
     "audit": "pi6_audit.py",
 }
-PROTOCOL_MANIFEST = "manifest-v2-source-6.json"
+PROTOCOL_MANIFEST = "manifest-v2-source-7.json"
 OPTIONAL_PACKAGES = {
     "reading_logbook_client": ("reading_logbook", "reading-logbook-client"),
     "reading_logbook_host": ("reading_logbook_host", "reading-logbook-host"),
@@ -170,6 +170,7 @@ def current_protocol_hashes() -> tuple[dict[str, str], tuple[str, ...]]:
             "evaluation/fixtures/pi6/manifest-v2-source-3.json",
             "evaluation/fixtures/pi6/manifest-v2-source-4.json",
             "evaluation/fixtures/pi6/manifest-v2-source-5.json",
+            "evaluation/fixtures/pi6/manifest-v2-source-6.json",
             f"evaluation/fixtures/pi6/{PROTOCOL_MANIFEST}",
         ),
     )

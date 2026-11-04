@@ -34,8 +34,16 @@ A lost lease before dispatch may abandon the reservation and resume under a
 new claim. A lost lease after dispatch leaves the original run uncertain and
 requires operator investigation. Cancellation suppresses subsequent dispatch
 and live disclosure at cooperative boundaries. A disconnect leaves the
-original attempt available for status observation. Cursor delivery is at least
-once and bounded to a tail, with explicit gaps and a durable terminal outcome.
+original attempt available for status observation. Every new attempt receipt
+binds the registered tool ID/version, canonical validated step digest, source
+snapshot digest, trusted effect class and original intent digest. The binding
+is nonsecret and survives terminal transitions; historical receipts without it
+remain unmodified. A dispatched operation without an observed result becomes
+uncertain on failure or cancellation and is never retried through replay.
+Failures before dispatch or after an observed result retain a known-failure
+classification.
+Cursor delivery is at least once and bounded to a tail, with explicit gaps and
+a durable terminal outcome.
 
 ## Effects, background work and isolation
 

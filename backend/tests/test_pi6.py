@@ -128,6 +128,16 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     }
 
 
+def test_current_source_identity_preserves_prior_protocol_generations():
+    current = json.loads((FIXTURES / "manifest-v2-source-7.json").read_bytes())
+    previous = json.loads((FIXTURES / "manifest-v2-source-6.json").read_bytes())
+    assert current["frozen_before_measurement"] is True
+    assert "source generation 7" in current["preregistration"]
+    assert current["hashes"]["cases"] == previous["hashes"]["cases"]
+    for name in previous["hashes"].keys() - {"core_runtime", "contracts"}:
+        assert current["hashes"][name] == previous["hashes"][name]
+
+
 @pytest.mark.parametrize("mutation", ["duplicate", "leakage", "extra", "url", "code", "budget"])
 def test_untrusted_corpus_rejects(mutation):
     raw = json.loads((FIXTURES / "cases-v2.json").read_text())

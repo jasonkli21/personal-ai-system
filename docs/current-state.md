@@ -25,7 +25,7 @@ external evidence retain different authority and freshness semantics.
 | --- | --- | --- |
 | Context and inference | Shared assembler, deterministic planner, bounded inspection, field/sensitivity policy, provider-neutral gateway and LiteLLM transport | Immutable source/policy references and deployed membership/revocation; live provider token/account/privacy semantics |
 | Persistence and artifacts | PostgreSQL/pgvector adapters, DynamoDB adapters, private artifact tier, owner lifecycle and retention operations | DynamoDB engine, cloud object storage, physical deletion and cloud recovery beyond the exercised PostgreSQL subset |
-| Local workflow execution | Default-off internal foreground service for bounded local retrieval DAGs. PostgreSQL stores the scoped original key, attempts, cancellation and ordered progress. Live outputs are transient | Independent review, installed workflow consumer, external issuer, native isolation and restore; background and generic effect profiles unavailable |
+| Local workflow execution | Default-off internal foreground service for bounded local retrieval DAGs. PostgreSQL stores the scoped original key, immutable per-attempt operation fingerprints, cancellation and ordered progress. Dispatched attempts without an observed result become uncertain; live outputs are transient | Focused contract and synthetic checks pass; PostgreSQL lifecycle reproduction remains blocked in this session. Installed workflow consumer, external issuer, native isolation and restore remain gated; background and generic effect profiles unavailable |
 | Routing and evaluation | Endpoint admission, physical-send accounting, deterministic routing, bounded tasks, shadow experiments and paired evaluators | Workflows remain gated; no adaptive, memory or search coverage is promoted by synthetic evidence |
 | External and domain context | Typed Travel, Shopping and Finance reads; separate broad Health read and narrow signed Health exports; owner-scoped grants and opaque choices | Broad Health still requires a Firebase user token; native linked identity, cloud IAM, domain/browser and grant UX acceptance |
 | Delegated Shopping tasks | Canonical closed wire, signed source ingress, domain capability metadata, existing confirmation/reservation/reconciliation lifecycle; budget and append-note adapters | Default-off, deployment-managed single-owner origin trust; actual cloud identity and browser/device acceptance |
@@ -40,7 +40,12 @@ validation and consent. Personal AI persists only orchestration intent and
 outcomes. Tasks do not invoke model providers or automate purchases.
 
 The [workflow evidence](harness-excellence/2026-11-03-workflow-verification.md)
-separates local workflow tests from installed, live and deployed acceptance.
+separates local workflow tests from installed, live and deployed acceptance. The
+[2026-11-03 remediation receipt](harness-excellence/2026-11-03-hxe3-remediation.md)
+records the F1/F2 code changes, the two-process F3 test, the focused and broad
+checks reproduced, and the remaining block caused by the missing disposable
+PostgreSQL/pgvector test endpoint. E1 synthetic closure is not claimed for the
+unexecuted workflow lifecycle tests.
 
 ## Platform Independence / freeze status
 
@@ -186,6 +191,10 @@ task rubric passes remain zero. E2 real-model utility remains blocked by the
 unavailable verified model, native server fence, and disposable migrated ledger.
 E3 hosted candidates remain `BLOCKED_UNVERIFIED`; production remains NO-GO.
 See the [dated evidence](harness-excellence/2026-11-03-local-inference-verification.md).
+The HXE-3 remediation adds planning lock v33 and PI-6 source generation 7 for
+the updated source identity while preserving locks v31/v32, source generations
+1–6, frozen cases, thresholds and non-promotion. See its
+[remediation receipt](harness-excellence/2026-11-03-hxe3-remediation.md).
 
 The optional read-only MCP source adapter is a **PARTIAL E1** synthetic development pilot. It
 covers bounded stdio and socket-free Streamable HTTP, scoped local PI-5 tool

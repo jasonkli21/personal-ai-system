@@ -24,13 +24,20 @@ earlier events are outside the retained eight-event tail. The reply includes
 attempt states and the durable terminal outcome even after a gap. Duplicate
 observations are expected. Source passages exist only in the successful live
 claim, and a recovered claim can return results only for steps it completed.
-Status and terminal replay return receipts alone. The persisted spec is cleared
-at terminal transition. PostgreSQL backups and old row versions may still hold
-input, so use synthetic fixtures.
+Status and terminal replay return receipts alone. Each attempt receipt carries
+the immutable tool ID/version and trusted effect class, canonical step digest,
+source snapshot digest, and original intent digest. These fingerprints contain
+no query text or source passages and remain available after the persisted spec
+is cleared. Historical receipts without fingerprints remain readable and are
+not backfilled. PostgreSQL backups and old row versions may still hold input,
+so use synthetic fixtures.
 
-`uncertain` requires operator investigation. An expired dispatched attempt
-cannot be taken over or retried using its original key. Stop the trusted caller
-to disable the profile and preserve the database and original keys. Background,
+`uncertain` requires operator investigation. A failure or cancellation after
+dispatch without an observed tool result becomes uncertain immediately; it is
+not retried by replay. Failures before dispatch and failures after an observed
+result can be recorded as known failures. An expired dispatched attempt cannot
+be taken over or retried using its original key. Stop the trusted caller to
+disable the profile and preserve the database and original keys. Background,
 native and effect profiles are unavailable. See
 [authority and release boundaries](../../../../docs/decisions/0025-workflow-lifecycle-authority.md).
 

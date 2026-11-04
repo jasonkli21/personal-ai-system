@@ -9,7 +9,13 @@ from uuid import UUID, uuid4
 
 from personal_ai.auth.scope import current_request_scope, current_verified_principal
 from personal_ai.contracts.delegated_tasks import canonical_bytes
-from personal_ai.contracts.workflow import TERMINAL, RunProgress, RunSpec, WorkflowProfile
+from personal_ai.contracts.workflow import (
+    TERMINAL,
+    AttemptOperationBinding,
+    RunProgress,
+    RunSpec,
+    WorkflowProfile,
+)
 from personal_ai.persistence.postgres.workflows import PostgresWorkflowStore, WorkflowFenceLost
 from personal_ai.retrieval.installation import load_snapshot
 from personal_ai.retrieval.service import PinnedToolGuard, RetrievalService
@@ -154,8 +160,16 @@ class WorkflowService:
         if not remaining_steps:
             raise ValueError("workflow_receipts_invalid")
         for index, step in enumerate(remaining_steps, start=1):
+            operation_observed = False
             try:
                 _, invoke = self._tool(source_digest)
+                operation_binding = AttemptOperationBinding(
+                    tool_id=step.tool,
+                    effect_class=DEFAULT_TOOLS.registrations[step.tool].effect,
+                    step_digest=sha256(canonical_bytes(step.model_dump(mode="json"))).hexdigest(),
+                    source_digest=source_digest,
+                    intent_digest=spec.intent_digest(scope_digest),
+                ).model_dump(mode="json")
                 with self.store.locked(scope_digest, run_id) as row:
                     row.check(fence, renew=True)
                     if row.now >= row.deadline:
@@ -166,6 +180,7 @@ class WorkflowService:
                             "attempt_id": attempt_id,
                             "step": step.name,
                             "state": "reserved",
+                            "operation_binding": operation_binding,
                         }
                     )
                     row.event("reserved", attempt_id)
@@ -191,10 +206,10 @@ class WorkflowService:
                         remaining = (row.deadline - row.now).total_seconds()
                         if remaining <= 0:
                             raise TimeoutError
-                        row.pending["state"] = "dispatched"
-                        row.event("dispatched", attempt_id)
+                        row.dispatch(attempt_id, operation_binding)
                     async with asyncio.timeout(remaining):
                         result = await invoke(self.retrieval, step.query, guard)
+                        operation_observed = True
                     guard()
                 size = len(result.model_dump_json().encode())
                 if size > step.result_bytes:
@@ -215,8 +230,23 @@ class WorkflowService:
                 outputs.append(result)
             except WorkflowFenceLost:
                 return self.status(run_id), ()
-            except (WorkflowDenied, ValueError, OSError, TimeoutError) as error:
-                return self._fail(scope_digest, run_id, fence, error), ()
+            except asyncio.CancelledError:
+                self._fail(
+                    scope_digest,
+                    run_id,
+                    fence,
+                    TimeoutError(),
+                    operation_observed=operation_observed,
+                )
+                raise
+            except Exception as error:  # noqa: BLE001 - dispatch outcome must be durable
+                return self._fail(
+                    scope_digest,
+                    run_id,
+                    fence,
+                    error,
+                    operation_observed=operation_observed,
+                ), ()
 
         # No retained passages. For a recovered run only this claim has live results.
         try:
@@ -239,12 +269,20 @@ class WorkflowService:
             return progress, ()
         return progress, tuple(outputs)
 
-    def _fail(self, scope_digest, run_id, fence, error):
+    def _fail(self, scope_digest, run_id, fence, error, *, operation_observed):
         with self.store.locked(scope_digest, run_id) as row:
             row.expire()
             if row.record["state"] == "running" and row.record["fence"] == fence:
                 attempt = row.pending
                 if attempt is not None:
+                    binding = attempt.get("operation_binding") or {}
+                    known_read_only_result = (
+                        operation_observed and binding.get("effect_class") == "read_only"
+                    )
+                    if attempt["state"] == "dispatched" and not known_read_only_result:
+                        attempt["state"] = "uncertain"
+                        row.terminal("uncertain", "operator_reconciliation_required")
+                        return row.progress(0)
                     attempt["state"] = "failed"
                     row.event("step_failed", attempt["attempt_id"])
                 if row.record["cancel_requested"]:

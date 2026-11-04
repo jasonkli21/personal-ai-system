@@ -1049,11 +1049,12 @@ def test_v30_is_preserved_and_v31_binds_review_remediation_source():
     assert current["evaluator_version"] != previous["evaluator_version"]
 
 
-def test_current_planning_lock_binds_workflow_source_without_promoting():
+def test_current_planning_lock_binds_local_execution_source_without_promoting():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V31_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V32_FREEZE_PATH.read_text())
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["source_revision"] == "6d9fd3c4252e3e2bde6563af76d7a896af7de5f8"
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v33"
+    assert current["source_revision"] == "61e88a308c6d2f965e261a5a86ab2bd909f0bc95"
     assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
     for field in (
@@ -1061,3 +1062,12 @@ def test_current_planning_lock_binds_workflow_source_without_promoting():
         "evaluator_version", "fixture_dependency_digest", "promotion_decision",
     ):
         assert current[field] == previous[field]
+
+
+def test_workflow_source_identity_generations_preserve_frozen_inputs():
+    current = json.loads(planning.FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V32_FREEZE_PATH.read_text())
+    assert current["supersedes"] == previous["baseline_lock_version"]
+    assert current["promotion_decision"] == previous["promotion_decision"]
+    assert current["corpus_digest"] == previous["corpus_digest"]
+    assert current["fixture_dependency_digest"] == previous["fixture_dependency_digest"]

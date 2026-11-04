@@ -83,10 +83,21 @@ class RunSpec(WorkflowRecord):
         return sha256(scope_digest.encode("ascii") + self.canonical_body()).hexdigest()
 
 
+class AttemptOperationBinding(WorkflowRecord):
+    """Nonsecret fingerprints that bind an attempt to its validated operation."""
+
+    tool_id: Literal["retrieval.query.v1"]
+    effect_class: Literal["read_only"]
+    step_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    intent_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class AttemptReceipt(WorkflowRecord):
     attempt_id: UUID
     step: StepName
     state: Literal["reserved", "dispatched", "succeeded", "failed", "abandoned", "uncertain"]
+    operation_binding: AttemptOperationBinding | None = None
 
 
 class ProgressEvent(WorkflowRecord):

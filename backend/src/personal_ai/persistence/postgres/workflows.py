@@ -67,6 +67,18 @@ class WorkflowRow:
             return attempts[-1]
         return None
 
+    def dispatch(self, attempt_id, operation_binding):
+        attempt = self.pending
+        if (
+            attempt is None
+            or attempt["attempt_id"] != attempt_id
+            or attempt["state"] != "reserved"
+            or attempt.get("operation_binding") != operation_binding
+        ):
+            raise ValueError("workflow_attempt_binding_changed")
+        attempt["state"] = "dispatched"
+        self.event("dispatched", attempt_id)
+
     def claim(self):
         self.expire()
         if self.record["state"] != "queued":
