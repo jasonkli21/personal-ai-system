@@ -104,7 +104,7 @@ def test_exact_server_scope_at_claim_read_and_commit(runtime, field, value):
     assert rt.repository.pending(foreign) == ()
     with pytest.raises(ConsolidationDenied):
         rt.repository.commit(lease, page.model_copy(update={"scope": foreign}))
-    assert rt.repository.diagnostics()["checkpoints"] == 0
+    assert rt.repository.diagnostics()["processed_source_positions"] == 0
 
 
 @pytest.mark.parametrize(
@@ -271,6 +271,7 @@ def test_duplicate_page_lost_ack_and_changed_original_payload(runtime):
         rt.repository.commit(lease, page, fault="after_commit")
     receipt = rt.repository.observe(scope, page.original_key)
     assert receipt and receipt.cursor == 1
+    assert receipt.proposal_count == len(rt.repository.pending(scope))
     assert rt.repository.commit(lease, page) == receipt
     # After revoke, replay is only the content-free original outcome, never text.
     rt.source.withdraw(scope, page.records[0].source_id)
@@ -370,7 +371,7 @@ def test_page_order_property_never_skips_source_sequences(runtime, order):
     else:
         with pytest.raises(ValidationError):
             SourcePage(scope=scope, after=0, records=tuple(original.records[i] for i in order))
-        assert rt.repository.diagnostics()["checkpoints"] == 0
+        assert rt.repository.diagnostics()["processed_source_positions"] == 0
 
 
 def test_page_gap_duplicate_and_generation_mismatch_cannot_advance(runtime):
@@ -570,7 +571,7 @@ def test_input_fanout_cycles_and_oversized_copies_fail_with_uniform_errors(runti
     ):
         with pytest.raises(ConsolidationDenied, match="^offline_consolidation_denied$"):
             rt.repository.commit(lease, invalid)
-    assert rt.repository.diagnostics()["checkpoints"] == 0
+    assert rt.repository.diagnostics()["processed_source_positions"] == 0
 
 
 def test_source_epoch_capacity_denies_regrant_and_still_allows_forget(runtime):

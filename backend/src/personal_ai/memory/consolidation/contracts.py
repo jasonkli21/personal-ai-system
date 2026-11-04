@@ -13,8 +13,9 @@ Hash = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 Counter = Annotated[int, Field(strict=True, ge=0, le=1024)]
 Command = Literal["make backend-lint", "make backend-test-offline", "make memory-eval"]
 GENERATION = "synthetic-source-v1:bounded-extractor-v1:pending-policy-v1"
+V2_SOURCE_V1_POLICY_GENERATION = "synthetic-source-v2:bounded-extractor-v1:pending-policy-v1"
 BACKFILL_GENERATION = "synthetic-source-v2:bounded-extractor-v2:pending-policy-v2"
-Generation = Literal[GENERATION, BACKFILL_GENERATION]
+Generation = Literal[GENERATION, V2_SOURCE_V1_POLICY_GENERATION, BACKFILL_GENERATION]
 PAGE_SIZE = 4
 MAX_SOURCES = 128
 MAX_PROPOSALS = 64
@@ -140,6 +141,8 @@ class Lease(Strict):
 
 
 class BatchReceipt(Strict):
+    """Content-free receipt; proposal_count is the post-batch live proposal total."""
+
     original_key: Hash
     payload_digest: Hash
     cursor: Counter

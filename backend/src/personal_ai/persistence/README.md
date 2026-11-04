@@ -70,6 +70,14 @@ issuer rollback. Full authority/database rollback after a cold restart needs an
 external monotonic fence. These tables contain public fixtures only and are not
 an accepted second memory lifecycle. Existing schema-1/2/3 memory, lifecycle and
 control tables remain unchanged. No accepted-memory writer, worker or export
-registration is added. Run `make memory-consolidation-postgres-check` with the
-normal isolated native test prerequisites. See the
+registration is added. Native leases use PostgreSQL `clock_timestamp()` rather
+than caller clocks; source observation and expiry still use the synthetic fixture clock.
+`inventory_owner` reports bounded content-free counts. `purge_owner` requires a
+retained canonical owner deletion fence, deletes all owner checkpoint rows without
+project lookup, removes their authority heads, and retains per-scope tombstones in
+the shared authority row. This prevents a restored derived checkpoint from being
+accepted while preserving other owners. PostgreSQL MVCC history, replicas, backups
+and cold restore of the full authority remain outside this seam. Run
+`make memory-consolidation-postgres-check` with the normal isolated native test
+prerequisites. See the
 [continuation report](../../../../docs/memory/2026-11-03-consolidation-continuation.md).

@@ -6,7 +6,6 @@ from datetime import timedelta
 from time import monotonic
 
 from personal_ai.memory.consolidation.contracts import (
-    BACKFILL_GENERATION,
     GENERATION,
     MAX_BYTES,
     MAX_CLAIMS,
@@ -20,7 +19,7 @@ from personal_ai.memory.consolidation.contracts import (
     checked,
 )
 from personal_ai.memory.consolidation.policy import extract, proposal_current
-from personal_ai.memory.consolidation.sources import FrozenFixtureSource
+from personal_ai.memory.consolidation.sources import FrozenFixtureSource, generation_matches_corpus
 from personal_ai.memory.knowledge import digest
 
 
@@ -45,7 +44,7 @@ class OfflineProposalRepository:
     def __init__(self, source, *, generation=GENERATION):
         if not isinstance(source, FrozenFixtureSource):
             raise ConsolidationDenied()
-        if generation not in {GENERATION, BACKFILL_GENERATION}:
+        if not generation_matches_corpus(source.corpus_digest, generation):
             raise ConsolidationDenied()
         self.generation = generation
         self.source = source
@@ -67,7 +66,7 @@ class OfflineProposalRepository:
         with self._transaction(scope):
             key = self.source._scope(scope)
             state = self._states[key]
-            now = self.source.clock()
+            now = self.source.lease_now()
             if state.claims >= MAX_CLAIMS or state.lease and state.lease.expires_at > now:
                 raise ConsolidationDenied()
             try:
@@ -126,7 +125,7 @@ class OfflineProposalRepository:
                 return prior
             if (
                 state.lease != lease
-                or lease.expires_at <= self.source.clock()
+                or lease.expires_at <= self.source.lease_now()
                 or state.cursor != lease.cursor
                 or page.after != state.cursor
                 or self.source.page(page.scope, page.after, generation=self.generation) != page
@@ -173,7 +172,7 @@ class OfflineProposalRepository:
                 proposals=tuple(proposals),
                 receipts=(*state.receipts, receipt),
             )
-            if monotonic() - started >= 2 or lease.expires_at <= self.source.clock():
+            if monotonic() - started >= 2 or lease.expires_at <= self.source.lease_now():
                 raise ConsolidationDenied()
             if fault == "before_commit":
                 raise ConsolidationDenied()
@@ -231,7 +230,7 @@ class OfflineProposalRepository:
         with self._transaction():
             return {
                 "streams": len(self._states),
-                "checkpoints": sum(s.cursor for s in self._states.values()),
+                "processed_source_positions": sum(s.cursor for s in self._states.values()),
                 "receipts": sum(len(s.receipts) for s in self._states.values()),
                 "retained_proposals": sum(len(s.proposals) for s in self._states.values()),
                 "provider_calls": 0,

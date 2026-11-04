@@ -13,7 +13,9 @@ from psycopg.types.json import Jsonb
 from personal_ai.memory.consolidation.contracts import (
     BACKFILL_GENERATION,
     GENERATION,
+    V2_SOURCE_V1_POLICY_GENERATION,
     ConsolidationDenied,
+    ConsolidationScope,
 )
 from personal_ai.memory.consolidation.sources import CORPUS_SHA256
 from personal_ai.persistence.postgres import PostgresDatabase
@@ -28,8 +30,10 @@ pytestmark = pytest.mark.persistence_integration
 NOW = datetime(2026, 11, 3, 13, tzinfo=UTC)
 
 
-def pair(database, session="procedure", clock=lambda: NOW, *, corpus="v1", generation=GENERATION):
+def pair(database, session="procedure", clock=lambda: NOW, *, corpus="v1", generation=None):
     source = PostgresFixtureSource(database, clock=clock, corpus=corpus)
+    if generation is None:
+        generation = GENERATION if corpus == "v1" else V2_SOURCE_V1_POLICY_GENERATION
     repo = PostgresProposalRepository(source, generation=generation)
     scope = next(s for s in source.scopes if s.session == session)
     return source, repo, scope
@@ -42,14 +46,24 @@ def submit(source, repo, scope):
     return repo.commit(lease, page)
 
 
-def _claim_process(dsn, session, barrier, results):
+def _claim_process(dsn, session, barrier, results, clock_skew_minutes=0, commit_page=False):
     db = PostgresDatabase(dsn, environment="test", min_size=0, max_size=1)
     try:
-        _source, repo, scope = pair(db, session)
-        barrier.wait(timeout=10)
+        source, repo, scope = pair(
+            db,
+            session,
+            clock=lambda: NOW + timedelta(minutes=clock_skew_minutes),
+        )
+        if barrier is not None:
+            barrier.wait(timeout=10)
         try:
-            repo.claim(scope, "process-worker")
-            results.put("claimed")
+            lease = repo.claim(scope, "process-worker")
+            if commit_page:
+                page = source.page(scope, lease.cursor, generation=repo.generation)
+                repo.commit(lease, page)
+                results.put("committed")
+            else:
+                results.put("claimed")
         except ConsolidationDenied:
             results.put("denied")
     finally:
@@ -98,6 +112,9 @@ def test_native_abrupt_process_death_recovers_original_transaction(database, fau
     receipt = recovered.observe(scope, original_key)
     assert (receipt is not None) == (fault == "after_commit")
     if receipt is None:
+        import time
+
+        time.sleep(5.1)
         lease = recovered.claim(scope, "recovery")
         receipt = recovered.commit(lease, fresh_source.page(scope, 0))
     assert receipt.cursor == 1
@@ -162,18 +179,33 @@ def test_native_dual_process_claims_are_serialized(database):
 
 
 def test_native_lease_takeover_fences_old_process_state(database):
-    now = [NOW]
-    source, first, scope = pair(database, clock=lambda: now[0])
+    import time
+
+    context = multiprocessing.get_context("spawn")
+    results = context.Queue()
+    source, first, scope = pair(database, clock=lambda: NOW)
     source.publish(scope, 1)
     lease = first.claim(scope, "first")
     page = source.page(scope, 0)
-    now[0] = lease.expires_at
-    _, second, _ = pair(database, clock=lambda: now[0])
-    replacement = second.claim(scope, "second")
-    assert replacement.fence > lease.fence
+    fast = context.Process(
+        target=_claim_process,
+        args=(database._dsn, scope.session, None, results, 10, False),
+    )
+    fast.start()
+    fast.join(timeout=15)
+    assert fast.exitcode == 0 and results.get(timeout=2) == "denied"
+    time.sleep(5.1)
+    slow = context.Process(
+        target=_claim_process,
+        args=(database._dsn, scope.session, None, results, -10, True),
+    )
+    slow.start()
+    slow.join(timeout=15)
+    assert slow.exitcode == 0 and results.get(timeout=2) == "committed"
     with pytest.raises(ConsolidationDenied):
         first.commit(lease, page)
-    assert second.commit(replacement, page).cursor == 1
+    _, recovered, _ = pair(database)
+    assert len(recovered.pending(scope)) == 1
 
 
 def test_native_withdrawal_regrant_and_stale_checkpoint_restore(database):
@@ -244,6 +276,80 @@ def test_native_canonical_owner_fence_blocks_the_adapter(database):
         repo.claim(scope, "fenced")
 
 
+def test_native_sql_entrypoints_reject_hostile_scopes_before_key_access(database):
+    source, repo, scope = pair(database, corpus="v2")
+    source.publish(scope, 1)
+    page = source.page(scope, 0, generation=repo.generation)
+    foreign = ConsolidationScope.model_validate(
+        {**scope.model_dump(), "owner": "unregistered-owner"}
+    )
+    invalid_scopes = (
+        object(),
+        {},
+        scope.model_copy(update={"unmodeled": "unsafe"}),
+        scope.model_copy(update={"owner": "../unsafe"}),
+        foreign,
+    )
+    for invalid in invalid_scopes:
+        operations = (
+            lambda invalid=invalid: repo.claim(invalid, "worker"),
+            lambda invalid=invalid: repo.observe(invalid, "0" * 64),
+            lambda invalid=invalid: repo.pending(invalid),
+            lambda invalid=invalid: repo.validate_cached(invalid, object()),
+            lambda invalid=invalid: repo.commit(None, page.model_copy(update={"scope": invalid})),
+        )
+        for operation in operations:
+            with pytest.raises(ConsolidationDenied):
+                operation()
+
+
+def test_native_owner_inventory_and_purge_are_fenced_and_project_independent(database):
+    source, repo, target_scope = pair(database, "multi-command", corpus="v2")
+    other_scope = next(scope for scope in source.scopes if scope.owner != target_scope.owner)
+    submit(source, repo, target_scope)
+    submit(source, repo, other_scope)
+    legacy_source, legacy_repo, legacy_scope = pair(database, "procedure", corpus="v1")
+    assert legacy_scope.owner == target_scope.owner
+    submit(legacy_source, legacy_repo, legacy_scope)
+    before = repo.inventory_owner(target_scope.owner)
+    assert before["checkpoint_count"] == 2 and before["live_proposal_count"] > 0
+    other_before = repo.inventory_owner(other_scope.owner)
+    assert other_before["checkpoint_count"] == 1
+    with database.transaction() as connection:
+        lock_owner(connection, target_scope.owner)
+        connection.execute(
+            "INSERT INTO owner_lifecycle_fences(owner_id) VALUES (%s)",
+            (target_scope.owner,),
+        )
+    # purge_owner takes only the owner identity; no project lookup is needed.
+    repo.purge_owner(target_scope.owner)
+    assert repo.inventory_owner(target_scope.owner) == {
+        "checkpoint_count": 0,
+        "scope_count": 0,
+        "generations": (),
+        "live_proposal_count": 0,
+        "receipt_count": 0,
+    }
+    assert legacy_repo.inventory_owner(target_scope.owner)["checkpoint_count"] == 0
+    assert repo.inventory_owner(other_scope.owner) == other_before
+    assert repo.pending(other_scope)
+    with database.transaction() as connection:
+        assert (
+            connection.execute(
+                "SELECT count(*) FROM offline_consolidation_checkpoints WHERE owner_id=%s",
+                (target_scope.owner,),
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT count(*) FROM owner_lifecycle_fences WHERE owner_id=%s",
+                (target_scope.owner,),
+            ).fetchone()[0]
+            == 1
+        )
+
+
 @pytest.mark.parametrize(
     "session",
     ["nullable-actor", "other-application", "other-actor", "other-owner-project", "other-client"],
@@ -263,7 +369,7 @@ def test_native_explicit_backfill_and_fresh_regrant(database):
     source, repo, scope = pair(database, "fresh-regrant", corpus="v2")
     source.publish(scope, 1)
     lease = repo.claim(scope, "first")
-    receipt = repo.commit(lease, source.page(scope, 0))
+    receipt = repo.commit(lease, source.page(scope, 0, generation=repo.generation))
     cached = repo.pending(scope)[0]
     source.withdraw(scope, "renewable")
     source.regrant(scope, "renewable")
@@ -307,7 +413,7 @@ def test_native_natural_byte_capacity_denial_preserves_checkpoint_and_receipts(d
     source.publish(scope, 65)
     for _ in range(32):
         lease = repo.claim(scope, "capacity")
-        page = source.page(scope, lease.cursor)
+        page = source.page(scope, lease.cursor, generation=repo.generation)
         with database.transaction() as connection:
             before = connection.execute(
                 "SELECT payload FROM offline_consolidation_checkpoints"

@@ -192,8 +192,9 @@ MVCC/backup retention are not private-data physical-erasure evidence.
 
 Limits are four sources/page, 128 sources/corpus, 2 KiB/envelope, 16 KiB/page and
 retained proposal content/stream, 64 proposals/receipts and 32 claims/stream,
-five-second leases, two-second lock acquisition/commit/SQL budgets, and two
-allowlisted generations. Capacity denies without pruning keys or tombstones.
+five-second leases, two-second lock acquisition/commit/SQL budgets, and three
+allowlisted generation identities across two corpus digests. Capacity denies
+without pruning keys or tombstones.
 Pending content expires no later than 24 hours after evidence observation.
 No automatic retry, provider call or token use occurs in extraction.
 
@@ -213,17 +214,45 @@ the fresh consumer receives serialized cards only. Outcome accuracy, false suppo
 exact entailment and scope/source leakage are E1 synthetic evidence, not model
 or independently held-out utility. The fixed-first arm is a synthetic heuristic,
 not legacy fixed retrieval, whose schema cannot represent these project facts.
+The local pilot compares no consolidation, deterministic pending proposals and exact
+eligible source context through the shared chat/admission/attempt path. A canonical
+fixed-memory comparator is explicitly unsupported for these fixture facts. An arm
+is only reported measured when the attempt completes without a safety failure and
+includes token counts marked reported or estimated; task rubrics, confidence, latency
+and local no-charge status remain separate. No hosted fallback is available.
+
+Generation identity is bound to the frozen source digest. V1 uses its original
+source/extractor/policy identity. V2 uses either a separate V2-source/V1-policy
+identity for explicit comparison or the V2-source/V2-policy backfill identity;
+cross-corpus pairings are denied before claim or commit. Existing V1/V2 fixture
+bytes and historical receipts remain unchanged. Diagnostics expose
+`processed_source_positions`; receipt `proposal_count` is the post-batch live
+proposal total.
+
+The additive challenge manifest includes known unsupported tasks, poisoned claims,
+natural-language ambiguity and exact source attribution. It is author-visible and
+does not count as an independent holdout or task-utility result.
 
 `make memory-consolidation-postgres-check` requires a disposable local
 `PERSISTENCE_TEST_POSTGRES_DSN` with CREATEDB and pgvector; it uses the canonical
-migration runner and creates isolated databases. Do not point it at user data.
+migration runner and creates isolated databases. Native lease acquisition and
+expiry use PostgreSQL `clock_timestamp()` inside the locked transaction, independent
+of worker clocks. Source observed/expiry semantics remain tied to the synthetic
+fixture clock. `inventory_owner` reports content-free row counts; `purge_owner`
+requires the retained canonical owner fence, deletes all of that owner's checkpoint
+payloads without project lookup, preserves other owners, and retains shared-source
+scope tombstones so stale derived rows fail closed. This does not cover MVCC history,
+replicas, backups or cold restore of the full authority database. Do not point it at
+user data.
 `python -m personal_ai.evaluation.consolidation_quality --local-preflight` reports
 local-runtime prerequisites without sending. An explicit `--local-case SESSION`
-pilot uses only public synthetic pending cards, the existing private local profile,
-normal chat assembler, admission and physical-attempt accounting. It needs a pinned
-model/build/private socket and durable usage store; it never falls back to hosted
-inference. Three arms share 4,096 context/128 response tokens and 30-second request
-limits. Real-model results remain unmeasured when that infrastructure is absent.
+pilot uses only public synthetic pending cards and eligible source records, the
+existing private local profile, normal chat assembler, admission and physical-attempt
+accounting. It needs a pinned model/build/private socket and durable usage store; it
+never falls back to hosted inference. The three attempted arms share 4,096
+context/128 response tokens and a 30-second request limit. The canonical fixed-memory
+arm is explicitly unsupported for these fixture facts. Real-model results remain
+unmeasured when that infrastructure is absent.
 
 See the [continuation decision](../../../../docs/memory/2026-11-03-consolidation-continuation-decision.md),
 [latest evidence](../../../../docs/memory/2026-11-03-consolidation-continuation.md)

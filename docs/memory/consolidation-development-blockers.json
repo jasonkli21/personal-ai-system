@@ -56,7 +56,7 @@
       "status": "blocked",
       "blocking_dependency": "An external surviving issuer/restore epoch plus canonical producer/project/account erasure orchestration and actual replica/backup infrastructure.",
       "why_not_resolved_here": "A cold process given a rollback of both the authority row and derived database has no independent surviving observation with which to distinguish old state. This session has no deployed issuer or replica/backup deletion system; public disposable fixtures cannot prove their physical behavior.",
-      "completed_independently": "Canonical owner locks/fences; project/owner forget and expiry body purge; durable content-free receipts/heads; stale derived-row restore denial; per-process source revision floor; native rollback/process-crash tests.",
+      "completed_independently": "Canonical owner locks/fences; project/owner forget and expiry body purge; owner-scoped content-free inventory and fenced SQL checkpoint-row erasure without project lookup; removal of derived authority heads with retained shared-source scope tombstones; durable content-free receipts/heads; stale derived-row restore denial; per-process source revision floor; native rollback/process-crash tests. MVCC, replicas, backups and full-authority cold restore remain blocked.",
       "unblocking_steps": [
         "Supply a restore epoch outside the restored database and deny reads until current issuer reconciliation completes.",
         "Connect actual source/project/account withdrawal events to canonical maintenance and reverse dependencies.",

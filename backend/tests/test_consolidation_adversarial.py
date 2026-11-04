@@ -1,17 +1,21 @@
 """Additive scope/provenance/governance/regrant and capacity contracts."""
 
+import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
 from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import RequestScope
+from personal_ai.evaluation import consolidation_quality
 from personal_ai.evaluation.control_runtime import ControlRuntime
 from personal_ai.memory.consolidation.contracts import (
     BACKFILL_GENERATION,
     GENERATION,
+    V2_SOURCE_V1_POLICY_GENERATION,
     ConsolidationDenied,
 )
 from personal_ai.memory.consolidation.governance import ProposalReviewPreview
@@ -25,7 +29,7 @@ from personal_ai.memory.knowledge import ProjectSnapshot
 NOW = datetime(2026, 11, 3, 13, tzinfo=UTC)
 
 
-def runtime(session, *, generation=GENERATION):
+def runtime(session, *, generation=V2_SOURCE_V1_POLICY_GENERATION):
     source = FrozenFixtureSource(clock=lambda: NOW, corpus="v2")
     repo = OfflineProposalRepository(source, generation=generation)
     scope = next(s for s in source.scopes if s.session == session)
@@ -62,6 +66,24 @@ def test_multiple_legitimate_scopes_remain_isolated(session):
     # A different valid owner's deletion never touches this namespace.
     repo.forget(owner="unknown-owner")
     assert repo.pending(scope) == (candidate,)
+
+
+def test_generation_identity_is_bound_to_the_frozen_corpus():
+    for corpus, generation in (
+        ("v1", GENERATION),
+        ("v2", V2_SOURCE_V1_POLICY_GENERATION),
+        ("v2", BACKFILL_GENERATION),
+    ):
+        source = FrozenFixtureSource(clock=lambda: NOW, corpus=corpus)
+        assert OfflineProposalRepository(source, generation=generation).generation == generation
+    for corpus, generation in (
+        ("v1", V2_SOURCE_V1_POLICY_GENERATION),
+        ("v1", BACKFILL_GENERATION),
+        ("v2", GENERATION),
+    ):
+        source = FrozenFixtureSource(clock=lambda: NOW, corpus=corpus)
+        with pytest.raises(ConsolidationDenied):
+            OfflineProposalRepository(source, generation=generation)
 
 
 def test_fresh_source_after_regrant_is_eligible_but_original_is_not():
@@ -143,6 +165,116 @@ def test_real_byte_capacity_denial_is_atomic_and_forget_remains_available():
     assert not repo.pending(scope)
     assert len(repo._states[scope.key].receipts) == receipts
     assert not repo._states[scope.key].proposals
+
+
+def test_local_pilot_uses_distinct_comparator_payloads_and_reports_failed_rows(monkeypatch):
+    from personal_ai.evaluation import real_tasks
+    from personal_ai.llm import execution
+
+    settings = type(
+        "PilotSettings",
+        (),
+        {
+            "max_context_tokens": 4096,
+            "max_response_tokens": 128,
+            "request_timeout_seconds": 30,
+        },
+    )()
+    calls = []
+
+    async def run_case(_settings, _pair, case, arm, _run_id):
+        calls.append((case, arm))
+        completed = len(calls) == 1
+        return {
+            "id": case["id"],
+            "arm": arm,
+            "status": "completed" if completed else "generation_failed",
+            "completed": completed,
+            "rubric_pass": False,
+            "forbidden_output": False,
+            "input_tokens": 20 if completed else None,
+            "output_tokens": 5 if completed else None,
+            "usage_confidence": "reported" if completed else "unknown",
+            "elapsed_ms": 10,
+        }
+
+    monkeypatch.setattr(
+        consolidation_quality,
+        "local_preflight",
+        lambda _settings: {"status": "available_for_explicit_pilot"},
+    )
+    marker = SimpleNamespace(
+        generator=SimpleNamespace(
+            identity=SimpleNamespace(
+                provider_id="local-llama",
+                model_id="pinned-local-model",
+                serializer_id="local-chat-template-v1",
+            )
+        )
+    )
+    monkeypatch.setattr(execution, "compose_pair", lambda _settings, _usage: marker)
+    monkeypatch.setattr(real_tasks, "run_case", run_case)
+    result = asyncio.run(consolidation_quality.evaluate_local("multi-command", settings, object()))
+    assert result["status"] == "blocked"
+    assert result["reason"] == "attempt_incomplete"
+    assert result["rows"][-1]["status"] == "unsupported"
+    assert [arm for _case, arm in calls] == ["direct", "selected", "selected"]
+    assert calls[0][0]["source"] != calls[1][0]["source"]
+    assert "source_id" in calls[2][0]["source"]
+    assert calls[1][0]["source"] != calls[2][0]["source"]
+
+
+def test_local_pilot_status_accepts_completed_negative_rubric_as_an_observation():
+    rows = [
+        {
+            "pilot_arm": arm,
+            "status": "completed",
+            "completed": True,
+            "forbidden_output": False,
+            "input_tokens": 20,
+            "output_tokens": 5,
+            "usage_confidence": "estimated",
+            "rubric_pass": False,
+        }
+        for arm in consolidation_quality.LOCAL_PILOT_ARMS
+    ]
+    assert consolidation_quality.local_pilot_status(rows) == ("measured_pilot", None)
+
+
+def test_additive_challenge_manifest_keeps_unsupported_claims_and_exact_attribution():
+    manifest = consolidation_quality.load_challenge_manifest()
+    cases = {case["id"]: case for case in manifest["cases"]}
+    assert manifest["author_visible"] is True and manifest["independent_holdout"] is False
+    assert {
+        "unsupported-aggregate-outcome",
+        "poisoned-claim",
+        "ambiguous-natural-language",
+        "exact-source-attribution",
+    } == set(cases)
+
+    source, repo, scope = runtime("multi-command")
+    drive(source, repo, scope)
+    candidate = next(
+        proposal for proposal in repo.pending(scope) if proposal.fact.command == "make backend-lint"
+    )
+    exact = cases["exact-source-attribution"]
+    assert candidate.fact.outcome == exact["expected"]["outcome"] == "failed"
+    assert [edge.source_id for edge in candidate.edges] == exact["expected"]["support_source_ids"]
+
+    poisoned = cases["poisoned-claim"]["poisoned_claim"]
+    forged = candidate.model_copy(
+        update={"fact": candidate.fact.model_copy(update={"outcome": poisoned["outcome"]})}
+    )
+    assert not proposal_current(forged, source)
+    cards = consolidation_quality.pack(consolidation_quality.proposal_cards(repo, scope))
+    assert consolidation_quality.consume(
+        cards, scope.key, {"text": cases["ambiguous-natural-language"]["query"]}
+    ) == {"status": "abstain", "outcome": None}
+    assert consolidation_quality.consume(
+        cards,
+        scope.key,
+        {"command": "make unsupported-aggregate", "revision": "revision-a"},
+    ) == {"status": "abstain", "outcome": None}
 
 
 def test_explicit_backfill_has_separate_checkpoint_keys_and_cannot_reuse_old_lease():
@@ -353,18 +485,41 @@ def test_local_pilot_uses_existing_chat_entry_for_all_arms_with_equal_budgets(mo
     async def run_case(actual_settings, pair, case, arm, run_id):
         assert actual_settings is settings
         assert "expected" not in case and "Do not execute anything" in case["prompt"]
-        calls.append((arm, pair, actual_settings.max_context_tokens))
-        return {"arm": arm, "provider_calls": "fake_unverified"}
+        calls.append((arm, pair, actual_settings.max_context_tokens, case["source"]))
+        return {
+            "arm": arm,
+            "status": "completed",
+            "completed": True,
+            "rubric_pass": False,
+            "forbidden_output": False,
+            "input_tokens": 20,
+            "output_tokens": 5,
+            "usage_confidence": "reported",
+            "elapsed_ms": 10,
+        }
 
     monkeypatch.setattr(
         consolidation_quality,
         "local_preflight",
         lambda _: {"status": "available_for_explicit_pilot"},
     )
-    marker = object()
+    marker = SimpleNamespace(
+        generator=SimpleNamespace(
+            identity=SimpleNamespace(
+                provider_id="local-llama",
+                model_id="pinned-local-model",
+                serializer_id="local-chat-template-v1",
+            )
+        )
+    )
     monkeypatch.setattr(execution, "compose_pair", lambda *args: marker)
     monkeypatch.setattr(real_tasks, "run_case", run_case)
     result = asyncio.run(consolidation_quality.evaluate_local("multi-command", settings, object()))
-    assert [c[0] for c in calls] == ["direct", "selected", "eligible"]
+    assert [c[0] for c in calls] == ["direct", "selected", "selected"]
     assert all(c[1] is marker and c[2] == 4096 for c in calls)
+    assert calls[1][3] != calls[2][3]
+    assert result["status"] == "measured_pilot"
+    assert result["task_result_rubric"]["passes"] == 0
+    assert result["comparator_contract"]["fixed_memory_comparator"] == "unsupported"
+    assert result["hosted_fallback"] is False
     assert result["evidence_tier"] == "E2_attempt" and not result["production_promotable"]

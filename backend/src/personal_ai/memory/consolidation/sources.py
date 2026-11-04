@@ -9,8 +9,11 @@ from threading import RLock
 from pydantic import ValidationError
 
 from personal_ai.memory.consolidation.contracts import (
+    BACKFILL_GENERATION,
+    GENERATION,
     MAX_SOURCES,
     PAGE_SIZE,
+    V2_SOURCE_V1_POLICY_GENERATION,
     ConsolidationDenied,
     ConsolidationScope,
     EvidenceEdge,
@@ -23,6 +26,18 @@ from personal_ai.memory.knowledge import digest
 
 CORPUS_SHA256 = "137b432e57ff35a2184c4cc4ace58befd2c27468b01ceadde0dd658c1253becf"
 ADVERSARIAL_CORPUS_SHA256 = "ca671aee1b7b21226d147808c41aeae263aa97a558a6fcf42c0372860e436ec7"
+GENERATION_COMPATIBILITY = {
+    CORPUS_SHA256: frozenset({GENERATION}),
+    ADVERSARIAL_CORPUS_SHA256: frozenset({V2_SOURCE_V1_POLICY_GENERATION, BACKFILL_GENERATION}),
+}
+
+
+def generations_for_corpus(corpus_digest):
+    return GENERATION_COMPATIBILITY.get(corpus_digest, frozenset())
+
+
+def generation_matches_corpus(corpus_digest, generation):
+    return generation in generations_for_corpus(corpus_digest)
 
 
 def load_corpus(version="v1"):
@@ -87,6 +102,10 @@ class FrozenFixtureSource:
             self._epochs[identity] = min(self._epochs.get(identity, record.epoch), record.epoch)
         self._withdrawn = set()
         self._forgotten = set()
+
+    def lease_now(self):
+        """Synthetic in-memory leases use the hermetic fixture clock."""
+        return self.clock()
 
     def _scope(self, scope):
         try:

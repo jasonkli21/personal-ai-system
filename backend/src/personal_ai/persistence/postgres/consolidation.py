@@ -8,7 +8,6 @@ from uuid import uuid4
 from psycopg.types.json import Jsonb
 
 from personal_ai.memory.consolidation.contracts import (
-    BACKFILL_GENERATION,
     GENERATION,
     BatchReceipt,
     ConsolidationDenied,
@@ -16,7 +15,11 @@ from personal_ai.memory.consolidation.contracts import (
     Lease,
 )
 from personal_ai.memory.consolidation.repository import OfflineProposalRepository, _Stream
-from personal_ai.memory.consolidation.sources import FrozenFixtureSource
+from personal_ai.memory.consolidation.sources import (
+    FrozenFixtureSource,
+    generation_matches_corpus,
+    generations_for_corpus,
+)
 from personal_ai.memory.knowledge import digest
 from personal_ai.persistence.postgres.owner_lifecycle import assert_owner_unfenced, lock_owner
 
@@ -50,6 +53,28 @@ def decode_state(payload):
         proposals=tuple(DerivedProposal.model_validate(p) for p in payload["proposals"]),
         receipts=tuple(BatchReceipt.model_validate(r) for r in payload["receipts"]),
     )
+
+
+def _fixture_sources(clock):
+    fixtures = {}
+    scopes = {}
+    for version in ("v1", "v2"):
+        fixture = FrozenFixtureSource(clock=clock, corpus=version)
+        fixtures[fixture.corpus_digest] = fixture
+        scopes[fixture.corpus_digest] = {scope.key: scope.owner for scope in fixture.scopes}
+    return fixtures, scopes
+
+
+def _fixture_state(fixture, *, forgotten=()):
+    return {
+        "published": dict(fixture._published),
+        "epochs": [
+            [scope, source_id, value]
+            for (scope, source_id), value in sorted(fixture._epochs.items())
+        ],
+        "withdrawn": [list(identity) for identity in sorted(fixture._withdrawn)],
+        "forgotten": sorted(set(fixture._forgotten) | set(forgotten)),
+    }
 
 
 class PostgresFixtureSource(FrozenFixtureSource):
@@ -181,6 +206,12 @@ class PostgresFixtureSource(FrozenFixtureSource):
             assert_owner_unfenced(self._connection, scope.owner)
         return key
 
+    def lease_now(self):
+        """Lease time comes from PostgreSQL, not the worker's wall clock."""
+        if self._connection is None:
+            raise ConsolidationDenied()
+        return self._connection.execute("SELECT clock_timestamp()").fetchone()[0]
+
 
 class PostgresProposalRepository(OfflineProposalRepository):
     """Same extraction/CAS/lease code, one real transaction for all state."""
@@ -188,7 +219,7 @@ class PostgresProposalRepository(OfflineProposalRepository):
     def __init__(self, source, *, generation=GENERATION):
         if type(source) is not PostgresFixtureSource:
             raise ConsolidationDenied()
-        if generation not in {GENERATION, BACKFILL_GENERATION}:
+        if not generation_matches_corpus(source.corpus_digest, generation):
             raise ConsolidationDenied()
         self.generation = generation
         self.source, self._states = source, {}
@@ -201,7 +232,11 @@ class PostgresProposalRepository(OfflineProposalRepository):
                 yield
                 return
             connection = self.source._connection
-            keys = [scope.key] if scope is not None else [s.key for s in self.source.scopes]
+            keys = (
+                [self.source._scope(scope)]
+                if scope is not None
+                else [s.key for s in self.source.scopes]
+            )
             states = {}
             for key in keys:
                 row = connection.execute(
@@ -252,3 +287,155 @@ class PostgresProposalRepository(OfflineProposalRepository):
                     self.source._heads[digest([key, self.generation])] = digest(updated)
             finally:
                 self._active = False
+
+    def inventory_owner(self, owner_id):
+        """Return content-free checkpoint counts while holding the owner lock."""
+        _fixtures, fixture_scopes = _fixture_sources(self.source.clock)
+        if type(owner_id) is not str or not any(
+            owner_id in scopes.values() for scopes in fixture_scopes.values()
+        ):
+            raise ConsolidationDenied()
+        with self.source.guard():
+            rows = self.source._connection.execute(
+                "SELECT scope_digest,generation,payload FROM offline_consolidation_checkpoints "
+                "WHERE owner_id=%s ORDER BY scope_digest,generation",
+                (owner_id,),
+            ).fetchall()
+            states = [decode_state(row[2]) for row in rows]
+            return {
+                "checkpoint_count": len(rows),
+                "scope_count": len({row[0] for row in rows}),
+                "generations": tuple(sorted({row[1] for row in rows})),
+                "live_proposal_count": sum(len(state.proposals) for state in states),
+                "receipt_count": sum(len(state.receipts) for state in states),
+            }
+
+    def purge_owner(self, owner_id):
+        """Erase synthetic checkpoint payloads under a retained owner fence.
+
+        Shared source authority remains content-free and retains scope tombstones;
+        deleting a checkpoint head makes a restored derived row fail closed.
+        """
+        if type(owner_id) is not str:
+            raise ConsolidationDenied()
+        with self.source.guard():
+            connection = self.source._connection
+            if not connection.execute(
+                "SELECT 1 FROM owner_lifecycle_fences WHERE owner_id=%s", (owner_id,)
+            ).fetchone():
+                raise ConsolidationDenied()
+            rows = connection.execute(
+                "SELECT corpus_digest,scope_digest,generation,payload "
+                "FROM offline_consolidation_checkpoints WHERE owner_id=%s "
+                "ORDER BY corpus_digest,scope_digest,generation FOR UPDATE",
+                (owner_id,),
+            ).fetchall()
+            fixtures, fixture_scopes = _fixture_sources(self.source.clock)
+            corpus_digests = sorted(fixture_scopes)
+            authorities = connection.execute(
+                "SELECT corpus_digest,revision,payload FROM offline_consolidation_authorities "
+                "WHERE corpus_digest=ANY(%s) ORDER BY corpus_digest FOR UPDATE",
+                (corpus_digests,),
+            ).fetchall()
+            authority_by_digest = {row[0]: (row[1], row[2]) for row in authorities}
+            owner_scope_keys = {
+                corpus_digest: {
+                    key for key, scope_owner in scopes.items() if scope_owner == owner_id
+                }
+                for corpus_digest, scopes in fixture_scopes.items()
+            }
+            if not any(owner_scope_keys.values()):
+                raise ConsolidationDenied()
+            self.source._forgotten.update(owner_scope_keys.get(self.source.corpus_digest, set()))
+            rows_by_corpus = {}
+            for corpus_digest, scope_digest, generation, payload in rows:
+                if (
+                    corpus_digest not in fixture_scopes
+                    or fixture_scopes[corpus_digest].get(scope_digest) != owner_id
+                    or generation not in generations_for_corpus(corpus_digest)
+                ):
+                    raise ConsolidationDenied()
+                decode_state(payload)
+                rows_by_corpus.setdefault(corpus_digest, []).append(
+                    (scope_digest, generation, payload)
+                )
+            for corpus_digest, target_scopes in owner_scope_keys.items():
+                if not target_scopes:
+                    continue
+                authority = authority_by_digest.get(corpus_digest)
+                if authority is None:
+                    if rows_by_corpus.get(corpus_digest):
+                        raise ConsolidationDenied()
+                    if corpus_digest != self.source.corpus_digest:
+                        connection.execute(
+                            "INSERT INTO offline_consolidation_authorities VALUES (%s,1,%s)",
+                            (
+                                corpus_digest,
+                                Jsonb(
+                                    {
+                                        "authority_id": str(uuid4()),
+                                        "source": _fixture_state(
+                                            fixtures[corpus_digest], forgotten=target_scopes
+                                        ),
+                                        "heads": {},
+                                    }
+                                ),
+                            ),
+                        )
+                    continue
+                revision, payload = authority
+                if (
+                    type(revision) is not int
+                    or revision < 1
+                    or type(payload) is not dict
+                    or set(payload) != {"authority_id", "source", "heads"}
+                    or type(payload["source"]) is not dict
+                    or set(payload["source"]) != {"published", "epochs", "withdrawn", "forgotten"}
+                    or type(payload["heads"]) is not dict
+                ):
+                    raise ConsolidationDenied()
+                fixture = fixtures[corpus_digest]
+                fixture._restore_source(payload["source"])
+                expected_head_keys = {
+                    digest([scope_key, generation])
+                    for scope_key in fixture_scopes[corpus_digest]
+                    for generation in generations_for_corpus(corpus_digest)
+                }
+                if (
+                    not target_scopes <= set(payload["source"]["published"])
+                    or not set(payload["heads"]) <= expected_head_keys
+                    or any(
+                        type(value) is not str
+                        or len(value) != 64
+                        or any(char not in "0123456789abcdef" for char in value)
+                        for value in payload["heads"].values()
+                    )
+                ):
+                    raise ConsolidationDenied()
+                heads = dict(payload["heads"])
+                for scope_digest, generation, checkpoint in rows_by_corpus.get(corpus_digest, ()):
+                    head_key = digest([scope_digest, generation])
+                    if heads.get(head_key) != digest(checkpoint):
+                        raise ConsolidationDenied()
+                for scope_digest in target_scopes:
+                    for generation in generations_for_corpus(corpus_digest):
+                        heads.pop(digest([scope_digest, generation]), None)
+                source_state = dict(payload["source"])
+                source_state["forgotten"] = sorted(set(source_state["forgotten"]) | target_scopes)
+                updated_payload = {
+                    **payload,
+                    "source": source_state,
+                    "heads": heads,
+                }
+                if corpus_digest == self.source.corpus_digest:
+                    self.source._forgotten.update(target_scopes)
+                    self.source._heads = heads
+                else:
+                    connection.execute(
+                        "UPDATE offline_consolidation_authorities SET revision=%s,payload=%s "
+                        "WHERE corpus_digest=%s",
+                        (revision + 1, Jsonb(updated_payload), corpus_digest),
+                    )
+            connection.execute(
+                "DELETE FROM offline_consolidation_checkpoints WHERE owner_id=%s", (owner_id,)
+            )

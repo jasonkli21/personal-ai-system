@@ -1,0 +1,92 @@
+{
+  "schema_version": "offline-consolidation-review-remediation-v1",
+  "date": "2026-11-04",
+  "reviewed_revision": "bb490ca9342b2ded6241124b74f249651f0dee5c",
+  "status": "local_review_findings_remediated_pending_native_and_independent_gates",
+  "independently_accepted": false,
+  "production_promotable": false,
+  "runtime_consumers": [],
+  "mem3_capture_and_read": "disabled",
+  "findings": {
+    "R-01": "integration_gate_retained_no_real_source_or_runtime_consumer",
+    "R-02": "addressed_explicit_corpus_generation_compatibility",
+    "R-03": "addressed_validate_scope_before_sql_key_access",
+    "R-04": "addressed_native_lease_time_uses_postgresql_clock_timestamp",
+    "R-05": "addressed_matched_local_pilot_arms_and_incomplete_row_denial",
+    "R-06": "addressed_owner_inventory_and_fenced_cross_corpus_checkpoint_erasure",
+    "R-07": "author_visible_challenge_manifest_and_independent_plan_added_e5_blocked",
+    "R-08": "addressed_current_state_authorization_boundary",
+    "R-09": "addressed_processed_source_positions_and_receipt_semantics"
+  },
+  "fixture_digests": {
+    "consolidation_v1": "137b432e57ff35a2184c4cc4ace58befd2c27468b01ceadde0dd658c1253becf",
+    "consolidation_v2": "ca671aee1b7b21226d147808c41aeae263aa97a558a6fcf42c0372860e436ec7",
+    "challenge_manifest_v1": "b50bd0253f316c318f700ec1e31d60522391f3323c68afc9e84d9dab624c1169"
+  },
+  "historical_planning_v35": {
+    "expected_source_identity": "4eb58162ae39387382c18b524017886c1be4e4fc27de5203ac064f5c6e889cc9",
+    "computed_source_identity": "18aa41f9e99bfa2436ec00a5028b51992106f86aff2a1c9c236f9b6f414eaa03",
+    "matches": false,
+    "lock_or_fixture_modified": false
+  },
+  "checks": [
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make memory-consolidation-check memory-consolidation-eval",
+      "status": "pass",
+      "result": "107 focused tests; v1 12/12 shapes; v2 14/14 scripted answers, zero false support and cross-scope leakage"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make memory-episode-check memory-episode-candidate-eval memory-knowledge-eval memory-knowledge-causal-eval memory-control-eval memory-eval workflow-check backend-lint naming-policy-check",
+      "status": "pass",
+      "result": "93 episode/service tests; 38/38 candidate cases; 70 workflow/mutation tests; knowledge/control/memory evaluations; backend lint; naming policy and 2 naming tests"
+    },
+    {
+      "command": "backend/.venv/bin/ruff check <changed Python files> && backend/.venv/bin/ruff format --check <changed Python files>",
+      "status": "pass"
+    },
+    {
+      "command": "backend/.venv/bin/python -m py_compile backend/src/personal_ai/persistence/postgres/consolidation.py backend/tests/persistence/test_consolidation_postgres.py",
+      "status": "pass"
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass"
+    },
+    {
+      "command": "cd backend && python -m personal_ai.evaluation.consolidation_quality --local-preflight",
+      "status": "blocked",
+      "result": "local_profile_not_configured; no model call"
+    },
+    {
+      "command": "PATH=\"$PWD/backend/.venv/bin:$PATH\" make planning-eval",
+      "status": "failed_preserved_historical_gate",
+      "result": "planning-baseline-v35 rejected changed source identity; expected and computed digests recorded above; no rebinding"
+    },
+    {
+      "command": "make memory-consolidation-postgres-check",
+      "status": "blocked",
+      "result": "no PERSISTENCE_TEST_POSTGRES_DSN; a temporary PostgreSQL 17 + pgvector cluster could not start because sandbox shmget returned Operation not permitted; tests did not contact an existing database"
+    },
+    {
+      "command": "make backend-test-offline",
+      "status": "not_run"
+    }
+  ],
+  "source_sha256": {
+    "backend/src/personal_ai/memory/consolidation/contracts.py": "8941010596a9876d7ef3df5927c9d4d8c63a37da6d70183a61e464dbbf3ab843",
+    "backend/src/personal_ai/memory/consolidation/repository.py": "0059f1d12891c23ee9d740fb3b0c185ff734228e92e9345e1e156c56207869ca",
+    "backend/src/personal_ai/memory/consolidation/sources.py": "ae468f4b6121770fbee9ba5c08d73fb937c3f4419df9abfb516dd5ca35f32ba7",
+    "backend/src/personal_ai/persistence/postgres/consolidation.py": "4a910fcfbf96b18f97aa222713cffc1db6e18f5c96548ffdcbafa31e7dd41e3a",
+    "backend/src/personal_ai/evaluation/consolidation_quality.py": "584d86f3874467f32083f10b71fb20506c488fe0d92a3b58ee6b14ed04ec988b",
+    "backend/src/personal_ai/evaluation/fixtures/memory/offline-consolidation-challenges-v1.json": "b50bd0253f316c318f700ec1e31d60522391f3323c68afc9e84d9dab624c1169",
+    "backend/tests/test_offline_consolidation.py": "b6384825371fe5f704bff3867e8a8c278f5a9e7998402ef8936dea5bd39c7def",
+    "backend/tests/test_consolidation_adversarial.py": "27f730f206325bd00124e8cccb9913f1e4e6e7680e2e5d4bf4ce4a22dc590b23",
+    "backend/tests/persistence/test_consolidation_postgres.py": "88cac2ebc178f557b81846c62ed3216ce4312931aeee6ebb6726e38dd680aea5",
+    "backend/src/personal_ai/memory/README.md": "8ba7bc833da410cbaa76f56f83c7bc02e032be115facd0edd590e72f0f0caea0",
+    "backend/src/personal_ai/persistence/README.md": "ce699617cac1cd6068a7218f1b1e025001b0c0d4ed43858793c5b11f64954a2e",
+    "docs/current-state.md": "7b958db8641aac669d4807e9e87e515380660a26df5fc22f1d3332e891c8b650",
+    "docs/memory/consolidation-development-blockers.json": "31cb2d573652f991cfb74f8239f50c38c0da2d859d7a60f70905369fc94f3d15",
+    "docs/memory/consolidation-independent-evaluation-plan.md": "fa6baa4da033c84f706e80f6077ce03df98a033c8ba579f3ac6a3c1dcc518b4c",
+    "docs/memory/2026-11-04-consolidation-review-remediation.md": "a54ad525b99fa1dc6095d70d4d9cbb80569c81ca99f277314e16d0c60e77bf1a"
+  }
+}

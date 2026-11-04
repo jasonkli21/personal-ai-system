@@ -69,6 +69,10 @@ independent-process CAS, lease fencing, abrupt process death, lost ACK and stale
 checkpoint detection. Migration 036 reuses canonical owner deletion locks;
 source authority remains a frozen synthetic simulator. Whole-authority rollback
 across cold restart and deployed lifecycle/erasure remain unverified.
+The earlier native results are author-supplied evidence for the reviewed revision;
+this remediation's PostgreSQL-clock lease and cross-corpus owner-erasure tests
+were not rerun because sandbox PostgreSQL startup failed before migrations. Fresh
+native reproduction remains pending.
 
 Exact typed entailment, correction dominance after withdrawal, contradictory user
 corrections, explicit backfill generations, fresh regrant evidence, legitimate
@@ -77,8 +81,22 @@ Authenticated MEM-2 dry-run previews cover all three candidate kinds without
 persisting or admitting memory. The additive 14-case shared-builder/fresh-consumer
 benchmark measures scripted answer quality and leakage; model/longitudinal utility
 and independent holdouts remain unverified. An optional local-only pilot uses the
-existing chat/admission/accounting path; no pinned model/runtime/socket is installed
-or configured here, so no real model ran.
+existing chat/admission/accounting path with no-consolidation, pending-proposal and
+eligible-source arms. Fixed-memory comparison is explicitly unsupported for these
+fixture facts. Incomplete attempts cannot be reported as measured, and rubric
+outcomes, token confidence, latency and local no-charge status are separate. No
+pinned model/runtime/socket is installed or configured here, so no real model ran.
+
+Corpus digests now constrain the effective generation identity, including a
+separate V2-source/V1-policy identity for explicit comparison. Native SQL lease
+expiry uses PostgreSQL `clock_timestamp()` rather than worker clocks; the fixture
+source time remains synthetic. The SQL adapter has content-free owner inventory
+and owner-fenced checkpoint erasure across both frozen corpora, retaining scope
+tombstones and other owners' rows. This local seam does not cover MVCC history,
+replicas, backups or full-authority cold restore. An additive author-visible
+challenge manifest and [independent evaluation plan](memory/consolidation-independent-evaluation-plan.md)
+define future blind utility work without changing frozen inputs. See the
+[2026-11-04 remediation receipt](memory/2026-11-04-consolidation-review-remediation.md).
 
 No runtime producer, episode read, scheduler, UI/API/tool, automatic approval or
 production enablement is added. MEM-3 stays hard disabled. Full MEM-4 remains
@@ -238,10 +256,12 @@ preserves its original v1 ledger; implementation evidence remains author-reporte
 independent acceptance remains pending, and production remains no-go. The
 [cross-phase gate registry](platform-independence/pi-cross-phase-gate-registry.md)
 carries PI-5 R01–R03/P5-24/28, PI-6 P6-02/15/29/32, PI-7 native/build/cloud/data
-gates, and the MEM-2 default-off/MEM-3+ freeze. A narrow owner unfreeze permits
-only local source-only E0/E1 synthetic development; it does not authorize a runtime
-producer, private data, model context, E2+ evidence, production, or MEM-4. MEM-2 is
-not promoted, and independent/security/production gates remain in force.
+gates, and the MEM-2 default-off/MEM-3+ freeze. The owner unfreeze permits local
+source-only E0/E1 synthetic development for terminal-step candidates. Separately,
+MEM-4 authorization permits the isolated synthetic SQL component through E2
+component checks. Neither authorization permits real-source ingestion, private
+data, runtime consumers, hosted model context, deployment or release promotion.
+MEM-2 is not promoted, and independent/security/production gates remain in force.
 The 2026-10-30 PI-1 review remediation fixes the eight reproduced CI failures,
 the stale reference-evaluation module invocation, and the platform-specific
 artifact-check temporary path. Offline wheel/sdist and installed-profile checks
