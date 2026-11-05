@@ -89,3 +89,13 @@ The live response contains only verified slots with citations. Source bodies
 and candidate values are request-local. Run `make reasoning-grounded-check`
 for the network-fenced fixture tests and `make workflow-postgres-check` for
 native workflow tests with the disposable DSN.
+
+## Adaptive fixture selection
+
+The optional `adaptive_host` on `WorkflowService` reads an explicitly
+installed local pointer. The default remains the profile's V1 baseline.
+A shadow recommendation leaves the admitted plan intact. A finite canary
+requires a scope-specific fixture allowlist and signed approval for the
+exact policy, build and envelope. It uses the same original request and
+workflow lifecycle with a separate V2 progress format. See the
+[adaptive host and rollback guide](../../../../docs/reasoning-engine/adaptive-selection.md).

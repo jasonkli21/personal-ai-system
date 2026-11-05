@@ -10,6 +10,7 @@ from uuid import uuid4
 from personal_ai.contracts.delegated_tasks import canonical_bytes
 from personal_ai.contracts.reasoning_workflow import ReasoningProgress
 from personal_ai.contracts.workflow import TERMINAL, RunProgress
+from personal_ai.reasoning.adaptive_receipts import AdaptiveProgress
 from personal_ai.reasoning.grounded_receipts import GroundedProgress
 from personal_ai.storage.errors import PersistenceConflict
 
@@ -224,7 +225,8 @@ class WorkflowRow:
         if not self.reasoning:
             return RunProgress(**facts)
         state = self.record["state"]
-        return ReasoningProgress(
+        progress_type = AdaptiveProgress if "adaptive_decision" in self.reasoning else ReasoningProgress
+        return progress_type(
             **facts, **self.reasoning, plan_digest=self.record["plan_digest"],
             phase="terminal" if state in TERMINAL else self.record.get("phase", "planning"),
             outcome=(
@@ -239,11 +241,13 @@ class WorkflowRow:
             "state": "queued", "fence": None, "lease": None, "claims": 0,
             "cursor": 0, "events": [], "attempts": [], "cancel_requested": False, "reason": None,
         }
-        if spec.schema_version == "reasoning-run-v1":
+        if spec.schema_version in {"reasoning-run-v1", "reasoning-adaptive-run-v2"}:
             record["reasoning"] = spec.model_dump(include={
                 "policy", "catalog", "strategy", "strategy_version", "selection", "requested_effort", "effort",
             })
             record["plan_digest"] = sha256(canonical_bytes(spec.model_dump(mode="json"))).hexdigest()
+            if spec.schema_version == "reasoning-adaptive-run-v2":
+                record["reasoning"]["adaptive_decision"] = spec.adaptive_decision.model_dump(mode="json")
             record["checkpoints"] = []
         if spec.schema_version == "reasoning-grounded-plan-v1":
             record["grounded"] = spec.model_dump(include={

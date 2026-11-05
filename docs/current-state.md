@@ -50,6 +50,19 @@ Independent acceptance, live issuer and send authority, installed and hosted
 model evidence, rollback-resistant restore, and real-model utility remain
 [open or blocked](reasoning-engine/re-3-blockers.md).
 
+[Adaptive strategy selection](reasoning-engine/adaptive-selection.md) adds
+default-disabled shadow recommendations for both local fixture profiles
+and signed, scope-bound canary admission for a separate source-free finite
+V2 template. The candidate can stop after one verified generation or compare
+two independent typed vectors with an exact predicate. The local operator
+pointer supports generation-checked rollback for new admissions. Existing
+V1 and grounded citation verification retain their execution contracts.
+The [sealed author-visible evaluation](reasoning-engine/re-4-verification.md)
+records a scripted aggregate gain, a decomposition subgroup regression and
+`NO_PROMOTION`. Independent acceptance remains open. Installed-model,
+external provider/source rights, distributed restore and real-task quality
+remain blocked or unverified. Production remains `NO_GO`.
+
 ## Synthetic memory governance
 
 A memory-specific grant overlay is implemented at E0/E1 only, with closed

@@ -267,7 +267,7 @@ workflow-check:
 
 workflow-postgres-check:
 	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
-	cd backend && python -m pytest -q tests/persistence/test_workflow_postgres.py tests/persistence/test_reasoning_workflow_postgres.py tests/persistence/test_reasoning_grounded_postgres.py
+	cd backend && python -m pytest -q tests/persistence/test_workflow_postgres.py tests/persistence/test_reasoning_workflow_postgres.py tests/persistence/test_reasoning_grounded_postgres.py tests/persistence/test_reasoning_adaptive_postgres.py
 
 .PHONY: release-profile-check release-preflight release-build-report release-canary-check
 release-profile-check:
@@ -361,3 +361,13 @@ reasoning-grounded-check:
 
 reasoning-grounded-eval:
 	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -qs backend/tests/test_reasoning_grounded.py -k sealed_evaluation
+
+.PHONY: reasoning-adaptive-check reasoning-adaptive-eval reasoning-adaptive-rollback
+reasoning-adaptive-check:
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_adaptive.py -k "not sealed_evaluation"
+
+reasoning-adaptive-eval:
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -qs backend/tests/test_reasoning_adaptive.py -k sealed_evaluation
+
+reasoning-adaptive-rollback:
+	PYTHONPATH=$(CURDIR)/backend/src $(PLATFORM_PYTHON) -B -m personal_ai.reasoning.adaptive_control "$${REASONING_ADAPTIVE_CONTROL_DIR:-}"

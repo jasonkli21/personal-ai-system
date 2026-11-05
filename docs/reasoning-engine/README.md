@@ -11,6 +11,9 @@
 - [Grounded verification and review handoff](re-3-verification.md)
 - [RE-3 independent-review remediation receipt](re-3-review-remediation.md)
 - [Grounded release gates](re-3-blockers.md)
+- [Adaptive fixture selection and rollback](adaptive-selection.md)
+- [Adaptive strategy experiment protocol](adaptive-experiment.md)
+- [Adaptive strategy verification and review handoff](re-4-verification.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)
@@ -32,3 +35,9 @@ local PostgreSQL fixture with pgvector.
 Run `make reasoning-grounded-check` and `make reasoning-grounded-eval` for
 the separate sealed grounded lane. The grounded host is default-off, local
 fixture-only and uses the same foreground workflow and chat continuation.
+
+Run `make reasoning-adaptive-check` and `make reasoning-adaptive-eval`
+for the sealed adaptive fixture lane. Adaptive selection defaults to
+disabled. The [operator contract](adaptive-selection.md#local-operator-control)
+describes explicit shadow installation, signed local-canary admission and
+one-command rollback.

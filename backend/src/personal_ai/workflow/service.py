@@ -20,6 +20,8 @@ from personal_ai.contracts.workflow import (
 from personal_ai.llm.workflow_fixture import FixtureAttempt
 from personal_ai.persistence.postgres.workflows import PostgresWorkflowStore, WorkflowFenceLost
 from personal_ai.reasoning import grounded as grounded_policy
+from personal_ai.reasoning.adaptive import FINITE
+from personal_ai.reasoning.adaptive_plan import AdaptivePlan
 from personal_ai.reasoning.orchestration import (
     Checkpoint,
     Plan,
@@ -34,6 +36,7 @@ from personal_ai.retrieval.installation import load_snapshot
 from personal_ai.retrieval.service import PinnedToolGuard, RetrievalService
 from personal_ai.retrieval.tools import DEFAULT_TOOLS, require_tool
 from personal_ai.workflow import grounded
+from personal_ai.workflow.adaptive import AdaptiveHost
 from personal_ai.workflow.grounded_execution import execute_grounded
 from personal_ai.workflow.reasoning import (
     ENDPOINT_DIGEST,
@@ -63,6 +66,7 @@ class WorkflowService:
         profile: WorkflowProfile = "foreground",
         reasoning_host: ReasoningHost | None = None,
         grounded_host: grounded.GroundedHost | None = None,
+        adaptive_host: AdaptiveHost | None = None,
     ):
         self.store = store
         self.retrieval = retrieval
@@ -73,6 +77,7 @@ class WorkflowService:
             raise ValueError("workflow_profile_conflict")
         self.reasoning_host = reasoning_host
         self.grounded_host = grounded_host
+        self.adaptive_host = adaptive_host
 
     def scope_digest(self):
         principal = current_verified_principal()
@@ -184,17 +189,27 @@ class WorkflowService:
             endpoint_digest=ENDPOINT_DIGEST, fixture_digest=host.fixture_digest,
         )
         self._reasoning_authority(plan, scope_digest)
-        return self.store.submit(
-            scope_digest, plan, SOURCE_DIGEST, monotonic_deadline=started + plan.deadline_ms / 1000,
-        )
+        deadline = started + plan.deadline_ms / 1000
+        if self.adaptive_host is not None:
+            with self.adaptive_host.pointer(scope_digest, FINITE) as pointer:
+                plan = self.adaptive_host.select(plan, pointer, ENDPOINT_DIGEST, deadline)
+                if isinstance(plan, AdaptivePlan):
+                    self._reasoning_authority(plan, scope_digest)
+                return self.store.submit(scope_digest, plan, SOURCE_DIGEST, monotonic_deadline=deadline)
+        return self.store.submit(scope_digest, plan, SOURCE_DIGEST, monotonic_deadline=deadline)
 
     def _reasoning_authority(self, plan, scope_digest):
         try:
             if self.scope_digest() != scope_digest or plan.scope_digest != scope_digest:
                 raise WorkflowDenied("workflow_unavailable")
             self.reasoning_host.check_plan(plan)
+            if isinstance(plan, AdaptivePlan) and not self._adaptive_authorized(plan, scope_digest):
+                raise Stop("policy_denied")
         except Exception:  # noqa: BLE001 - no authority internals in durable outcomes
             raise Stop("policy_denied") from None
+
+    def _adaptive_authorized(self, plan, scope_digest):
+        return self.adaptive_host is not None and self.adaptive_host.authorizes(plan, scope_digest)
 
     def status(self, run_id: UUID, *, cursor: int = 0) -> RunProgress:
         with self.store.locked(self.scope_digest(), run_id) as row:
@@ -259,7 +274,11 @@ class WorkflowService:
                     return row.progress(0), ()
                 deadline = monotonic() + (row.deadline - row.now).total_seconds()
             elif row.reasoning:
-                plan = Plan.model_validate_json(canonical_bytes(row.spec))
+                adaptive = "adaptive_decision" in row.reasoning
+                plan_type = AdaptivePlan if adaptive else Plan
+                plan = plan_type.model_validate_json(canonical_bytes(row.spec))
+                if adaptive and plan.adaptive_decision.model_dump(mode="json") != row.reasoning["adaptive_decision"]:
+                    raise ValueError("adaptive_decision_binding_changed")
                 if (
                     source_digest != SOURCE_DIGEST
                     or row.record["plan_digest"] != digest(plan.model_dump(mode="json"))
@@ -487,6 +506,10 @@ class WorkflowService:
                         prior_verifier_calls=sum(item["verifier_calls"] or 0 for item in accounted),
                     ):
                         raise Stop("budget_exhausted")
+                    if isinstance(plan, AdaptivePlan) and min(
+                        remaining_ms(deadline), int((row.deadline - row.now).total_seconds() * 1000),
+                    ) < sum(item.timeout_ms for item in pending[index:]):
+                        raise Stop("budget_exhausted")
                     row.record["phase"] = (
                         "synthesizing" if step.role == "synthesis" else
                         "answering" if inference else "checking"
@@ -552,6 +575,8 @@ class WorkflowService:
                 checkpoints[step.name] = checkpoint
                 verdict = checkpoint.verdict
                 done = verdict in {"pass", "inconclusive"} or index == len(pending) - 1
+                if isinstance(plan, AdaptivePlan) and step.name == "check_first" and len(plan.steps) > 2:
+                    done = verdict == "pass" and plan.ablation != "no_early_exit"
                 result = supported(checkpoint) if done and verdict in {"pass", "fail"} else ()
                 with self.store.locked(scope_digest, run_id) as row:
                     check(row, step_deadline)

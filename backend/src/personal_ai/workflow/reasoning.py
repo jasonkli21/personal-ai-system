@@ -20,6 +20,8 @@ from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.execution import compose_pair
 from personal_ai.llm.synthetic_reasoning import offline_profile
 from personal_ai.llm.workflow_fixture import bind_fixture_attempt
+from personal_ai.reasoning.adaptive import compare_candidates
+from personal_ai.reasoning.adaptive_plan import AdaptivePlan
 from personal_ai.reasoning.orchestration import (
     INPUT_BYTES,
     OUTPUT_BYTES,
@@ -102,7 +104,7 @@ class ReasoningHost:
         if step.slot is not None:
             requirements = (requirements[step.slot],)
         body = {
-            "operation": step.role,
+            "operation": step.name if isinstance(plan, AdaptivePlan) else step.role,
             "requirements": [item.model_dump(mode="json") for item in requirements],
             "prior": [checkpoints[name].model_dump(mode="json") for name in step.dependencies],
             "response_schema": step.output_schema,
@@ -191,6 +193,8 @@ async def infer_fixture(
 
 
 def run_check(step, plan, checkpoints):
+    if isinstance(plan, AdaptivePlan) and step.name == "compare":
+        return compare_candidates(step, plan.task, checkpoints)
     candidate = checkpoints[step.dependencies[0]]
     return verify(step, plan.task, candidate.values)
 

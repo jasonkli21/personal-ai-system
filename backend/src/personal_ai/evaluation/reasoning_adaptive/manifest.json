@@ -1,0 +1,20 @@
+{
+  "schema_version": "reasoning-adaptive-experiment-v1",
+  "baseline": "reasoning-profile-baseline.v1",
+  "custody": "author_visible_E1",
+  "finite_arms": ["baseline", "shadow", "adaptive", "no_features", "no_early_exit", "no_compare"],
+  "grounded_arms": ["baseline", "shadow", "one_shot"],
+  "holdout": {"finite": 112, "grounded": 48},
+  "development": {"finite": 14, "grounded": 8},
+  "seeds": {"cases": 81017, "arm_order": 82753, "bootstrap": 84623},
+  "bootstrap_draws": 4000,
+  "confidence": 0.95,
+  "minimum_independent_matched_pairs_per_slice": 64,
+  "precision_rule": "64 independent pairs at planning paired-difference SD 0.4 give approximate 95% half-width 0.098; report actual intervals, including wider intervals, without retuning",
+  "primary_endpoint": "paired exact supported completion per row; all failures and abstentions score zero",
+  "work_units": {"model": 0.05, "retrieval": 0.02, "verifier": 0.01, "count": 0.0025, "per_fake_byte": 0.000005},
+  "unknown_handling": "price uncertain dispatches by the full reserved fake bytes; no substitution for real tokens, quota or charges",
+  "policy_prior": "fixed pre-holdout hypotheses with development support floors: finite 8 and grounded 4 applicable cases, 25 points marginal value, 10 uncertainty and 10 work; eligibility, not a measured real success probability",
+  "local_canary_gate": "independent blind, exact signed slice; both eligible held-out paired 95% lower bounds strictly positive, no subgroup regressions, critical vetoes, unknown fixture effects or extra calls after sufficiency",
+  "safety_vetoes": ["unsupported slot or citation", "work after proven sufficiency in installed variant", "unexpected work or disclosure on denial", "envelope or ledger mismatch", "shadow changes physical work", "redaction or replay failure", "degenerate verifier", "custody or integrity failure"]
+}

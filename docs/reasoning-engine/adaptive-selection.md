@@ -1,0 +1,99 @@
+# Adaptive reasoning selection
+
+The [decision](../decisions/0029-adaptive-fixture-selection.md) extends
+the existing local fixture workflows. Existing finite and grounded V1
+requests, receipts and defaults still apply. No public route or SDK
+setting activates the host.
+
+| Local state | Finite source-free fixtures | Grounded public-source fixtures |
+| --- | --- | --- |
+| `disabled` (default) | Existing V1 template | Existing V1 template |
+| `shadow` | Recommend a bounded candidate comparison when its registered fixture and full reserve qualify | Observe coverage and recommend bounded focus only for one recoverable gap. Existing focus behavior executes. |
+| `local_fixture_canary` | Exact signed approval can admit V2 for an allowlisted fixture. Missing, expired or mismatched approval uses V1. | Existing V1 template |
+
+## Policy and workflow
+
+The finite host derives family, bounded slot count and ambiguity from
+the closed typed task and checks it against an operator-installed
+task-and-fixture allowlist. It uses the installed verifier, source-free
+profile, effective effort and intersection of all existing ceilings.
+Only high or max effective effort and an eligible family with full
+headroom can admit comparison. A trusted direct pin and simple or
+unregistered fixtures keep the baseline. No requested label, prompt
+text, model confidence or retrieved instruction grants permission.
+The grounded shadow reads coverage already derived from a validated
+local retrieval result. The existing citation predicate and follow-up
+resource and rights checks still decide execution and disclosure.
+
+V2 reserves two generations, two charged verifier operations, input,
+output, result and count bytes and the full eight-second nominal step
+envelope, plus enough wall clock to retain that reserve at admission.
+The first objective check permits early success with one generation.
+On a failed or inconclusive first check the alternative gets the task
+through a fresh canonical continuation with no prior answer. The final
+comparison rechecks both typed vectors within one operation. Verified
+complementary slots can combine. Unparseable or wrong values do not
+become support by agreement. The projected result is exact, verified
+partial, or unavailable. There is no model synthesis step in this
+template.
+
+Shadow receipts at INFO contain only an installed policy and strategy
+identity, feature digest, coarse reason, recommended and baseline action,
+and generation. Shadow causes zero extra model, count, retrieval or tool
+calls. The finite shadow logs at original admission. The grounded shadow
+logs after validated initial coverage and does not affect the admitted
+V1 plan. Terminal V2 replay carries the pinned selection and plan digests,
+attempt bindings and resource/verifier receipts. Results are transient.
+The submitted spec, approval and typed active checkpoints are removed
+when the row settles.
+
+## Local operator control
+
+1. Construct `AdaptiveHost` explicitly in the trusted fixture host and
+   pass it to the existing `WorkflowService`. Supply the current verified
+   workflow scope digest and exact installed build and experiment protocol
+   digests. For finite tasks, precompute `finite_fixture_binding(task,
+   fixture_digest)` from known public-synthetic inputs and set the
+   immutable `finite_fixtures` allowlist. Its default is empty.
+2. Create a dedicated operator-owned directory with mode `0700`. Use its
+   absolute, symlink-free path with `LocalPolicyControl`. The control
+   uses one fixed private file. It does not discover configuration from
+   request input or environment. The rollback command takes the directory
+   explicitly through its Make variable.
+3. Read the current generation with `control.admission()` and release the
+   read context. Build a `PolicyPointer` with the next generation, exact
+   build and installed policy digests, issued time and expiry. Publish it
+   with `control.update(previous_generation, pointer)`. Use the finite
+   or grounded installed policy digest for that profile's shadow.
+4. For finite canary publication, the operator pins a trusted independent
+   reviewer's Ed25519 public key in the host and passes the same key to
+   `control.update(..., reviewer_key=key)`. The reviewer signs the
+   canonical JSON of `PromotionEvidence`. Approval binds the independent
+   holdout custody and result digests, exact budget and scope slice,
+   matched sample size, both lower bounds, safety and synthetic resource
+   observations, and a bounded validity period. The host verifies the
+   signature and slice before new admissions and retains the signed proof
+   only in the active plan. Retain the signed review artifact separately
+   from the pointer for historical inspection. This implementation ships
+   no signed approval or live promotion mode.
+
+To stop new adaptive admissions, run the following against the same
+private directory.
+
+```sh
+REASONING_ADAPTIVE_CONTROL_DIR=/absolute/private/control make reasoning-adaptive-rollback
+```
+
+Rollback atomically publishes the next disabled generation. Repeating it
+reports a safe no-op. Missing configuration also reports a safe no-op.
+Invalid configuration fails closed and the command reports an error
+without replacing an unreadable pointer. A stale writer cannot restore
+the old generation through the supported API. The shared lock lasts
+through new admission and rollback takes its exclusive lock before
+publication. Existing original keys, in-flight plans and receipts
+survive rollback. Live or distributed rollback and recovery from a
+filesystem snapshot are unverified.
+
+See the [experiment protocol](adaptive-experiment.md), the
+[grounded release gates](re-3-blockers.md) and
+[verification record](re-4-verification.md).

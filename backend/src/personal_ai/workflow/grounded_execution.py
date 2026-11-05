@@ -202,10 +202,13 @@ async def execute_grounded(service, scope_digest, run_id, fence, plan, deadline)
         await retrieve("initial")
         gaps = gaps_for_evidence()
         field = grounded_policy.focused_field(plan, gaps)
-        if (
+        can_focus = (
             field is not None and remaining[0] > 0 and min(remaining[1:]) >= 64
             and remaining_ms(deadline) >= 3 * grounded_policy.STEP_MS
-        ):
+        )
+        if service.adaptive_host is not None:
+            service.adaptive_host.grounded_shadow(plan, gaps, can_focus, scope_digest)
+        if can_focus:
             await retrieve("focused", field, gaps[plan.task.requirements.index(field)])
             gaps = gaps_for_evidence()
         if all(gaps):
