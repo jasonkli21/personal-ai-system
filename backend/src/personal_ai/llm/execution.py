@@ -119,6 +119,11 @@ class LocalFakeGeneration(FakeLLMClient):
                 raise LLMInvalidRequestError("workflow fixture wire is unavailable")
             fixture.dispatch(len(wire))
             revalidate_disclosure()
+            if fixture.respond is not None:
+                response = fixture.respond(wire_messages)
+                if len(response.encode()) > max_output_tokens:
+                    raise LLMInvalidRequestError("workflow fixture output exceeds budget")
+                self.deltas = (response,)
         emit(Event.DISPATCH, State.OK, operation="streaming", units="fake_bytes")
         async with aclosing(super().stream_events(
             wire_messages,

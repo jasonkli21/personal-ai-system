@@ -33,6 +33,18 @@ Production remains NO_GO. See the
 [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
 and [RE-0 remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
 
+[Grounded iterative reasoning](reasoning-engine/re-3-implementation.md) is a
+separate default-off local fixture profile. The existing workflow binds the
+original key and steps to the source snapshot, uses registered local
+retrieval and packs exact authorized excerpts through canonical chat
+context. Objective coverage permits at most one focused follow-up. An
+exact-slot citation check gates live disclosure, and durable replay carries
+metadata only. The [grounded verification report](reasoning-engine/re-3-verification.md)
+records the sealed E1 result and focused native PostgreSQL evidence.
+Independent acceptance, live issuer and send authority, installed and hosted
+model evidence, rollback-resistant restore, and real-model utility remain
+[open or blocked](reasoning-engine/re-3-blockers.md).
+
 ## Synthetic memory governance
 
 A memory-specific grant overlay is implemented at E0/E1 only, with closed

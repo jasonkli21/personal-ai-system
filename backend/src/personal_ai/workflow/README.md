@@ -79,3 +79,13 @@ recovers the same run ID. An interrupted reserved attempt can be abandoned
 and resumed under the stable child key. A dispatched attempt without a
 committed result remains uncertain. See the
 [reasoning workflow guide](../../../../docs/reasoning-engine/re-2-implementation.md).
+
+## Grounded fixture profile
+
+Use the [grounded host guide](../../../../docs/reasoning-engine/re-3-implementation.md)
+to opt in with a separate `GroundedHost` and public synthetic v2 source
+installation. The existing foreground lifecycle owns the run and replay.
+The live response contains only verified slots with citations. Source bodies
+and candidate values are request-local. Run `make reasoning-grounded-check`
+for the network-fenced fixture tests and `make workflow-postgres-check` for
+native workflow tests with the disposable DSN.

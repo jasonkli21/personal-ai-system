@@ -26,6 +26,7 @@ class PinnedToolGuard:
 
     source_digest: str
     check: Callable[[], None]
+    report_limit: bool = False
 
     def __call__(self):
         self.check()
@@ -116,9 +117,11 @@ class RetrievalService:
             issuer_id = snapshot.installation.issuer_id or legacy_issuer_id(
                 self.settings.retrieval_installation_file
             )
-            found, excluded = LexicalIndex(docs, issuer_id=str(issuer_id)).search(
-                query, self.scope, now
-            )
+            index = LexicalIndex(docs, issuer_id=str(issuer_id))
+            if isinstance(tool_guard, PinnedToolGuard) and tool_guard.report_limit:
+                found, excluded = index.search(query, self.scope, now, report_limit=True)
+            else:
+                found, excluded = index.search(query, self.scope, now)
             items.extend(found)
             reasons.extend(excluded)
         if "external" in query.sources:

@@ -166,7 +166,7 @@ class LexicalIndex:
             for term in terms(doc.title + " " + doc.text):
                 self.postings.setdefault(term, set()).add(doc.source_id)
 
-    def search(self, query, scope, now=None):
+    def search(self, query, scope, now=None, *, report_limit=False):
         now = now or datetime.now(UTC)
         scores = {}
         query_terms = terms(query.query)
@@ -200,6 +200,11 @@ class LexicalIndex:
             quote = doc.text[start : start + 1000]
             while len(quote.encode()) > 1000:
                 quote = quote[:-1]
+            if report_limit and (start != 0 or len(quote) != len(doc.text)):
+                reasons.append("budget")
+            if len(items) == query.max_items:
+                reasons.append("budget")
+                break
             items.append(
                 item_from_quote(
                     source_id=source_id,
@@ -226,6 +231,6 @@ class LexicalIndex:
                     freshness_basis="publication" if doc.published_at else "observation_only",
                 )
             )
-            if len(items) >= query.max_items:
+            if not report_limit and len(items) >= query.max_items:
                 break
         return tuple(items), tuple(dict.fromkeys(reasons))

@@ -1,0 +1,7 @@
+{
+  "cases.json": "a378e43c6d2b5afb0ed5bc094e39559cfc5204dcefb0f96298d6e5ff752caace",
+  "fixture.py": "1b1ef5cd82768737c8abba95015aff5112e16287ee8fac9445959b70f0f43f0d",
+  "manifest.json": "ce79c2673d47c15fa642bd3650d084655c9e2f6c147b1ee024600f197d2c80a6",
+  "oracle.json": "363fc902d9a83028591bae56eb700ff5ea7c544c35dec7e8a74ad939e752196d",
+  "runner.py": "c663200daed79edc93d380b8e575fd9de3406deb80d5ffe4bef3a7d9988a8fbc"
+}

@@ -1,0 +1,314 @@
+{
+  "simple-01": {
+    "values": {
+      "0": 13
+    },
+    "eligible": true
+  },
+  "join-01": {
+    "values": {
+      "0": 13,
+      "1": 26
+    },
+    "eligible": true
+  },
+  "missing-01": {
+    "values": {
+      "0": 13,
+      "1": 26
+    },
+    "eligible": true
+  },
+  "stale-01": {
+    "values": {
+      "0": 26
+    },
+    "eligible": true
+  },
+  "conflict-01": {
+    "values": {},
+    "eligible": false
+  },
+  "poison-01": {
+    "values": {
+      "0": 26
+    },
+    "eligible": true
+  },
+  "spoof-01": {
+    "values": {},
+    "eligible": false
+  },
+  "unsupported-01": {
+    "values": {},
+    "eligible": false
+  },
+  "revoked-01": {
+    "values": {},
+    "eligible": false
+  },
+  "scope-01": {
+    "values": {},
+    "eligible": false
+  },
+  "simple-02": {
+    "values": {
+      "0": 16
+    },
+    "eligible": true
+  },
+  "join-02": {
+    "values": {
+      "0": 16,
+      "1": 31
+    },
+    "eligible": true
+  },
+  "missing-02": {
+    "values": {
+      "0": 16,
+      "1": 31
+    },
+    "eligible": true
+  },
+  "stale-02": {
+    "values": {
+      "0": 31
+    },
+    "eligible": true
+  },
+  "conflict-02": {
+    "values": {},
+    "eligible": false
+  },
+  "poison-02": {
+    "values": {
+      "0": 31
+    },
+    "eligible": true
+  },
+  "spoof-02": {
+    "values": {},
+    "eligible": false
+  },
+  "unsupported-02": {
+    "values": {},
+    "eligible": false
+  },
+  "revoked-02": {
+    "values": {},
+    "eligible": false
+  },
+  "scope-02": {
+    "values": {},
+    "eligible": false
+  },
+  "simple-03": {
+    "values": {
+      "0": 19
+    },
+    "eligible": true
+  },
+  "join-03": {
+    "values": {
+      "0": 19,
+      "1": 36
+    },
+    "eligible": true
+  },
+  "missing-03": {
+    "values": {
+      "0": 19,
+      "1": 36
+    },
+    "eligible": true
+  },
+  "stale-03": {
+    "values": {
+      "0": 36
+    },
+    "eligible": true
+  },
+  "conflict-03": {
+    "values": {},
+    "eligible": false
+  },
+  "poison-03": {
+    "values": {
+      "0": 36
+    },
+    "eligible": true
+  },
+  "spoof-03": {
+    "values": {},
+    "eligible": false
+  },
+  "unsupported-03": {
+    "values": {},
+    "eligible": false
+  },
+  "revoked-03": {
+    "values": {},
+    "eligible": false
+  },
+  "scope-03": {
+    "values": {},
+    "eligible": false
+  },
+  "simple-04": {
+    "values": {
+      "0": 22
+    },
+    "eligible": true
+  },
+  "join-04": {
+    "values": {
+      "0": 22,
+      "1": 41
+    },
+    "eligible": true
+  },
+  "missing-04": {
+    "values": {
+      "0": 22,
+      "1": 41
+    },
+    "eligible": true
+  },
+  "stale-04": {
+    "values": {
+      "0": 41
+    },
+    "eligible": true
+  },
+  "conflict-04": {
+    "values": {},
+    "eligible": false
+  },
+  "poison-04": {
+    "values": {
+      "0": 41
+    },
+    "eligible": true
+  },
+  "spoof-04": {
+    "values": {},
+    "eligible": false
+  },
+  "unsupported-04": {
+    "values": {},
+    "eligible": false
+  },
+  "revoked-04": {
+    "values": {},
+    "eligible": false
+  },
+  "scope-04": {
+    "values": {},
+    "eligible": false
+  },
+  "simple-05": {
+    "values": {
+      "0": 25
+    },
+    "eligible": true
+  },
+  "join-05": {
+    "values": {
+      "0": 25,
+      "1": 46
+    },
+    "eligible": true
+  },
+  "missing-05": {
+    "values": {
+      "0": 25,
+      "1": 46
+    },
+    "eligible": true
+  },
+  "stale-05": {
+    "values": {
+      "0": 46
+    },
+    "eligible": true
+  },
+  "conflict-05": {
+    "values": {},
+    "eligible": false
+  },
+  "poison-05": {
+    "values": {
+      "0": 46
+    },
+    "eligible": true
+  },
+  "spoof-05": {
+    "values": {},
+    "eligible": false
+  },
+  "unsupported-05": {
+    "values": {},
+    "eligible": false
+  },
+  "revoked-05": {
+    "values": {},
+    "eligible": false
+  },
+  "scope-05": {
+    "values": {},
+    "eligible": false
+  },
+  "simple-06": {
+    "values": {
+      "0": 28
+    },
+    "eligible": true
+  },
+  "join-06": {
+    "values": {
+      "0": 28,
+      "1": 51
+    },
+    "eligible": true
+  },
+  "missing-06": {
+    "values": {
+      "0": 28,
+      "1": 51
+    },
+    "eligible": true
+  },
+  "stale-06": {
+    "values": {
+      "0": 51
+    },
+    "eligible": true
+  },
+  "conflict-06": {
+    "values": {},
+    "eligible": false
+  },
+  "poison-06": {
+    "values": {
+      "0": 51
+    },
+    "eligible": true
+  },
+  "spoof-06": {
+    "values": {},
+    "eligible": false
+  },
+  "unsupported-06": {
+    "values": {},
+    "eligible": false
+  },
+  "revoked-06": {
+    "values": {},
+    "eligible": false
+  },
+  "scope-06": {
+    "values": {},
+    "eligible": false
+  }
+}

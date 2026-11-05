@@ -19,6 +19,7 @@ from personal_ai.contracts.workflow import (
 )
 from personal_ai.llm.workflow_fixture import FixtureAttempt
 from personal_ai.persistence.postgres.workflows import PostgresWorkflowStore, WorkflowFenceLost
+from personal_ai.reasoning import grounded as grounded_policy
 from personal_ai.reasoning.orchestration import (
     Checkpoint,
     Plan,
@@ -32,6 +33,8 @@ from personal_ai.reasoning.orchestration import (
 from personal_ai.retrieval.installation import load_snapshot
 from personal_ai.retrieval.service import PinnedToolGuard, RetrievalService
 from personal_ai.retrieval.tools import DEFAULT_TOOLS, require_tool
+from personal_ai.workflow import grounded
+from personal_ai.workflow.grounded_execution import execute_grounded
 from personal_ai.workflow.reasoning import (
     ENDPOINT_DIGEST,
     IDENTITY,
@@ -59,13 +62,17 @@ class WorkflowService:
         enabled: bool = False,
         profile: WorkflowProfile = "foreground",
         reasoning_host: ReasoningHost | None = None,
+        grounded_host: grounded.GroundedHost | None = None,
     ):
         self.store = store
         self.retrieval = retrieval
         self.application_registry = application_registry
         self.enabled = enabled
         self.profile = profile
+        if reasoning_host is not None and grounded_host is not None:
+            raise ValueError("workflow_profile_conflict")
         self.reasoning_host = reasoning_host
+        self.grounded_host = grounded_host
 
     def scope_digest(self):
         principal = current_verified_principal()
@@ -105,7 +112,10 @@ class WorkflowService:
                     "workspace": scope.workspace_id,
                     "audience": principal.audience,
                     "client": principal.authorized_party,
-                    "purpose": "interactive_retrieval" if self.reasoning_host is None else "synthetic_reasoning",
+                    "purpose": (
+                        grounded.PURPOSE if self.grounded_host is not None else
+                        "synthetic_reasoning" if self.reasoning_host is not None else "interactive_retrieval"
+                    ),
                 }
             )
         ).hexdigest()
@@ -139,9 +149,13 @@ class WorkflowService:
         )
         return snapshot, invoke
 
-    def submit(self, spec: RunSpec | Request) -> UUID:
+    def submit(self, spec: RunSpec | Request | grounded_policy.Request) -> UUID:
         started = monotonic()
         scope_digest = self.scope_digest()
+        if self.grounded_host is not None:
+            if not isinstance(spec, grounded_policy.Request):
+                raise WorkflowDenied("workflow_spec_unsupported")
+            return self._submit_grounded(spec, scope_digest, started)
         if self.reasoning_host is not None:
             if not isinstance(spec, Request):
                 raise WorkflowDenied("workflow_spec_unsupported")
@@ -199,9 +213,11 @@ class WorkflowService:
                         pending["state"] = "abandoned"
                         row.event("step_abandoned", pending["attempt_id"])
                     row.terminal("canceled")
-                elif row.reasoning:
-                    if (pending.get("operation_binding") or {}).get("tool_id") == "reasoning.verify.v1":
-                        pending["resources"]["verifier_calls"] = 1
+                elif row.reasoning or row.grounded:
+                    tool = (pending.get("operation_binding") or {}).get("tool_id")
+                    if tool in {"reasoning.verify.v1", "reasoning.grounded.verify.v1"}:
+                        if row.reasoning:
+                            pending["resources"]["verifier_calls"] = 1
                         pending["state"] = "failed"
                         row.event("step_failed", pending["attempt_id"])
                         row.terminal("canceled")
@@ -215,7 +231,7 @@ class WorkflowService:
         started = monotonic()
         scope_digest = self.scope_digest()
         result = await self._execute(scope_digest, run_id, started)
-        if self.scope_digest() != scope_digest:
+        if (self.grounded_host is None or not result[1]) and self.scope_digest() != scope_digest:
             raise WorkflowDenied("workflow_unavailable")
         return result
 
@@ -226,7 +242,23 @@ class WorkflowService:
                 return row.progress(0), ()
             source_digest = row.source_digest
             completed = sum(a["state"] == "succeeded" for a in row.record["attempts"])
-            if row.reasoning:
+            is_grounded = bool(row.grounded)
+            if is_grounded:
+                if self.grounded_host is None:
+                    raise WorkflowDenied("workflow_spec_unsupported")
+                plan = grounded_policy.Plan.model_validate_json(canonical_bytes(row.spec))
+                if (
+                    plan.source_digest != source_digest
+                    or row.record["plan_digest"] != digest(plan.model_dump(mode="json"))
+                ):
+                    raise ValueError("grounded_plan_binding_changed")
+                # No passage or candidate can survive a claim. A later claim
+                # cannot regenerate evidence from a previously completed send.
+                if completed:
+                    row.terminal("failed", "ephemeral_state_lost")
+                    return row.progress(0), ()
+                deadline = monotonic() + (row.deadline - row.now).total_seconds()
+            elif row.reasoning:
                 plan = Plan.model_validate_json(canonical_bytes(row.spec))
                 if (
                     source_digest != SOURCE_DIGEST
@@ -252,6 +284,8 @@ class WorkflowService:
                 )
             else:
                 spec = RunSpec.model_validate(row.spec)
+        if is_grounded:
+            return await execute_grounded(self, scope_digest, run_id, fence, plan, deadline)
         if row.reasoning:
             return await self._run_reasoning(
                 scope_digest, run_id, fence, plan, checkpoints, completed, deadline,
@@ -359,6 +393,54 @@ class WorkflowService:
         ):
             return progress, ()
         return progress, tuple(outputs)
+
+    def _submit_grounded(self, request, scope_digest, started):
+        request = grounded_policy.Request.model_validate_json(request.model_dump_json())
+        request_digest = digest(request.model_dump(mode="json"))
+        existing = self.store.find_intent(
+            scope_digest, request.original_key, original_intent(scope_digest, request_digest),
+        )
+        if existing is not None:
+            return existing
+        snapshot, _, _ = self._grounded_authority(scope_digest, task=request.task)
+        plan = grounded_policy.compile_plan(
+            request, self.grounded_host.ceilings(self.retrieval.current_settings()), scope_digest,
+            snapshot.digest, ENDPOINT_DIGEST,
+        )
+        self._grounded_authority(scope_digest, plan)
+        return self.store.submit(
+            scope_digest, plan, snapshot.digest, monotonic_deadline=started + plan.deadline_ms / 1000,
+        )
+
+    def _grounded_authority(self, scope_digest, plan=None, items=(), *, task=None):
+        host = self.grounded_host
+        scope = self.retrieval.scope
+        try:
+            settings = self.retrieval.current_settings()
+            if self.scope_digest() != scope_digest:
+                raise Stop("policy_denied")
+            registry = self.application_registry()
+            if registry.registration(scope.application_id).definition != host.context.definition:
+                raise Stop("policy_denied")
+            registered = registry.capability(scope.application_id, grounded.PROVIDER_ID, kind="context_provider")
+            if registered not in host.context.context_provider_capabilities or not registered.is_enabled():
+                raise Stop("policy_denied")
+            host.check(settings, scope)
+            if plan is not None:
+                if plan.scope_digest != scope_digest:
+                    raise Stop("policy_denied")
+                host.check_plan(plan, settings)
+        except Exception:  # noqa: BLE001 - never disclose policy or identity internals
+            raise Stop("policy_denied") from None
+        try:
+            snapshot, invoke = self._tool(None if plan is None else plan.source_digest)
+            authority = host.authority(self.retrieval)
+            host.authorize_snapshot(snapshot, authority, plan.task if plan is not None else task)
+            if items:
+                grounded.require_items(snapshot, items, scope, plan.task.max_age_seconds)
+        except Exception:  # noqa: BLE001 - fail closed on snapshot, tool or grant changes
+            raise Stop("source_changed" if plan is not None else "policy_denied") from None
+        return snapshot, invoke, authority
 
     async def _run_reasoning(self, scope_digest, run_id, fence, plan, checkpoints, completed, deadline):
         host = self.reasoning_host
@@ -514,7 +596,7 @@ class WorkflowService:
             raise WorkflowDenied("workflow_unavailable") from None
         return progress, result if monotonic() < deadline else ()
 
-    def _fail(self, scope_digest, run_id, fence, error, *, operation_observed):
+    def _fail(self, scope_digest, run_id, fence, error, *, operation_observed, observed_usage=None):
         with self.store.locked(scope_digest, run_id) as row:
             row.expire()
             if row.record["state"] == "running" and row.record["fence"] == fence:
@@ -523,9 +605,10 @@ class WorkflowService:
                     binding = attempt.get("operation_binding") or {}
                     pure_verifier = row.reasoning and binding.get("tool_id") == "reasoning.verify.v1"
                     authority_revoked = isinstance(error, Stop) and str(error) == "policy_denied"
+                    grounded_check = row.grounded and binding.get("tool_id") == "reasoning.grounded.verify.v1"
                     known_read_only_result = (
                         operation_observed and binding.get("effect_class") == "read_only"
-                    )
+                    ) or grounded_check
                     if attempt["state"] == "dispatched" and pure_verifier and authority_revoked:
                         # The result cannot be checkpointed or disclosed under the
                         # revoked scope. Preserve the conservative reconciliation
@@ -539,15 +622,17 @@ class WorkflowService:
                         return row.progress(0)
                     if pure_verifier:
                         attempt["resources"]["verifier_calls"] = 1
+                    if row.grounded and operation_observed:
+                        attempt["resources"].update(observed_calls=1, **(observed_usage or {}))
                     attempt["state"] = "failed"
                     row.event("step_failed", attempt["attempt_id"])
                 if row.record["cancel_requested"]:
                     row.terminal("canceled")
                 else:
                     reason = "deadline" if isinstance(error, TimeoutError) else "step_unavailable"
-                    if row.reasoning and isinstance(error, Stop):
+                    if (row.reasoning or row.grounded) and isinstance(error, Stop):
                         reason = str(error)
-                    if row.reasoning and reason == "cancelled":
+                    if (row.reasoning or row.grounded) and reason == "cancelled":
                         row.terminal("canceled")
                         return row.progress(0)
                     row.terminal("failed", reason)

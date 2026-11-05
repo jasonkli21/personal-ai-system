@@ -20,6 +20,7 @@ class FixtureAttempt:
     observe_count: Callable[[int], None]
     dispatch: Callable[[int], None]
     metadata: GenerationMetadata | None = None
+    respond: Callable | None = None
 
     def require_endpoint(self, identity):
         if identity != self.endpoint:

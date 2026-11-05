@@ -10,6 +10,7 @@ from uuid import uuid4
 from personal_ai.contracts.delegated_tasks import canonical_bytes
 from personal_ai.contracts.reasoning_workflow import ReasoningProgress
 from personal_ai.contracts.workflow import TERMINAL, RunProgress
+from personal_ai.reasoning.grounded_receipts import GroundedProgress
 from personal_ai.storage.errors import PersistenceConflict
 
 _EVENT_LIMIT = 8
@@ -47,6 +48,15 @@ class WorkflowRow:
             if state == "canceled":
                 reason = "cancelled"
             self.record.pop("checkpoints", None)
+        if self.grounded:
+            reason = {
+                "operator_reconciliation_required": "uncertain_effect",
+                "deadline": "budget_exhausted",
+                "claim_budget": "budget_exhausted",
+                "step_unavailable": "internal_failure",
+            }.get(reason, reason)
+            if state == "canceled":
+                reason = "cancelled"
         self.spec = None
         self.record.update(state=state, reason=reason, fence=None, lease=None)
         self.event(state)
@@ -57,7 +67,7 @@ class WorkflowRow:
             return
         if (
             row["lease"] is not None and self.now.timestamp() < row["lease"]
-            and not (self.reasoning and self.now >= self.deadline)
+            and not ((self.reasoning or self.grounded) and self.now >= self.deadline)
         ):
             return
         attempt = self.pending
@@ -71,6 +81,14 @@ class WorkflowRow:
                     attempt["state"] = "failed"
                     self.event("step_failed", attempt["attempt_id"])
                     verifier_failed = True
+                elif self.grounded and binding.get("tool_id") == "reasoning.grounded.verify.v1":
+                    # The call is a pure predicate, but its candidate only lived
+                    # in the lost claim. Finish without reconstructing evidence.
+                    attempt["state"] = "failed"
+                    self.event("step_failed", attempt["attempt_id"])
+                    self.terminal("canceled" if row["cancel_requested"] else "failed",
+                                  "deadline" if self.now >= self.deadline else "ephemeral_state_lost")
+                    return
                 else:
                     attempt["state"] = "uncertain"
                     self.terminal("uncertain", "operator_reconciliation_required")
@@ -92,6 +110,10 @@ class WorkflowRow:
     @property
     def reasoning(self):
         return self.record.get("reasoning")
+
+    @property
+    def grounded(self):
+        return self.record.get("grounded")
 
     def reserve(self, step, operation_binding, *, resources=None):
         if self.pending is not None:
@@ -140,6 +162,10 @@ class WorkflowRow:
                 # Dispatching a local predicate consumes its finite budget even if
                 # the process dies before recording the deterministic result.
                 resources["verifier_calls"] = 1
+        if self.grounded:
+            attempt["resources"]["observed_calls"] = None
+            if operation_binding["tool_id"] == "reasoning.grounded.verify.v1":
+                attempt["resources"]["verifier_calls_charged"] = 1
         self.event("dispatched", attempt_id)
 
     def claim(self):
@@ -185,6 +211,16 @@ class WorkflowRow:
             "events": tuple(event for event in events if event["sequence"] > cursor),
             "attempts": self.record["attempts"],
         }
+        if self.grounded:
+            state = self.record["state"]
+            return GroundedProgress(
+                **facts, **self.grounded, source_digest=self.source_digest,
+                plan_digest=self.record["plan_digest"], verification=self.record.get("verification"),
+                outcome=(
+                    "complete" if state == "succeeded" else
+                    self.record.get("outcome", "unavailable") if state in TERMINAL else "pending"
+                ),
+            )
         if not self.reasoning:
             return RunProgress(**facts)
         state = self.record["state"]
@@ -209,6 +245,11 @@ class WorkflowRow:
             })
             record["plan_digest"] = sha256(canonical_bytes(spec.model_dump(mode="json"))).hexdigest()
             record["checkpoints"] = []
+        if spec.schema_version == "reasoning-grounded-plan-v1":
+            record["grounded"] = spec.model_dump(include={
+                "source_policy", "strategy_version", "requested_effort", "effort",
+            })
+            record["plan_digest"] = sha256(canonical_bytes(spec.model_dump(mode="json"))).hexdigest()
         row = cls(
             uuid4(), now + timedelta(milliseconds=deadline_ms), source_digest,
             spec.model_dump(mode="json"), record, now,
@@ -310,7 +351,7 @@ class PostgresWorkflowStore:
             ).fetchone()
             if row is None:
                 raise LookupError("workflow_not_found")
-            if row[3].get("reasoning"):
+            if row[3].get("reasoning") or row[3].get("grounded"):
                 raise LookupError("workflow_episode_unavailable")
             from personal_ai.memory.episodes import TerminalReceiptEnvelope
 

@@ -129,53 +129,65 @@ class ReasoningHost:
         fixture_text = self.fixture.response(step)
         if len(fixture_text.encode()) > step.result_bytes:
             raise Stop("budget_exhausted")
-        settings = settings.model_copy(update={"reasoning_enabled": True})
-        pair = compose_pair(settings, profile="offline_fake")
-        attempt.require_endpoint(pair.generator.identity)
-        if digest(pair.generator.delegate.endpoint_profile.model_dump(mode="json")) != ENDPOINT_DIGEST:
-            raise Stop("policy_denied")
+        text, actual = await infer_fixture(
+            run_id, self.context, settings, request, expected_message_id, attempt, guard,
+            input_bytes=step.input_bytes, output_bytes=step.result_bytes, fixture_text=fixture_text,
+        )
+        return Checkpoint(step=step.name, values=decode(text, slots)), {**actual, "physical_attempts": 1}
+
+
+async def infer_fixture(
+    run_id, context, settings, request, expected_message_id, attempt, guard, *,
+    input_bytes, output_bytes, fixture_text=None, selection=None, coordinator=None, revalidator=None,
+):
+    """Execute the same isolated canonical continuation for both fixture profiles."""
+    settings = settings.model_copy(update={"reasoning_enabled": True})
+    pair = compose_pair(settings, profile="offline_fake")
+    attempt.require_endpoint(pair.generator.identity)
+    if digest(pair.generator.delegate.endpoint_profile.model_dump(mode="json")) != ENDPOINT_DIGEST:
+        raise Stop("policy_denied")
+    if fixture_text is not None:
         pair.generator.delegate.deltas = (fixture_text,)
-        conversations = InMemoryConversationRepository()
-        scope = self.context.scope
-        now = datetime.now(UTC)
-        conversations.create(Conversation(
-            id=run_id, owner_id=scope.owner_id, application_id=scope.application_id,
-            workspace_id=scope.workspace_id, scope_version=2, title="Synthetic workflow", created_at=now, updated_at=now,
-        ))
-        chat = ChatTurnService(
-            conversations, InMemoryMessageRepository(conversations), pair.generator,
-            owner_id=scope.owner_id, application_context=self.context, model=IDENTITY.model_id,
-            context_assembler=ContextAssembler(settings, pair.counter),
-        )
-        completed = None
-        with bind_disclosure_guard(guard), bind_fixture_attempt(attempt):
-            guard()
-            async with aclosing(chat.continue_turn(run_id, request)) as events:
-                async for event in events:
-                    if isinstance(event, TurnCompleted):
-                        completed = event
-            guard()
-        metadata = attempt.metadata
-        if (
-            completed is None or completed.reasoning is None
-            or completed.reasoning.status != "complete"
-            or completed.message.id != expected_message_id
-            or completed.message.continuation_digest != request.intent_digest
-            or metadata is None
-            or metadata.usage is None or metadata.usage.confidence != "reported"
-            or not 0 < metadata.usage.input_tokens <= step.input_bytes
-            or metadata.usage.output_tokens != len(completed.message.content.encode())
-            or metadata.usage.output_tokens > step.result_bytes
-        ):
-            raise Stop("provider_unavailable")
-        return (
-            Checkpoint(step=step.name, values=decode(completed.message.content, slots)),
-            {
-                "input_bytes": metadata.usage.input_tokens,
-                "output_bytes": metadata.usage.output_tokens,
-                "physical_attempts": 1,
-            },
-        )
+    conversations = InMemoryConversationRepository()
+    scope = context.scope
+    now = datetime.now(UTC)
+    conversations.create(Conversation(
+        id=run_id, owner_id=scope.owner_id, application_id=scope.application_id,
+        workspace_id=scope.workspace_id, scope_version=2, title="Synthetic workflow", created_at=now, updated_at=now,
+    ))
+    chat = ChatTurnService(
+        conversations, InMemoryMessageRepository(conversations), pair.generator,
+        owner_id=scope.owner_id, application_context=context, model=IDENTITY.model_id,
+        context_assembler=ContextAssembler(
+            settings, pair.counter, context_provider_coordinator=coordinator,
+            permission_revalidator=revalidator,
+        ),
+    )
+    completed = None
+    with bind_disclosure_guard(guard), bind_fixture_attempt(attempt):
+        guard()
+        async with aclosing(chat.continue_turn(run_id, request, _fixture_selection=selection)) as events:
+            async for event in events:
+                if isinstance(event, TurnCompleted):
+                    completed = event
+        guard()
+    metadata = attempt.metadata
+    if (
+        completed is None or completed.reasoning is None
+        or completed.reasoning.status != "complete"
+        or completed.message.id != expected_message_id
+        or completed.message.continuation_digest != request.intent_digest
+        or metadata is None
+        or metadata.usage is None or metadata.usage.confidence != "reported"
+        or not 0 < metadata.usage.input_tokens <= input_bytes
+        or metadata.usage.output_tokens != len(completed.message.content.encode())
+        or metadata.usage.output_tokens > output_bytes
+    ):
+        raise Stop("provider_unavailable")
+    return completed.message.content, {
+        "input_bytes": metadata.usage.input_tokens,
+        "output_bytes": metadata.usage.output_tokens,
+    }
 
 
 def run_check(step, plan, checkpoints):

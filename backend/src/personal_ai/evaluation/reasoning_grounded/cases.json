@@ -1,0 +1,1526 @@
+[
+  {
+    "id": "simple-01",
+    "cohort": "simple",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "join-01",
+    "cohort": "join",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 26
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "missing-01",
+    "cohort": "missing",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      },
+      {
+        "tags": [
+          "duration"
+        ],
+        "facts": {
+          "duration": 26
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "stale-01",
+    "cohort": "stale",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "quantity": 13
+        },
+        "stale": true
+      },
+      {
+        "tags": [
+          "quantity"
+        ],
+        "facts": {
+          "quantity": 26
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "conflict-01",
+    "cohort": "conflict",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 26
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "poison-01",
+    "cohort": "poison",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 26
+        },
+        "poison": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "spoof-01",
+    "cohort": "spoof",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 26
+        }
+      }
+    ],
+    "fault": "spoof"
+  },
+  {
+    "id": "unsupported-01",
+    "cohort": "unsupported",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "revoked-01",
+    "cohort": "revoked",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      }
+    ],
+    "fault": "revoked"
+  },
+  {
+    "id": "scope-01",
+    "cohort": "scope",
+    "held_out": false,
+    "subject": "record1",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "unrelated"
+        ],
+        "facts": {
+          "capacity": 13
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 26
+        },
+        "foreign": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-02",
+    "cohort": "simple",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "join-02",
+    "cohort": "join",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 31
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "missing-02",
+    "cohort": "missing",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      },
+      {
+        "tags": [
+          "duration"
+        ],
+        "facts": {
+          "duration": 31
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "stale-02",
+    "cohort": "stale",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "quantity": 16
+        },
+        "stale": true
+      },
+      {
+        "tags": [
+          "quantity"
+        ],
+        "facts": {
+          "quantity": 31
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "conflict-02",
+    "cohort": "conflict",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 31
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "poison-02",
+    "cohort": "poison",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 31
+        },
+        "poison": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "spoof-02",
+    "cohort": "spoof",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 31
+        }
+      }
+    ],
+    "fault": "spoof"
+  },
+  {
+    "id": "unsupported-02",
+    "cohort": "unsupported",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "revoked-02",
+    "cohort": "revoked",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      }
+    ],
+    "fault": "revoked"
+  },
+  {
+    "id": "scope-02",
+    "cohort": "scope",
+    "held_out": false,
+    "subject": "record2",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "unrelated"
+        ],
+        "facts": {
+          "capacity": 16
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 31
+        },
+        "foreign": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-03",
+    "cohort": "simple",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "join-03",
+    "cohort": "join",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 36
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "missing-03",
+    "cohort": "missing",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      },
+      {
+        "tags": [
+          "duration"
+        ],
+        "facts": {
+          "duration": 36
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "stale-03",
+    "cohort": "stale",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "quantity": 19
+        },
+        "stale": true
+      },
+      {
+        "tags": [
+          "quantity"
+        ],
+        "facts": {
+          "quantity": 36
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "conflict-03",
+    "cohort": "conflict",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 36
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "poison-03",
+    "cohort": "poison",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 36
+        },
+        "poison": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "spoof-03",
+    "cohort": "spoof",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 36
+        }
+      }
+    ],
+    "fault": "spoof"
+  },
+  {
+    "id": "unsupported-03",
+    "cohort": "unsupported",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "revoked-03",
+    "cohort": "revoked",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      }
+    ],
+    "fault": "revoked"
+  },
+  {
+    "id": "scope-03",
+    "cohort": "scope",
+    "held_out": false,
+    "subject": "record3",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "unrelated"
+        ],
+        "facts": {
+          "capacity": 19
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 36
+        },
+        "foreign": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-04",
+    "cohort": "simple",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "join-04",
+    "cohort": "join",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 41
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "missing-04",
+    "cohort": "missing",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      },
+      {
+        "tags": [
+          "duration"
+        ],
+        "facts": {
+          "duration": 41
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "stale-04",
+    "cohort": "stale",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "quantity": 22
+        },
+        "stale": true
+      },
+      {
+        "tags": [
+          "quantity"
+        ],
+        "facts": {
+          "quantity": 41
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "conflict-04",
+    "cohort": "conflict",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 41
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "poison-04",
+    "cohort": "poison",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 41
+        },
+        "poison": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "spoof-04",
+    "cohort": "spoof",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 41
+        }
+      }
+    ],
+    "fault": "spoof"
+  },
+  {
+    "id": "unsupported-04",
+    "cohort": "unsupported",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "revoked-04",
+    "cohort": "revoked",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      }
+    ],
+    "fault": "revoked"
+  },
+  {
+    "id": "scope-04",
+    "cohort": "scope",
+    "held_out": true,
+    "subject": "record4",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "unrelated"
+        ],
+        "facts": {
+          "capacity": 22
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 41
+        },
+        "foreign": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-05",
+    "cohort": "simple",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "join-05",
+    "cohort": "join",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 46
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "missing-05",
+    "cohort": "missing",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      },
+      {
+        "tags": [
+          "duration"
+        ],
+        "facts": {
+          "duration": 46
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "stale-05",
+    "cohort": "stale",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "quantity": 25
+        },
+        "stale": true
+      },
+      {
+        "tags": [
+          "quantity"
+        ],
+        "facts": {
+          "quantity": 46
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "conflict-05",
+    "cohort": "conflict",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 46
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "poison-05",
+    "cohort": "poison",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 46
+        },
+        "poison": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "spoof-05",
+    "cohort": "spoof",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 46
+        }
+      }
+    ],
+    "fault": "spoof"
+  },
+  {
+    "id": "unsupported-05",
+    "cohort": "unsupported",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "revoked-05",
+    "cohort": "revoked",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      }
+    ],
+    "fault": "revoked"
+  },
+  {
+    "id": "scope-05",
+    "cohort": "scope",
+    "held_out": true,
+    "subject": "record5",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "unrelated"
+        ],
+        "facts": {
+          "capacity": 25
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 46
+        },
+        "foreign": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-06",
+    "cohort": "simple",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "join-06",
+    "cohort": "join",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 51
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "missing-06",
+    "cohort": "missing",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      },
+      {
+        "tags": [
+          "duration"
+        ],
+        "facts": {
+          "duration": 51
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "stale-06",
+    "cohort": "stale",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "quantity": 28
+        },
+        "stale": true
+      },
+      {
+        "tags": [
+          "quantity"
+        ],
+        "facts": {
+          "quantity": 51
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "conflict-06",
+    "cohort": "conflict",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 51
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "poison-06",
+    "cohort": "poison",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 51
+        },
+        "poison": true
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "spoof-06",
+    "cohort": "spoof",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "capacity",
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 51
+        }
+      }
+    ],
+    "fault": "spoof"
+  },
+  {
+    "id": "unsupported-06",
+    "cohort": "unsupported",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "quantity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      }
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "revoked-06",
+    "cohort": "revoked",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "capacity"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      }
+    ],
+    "fault": "revoked"
+  },
+  {
+    "id": "scope-06",
+    "cohort": "scope",
+    "held_out": true,
+    "subject": "record6",
+    "requirements": [
+      "duration"
+    ],
+    "sources": [
+      {
+        "tags": [
+          "unrelated"
+        ],
+        "facts": {
+          "capacity": 28
+        }
+      },
+      {
+        "tags": [
+          "overview"
+        ],
+        "facts": {
+          "duration": 51
+        },
+        "foreign": true
+      }
+    ],
+    "fault": "none"
+  }
+]

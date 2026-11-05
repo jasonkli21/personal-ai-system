@@ -55,6 +55,48 @@ class ExcerptPayload(BaseModel):
     excerpt: RetrievalItem
 
 
+def excerpt_context_item(item, scope, snapshot_digest):
+    """Project an already authorized local excerpt into the shared context envelope."""
+    dependency = ContextPermissionDependency(
+        permission_id=NAMESPACE + item.rights_authority_id[6:],
+        version=snapshot_digest,
+        purpose=PURPOSE,
+        owner_id=scope.owner_id,
+        acting_user_id=scope.acting_user_id,
+        source_scope=ApplicationScope(
+            application_id=scope.application_id, workspace_id=scope.workspace_id
+        ),
+        entity_ref=ContextEntityReference(
+            entity_type="retrieval_source",
+            entity_id=item.rights_authority_id,
+            application_id=scope.application_id,
+            workspace_id=scope.workspace_id,
+        ),
+        source_revision=item.source_revision,
+    )
+    return ContextItem(
+        provider_id=PROVIDER_ID,
+        source_class="external_research",
+        source_id=item.rights_authority_id,
+        source_version=item.source_revision,
+        item_id=item.citation_id,
+        owner_id=scope.owner_id,
+        application_id=scope.application_id,
+        workspace_id=scope.workspace_id,
+        authority="external",
+        sensitivity=item.sensitivity,
+        observed_at=item.observed_at,
+        expires_at=item.expires_at,
+        source_refs=(
+            ContextSourceReference(
+                kind="source", reference_id=item.citation_id, fingerprint=item.content_fingerprint,
+            ),
+        ),
+        permission_dependencies=(dependency,),
+        payload=ExcerptPayload(excerpt=item),
+    )
+
+
 class RetrievalContextAuthority:
     def __init__(
         self, settings, *, scope=None, authority=None, context=None, current_settings=None
@@ -191,50 +233,10 @@ class RetrievalContextProvider:
         items, _ = LexicalIndex(docs, issuer_id=str(issuer)).search(query, scope)
         output = []
         for item in items:
-            dependency = ContextPermissionDependency(
-                permission_id=NAMESPACE + item.rights_authority_id[6:],
-                version=snapshot.digest,
-                purpose=PURPOSE,
-                owner_id=scope.owner_id,
-                acting_user_id=scope.acting_user_id,
-                source_scope=ApplicationScope(
-                    application_id=scope.application_id, workspace_id=scope.workspace_id
-                ),
-                entity_ref=ContextEntityReference(
-                    entity_type="retrieval_source",
-                    entity_id=item.rights_authority_id,
-                    application_id=scope.application_id,
-                    workspace_id=scope.workspace_id,
-                ),
-                source_revision=item.source_revision,
-            )
-            if not self.authority.is_current(dependency) or monotonic() >= deadline:
+            context_item = excerpt_context_item(item, scope, snapshot.digest)
+            if not self.authority.is_current(context_item.permission_dependencies[0]) or monotonic() >= deadline:
                 raise ContextProviderError("retrieval_context_unavailable")
-            output.append(
-                ContextItem(
-                    provider_id=PROVIDER_ID,
-                    source_class="external_research",
-                    source_id=item.rights_authority_id,
-                    source_version=item.source_revision,
-                    item_id=item.citation_id,
-                    owner_id=scope.owner_id,
-                    application_id=scope.application_id,
-                    workspace_id=scope.workspace_id,
-                    authority="external",
-                    sensitivity=item.sensitivity,
-                    observed_at=item.observed_at,
-                    expires_at=item.expires_at,
-                    source_refs=(
-                        ContextSourceReference(
-                            kind="source",
-                            reference_id=item.citation_id,
-                            fingerprint=item.content_fingerprint,
-                        ),
-                    ),
-                    permission_dependencies=(dependency,),
-                    payload=ExcerptPayload(excerpt=item),
-                )
-            )
+            output.append(context_item)
         emit(
             Event.SOURCE, State.OK, source_count=len(output),
             source_refs=tuple(item.item_id for item in output[:32]),

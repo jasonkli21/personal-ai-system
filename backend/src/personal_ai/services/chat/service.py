@@ -420,11 +420,20 @@ class ChatTurnService:
         return plan, len(history)
 
     def continue_turn(
-        self, conversation_id: UUID, request: ContinuationRequest,
+        self, conversation_id: UUID, request: ContinuationRequest, *, _fixture_selection=None,
     ) -> AsyncIterator[TurnEvent]:
         """An automatic continuation uses the configured generation lane and shared assembly."""
         started = monotonic()
         reasoning = request.reasoning
+        if _fixture_selection is not None and (
+            reasoning is None or fixture_attempt.get() is None
+            or fixture_attempt.get().respond is None
+            or self._context.settings.inference_profile != "offline_fake"
+            or self._context.settings.inference_cost_mode != "offline_fake"
+            or not self._context.settings.retrieval_context_enabled
+            or self._context.context_provider_coordinator is None
+        ):
+            raise ContextPreparationError("fixture_context_unavailable")
         if reasoning is not None:
             if (
                 not self._context.settings.reasoning_enabled
@@ -536,7 +545,9 @@ class ChatTurnService:
             request_id=request_id,
             candidate_message_ids=request.candidate_message_ids,
             candidate_entities=request.entity_refs,
-            explicit_context_selections=request.explicit_context_selections,
+            explicit_context_selections=(
+                (_fixture_selection,) if _fixture_selection is not None else request.explicit_context_selections
+            ),
             assistant_id=identity,
             continuation_digest=intent_digest,
             user_already_persisted=already_persisted,
@@ -680,6 +691,10 @@ class ChatTurnService:
                     "max_response_tokens": budget.max_output_tokens,
                 }),
                 context.counter,
+                context_provider_coordinator=(
+                    context.context_provider_coordinator if explicit_context_selections else None
+                ),
+                permission_revalidator=context.permission_revalidator if explicit_context_selections else None,
             )
             deadline = reasoning.started + budget.max_elapsed_seconds
             context.input_budget()
@@ -833,6 +848,7 @@ class ChatTurnService:
                     refresh=not external and reasoning is None,
                     application_context=self._application_context,
                     context_plan=context_plan,
+                    context_selections=explicit_context_selections if reasoning is not None else (),
                     history_exclusions=history_exclusions,
                     expected_counter_identity=(
                         self._llm.identity

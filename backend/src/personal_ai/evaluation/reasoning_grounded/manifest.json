@@ -1,0 +1,20 @@
+{
+  "schema_version": "grounded-benchmark-v1",
+  "pairs": 60,
+  "held_out": 30,
+  "arms": [
+    "direct",
+    "one_shot",
+    "grounded"
+  ],
+  "minimum_gain_percentage_points": 10,
+  "safety_veto_limit": 0,
+  "eligible_cohorts": [
+    "simple",
+    "join",
+    "missing",
+    "stale",
+    "poison"
+  ],
+  "required_simple_extra_queries": 0
+}
