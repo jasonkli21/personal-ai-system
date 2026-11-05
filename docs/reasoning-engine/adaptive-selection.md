@@ -17,10 +17,13 @@ The finite host derives family, bounded slot count and ambiguity from
 the closed typed task and checks it against an operator-installed
 task-and-fixture allowlist. It uses the installed verifier, source-free
 profile, effective effort and intersection of all existing ceilings.
-Only high or max effective effort and an eligible family with full
-headroom can admit comparison. A trusted direct pin and simple or
-unregistered fixtures keep the baseline. No requested label, prompt
-text, model confidence or retrieved instruction grants permission.
+The 2026-11-05 review found no trusted pre-generation feature that
+distinguishes the decomposition-favorable independent subgroup. Finite
+runtime selection therefore abstains and keeps the V1 baseline for every
+family until such a cohort is supported by independent development evidence.
+A trusted direct pin, lower effort, and incomplete reserve also keep the
+baseline. No requested label, prompt text, model confidence, source text,
+holdout label, oracle or retrospective outcome grants permission.
 The grounded shadow reads coverage already derived from a validated
 local retrieval result. The existing citation predicate and follow-up
 resource and rights checks still decide execution and disclosure.
@@ -65,8 +68,17 @@ when the row settles.
    build and installed policy digests, issued time and expiry. Publish it
    with `control.update(previous_generation, pointer)`. Use the finite
    or grounded installed policy digest for that profile's shadow.
-4. For finite canary publication, the operator pins a trusted independent
-   reviewer's Ed25519 public key in the host and passes the same key to
+4. Finite canary publication is currently blocked. `LocalPolicyControl.update`
+   rejects every canary pointer because this checkout has no mechanical
+   artifact verifier or independently held blind corpus. A valid Ed25519
+   signature authenticates its signer but does not verify the reported
+   measurements. The existing fabricated-signature tests cover cryptographic
+   mechanics only and are not promotion evidence. Do not use them to enable a
+   pointer.
+
+   Once a verified independent evidence publication path exists, the operator
+   must pin a trusted independent reviewer's Ed25519 public key in the host
+   and pass the same key to
    `control.update(..., reviewer_key=key)`. The reviewer signs the
    canonical JSON of `PromotionEvidence`. Approval binds the independent
    holdout custody and result digests, exact budget and scope slice,
@@ -96,4 +108,5 @@ filesystem snapshot are unverified.
 
 See the [experiment protocol](adaptive-experiment.md), the
 [grounded release gates](re-3-blockers.md) and
-[verification record](re-4-verification.md).
+[verification record](re-4-verification.md), and the
+[2026-11-05 review remediation](2026-11-05-re-4-review-remediation.md).

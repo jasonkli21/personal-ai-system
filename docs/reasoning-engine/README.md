@@ -14,6 +14,7 @@
 - [Adaptive fixture selection and rollback](adaptive-selection.md)
 - [Adaptive strategy experiment protocol](adaptive-experiment.md)
 - [Adaptive strategy verification and review handoff](re-4-verification.md)
+- [RE-4 independent-review remediation](2026-11-05-re-4-review-remediation.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)

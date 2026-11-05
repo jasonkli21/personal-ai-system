@@ -59,7 +59,13 @@ pointer supports generation-checked rollback for new admissions. Existing
 V1 and grounded citation verification retain their execution contracts.
 The [sealed author-visible evaluation](reasoning-engine/re-4-verification.md)
 records a scripted aggregate gain, a decomposition subgroup regression and
-`NO_PROMOTION`. Independent acceptance remains open. Installed-model,
+`NO_PROMOTION`. Following the 2026-11-05 review, finite runtime selection now
+abstains because no trusted pre-generation feature has independent evidence
+that separates the harmful subgroup. Canary publication is fail-closed while
+no artifact verifier and independent blind custody are installed. The original
+author-visible experiment remains historical evidence; this remediation does
+not retcon its result. The [remediation receipt](reasoning-engine/2026-11-05-re-4-review-remediation.md)
+records the exact checks and remaining gates. Independent acceptance remains open. Installed-model,
 external provider/source rights, distributed restore and real-task quality
 remain blocked or unverified. Production remains `NO_GO`.
 

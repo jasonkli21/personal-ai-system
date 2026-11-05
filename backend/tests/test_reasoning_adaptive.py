@@ -228,6 +228,33 @@ def test_unapproved_pointer_cannot_be_published(tmp_path):
     assert control.rollback()[0] is False
 
 
+def test_finite_runtime_abstains_without_independent_pre_generation_cohort(tmp_path):
+    with synthetic_service(Fixture(answer=GOOD, synthesis=GOOD)) as service:
+        service.adaptive_host = shadow_host(
+            service, tmp_path.resolve(), adaptive.FINITE, task=request("independent").task,
+        )
+        original = request("independent")
+        run_id = service.submit(original)
+        assert type(service.status(run_id)) is ReasoningProgress
+        assert service.status(run_id).strategy_version == "decompose-typed.v1"
+
+
+def test_valid_signature_without_verified_artifact_cannot_publish_canary(tmp_path):
+    tmp_path.chmod(0o700)
+    control = LocalPolicyControl(tmp_path.resolve())
+    signed, key = signed_sample("a" * 64)
+    evidence = signed.evidence
+    pointer = PolicyPointer(
+        generation=1, mode="local_fixture_canary", policy_digest=adaptive.FINITE.identity,
+        build_digest=FIXTURE_BUILD, issued_at=evidence.issued_at, expires_at=evidence.expires_at,
+        approval=signed,
+    )
+    with pytest.raises(ValueError, match="blocked_unverified_independent_evidence"):
+        control.update(0, pointer, reviewer_key=key)
+    with control.admission() as current:
+        assert current.mode == "disabled" and current.generation == 0
+
+
 @pytest.mark.parametrize("profile", ["finite", "grounded"])
 def test_shadow_recommends_without_incremental_physical_work(tmp_path, witness, caplog, profile):
     caplog.set_level("INFO", logger="personal_ai.workflow.adaptive")

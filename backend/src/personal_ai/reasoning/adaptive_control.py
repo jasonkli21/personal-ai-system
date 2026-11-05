@@ -201,6 +201,11 @@ class LocalPolicyControl:
 
     def update(self, expected_generation, pointer, *, reviewer_key=None):
         pointer = PolicyPointer.model_validate_json(pointer.model_dump_json())
+        # A signature authenticates the publisher, but does not prove that its
+        # reported metrics were recomputed from independently held artifacts.
+        # This checkout has no independent blind artifact verifier/custodian.
+        if pointer.mode == "local_fixture_canary":
+            raise ValueError("adaptive_control_blocked_unverified_independent_evidence")
         with self._directory(write=True) as fd:
             if self._read(fd).generation != expected_generation:
                 raise StaleGeneration("adaptive_control_generation_changed")

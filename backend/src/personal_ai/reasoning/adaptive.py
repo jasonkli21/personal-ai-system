@@ -23,7 +23,7 @@ Family = Literal["simple", "independent", "correctable", "arithmetic", "unknown"
 Action = Literal["baseline", "candidate_compare", "focused", "one_shot"]
 Reason = Literal[
     "eligible", "no_marginal_value", "effort_ceiling", "insufficient_reserve",
-    "ineligible", "coverage_complete", "coverage_uncertain", "focused_gap",
+    "ineligible", "independent_evidence_unavailable", "coverage_complete", "coverage_uncertain", "focused_gap",
 ]
 
 

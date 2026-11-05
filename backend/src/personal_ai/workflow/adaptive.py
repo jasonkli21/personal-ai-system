@@ -48,7 +48,14 @@ class AdaptiveHost:
             return baseline
         reserve = monotonic() + sum(step.timeout_ms for step in adaptive.candidate_steps()) / 1000 < deadline
         features = adaptive.finite_features(baseline, reserve=reserve)
-        reason = adaptive.finite_reason(features, direct_pin=baseline.selection == "trusted_direct_pin")
+        # The authored E1 corpus cannot establish an independent, pre-generation
+        # cohort. No installed trusted feature currently distinguishes the known
+        # decomposition-favorable subgroup, so finite selection abstains.
+        reason = (
+            "independent_evidence_unavailable"
+            if features.profile == "finite_synthetic" and baseline.selection != "trusted_direct_pin"
+            else adaptive.finite_reason(features, direct_pin=baseline.selection == "trusted_direct_pin")
+        )
         recommendation = "candidate_compare" if reason == "eligible" else "baseline"
         if pointer.mode == "shadow":
             observe(adaptive.decision(features, adaptive.FINITE, pointer.generation, "baseline", recommendation, reason))
