@@ -53,9 +53,19 @@ class Resources(WorkflowRecord):
     elapsed_ms: int | None = Field(default=None, ge=0)
 
 
+class VerificationReceipt(WorkflowRecord):
+    schema_version: Literal["reasoning-verifier-receipt-v1"] = "reasoning-verifier-receipt-v1"
+    verifier_id: Literal["arithmetic.v1", "typed_constraints.v1"]
+    verdict: Literal["pass", "fail", "inconclusive"]
+    defect_count: int | None = Field(default=None, ge=0, le=3)
+    sufficiency_decision: Literal["sufficient", "insufficient", "inconclusive"]
+
+
 class ReasoningAttempt(AttemptReceipt):
     operation_binding: ReasoningBinding
     resources: Resources
+    # Additive and optional so historical v1 records remain readable.
+    verification_receipt: VerificationReceipt | None = None
 
 
 class ReasoningProgress(RunProgress):

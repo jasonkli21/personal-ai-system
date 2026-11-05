@@ -32,13 +32,15 @@ is cleared. Historical receipts without fingerprints remain readable and are
 not backfilled. PostgreSQL backups and old row versions may still hold input,
 so use synthetic fixtures.
 
-`uncertain` requires operator investigation. A failure or cancellation after
-dispatch without an observed tool result becomes uncertain immediately; it is
-not retried by replay. Failures before dispatch and failures after an observed
-result can be recorded as known failures. An expired dispatched attempt cannot
-be taken over or retried using its original key. Stop the trusted caller to
-disable the profile and preserve the database and original keys. Background,
-native and effect profiles are unavailable. See
+`uncertain` requires operator investigation. A dispatched operation with an
+unknown external result remains uncertain and is never resent through replay.
+For the synthetic reasoning profile, a dispatched registered pure verifier is
+charged conservatively and can be recomputed under the same fenced plan only
+when the remaining verifier budget permits it. Otherwise recovery stops as
+budget exhausted. Cancellation during verification settles as canceled and
+withholds output. Stop the trusted caller to disable the profile and preserve
+the database and original keys. Background, native and effect profiles are
+unavailable. See
 [authority and release boundaries](../../../../docs/decisions/0025-workflow-lifecycle-authority.md).
 
 Run `make workflow-check` for contract and synthetic effect tests.

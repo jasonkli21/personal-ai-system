@@ -63,12 +63,24 @@ class WorkflowRow:
         attempt = self.pending
         if attempt is not None:
             if attempt["state"] == "dispatched":
-                attempt["state"] = "uncertain"
-                self.terminal("uncertain", "operator_reconciliation_required")
-                return
-            # The old fence can no longer advance this reservation to dispatch.
-            attempt["state"] = "abandoned"
-            self.event("step_abandoned", attempt["attempt_id"])
+                binding = attempt.get("operation_binding") or {}
+                if self.reasoning and binding.get("tool_id") == "reasoning.verify.v1":
+                    # Registered verifiers are deterministic, local predicates. Charge
+                    # the call conservatively and allow only the normal fenced recovery.
+                    attempt["resources"]["verifier_calls"] = 1
+                    attempt["state"] = "failed"
+                    self.event("step_failed", attempt["attempt_id"])
+                    verifier_failed = True
+                else:
+                    attempt["state"] = "uncertain"
+                    self.terminal("uncertain", "operator_reconciliation_required")
+                    return
+            else:
+                verifier_failed = False
+            if not verifier_failed:
+                # The old fence can no longer advance this reservation to dispatch.
+                attempt["state"] = "abandoned"
+                self.event("step_abandoned", attempt["attempt_id"])
         if row["cancel_requested"]:
             self.terminal("canceled")
         elif self.now >= self.deadline:
@@ -125,7 +137,9 @@ class WorkflowRow:
             if operation_binding["tool_id"] == "reasoning.inference.v1":
                 resources["physical_attempts"] = None
             else:
-                resources["verifier_calls"] = None
+                # Dispatching a local predicate consumes its finite budget even if
+                # the process dies before recording the deterministic result.
+                resources["verifier_calls"] = 1
         self.event("dispatched", attempt_id)
 
     def claim(self):

@@ -24,6 +24,16 @@ from personal_ai.reasoning.orchestration import (
 from personal_ai.workflow.reasoning import ENDPOINT_DIGEST, Fixture
 from personal_ai.workflow.service import WorkflowDenied
 
+ORCHESTRATOR_V1_SEAL_SHA256 = "b09605c139eee55730e51625e556959a98570187814d859589afbfe01fe4c414"
+
+
+def assert_v1_benchmark_lock(directory):
+    from hashlib import sha256
+
+    seal = directory / "seal.json"
+    if sha256(seal.read_bytes()).hexdigest() != ORCHESTRATOR_V1_SEAL_SHA256:
+        raise ValueError("reasoning_benchmark_v1_external_lock_changed")
+
 
 def request(kind="simple", *, limits=HARD_LIMIT, effort="max", strategy="auto"):
     requirements = (Requirement(operation="add", left=1, right=2),)
@@ -160,6 +170,119 @@ def test_templates_execute_honestly_and_replay_metadata_only(kind, fixture, step
         with service.store.locked(service.scope_digest(), run_id) as row:
             assert row.spec is None and "checkpoints" not in row.record
             assert "CANARY" not in str(row.record)
+        checks = [attempt for attempt in progress.attempts if attempt.verification_receipt]
+        assert all(attempt.verification_receipt.verifier_id in {"arithmetic.v1", "typed_constraints.v1"} for attempt in checks)
+        assert all(attempt.verification_receipt.schema_version == "reasoning-verifier-receipt-v1" for attempt in checks)
+
+
+@pytest.mark.parametrize("boundary", ["before_predicate", "after_predicate"])
+def test_pure_verifier_crash_recovers_under_same_plan_and_budget(monkeypatch, boundary):
+    from personal_ai.workflow import service as workflow
+
+    calls = 0
+    original = workflow.run_check
+
+    def crash_once(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            if boundary == "after_predicate":
+                original(*args)
+            raise SystemExit("simulated_process_exit")
+        return original(*args)
+
+    monkeypatch.setattr(workflow, "run_check", crash_once)
+    with synthetic_service(Fixture(answer='{"values":[3]}')) as service:
+        run_id = service.submit(request())
+        with pytest.raises(SystemExit, match="simulated_process_exit"):
+            asyncio.run(service.execute(run_id))
+        with service.store.locked(service.scope_digest(), run_id) as row:
+            assert row.pending["state"] == "dispatched"
+            assert row.pending["resources"]["verifier_calls"] == 1
+            row.record["lease"] = 0
+        progress, result = asyncio.run(service.execute(run_id))
+        assert progress.reason == "sufficient" and result == ((0, 3),)
+        assert calls == 2
+        assert [attempt.resources.physical_attempts for attempt in progress.attempts if attempt.resources.reserved_input_bytes is not None] == [1]
+        verifiers = [attempt for attempt in progress.attempts if attempt.operation_binding.tool_id == "reasoning.verify.v1"]
+        assert [attempt.resources.verifier_calls for attempt in verifiers] == [1, 1]
+
+
+def test_verifier_receipt_is_redacted_and_legacy_progress_payload_still_decodes():
+    fixture = Fixture(answer='{"values":[4]}', revision='{"values":[3]}')
+    with synthetic_service(fixture) as service:
+        progress, _ = asyncio.run(service.execute(service.submit(request("correctable"))))
+        checks = [attempt.verification_receipt for attempt in progress.attempts if attempt.verification_receipt]
+        assert [(item.verifier_id, item.verdict, item.defect_count) for item in checks] == [
+            ("typed_constraints.v1", "fail", 1), ("typed_constraints.v1", "pass", 0),
+        ]
+        assert [item.sufficiency_decision for item in checks] == ["insufficient", "sufficient"]
+        serialized = progress.model_dump(mode="json")
+        assert "values" not in str(serialized) and "CANARY" not in str(serialized)
+        for attempt in serialized["attempts"]:
+            attempt.pop("verification_receipt", None)
+        legacy = type(progress).model_validate(serialized)
+        assert all(attempt.verification_receipt is None for attempt in legacy.attempts)
+
+
+def test_malformed_candidate_receipt_is_inconclusive_and_pure_tool_receipt_names_verifier():
+    with synthetic_service(Fixture(answer="not-json")) as service:
+        progress, result = asyncio.run(service.execute(service.submit(request())))
+    assert not result
+    receipt = next(attempt.verification_receipt for attempt in progress.attempts if attempt.verification_receipt)
+    assert (receipt.verifier_id, receipt.verdict, receipt.defect_count, receipt.sufficiency_decision) == (
+        "typed_constraints.v1", "inconclusive", None, "inconclusive",
+    )
+
+    with synthetic_service(Fixture(answer='{"values":[3]}')) as service:
+        progress, result = asyncio.run(service.execute(service.submit(request("arithmetic"))))
+    receipt = next(attempt.verification_receipt for attempt in progress.attempts if attempt.verification_receipt)
+    assert result == ((0, 3),) and receipt.verifier_id == "arithmetic.v1"
+
+
+def test_cancel_during_pure_verifier_settles_canceled_without_disclosure(monkeypatch):
+    from personal_ai.workflow import service as workflow
+
+    actual = workflow.run_check
+    with synthetic_service(Fixture(answer='{"values":[3]}')) as service:
+        run_id = service.submit(request())
+
+        def cancel_after_check(*args):
+            result = actual(*args)
+            service.cancel(run_id)
+            return result
+
+        monkeypatch.setattr(workflow, "run_check", cancel_after_check)
+        progress, result = asyncio.run(service.execute(run_id))
+    assert progress.reason == "cancelled" and progress.cancel_requested and not result
+    assert progress.attempts[-1].state == "failed"
+    assert progress.attempts[-1].resources.verifier_calls == 1
+
+
+def test_verifier_recovery_stops_when_only_conservative_budget_is_left(monkeypatch):
+    from personal_ai.workflow import service as workflow
+
+    actual = workflow.run_check
+    calls = 0
+
+    def crash_once(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            actual(*args)
+            raise SystemExit("simulated_process_exit")
+        return actual(*args)
+
+    monkeypatch.setattr(workflow, "run_check", crash_once)
+    with synthetic_service(Fixture(answer='{"values":[4]}', revision='{"values":[3]}')) as service:
+        run_id = service.submit(request("correctable"))
+        with pytest.raises(SystemExit):
+            asyncio.run(service.execute(run_id))
+        with service.store.locked(service.scope_digest(), run_id) as row:
+            row.record["lease"] = 0
+        progress, result = asyncio.run(service.execute(run_id))
+    assert progress.reason == "budget_exhausted" and not result
+    assert calls == 1
 
 
 def test_insufficient_synthesis_budget_uses_verified_direct_and_returns_only_supported_slots():
@@ -179,11 +302,58 @@ def test_with_no_reliable_predicate_request_is_unavailable():
 
 
 def test_paired_cohort_and_thresholds_are_sealed():
+    from personal_ai.evaluation.reasoning_orchestrator import runner
+
+    assert_v1_benchmark_lock(runner.FILES)
     manifest, cases = load()
     assert manifest["pairs"] == len(cases) == 60
     assert manifest["held_out"] == 28
     assert manifest["minimum_eligible_paired_gain"] == 1
     assert manifest["max_critical_violations"] == 0
+
+
+def test_synchronized_benchmark_and_local_seal_tampering_is_rejected(tmp_path):
+    import json
+    from hashlib import sha256
+
+    from personal_ai.evaluation.reasoning_orchestrator import runner
+
+    for name in ("cases.json", "manifest.json", "runner.py", "fixture.py", "seal.json"):
+        (tmp_path / name).write_bytes((runner.FILES / name).read_bytes())
+    cases_path = tmp_path / "cases.json"
+    cases = json.loads(cases_path.read_text())
+    cases[0]["oracle"][0] += 1
+    cases_path.write_text(json.dumps(cases, sort_keys=True, separators=(",", ":")))
+    seal_path = tmp_path / "seal.json"
+    seal = json.loads(seal_path.read_text())
+    seal["cases.json"] = sha256(cases_path.read_bytes()).hexdigest()
+    seal_path.write_text(json.dumps(seal, sort_keys=True, indent=2) + "\n")
+    with pytest.raises(ValueError, match="reasoning_benchmark_v1_external_lock_changed"):
+        assert_v1_benchmark_lock(tmp_path)
+
+
+def test_v1_benchmark_semantic_output_is_pinned():
+    from personal_ai.evaluation.reasoning_orchestrator.runner import evaluate
+
+    result = asyncio.run(evaluate())
+    assert result["semantic_sha256"] == "660e5130374a633d9ac5001293393d1950d5b99b6f694ec8e42840f7bcbc0db5"
+    assert result["vetoes"] == 0 and result["verdict"] == "OFFLINE_SIGNAL_ONLY"
+
+
+@pytest.mark.parametrize("verdict", ["pass", "inconclusive"])
+def test_degenerate_verifier_canary_is_not_promoted(monkeypatch, verdict):
+    from personal_ai.evaluation.reasoning_orchestrator.runner import evaluate
+    from personal_ai.reasoning.orchestration import Checkpoint
+    from personal_ai.workflow import service as workflow
+
+    def degenerate(step, plan, checkpoints):
+        values = checkpoints[step.dependencies[0]].values
+        return Checkpoint(step=step.name, verdict=verdict, values=values if verdict == "pass" else ())
+
+    monkeypatch.setattr(workflow, "run_check", degenerate)
+    result = asyncio.run(evaluate())
+    assert result["verdict"] == "NOT_PROMOTED"
+    assert result["vetoes"] > 0
 
 
 def test_forged_plan_and_response_with_duplicate_values_are_rejected():

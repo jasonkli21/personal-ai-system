@@ -50,15 +50,21 @@ The original request key and scoped request digest identify intent. The
 versioned compiled plan, step, operation, fixture and empty source set are
 pinned independently. An inference reservation also binds the installed
 endpoint, canonical continuation message ID, child key and child request
-digest. A pre-dispatch recovery reuses those child bindings. Cancellation
-after committed dispatch or loss of a terminal acknowledgement leaves
-`uncertain_effect` and an unknown physical-attempt count. Reported synthetic
+digest. A pre-dispatch recovery reuses those child bindings. Unknown dispatched
+inference remains `uncertain_effect` with an unknown physical-attempt count and
+is never resent. Dispatched registered pure checks consume verifier budget
+conservatively and may be recomputed after lease recovery only under the same
+plan and when the finite verifier envelope permits it. Cancellation during a
+pure check settles as canceled and suppresses output. Reported synthetic
 input and output bytes come from the matching terminal operation receipt.
 Count reservations and successful exact byte measurements are persisted
 separately. Provider reservation, settlement and cost stay null.
 
 Only typed synthetic operands and bounded numeric checkpoints are kept while
-the run is active. Checkpoints and the spec clear at terminal commit. Older
+the run is active. Checkpoints and the spec clear at terminal commit. Verifier
+attempt receipts retain a versioned verifier ID, objective verdict, bounded
+defect count and sufficiency decision. These are additive optional fields; old
+v1 progress payloads and rows without the extension still decode. Older
 database versions and backups may contain the synthetic typed data. Events and
 receipts contain no prompts, raw fixture outputs, results or source text.
 Verified answers are live-only. Replay returns redacted status and receipts

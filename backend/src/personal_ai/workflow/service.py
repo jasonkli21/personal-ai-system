@@ -200,8 +200,14 @@ class WorkflowService:
                         row.event("step_abandoned", pending["attempt_id"])
                     row.terminal("canceled")
                 elif row.reasoning:
-                    pending["state"] = "uncertain"
-                    row.terminal("uncertain", "uncertain_effect")
+                    if (pending.get("operation_binding") or {}).get("tool_id") == "reasoning.verify.v1":
+                        pending["resources"]["verifier_calls"] = 1
+                        pending["state"] = "failed"
+                        row.event("step_failed", pending["attempt_id"])
+                        row.terminal("canceled")
+                    else:
+                        pending["state"] = "uncertain"
+                        row.terminal("uncertain", "uncertain_effect")
             return row.progress(0)
 
     async def execute(self, run_id: UUID):
@@ -396,6 +402,7 @@ class WorkflowService:
                         plan.limits, pending[index:],
                         prior_counts=sum(item["count_calls"] for item in accounted),
                         prior_count_bytes=sum(item["reserved_count_input_bytes"] for item in accounted),
+                        prior_verifier_calls=sum(item["verifier_calls"] or 0 for item in accounted),
                     ):
                         raise Stop("budget_exhausted")
                     row.record["phase"] = (
@@ -469,6 +476,17 @@ class WorkflowService:
                     row.pending["resources"].update(
                         actual, elapsed_ms=int((monotonic() - step_started) * 1000),
                     )
+                    if not inference:
+                        row.pending["verification_receipt"] = {
+                            "schema_version": "reasoning-verifier-receipt-v1",
+                            "verifier_id": step.verifier,
+                            "verdict": checkpoint.verdict,
+                            "defect_count": len(checkpoint.defects) if checkpoint.verdict != "inconclusive" else None,
+                            "sufficiency_decision": {
+                                "pass": "sufficient", "fail": "insufficient",
+                                "inconclusive": "inconclusive",
+                            }[checkpoint.verdict],
+                        }
                     row.succeed(attempt_id)
                     if not done:
                         row.record["checkpoints"].append(checkpoint.model_dump(mode="json"))
@@ -503,13 +521,24 @@ class WorkflowService:
                 attempt = row.pending
                 if attempt is not None:
                     binding = attempt.get("operation_binding") or {}
+                    pure_verifier = row.reasoning and binding.get("tool_id") == "reasoning.verify.v1"
+                    authority_revoked = isinstance(error, Stop) and str(error) == "policy_denied"
                     known_read_only_result = (
                         operation_observed and binding.get("effect_class") == "read_only"
                     )
-                    if attempt["state"] == "dispatched" and not known_read_only_result:
+                    if attempt["state"] == "dispatched" and pure_verifier and authority_revoked:
+                        # The result cannot be checkpointed or disclosed under the
+                        # revoked scope. Preserve the conservative reconciliation
+                        # outcome used for authority loss at a committed boundary.
+                        attempt["state"] = "uncertain"
+                        row.terminal("uncertain", "uncertain_effect")
+                        return row.progress(0)
+                    if attempt["state"] == "dispatched" and not known_read_only_result and not pure_verifier:
                         attempt["state"] = "uncertain"
                         row.terminal("uncertain", "operator_reconciliation_required")
                         return row.progress(0)
+                    if pure_verifier:
+                        attempt["resources"]["verifier_calls"] = 1
                     attempt["state"] = "failed"
                     row.event("step_failed", attempt["attempt_id"])
                 if row.record["cancel_requested"]:

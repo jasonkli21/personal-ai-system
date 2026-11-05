@@ -154,13 +154,16 @@ def template(task: Task, strategy: Strategy, *, repair=False):
     return initial
 
 
-def fits(limits: Limits, steps: tuple[Step, ...], *, prior_counts=0, prior_count_bytes=0):
+def fits(
+    limits: Limits, steps: tuple[Step, ...], *, prior_counts=0, prior_count_bytes=0,
+    prior_verifier_calls=0,
+):
     models = sum(step.tool == "reasoning.inference.v1" for step in steps)
     return (
         limits.concurrency == 1
         and limits.deadline_ms >= sum(step.timeout_ms for step in steps)
         and limits.model_calls >= models
-        and limits.verifier_calls >= len(steps) - models
+        and limits.verifier_calls >= prior_verifier_calls + len(steps) - models
         and limits.input_bytes >= sum(step.input_bytes for step in steps)
         and limits.output_bytes >= sum(step.output_bytes for step in steps)
         and limits.result_bytes >= models * OUTPUT_BYTES

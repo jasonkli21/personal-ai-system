@@ -52,6 +52,14 @@ def _process(dsn, run_id, phase, sent, ready, go):
                 os._exit(23)
             return reserve(row, step, *args, **kwargs)
         WorkflowRow.reserve = stop
+    elif phase in {"before_check", "after_check"}:
+        check = workflow.run_check
+
+        def stop(*args):
+            if phase == "after_check":
+                check(*args)
+            os._exit(23)
+        workflow.run_check = stop
     elif phase in {"after_reserve", "after_ack"}:
         infer = ReasoningHost.infer
 
@@ -168,6 +176,25 @@ def test_independent_processes_send_once_and_keep_intent_collision(database, iso
         assert retained_spec is None and "checkpoints" not in record
 
 
+@pytest.mark.parametrize("phase", ["before_check", "after_check"])
+def test_native_verifier_crash_recomputes_only_with_remaining_budget(
+    database, isolated_postgres_dsn, tmp_path, monkeypatch, phase,
+):
+    path = tmp_path / "sends"
+    path.touch()
+    monkeypatch.setattr(FakeLLMClient, "stream_events", _witness(FakeLLMClient.stream_events, path))
+    with synthetic_service(FIXTURE, store=PostgresWorkflowStore(database)) as service:
+        run_id = service.submit(request())
+        processes(isolated_postgres_dsn, run_id, phase, path)
+        assert path.read_text().splitlines() == ["physical_send"]
+        expire_lease(database, run_id)
+        progress, result = asyncio.run(service.execute(run_id))
+        assert progress.reason == "sufficient" and result == ((0, 3),)
+        verifiers = [attempt for attempt in progress.attempts if attempt.operation_binding.tool_id == "reasoning.verify.v1"]
+        assert [attempt.resources.verifier_calls for attempt in verifiers] == [1, 1]
+        assert len(path.read_text().splitlines()) == 1
+
+
 @pytest.mark.parametrize("phase", ["queued", "reserved", "dispatched", "checking"])
 def test_cancellation_keeps_classification_and_prevents_follow_on_sends(database, monkeypatch, phase):
     actual = FakeLLMClient.stream_events
@@ -203,10 +230,10 @@ def test_cancellation_keeps_classification_and_prevents_follow_on_sends(database
         if phase == "queued":
             service.cancel(run_id)
         progress, result = asyncio.run(service.execute(run_id))
-        uncertain = phase in {"dispatched", "checking"}
+        uncertain = phase == "dispatched"
         assert progress.reason == ("uncertain_effect" if uncertain else "cancelled")
         assert progress.cancel_requested and not result
-        assert physical == int(uncertain)
+        assert physical == 1
         assert asyncio.run(service.execute(run_id)) == (progress, ())
 
 

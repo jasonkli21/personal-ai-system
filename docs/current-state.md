@@ -23,11 +23,13 @@ records the focused checks and remaining gates. The separate
 [finite reasoning workflow](reasoning-engine/re-2-implementation.md) is a
 default-off synthetic development candidate. Its four closed templates use
 the canonical PostgreSQL workflow lifecycle and canonical chat continuation.
-Its [verification report](reasoning-engine/re-2-verification.md) records the
-paired fixture results and native workflow fault tests. Independent review,
-installed and hosted inference, actual source permissions at physical send,
-deployment recovery and real-model utility remain open. Production remains
-NO_GO. See the
+Verifier recovery distinguishes deterministic local predicates from unknown
+inference sends, and terminal receipts retain redacted verifier decisions.
+The [review remediation report](reasoning-engine/re-2-review-remediation.md)
+records hermetic evidence and the native PostgreSQL blocker. Independent
+acceptance, installed and hosted inference, actual source permissions at
+physical send, deployment recovery and real-model utility remain open.
+Production remains NO_GO. See the
 [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
 and [RE-0 remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
 

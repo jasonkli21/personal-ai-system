@@ -6,6 +6,7 @@
 - [RE-1 independent-review remediation](2026-11-05-re-1-review-remediation.md)
 - [Finite reasoning workflow](re-2-implementation.md)
 - [Finite reasoning verification](re-2-verification.md)
+- [RE-2 independent-review remediation](re-2-review-remediation.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)
