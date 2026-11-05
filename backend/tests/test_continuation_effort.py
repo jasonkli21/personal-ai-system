@@ -25,7 +25,7 @@ from personal_ai.llm import synthetic_reasoning
 from personal_ai.llm.execution import compose_pair
 from personal_ai.llm.native_reasoning import resolve_native
 from personal_ai.main import app
-from personal_ai.reasoning.policy import Ceilings, ReasoningDenied, resolve_policy
+from personal_ai.reasoning.policy import Ceilings, ReasoningDenied, TurnObservation, resolve_policy
 from personal_ai.services import ChatTurnService
 from personal_ai.settings import get_settings
 from personal_ai.storage import (
@@ -44,7 +44,7 @@ BUDGET = {
     "max_concurrency": 1, "max_elapsed_seconds": 10,
 }
 KEY = UUID("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
-VERSION = {"X-Reasoning-Observation": "reasoning-observation-v1"}
+VERSION = {"X-Reasoning-Observation": "reasoning-observation-v2"}
 
 
 def body(*, effort="max", budget=None, **changes):
@@ -131,6 +131,18 @@ def test_omitted_work_dimension_means_zero(field):
     assert not pair.generator.delegate.requests
 
 
+def test_impossible_fake_message_budget_denies_before_consuming_key():
+    service, pair, messages, cid = setup(settings(reasoning_enabled=True))
+    tiny = body(budget={**BUDGET, "max_input_tokens": 1})
+    with pytest.raises(ReasoningDenied, match="budget_exhausted"):
+        service.continue_turn(cid, canonical(tiny))
+    assert messages.list_active(owner_id="local", conversation_id=cid) == []
+    assert not pair.generator.delegate.requests
+    with pytest.raises(ReasoningDenied, match="budget_exhausted"):
+        service.continue_turn(cid, canonical(tiny))
+    assert messages.list_active(owner_id="local", conversation_id=cid) == []
+
+
 def test_policy_intersects_trusted_ceilings_and_cost_is_zero():
     policy = resolve_policy(
         canonical(body(budget={**BUDGET, "max_provider_cost_usd": "9.99"})).reasoning,
@@ -155,22 +167,23 @@ def test_catalog_and_research_never_dispatch(changes):
 
 @pytest.mark.parametrize(("effort", "effective", "wire"), [
     ("auto", "low", "brief"), ("low", "low", "brief"), ("medium", "low", "brief"),
-    ("high", "high", "extended"), ("max", "high", "extended"),
+    ("high", "low", "brief"), ("max", "low", "brief"),
 ])
 def test_exact_final_fake_wire_and_content_free_observation(monkeypatch, effort, effective, wire):
     service, pair, _, cid = setup(settings(reasoning_enabled=True, reasoning_effort_ceiling="max"))
     request = canonical(body(effort=effort))
     captured = []
-    verify = synthetic_reasoning.verify_wire
+    consume = synthetic_reasoning.consume_wire
 
-    def capture(payload, *args):
-        verify(payload, *args)
-        captured.append(payload)
+    def capture(payload):
+        received = consume(payload)
+        captured.append(received)
+        return received
 
     def forbidden(*args, **kwargs):
         pytest.fail("optional sources or auxiliary generation were accessed")
 
-    monkeypatch.setattr(synthetic_reasoning, "verify_wire", capture)
+    monkeypatch.setattr(synthetic_reasoning, "consume_wire", capture)
     monkeypatch.setattr(service, "schedule_post_completion", forbidden)
     monkeypatch.setattr(ContextAssembler, "plan_context", forbidden)
     trace = Trace()
@@ -181,18 +194,20 @@ def test_exact_final_fake_wire_and_content_free_observation(monkeypatch, effort,
 
     events = asyncio.run(run())
     observation = events[-1].reasoning
-    assert captured == [
-        ('{"max_output_tokens":64,"messages":[["user",' + json.dumps(request.content)
-         + ']],"model":"offline_fake-v1","reasoning":"' + wire + '"}').encode(),
-    ]
+    assert captured == [{
+        "messages": [["user", request.content]], "model": "offline_fake-v1",
+        "reasoning": wire, "max_output_tokens": 64,
+    }]
     assert observation.effective_effort == effective
     assert observation.native_control == "applied"
     assert observation.capability_version == "fake-native-effort-v1"
     assert observation.provider_acknowledged is None
     assert observation.native_reasoning_observed == "unknown"
     assert observation.model_attempts == len(pair.generator.delegate.requests) == 1
-    assert observation.model_reservations == observation.model_settlements == 0
-    assert observation.count_attempts > 0
+    assert observation.model_reservations is None
+    assert observation.model_settlements is None
+    assert observation.count_attempts is None
+    assert observation.cost_class == "synthetic_no_charge"
     assert observation.usage_confidence == "estimated"
     assert "CANARY" not in observation.model_dump_json()
     rows, dropped = trace.snapshot()
@@ -203,6 +218,64 @@ def test_exact_final_fake_wire_and_content_free_observation(monkeypatch, effort,
     assert result["request"] == dispatch["request"]
     assert result["reasoning"] == observation.model_dump(mode="json")
     assert "CANARY" not in json.dumps(rows)
+
+
+def test_throwing_usage_observer_cannot_change_receipt_or_promote_zero_attempt(monkeypatch):
+    service, pair, _, cid = setup(settings(reasoning_enabled=True))
+
+    def fail_observation(*args, **kwargs):
+        raise RuntimeError("observer unavailable")
+
+    monkeypatch.setattr(TurnObservation, "record", fail_observation)
+
+    async def run():
+        return [event async for event in service.continue_turn(cid, canonical())]
+
+    terminal = asyncio.run(run())[-1]
+    assert terminal.reasoning.status == "complete"
+    assert terminal.reasoning.model_attempts == 1
+    assert terminal.reasoning.model_reservations is None
+    assert len(pair.generator.delegate.requests) == 1
+
+
+def test_missing_generation_receipt_cannot_complete_observation():
+    policy = resolve_policy(
+        canonical().reasoning, enabled=True,
+        ceilings=Ceilings("low", "low", "low", "low", "low"),
+        input_limit=4096, output_limit=64, elapsed_limit=10, count_reservation=0,
+    )
+    from time import monotonic
+
+    observation = TurnObservation(policy, monotonic(), "receipt-probe")
+    result = observation.result(complete=True)
+    assert result.status == "unavailable"
+    assert result.stop_reason == "uncertain_effect"
+    assert result.model_attempts is None
+
+
+def test_missing_or_forged_receipt_does_not_complete_durable_turn(monkeypatch):
+    service, pair, messages, cid = setup(settings(reasoning_enabled=True))
+    original = pair.generator.stream_events
+
+    async def missing_receipt(*args, **kwargs):
+        async for event in original(*args, **kwargs):
+            if event.kind == "terminal":
+                event = replace(event, metadata=replace(
+                    event.metadata, invocation_id=None, attempt_ids=(),
+                ))
+            yield event
+
+    monkeypatch.setattr(pair.generator, "stream_events", missing_receipt)
+
+    async def run():
+        return [event async for event in service.continue_turn(cid, canonical())]
+
+    terminal = asyncio.run(run())[-1]
+    assert terminal.reasoning.status == "partial"
+    assert terminal.reasoning.stop_reason == "uncertain_effect"
+    assert terminal.reasoning.model_attempts is None
+    active = messages.list_active(owner_id="local", conversation_id=cid)
+    assert active[-1].status.value == "failed"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -250,7 +323,7 @@ def test_transformed_native_wire_fails_closed(monkeypatch, wire_value):
         return [event async for event in service.continue_turn(cid, canonical())]
 
     terminal = asyncio.run(run())[-1]
-    assert terminal.reasoning.model_attempts == 0
+    assert terminal.reasoning.model_attempts is None
     assert terminal.reasoning.effective_effort is None
     assert terminal.reasoning.native_control == "not_applied"
     assert not pair.generator.delegate.requests
@@ -271,8 +344,8 @@ def test_plain_fallback_and_replay_original_key():
     first, replay = asyncio.run(run())
     assert first.reasoning.effective_effort == "low"
     assert first.reasoning.native_control == "not_applied"
-    assert "capability" in first.reasoning.narrowing_reasons
-    assert replay.reasoning.replayed and replay.reasoning.model_attempts == 0
+    assert "policy" in first.reasoning.narrowing_reasons
+    assert replay.reasoning.replayed and replay.reasoning.model_attempts is None
     assert replay.reasoning.policy_version == first.reasoning.policy_version
     assert replay.message == first.message
     for payload in (body(effort="low"), body(budget={**BUDGET, "max_output_tokens": 65})):
@@ -324,7 +397,7 @@ def test_http_negotiation_and_gate_precede_service_composition(monkeypatch):
 
 
 def test_negotiated_http_terminal_and_legacy_wire(monkeypatch):
-    config = settings(reasoning_enabled=True)
+    config = settings(reasoning_enabled=True, reasoning_effort_ceiling="max")
     service, pair, _, cid = setup(config)
     monkeypatch.setitem(app.dependency_overrides, get_settings, lambda: config)
     monkeypatch.setitem(app.dependency_overrides, get_chat_turn_service, lambda: service)
@@ -335,6 +408,7 @@ def test_negotiated_http_terminal_and_legacy_wire(monkeypatch):
     assert response.headers["X-Reasoning-Observation"] == VERSION["X-Reasoning-Observation"]
     terminal = json.loads(response.text.split("event: response.completed\ndata: ")[-1])
     assert terminal["reasoning"]["effective_effort"] == "low"
+    assert "policy" in terminal["reasoning"]["narrowing_reasons"]
     assert "CANARY" not in json.dumps(terminal["reasoning"])
     ordinary = {"content": "ordinary", "idempotency_key": str(uuid4())}
     response = client.post(path, json=ordinary, headers=VERSION)
@@ -386,13 +460,16 @@ def test_local_canonical_physical_admission(local_runtime, monkeypatch, fault): 
 
     observation = asyncio.run(run())[-1].reasoning
     sent = [call for call in calls if call.url.path == "/completion"]
-    assert len(sent) == observation.model_attempts == int(fault in {"none", "lost_ack", "timeout"})
+    expected_attempts = 1 if fault == "none" else None
+    assert len(sent) == int(fault in {"none", "lost_ack", "timeout"})
+    assert observation.model_attempts == expected_attempts
     assert observation.native_control == "not_applied"
     assert "CANARY" not in observation.model_dump_json()
     if fault == "none":
         assert observation.status == "complete"
         assert observation.effective_effort == "low"
-        assert observation.model_reservations == observation.model_settlements == 1
+        assert observation.model_reservations is None
+        assert observation.model_settlements is None
         assert "reasoning" not in json.loads(sent[0].content)
     else:
         assert observation.status == "unavailable"
@@ -450,7 +527,7 @@ def test_gate_revoked_after_creation_before_dispatch():
 
     observation = asyncio.run(run()).reasoning
     assert observation.stop_reason == "policy_denied"
-    assert observation.model_attempts == 0
+    assert observation.model_attempts is None
     assert not pair.generator.delegate.requests
 
 

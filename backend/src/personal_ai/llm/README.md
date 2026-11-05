@@ -96,7 +96,10 @@ and the synthetic evaluation command. The default inference profile remains
 ## Automatic continuation effort
 
 The [effort contract](../../../../docs/reasoning-engine/continuation-effort.md)
-uses the installed generation and counter pair. The synthetic adapter verifies
-its final wire bytes against an exact immutable profile proof. The local
-adapter uses its existing bounded plain-completion protocol and accounting.
-Hosted profiles have no eligible effort mapping or bounded opt-in fallback.
+uses the installed generation and counter pair. Until trusted scope-specific
+effort grants are installed, the selected runtime caps application, workspace
+and user ceilings at `low`. The synthetic adapter parses the serialized bytes
+at its E1 receiving boundary against an exact immutable profile proof. The
+local adapter uses its existing bounded plain-completion protocol and
+accounting. Hosted profiles have no eligible effort mapping or bounded opt-in
+fallback.

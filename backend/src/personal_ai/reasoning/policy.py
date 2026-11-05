@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field
 
@@ -12,7 +13,7 @@ Effort = Literal["low", "medium", "high", "max"]
 RequestedEffort = Literal["auto", "low", "medium", "high", "max"]
 EFFORTS: tuple[Effort, ...] = ("low", "medium", "high", "max")
 POLICY_VERSION = "reasoning-direct-policy-v1"
-OBSERVATION_VERSION = "reasoning-observation-v1"
+OBSERVATION_VERSION = "reasoning-observation-v2"
 
 Narrowing = Literal["policy", "budget", "capability", "source", "quota", "unavailable"]
 Stop = Literal[
@@ -22,7 +23,7 @@ Stop = Literal[
 
 
 class Observation(Closed):
-    schema_version: Literal["reasoning-observation-v1"] = OBSERVATION_VERSION
+    schema_version: Literal["reasoning-observation-v2"] = OBSERVATION_VERSION
     policy_version: Literal["reasoning-direct-policy-v1"] = POLICY_VERSION
     catalog_version: Literal["reasoning-catalog-v1"] = CATALOG_VERSION
     strategy: Literal["direct"] = "direct"
@@ -36,12 +37,12 @@ class Observation(Closed):
     status: Literal["complete", "partial", "unavailable"]
     stop_reason: Stop
     replayed: bool = False
-    model_attempts: int = Field(default=0, ge=0, le=1)
-    model_reservations: int = Field(default=0, ge=0, le=1)
-    model_settlements: int = Field(default=0, ge=0, le=1)
-    count_attempts: int = Field(default=0, ge=0)
-    count_reservations: int = Field(default=0, ge=0)
-    count_settlements: int = Field(default=0, ge=0)
+    model_attempts: int | None = Field(default=None, ge=0, le=1)
+    model_reservations: int | None = Field(default=None, ge=0, le=1)
+    model_settlements: int | None = Field(default=None, ge=0, le=1)
+    count_attempts: int | None = Field(default=None, ge=0)
+    count_reservations: int | None = Field(default=None, ge=0)
+    count_settlements: int | None = Field(default=None, ge=0)
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     usage_confidence: Literal["estimated", "observed", "unknown"] = "unknown"
@@ -64,6 +65,8 @@ def deny(
     raise ReasoningDenied(Observation(
         requested_effort=request.effort, status="unavailable", stop_reason=stop,
         narrowing_reasons=(reason,), native_control="unsupported" if unsupported else "not_applied",
+        model_attempts=0, model_reservations=0, model_settlements=0,
+        count_attempts=0, count_reservations=0, count_settlements=0,
     ))
 
 
@@ -82,6 +85,19 @@ class DirectPolicy:
     ceiling: Effort
     budget: Budget
     reasons: tuple[Narrowing, ...]
+
+
+def has_generation_receipt(generation_metadata) -> bool:
+    if generation_metadata is None:
+        return False
+    try:
+        UUID(generation_metadata.invocation_id)
+        if len(generation_metadata.attempt_ids) != 1:
+            return False
+        UUID(generation_metadata.attempt_ids[0])
+        return True
+    except (TypeError, ValueError, AttributeError):
+        return False
 
 
 def resolve_policy(
@@ -125,7 +141,7 @@ def resolve_policy(
 
 
 class TurnObservation:
-    """Request-local projection of canonical usage events, with no ledger authority."""
+    """Request-local policy plus diagnostics; generation receipts establish attempts."""
 
     def __init__(self, policy: DirectPolicy, started: float, request_id: str):
         self.policy = policy
@@ -135,74 +151,68 @@ class TurnObservation:
         self.capability = None
         self.native_applied = False
         self.events: dict[tuple, int] = {}
-        self.admission_reason: Narrowing | None = None
-        self.cost_class: Literal["synthetic_no_charge", "local_no_provider_charge", "unknown"] = "unknown"
-        self.reserved_input = None
-        self.reserved_output = None
 
     def record(self, event, state, facts):
         operation = facts.get("operation")
         if operation not in {"streaming", "token_counting"}:
             return
-        if facts.get("reason") == "quota":
-            self.admission_reason = "quota"
-        elif facts.get("reason") in {"endpoint_policy", "endpoint_identity", "accounting"}:
-            self.admission_reason = "unavailable"
-        if operation == "streaming" and event == "reserve" and state == "ok":
-            self.reserved_input = facts.get("input_tokens")
-            self.reserved_output = facts.get("output_tokens")
-        if operation == "streaming" and event == "dispatch" and state == "ok":
-            if facts.get("cost") == "local_no_provider_charge":
-                self.cost_class = "local_no_provider_charge"
-            elif facts.get("units") == "fake_bytes":
-                self.cost_class = "synthetic_no_charge"
         key = (operation, event, state)
         self.events[key] = self.events.get(key, 0) + 1
 
     def count(self, operation, event, state="ok"):
         return self.events.get((operation, event, state), 0)
 
-    def result(self, *, complete=False, partial=False, stop: Stop | None = None, usage=None):
+    def result(
+        self, *, complete=False, partial=False, stop: Stop | None = None, usage=None,
+        generation_metadata=None,
+    ):
         from time import monotonic
 
-        attempted = self.count("streaming", "dispatch")
+        receipt_known = has_generation_receipt(generation_metadata)
+        attempted = len(generation_metadata.attempt_ids) if receipt_known else None
+        complete = bool(
+            complete and receipt_known and attempted == 1
+            and generation_metadata.status == "success"
+        )
         reasons = self.policy.reasons
         if self.effective != self.policy.ceiling or (not self.capability and self.policy.ceiling != "low"):
             reasons += ("capability",)
-        if self.admission_reason is not None:
-            reasons += (self.admission_reason,)
         if stop is None:
             if complete:
                 stop = "sufficient"
-            elif attempted and not usage:
+            elif attempted is None:
                 stop = "uncertain_effect"
             else:
                 stop = "provider_unavailable"
+        if not complete and attempted is None and stop == "sufficient":
+            stop = "uncertain_effect"
+        native_applied = self.native_applied and attempted == 1
         return Observation(
             requested_effort=self.policy.requested,
-            effective_effort=self.effective if attempted else None,
+            effective_effort=self.effective if attempted == 1 else None,
             narrowing_reasons=reasons,
-            native_control="applied" if self.native_applied else "not_applied",
-            capability_version=self.capability if self.native_applied else None,
+            native_control="applied" if native_applied else "not_applied",
+            capability_version=self.capability if native_applied else None,
             status="complete" if complete else "partial" if partial else "unavailable",
             stop_reason=stop, model_attempts=attempted,
-            model_reservations=self.count("streaming", "reserve"),
-            model_settlements=self.count("streaming", "settle"),
-            count_attempts=self.count("token_counting", "dispatch"),
-            count_reservations=self.count("token_counting", "reserve"),
-            count_settlements=self.count("token_counting", "settle"),
+            model_reservations=None,
+            model_settlements=None,
+            count_attempts=None,
+            count_reservations=None,
+            count_settlements=None,
             input_tokens=usage.input_tokens if usage else None,
             output_tokens=usage.output_tokens if usage else None,
             usage_confidence=(
                 "observed" if usage and usage.confidence == "reported" else
                 "estimated" if usage and usage.confidence == "estimated" else "unknown"
             ),
-            reserved_input_tokens=self.reserved_input,
-            reserved_output_tokens=self.reserved_output,
-            cost_class=self.cost_class,
-            quota_state=(
-                "denied" if self.admission_reason == "quota" else
-                "admitted" if self.count("streaming", "reserve") else "unknown"
+            reserved_input_tokens=None,
+            reserved_output_tokens=None,
+            cost_class=(
+                "synthetic_no_charge"
+                if receipt_known and generation_metadata.identity.provider_id == "offline_fake"
+                else "unknown"
             ),
+            quota_state="unknown",
             elapsed_ms=int((monotonic() - self.started) * 1000),
         )

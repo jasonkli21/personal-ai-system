@@ -57,6 +57,31 @@ def serialize(messages, model, value, output_tokens):
     }, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def consume_wire(wire):
+    """Parse the exact bytes received by the E1 fake transport boundary."""
+    try:
+        body = json.loads(wire)
+        if (
+            type(body) is not dict
+            or set(body) != {"messages", "model", "reasoning", "max_output_tokens"}
+            or type(body["messages"]) is not list
+            or any(
+                type(message) is not list or len(message) != 2
+                or not all(isinstance(value, str) for value in message)
+                for message in body["messages"]
+            )
+            or type(body["model"]) is not str
+            or type(body["reasoning"]) is not str
+            or type(body["max_output_tokens"]) is not int
+            or json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+            != wire
+        ):
+            raise ValueError("wire_shape_invalid")
+        return body
+    except (ValueError, TypeError, UnicodeError):
+        raise LLMInvalidRequestError("synthetic native effort wire mismatch") from None
+
+
 def verify_wire(wire, messages, model, value, output_tokens):
     """Verify the final payload at the synthetic transport boundary."""
     try:

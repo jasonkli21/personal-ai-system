@@ -15,12 +15,16 @@ checks and replay identity. Independent exact-commit acceptance remains open.
 [Automatic continuation effort](reasoning-engine/continuation-effort.md) is
 a default-off development candidate with fixed direct policy, a synthetic
 native-wire fixture, and a plain private-local lane through existing
-admission. The [effort verification receipt](reasoning-engine/2026-11-04-effort-verification.md)
-records the local checks and open gates. Dynamic strategy selection, multi-step execution and promotion
-are future work. Real native mappings, native fencing, local model utility
-and installed/hosted/cloud acceptance remain unverified. Production remains
-NO_GO. See the [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
-and [remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
+admission. Attempt counts require a generation receipt; missing receipt,
+reservation, settlement and count facts remain unknown. Runtime effort is
+fail-closed to `low` for app, workspace and user ceilings until trusted grants
+are installed. The [RE-1 independent-review remediation](reasoning-engine/2026-11-05-re-1-review-remediation.md)
+records the focused checks and remaining gates. Dynamic strategy selection,
+multi-step execution and promotion are future work. Real native mappings,
+native fencing, local model utility and installed/hosted/cloud acceptance
+remain unverified. Production remains NO_GO. See the
+[verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
+and [RE-0 remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
 
 ## Synthetic memory governance
 

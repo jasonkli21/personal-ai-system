@@ -1509,22 +1509,43 @@
             "type": "string"
           },
           "count_attempts": {
-            "default": 0,
-            "minimum": 0,
-            "title": "Count Attempts",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count Attempts"
           },
           "count_reservations": {
-            "default": 0,
-            "minimum": 0,
-            "title": "Count Reservations",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count Reservations"
           },
           "count_settlements": {
-            "default": 0,
-            "minimum": 0,
-            "title": "Count Settlements",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count Settlements"
           },
           "effective_effort": {
             "anyOf": [
@@ -1571,25 +1592,46 @@
             "title": "Input Tokens"
           },
           "model_attempts": {
-            "default": 0,
-            "maximum": 1,
-            "minimum": 0,
-            "title": "Model Attempts",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Attempts"
           },
           "model_reservations": {
-            "default": 0,
-            "maximum": 1,
-            "minimum": 0,
-            "title": "Model Reservations",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Reservations"
           },
           "model_settlements": {
-            "default": 0,
-            "maximum": 1,
-            "minimum": 0,
-            "title": "Model Settlements",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Settlements"
           },
           "narrowing_reasons": {
             "default": [],
@@ -1708,8 +1750,8 @@
             "title": "Reserved Output Tokens"
           },
           "schema_version": {
-            "const": "reasoning-observation-v1",
-            "default": "reasoning-observation-v1",
+            "const": "reasoning-observation-v2",
+            "default": "reasoning-observation-v2",
             "title": "Schema Version",
             "type": "string"
           },
@@ -3804,7 +3846,7 @@
             "response.error"
           ],
           "terminalField": "reasoning",
-          "version": "reasoning-observation-v1"
+          "version": "reasoning-observation-v2"
         }
       }
     },

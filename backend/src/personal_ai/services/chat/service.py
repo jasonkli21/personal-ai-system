@@ -49,7 +49,13 @@ from personal_ai.llm.client import GenerationEvent, GenerationMetadata, Generati
 from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.errors import LLMIncompleteGenerationError
 from personal_ai.llm.preparation import require_matching_endpoint
-from personal_ai.reasoning.policy import Observation, ReasoningDenied, TurnObservation, deny
+from personal_ai.reasoning.policy import (
+    Observation,
+    ReasoningDenied,
+    TurnObservation,
+    deny,
+    has_generation_receipt,
+)
 from personal_ai.services.chat.events import (
     TurnCompleted,
     TurnDelta,
@@ -81,7 +87,11 @@ from personal_ai.usage.trace import Event, Reason, State, emit, observe_usage
 logger = logging.getLogger(__name__)
 
 
-def _reasoning_result(observation: TurnObservation, **facts) -> Observation:
+def _reasoning_result(
+    observation: TurnObservation, *, generation_metadata: GenerationMetadata | None = None, **facts,
+) -> Observation:
+    if generation_metadata is not None:
+        facts["generation_metadata"] = generation_metadata
     result = observation.result(**facts)
     with bind_usage_task("chat_generation", request_id=observation.request_id):
         emit(
@@ -673,7 +683,17 @@ class ChatTurnService:
             deadline = reasoning.started + budget.max_elapsed_seconds
             context.input_budget()
             remaining(deadline)
-            authorize_base_disclosure(self._application_context)
+            sensitivity = authorize_base_disclosure(self._application_context)
+            counter = context.counter
+            identity = getattr(counter, "identity", None)
+            if identity is not None and identity.provider_id == "offline_fake":
+                # This counter is local and deterministic. Reject an impossible
+                # current-message budget before the durable idempotency key is used.
+                current_message = (ChatMessage(MessageRole.USER, user.content),)
+                inference_context = make_inference_context(self._application_context, sensitivity)
+                count = counter.count(current_message, inference_context=inference_context)
+                if count.tokens > budget.max_input_tokens:
+                    raise ContextError("context_message_too_large")
         appended_users = self._messages.prepare_message_turn(
             owner_id=self._owner_id,
             conversation_id=user.conversation_id,
@@ -1124,6 +1144,8 @@ class ChatTurnService:
                 raise LLMIncompleteGenerationError("language model ended without a terminal result")
             if not content.strip():
                 raise LLMInvalidResponseError("language model response was empty")
+            if reasoning is not None and not has_generation_receipt(generation_metadata):
+                raise LLMIncompleteGenerationError("generation receipt was incomplete")
             await io_call(require_current_client_authority)
             if not source_snapshots_current(
                 turn.source_snapshots,
@@ -1197,13 +1219,18 @@ class ChatTurnService:
             await self._require_output_authority(turn.source_snapshots)
             yield TurnCompleted(
                 message=completed,
-                reasoning=_reasoning_result(reasoning, complete=True, usage=usage) if reasoning else None,
+                reasoning=_reasoning_result(
+                    reasoning, complete=True, usage=usage, generation_metadata=generation_metadata,
+                ) if reasoning else None,
             )
         except asyncio.CancelledError:
             if not terminal:
                 await self._fail(turn.assistant, "client_cancelled", "" if turn.source_snapshots else "".join(parts))
             if reasoning:
-                _reasoning_result(reasoning, stop="cancelled", partial=bool(parts))
+                _reasoning_result(
+                    reasoning, stop="cancelled", partial=bool(parts),
+                    generation_metadata=generation_metadata,
+                )
             logger.info(
                 "Chat stream cancelled request_id=%s error_class=CancelledError", turn.request_id
             )
@@ -1213,7 +1240,10 @@ class ChatTurnService:
                 await self._fail(turn.assistant, "client_cancelled", "" if turn.source_snapshots else "".join(parts))
                 logger.info("Chat stream closed request_id=%s", turn.request_id)
             if reasoning and not terminal:
-                _reasoning_result(reasoning, stop="cancelled", partial=bool(parts))
+                _reasoning_result(
+                    reasoning, stop="cancelled", partial=bool(parts),
+                    generation_metadata=generation_metadata,
+                )
             raise
         except ContextPreparationError as error:
             event = await self._error_event(turn.assistant, error.code, "")
@@ -1235,7 +1265,10 @@ class ChatTurnService:
                     and usage.output_tokens == reasoning.policy.budget.max_output_tokens
                 ):
                     stop = "budget_exhausted"
-                observation = _reasoning_result(reasoning, partial=bool(parts), stop=stop, usage=usage)
+                observation = _reasoning_result(
+                    reasoning, partial=bool(parts), stop=stop, usage=usage,
+                    generation_metadata=generation_metadata,
+                )
                 event = replace(event, reasoning=observation)
             yield event
         except Exception:  # noqa: BLE001
@@ -1244,7 +1277,9 @@ class ChatTurnService:
             )
             event = await self._error_event(turn.assistant, "llm_unavailable", "" if turn.source_snapshots else "".join(parts))
             terminal = True
-            yield replace(event, reasoning=_reasoning_result(reasoning, stop="internal_failure")) if reasoning else event
+            yield replace(event, reasoning=_reasoning_result(
+                reasoning, stop="internal_failure", generation_metadata=generation_metadata,
+            )) if reasoning else event
 
     async def _error_event(self, assistant: Message, code: str, content: str) -> TurnFailed:
         failed = await self._fail(assistant, code, content)

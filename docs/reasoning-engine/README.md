@@ -3,6 +3,7 @@
 - [Architecture and owners](architecture.md)
 - [Automatic continuation effort](continuation-effort.md)
 - [Continuation effort verification](2026-11-04-effort-verification.md)
+- [RE-1 independent-review remediation](2026-11-05-re-1-review-remediation.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)

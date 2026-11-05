@@ -13,12 +13,14 @@ from datetime import UTC, datetime
 from functools import partial
 from hashlib import sha256
 from time import monotonic
+from uuid import uuid4
 
 import anyio
 
 from personal_ai.llm import synthetic_reasoning
 from personal_ai.llm.client import (
     BoundedTextStream,
+    ChatMessage,
     ProviderCapabilities,
     ProviderIdentity,
     TokenCount,
@@ -82,6 +84,7 @@ class LocalFakeGeneration(FakeLLMClient):
         mapping = synthetic_reasoning.native_setting(
             self.endpoint_profile, self.identity, observation.policy.ceiling, max_output_tokens,
         )
+        wire_messages = messages
         if mapping:
             version, setting = mapping
             wire = synthetic_reasoning.serialize(
@@ -89,6 +92,7 @@ class LocalFakeGeneration(FakeLLMClient):
             )
             if len(wire) > observation.policy.budget.max_input_tokens:
                 raise LLMInvalidRequestError("synthetic reasoning input exceeds budget")
+            received = synthetic_reasoning.consume_wire(wire)
             synthetic_reasoning.verify_wire(
                 wire, messages, self.identity.model_id, setting.wire_value, max_output_tokens,
             )
@@ -96,12 +100,22 @@ class LocalFakeGeneration(FakeLLMClient):
             observation.effective = setting.effort
             observation.capability = version
             observation.native_applied = True
+            wire_messages = tuple(
+                ChatMessage(role, content) for role, content in received["messages"]
+            )
         emit(Event.DISPATCH, State.OK, operation="streaming", units="fake_bytes")
         async with aclosing(super().stream_events(
-            messages, max_output_tokens=max_output_tokens,
+            wire_messages,
+            max_output_tokens=max_output_tokens,
             timeout_seconds=timeout_seconds, inference_context=inference_context,
         )) as events:
             async for event in events:
+                if event.kind == "terminal":
+                    event = replace(event, metadata=replace(
+                        event.metadata,
+                        invocation_id=str(uuid4()),
+                        attempt_ids=(str(uuid4()),),
+                    ))
                 yield event
 
 
@@ -335,12 +349,11 @@ class SelectedGeneration:
             or profile.quota_membership != "verified"
         ):
             deny(request, "unsupported", "capability", unsupported=True)
-        # The existing scope and disclosure policy authorizes the direct turn.
-        # This lane adds no per-scope grant or authority. The installed local
-        # adapter only permits plain low, even with a higher operator ceiling.
+        # Scope-specific effort grants are not installed. Keep the live path at
+        # low until trusted app, workspace and user ceilings can be resolved.
         return resolve_policy(
             request, enabled=True,
-            ceilings=Ceilings(self.settings.reasoning_effort_ceiling, "max", "max", "max",
+            ceilings=Ceilings(self.settings.reasoning_effort_ceiling, "low", "low", "low",
                               "low" if profile else "high"),
             input_limit=min(self.settings.max_context_tokens, profile.context_limit_tokens)
                 if profile else self.settings.max_context_tokens,
