@@ -333,3 +333,10 @@ memory-research-eval:
 memory-research-replay:
 	test -n "$(MEMORY_RESEARCH_PACKAGE)"
 	cd backend && python -m personal_ai.evaluation.memory_longitudinal --verify "$(MEMORY_RESEARCH_PACKAGE)"
+
+.PHONY: memory-governance-check memory-governance-eval
+memory-governance-check:
+	cd backend && python -m pytest -q tests/test_memory_governance.py
+
+memory-governance-eval:
+	cd backend && python -m personal_ai.evaluation.memory_governance $(GOVERNANCE_FLAGS)

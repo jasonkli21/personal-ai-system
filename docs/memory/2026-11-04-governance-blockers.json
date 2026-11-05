@@ -1,0 +1,93 @@
+{
+  "schema_version": "memory-governance-blockers-v1",
+  "boundary": "IMPLEMENTED_E1_GOVERNANCE",
+  "phase_exit": "BLOCKED",
+  "production": "NO_GO",
+  "e1_deferred_work": [],
+  "design_narrowing": {
+    "native_adapter": "Protocol and synthetic transaction adapter only; untested live tables would duplicate lifecycle/restore authority without native proof.",
+    "owner_surface": "Private inert helper only; existing portability owner routes remain unchanged."
+  },
+  "blockers": [
+    {
+      "id": "native-transactions",
+      "tier": "E2",
+      "owner": "persistence maintainer and infrastructure operator",
+      "status": "BLOCKED",
+      "reason": "No approved disposable native DSN; no durable grant adapter installed.",
+      "reentry_test": "Implement a reviewed owner-fenced adapter, then run real concurrent-process CAS, original-key/lost-ACK, owner deletion and crash recovery on approved disposable Postgres/pgvector; exercise actual Dynamo separately."
+    },
+    {
+      "id": "registered-identity-source",
+      "tier": "E3",
+      "owner": "application/source host maintainers",
+      "status": "BLOCKED",
+      "reason": "Only exact object-registered synthetic principals exist.",
+      "reentry_test": "Independently verify Google/service principal, exact project and workspace membership, source currentness, recipient registry and monotonic lease at each supported boundary."
+    },
+    {
+      "id": "physical-send",
+      "tier": "E3/E4",
+      "owner": "transport and source authority owners",
+      "status": "BLOCKED",
+      "reason": "External delivery is unconditionally denied; no send permit or dispatcher exists.",
+      "reentry_test": "Exercise revoke racing with actual physical send under an approved atomic permit or recoverable protocol; reconcile uncertain sends with original identity and cost admission."
+    },
+    {
+      "id": "deployed-delete-restore",
+      "tier": "E4",
+      "owner": "owner lifecycle and persistence operators",
+      "status": "BLOCKED",
+      "reason": "Separately surviving authority is simulated; no measured backup, replica or purge proof.",
+      "reentry_test": "Restore mixed-age canonical/Postgres/Dynamo/index/job snapshots after forget; require independent surviving owner/source/grant epochs, blocked reads until reconciliation and typed physical purge receipts for the actual topology."
+    },
+    {
+      "id": "native-operating-economics",
+      "tier": "E2/E4",
+      "owner": "infrastructure and telemetry maintainers",
+      "status": "BLOCKED",
+      "reason": "E1 runtime and representation-size estimates only.",
+      "reentry_test": "Preregister and measure native concurrency/storage/fence/key/maintenance envelopes, tail latency, retries, egress and real cost; verify safety reserves under exhaustion without eviction."
+    },
+    {
+      "id": "independent-task-value",
+      "tier": "E5",
+      "owner": "independent evaluation reviewer and owner",
+      "status": "BLOCKED",
+      "reason": "Author-visible grant correctness is not model utility; corrected prior comparison is 0 pp over 25 pairs.",
+      "reentry_test": "Separately register blinded matched real-model multi-agent/project tasks, source and scorer custody, actual downstream outcomes, tokens and cost at equal budgets."
+    },
+    {
+      "id": "episode-and-derived-integration",
+      "tier": "E3/E5",
+      "owner": "memory capability maintainers",
+      "status": "BLOCKED",
+      "reason": "Episodes hard-disabled; consolidation pending-only; navigation default-off; portability explicit-profile-only.",
+      "reentry_test": "Independently accept trusted episode producer, canonical lifecycle/rights, real semantic/reader utility and separately authorized export/import/erasure paths before integration."
+    },
+    {
+      "id": "planning-source-identity",
+      "tier": "inherited",
+      "owner": "planning evidence owner",
+      "status": "BLOCKED",
+      "reason": "Frozen planning identity remains failed; no lock or threshold changed.",
+      "reentry_test": "Independently review an additive planning generation; make planning-eval must close planning_baseline_changed_requires_new_version without rebinding old sources."
+    },
+    {
+      "id": "compatibility-source-identity",
+      "tier": "inherited",
+      "owner": "PI-6 independent acceptance owner",
+      "status": "BLOCKED",
+      "reason": "Frozen core-runtime identity remains failed.",
+      "reentry_test": "Independently review additive compatibility evidence, then rerun PI-6/SDK checks; preserve frozen_protocol_mismatch history and unmodified baseline bytes."
+    },
+    {
+      "id": "release-and-independent-review",
+      "tier": "E3/E4/E5",
+      "owner": "owner and independent release reviewer",
+      "status": "BLOCKED",
+      "reason": "All profiles NO_GO; implementation is author evidence only.",
+      "reentry_test": "Review the exact candidate, reproduce E1, close applicable Phase 36, PI and HXE-5 gates, then obtain a separate owner release decision and accepted canary/rollback evidence."
+    }
+  ]
+}

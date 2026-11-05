@@ -78,3 +78,21 @@ adapter. Canonical profile data, revocations, forget receipts and tombstones
 must be retained. Leave features disabled after a restore until current
 owner-deletion and revocation authority has been reconciled. Deployed release
 ordering and physical erasure require separate verification.
+
+
+## Memory grant and retention previews
+
+The internal synthetic governance package provides a host-private preview helper
+with the exact registered recipient agent, app/workspace/project, purpose and
+expiry, plus a warning that external copies cannot be recalled. It has no owner
+API or UI registration and grants no new browser capability. Knowledge/episode
+export and import commit remain unavailable. Imported files cannot supply owner,
+consent, agent registration or release authority.
+
+Its typed retention inventory covers canonical records, source edges, indexes,
+memories, summaries, caches, pending proposals, episodes, research artifacts,
+jobs, backups and external copies. E1 logical suppression fences future managed
+reads; it is not physical erasure. Episode/research entries are inventory only;
+backups and external copies remain unknown. A restored snapshot remains closed
+until separately surviving owner/source/grant authority is reconciled. See the
+[governance boundary](../../backend/src/personal_ai/memory/governance/README.md).

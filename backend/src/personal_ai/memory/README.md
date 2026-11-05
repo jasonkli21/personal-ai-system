@@ -441,3 +441,21 @@ remains historical; only the new preregistered generation may be interpreted as
 the corrected scripted comparison. See the
 [2026-11-04 independent-review remediation](../../../../docs/memory/2026-11-04-longitudinal-review-remediation.md)
 for fresh-process results, checks and remaining gates.
+
+
+## Synthetic governance overlay
+
+[`governance/`](governance/README.md) defines closed memory-share intents,
+content-free grant/decision receipts, host/repository protocols and pure policy.
+Only an explicitly constructed public synthetic evaluator supplies authority.
+No runtime route, tool, issuer, storage adapter or flag is registered. Grant
+correctness does not establish useful multi-agent answers or production readiness.
+
+Run `make memory-governance-check` and `make memory-governance-eval` with the
+backend virtual environment on PATH. The 69-case additive campaign retains all
+attempted outcomes and supports source-hashed fresh-process replay. Canonical
+knowledge/lifecycle and the shared context builder retain their ownership.
+The [readiness ADR](../../../../docs/decisions/0027-memory-governance-overlay.md)
+and [dated handoff](../../../../docs/memory/2026-11-04-governance-implementation.md)
+define the E0/E1 boundary. Physical sends, native transactions, deployed
+revocation/erase/restore and independent utility/cost acceptance remain blocked.

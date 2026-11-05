@@ -1,0 +1,468 @@
+{
+  "schema_version": "memory-governance-cases-v1",
+  "visibility": "author_visible",
+  "cases": [
+    {
+      "id": "scope-agent-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "agent",
+      "variant": "positive",
+      "pair": "agent",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-agent-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "agent",
+      "variant": "negative",
+      "pair": "agent",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-project-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "project",
+      "variant": "positive",
+      "pair": "project",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-project-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "project",
+      "variant": "negative",
+      "pair": "project",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-owner-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "owner",
+      "variant": "positive",
+      "pair": "owner",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-owner-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "owner",
+      "variant": "negative",
+      "pair": "owner",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-application-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "application",
+      "variant": "positive",
+      "pair": "application",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-application-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "application",
+      "variant": "negative",
+      "pair": "application",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-workspace-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "workspace",
+      "variant": "positive",
+      "pair": "workspace",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-workspace-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "workspace",
+      "variant": "negative",
+      "pair": "workspace",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-source_version-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "source_version",
+      "variant": "positive",
+      "pair": "source_version",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-source_version-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "source_version",
+      "variant": "negative",
+      "pair": "source_version",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-source_project-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "source_project",
+      "variant": "positive",
+      "pair": "source_project",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-source_project-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "source_project",
+      "variant": "negative",
+      "pair": "source_project",
+      "expected": "denied"
+    },
+    {
+      "id": "scope-membership-positive",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "membership",
+      "variant": "positive",
+      "pair": "membership",
+      "expected": "committed"
+    },
+    {
+      "id": "scope-membership-negative",
+      "family": "grant_scope",
+      "action": "scope",
+      "dimension": "membership",
+      "variant": "negative",
+      "pair": "membership",
+      "expected": "denied"
+    },
+    {
+      "id": "revoke_select",
+      "family": "revoke_regrant",
+      "action": "revoke_select",
+      "expected": "denied"
+    },
+    {
+      "id": "revoke_pack",
+      "family": "revoke_regrant",
+      "action": "revoke_pack",
+      "expected": "denied"
+    },
+    {
+      "id": "revoke_consume",
+      "family": "revoke_regrant",
+      "action": "revoke_consume",
+      "expected": "denied"
+    },
+    {
+      "id": "regrant_aba",
+      "family": "revoke_regrant",
+      "action": "regrant_aba",
+      "expected": "denied"
+    },
+    {
+      "id": "expiry",
+      "family": "revoke_regrant",
+      "action": "expiry",
+      "expected": "denied"
+    },
+    {
+      "id": "registry_epoch",
+      "family": "revoke_regrant",
+      "action": "registry_epoch",
+      "expected": "denied"
+    },
+    {
+      "id": "forget",
+      "family": "lifecycle_forget",
+      "action": "forget",
+      "expected": "denied"
+    },
+    {
+      "id": "source_revoked",
+      "family": "lifecycle_forget",
+      "action": "source_revoked",
+      "expected": "denied"
+    },
+    {
+      "id": "correction",
+      "family": "lifecycle_forget",
+      "action": "correction",
+      "expected": "denied"
+    },
+    {
+      "id": "source_epoch_pack",
+      "family": "lifecycle_forget",
+      "action": "source_epoch_pack",
+      "expected": "denied"
+    },
+    {
+      "id": "owner_delete",
+      "family": "lifecycle_forget",
+      "action": "owner_delete",
+      "expected": "denied"
+    },
+    {
+      "id": "sensitive",
+      "family": "lifecycle_forget",
+      "action": "sensitive",
+      "expected": "denied"
+    },
+    {
+      "id": "unverified",
+      "family": "lifecycle_forget",
+      "action": "unverified",
+      "expected": "denied"
+    },
+    {
+      "id": "unknown_origin",
+      "family": "lifecycle_forget",
+      "action": "unknown_origin",
+      "expected": "denied"
+    },
+    {
+      "id": "deletion_inventory",
+      "family": "lifecycle_forget",
+      "action": "deletion_inventory",
+      "expected": "logical_suppression"
+    },
+    {
+      "id": "export_preview",
+      "family": "export_restore",
+      "action": "export_preview",
+      "expected": "preview_only"
+    },
+    {
+      "id": "import_authority",
+      "family": "export_restore",
+      "action": "import_authority",
+      "expected": "denied"
+    },
+    {
+      "id": "stale_restore",
+      "family": "export_restore",
+      "action": "stale_restore",
+      "expected": "denied"
+    },
+    {
+      "id": "restore_after_forget",
+      "family": "export_restore",
+      "action": "restore_after_forget",
+      "expected": "denied"
+    },
+    {
+      "id": "restore_reconcile",
+      "family": "export_restore",
+      "action": "restore_reconcile",
+      "expected": "denied"
+    },
+    {
+      "id": "external_send",
+      "family": "export_restore",
+      "action": "external_send",
+      "expected": "external_delivery_blocked"
+    },
+    {
+      "id": "lost_ack",
+      "family": "concurrency_replay",
+      "action": "lost_ack",
+      "expected": "replayed"
+    },
+    {
+      "id": "duplicate_retry",
+      "family": "concurrency_replay",
+      "action": "duplicate_retry",
+      "expected": "replayed"
+    },
+    {
+      "id": "same_key_body",
+      "family": "concurrency_replay",
+      "action": "same_key_body",
+      "expected": "conflict"
+    },
+    {
+      "id": "cas_collision",
+      "family": "concurrency_replay",
+      "action": "cas_collision",
+      "expected": "conflict"
+    },
+    {
+      "id": "actor_collision",
+      "family": "concurrency_replay",
+      "action": "actor_collision",
+      "expected": "denied"
+    },
+    {
+      "id": "forged_host",
+      "family": "concurrency_replay",
+      "action": "forged_host",
+      "expected": "denied"
+    },
+    {
+      "id": "wildcard",
+      "family": "concurrency_replay",
+      "action": "wildcard",
+      "expected": "denied"
+    },
+    {
+      "id": "purpose_escalation",
+      "family": "concurrency_replay",
+      "action": "purpose_escalation",
+      "expected": "denied"
+    },
+    {
+      "id": "forged_schema",
+      "family": "concurrency_replay",
+      "action": "forged_schema",
+      "expected": "denied"
+    },
+    {
+      "id": "wrong_purpose_read",
+      "family": "concurrency_replay",
+      "action": "wrong_purpose_read",
+      "expected": "denied"
+    },
+    {
+      "id": "grant_capacity",
+      "family": "quotas_ops",
+      "action": "grant_capacity",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "lookup_cap",
+      "family": "quotas_ops",
+      "action": "lookup_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "fanout_cap",
+      "family": "quotas_ops",
+      "action": "fanout_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "retry_cap",
+      "family": "quotas_ops",
+      "action": "retry_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "index_cap",
+      "family": "quotas_ops",
+      "action": "index_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "backlog_cap",
+      "family": "quotas_ops",
+      "action": "backlog_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "export_cap",
+      "family": "quotas_ops",
+      "action": "export_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "fence_cap",
+      "family": "quotas_ops",
+      "action": "fence_cap",
+      "expected": "capacity_safe"
+    },
+    {
+      "id": "storage_unavailable",
+      "family": "quotas_ops",
+      "action": "storage_unavailable",
+      "expected": "uncertain"
+    },
+    {
+      "id": "disk_full",
+      "family": "quotas_ops",
+      "action": "disk_full",
+      "expected": "uncertain"
+    },
+    {
+      "id": "delayed_job",
+      "family": "quotas_ops",
+      "action": "delayed_job",
+      "expected": "denied"
+    },
+    {
+      "id": "no_host",
+      "family": "quotas_ops",
+      "action": "no_host",
+      "expected": "unavailable"
+    },
+    {
+      "id": "canary",
+      "family": "quotas_ops",
+      "action": "canary",
+      "expected": "proposal_only"
+    },
+    {
+      "id": "rollback",
+      "family": "quotas_ops",
+      "action": "rollback",
+      "expected": "proposal_only"
+    },
+    {
+      "id": "unsafe_plan",
+      "family": "quotas_ops",
+      "action": "unsafe_plan",
+      "expected": "denied"
+    },
+    {
+      "id": "episode-read",
+      "family": "export_restore",
+      "action": "episode_read",
+      "expected": "disabled"
+    },
+    {
+      "id": "two-owner-records",
+      "family": "grant_scope",
+      "action": "two_owner_records",
+      "expected": "denied"
+    },
+    {
+      "id": "injected-source",
+      "family": "grant_scope",
+      "action": "injected_source",
+      "expected": "denied"
+    },
+    {
+      "id": "interrupted_read",
+      "family": "quotas_ops",
+      "action": "interrupted_read",
+      "expected": "incomplete"
+    },
+    {
+      "id": "cancelled_read",
+      "family": "quotas_ops",
+      "action": "cancelled_read",
+      "expected": "cancelled"
+    },
+    {
+      "id": "failed_maintenance",
+      "family": "quotas_ops",
+      "action": "failed_maintenance",
+      "expected": "failed"
+    },
+    {
+      "id": "unsupported_native",
+      "family": "quotas_ops",
+      "action": "unsupported_native",
+      "expected": "unsupported"
+    }
+  ]
+}

@@ -31,8 +31,10 @@ from .driver import run_trajectory
 from .support import support_digest, support_matrix
 
 ROOT = Path(__file__).resolve().parents[5]
-PREVIOUS_SOURCE_LOCK_SHA256 = "4a19369b4eb997b3dbda7a37f1febd9a2e8e5165a1cc53c6a2584b1ada92d95f"
-OLDER_SOURCE_LOCK_SHA256 = "9f3f3777af3716b1fb40a1b5af365233250f6197fa81e965b5b77403212812cc"
+LEGACY_SOURCE_LOCK_SHA256 = "4a19369b4eb997b3dbda7a37f1febd9a2e8e5165a1cc53c6a2584b1ada92d95f"
+OLDEST_SOURCE_LOCK_SHA256 = "9f3f3777af3716b1fb40a1b5af365233250f6197fa81e965b5b77403212812cc"
+
+PREVIOUS_SOURCE_LOCK_SHA256 = "10b46a3a08ef8123e882673b710e44e8d65580ab4bb1739ba8e4de9f3a99cfb0"
 
 
 def protocol():
@@ -79,21 +81,24 @@ def current_source_hashes():
 def source_lock():
     from .seal import LOCK_SHA256
 
-    path = Path(__file__).parent / "source-lock-v3.json"
+    path = Path(__file__).parent / "source-lock-v4.json"
     payload = path.read_bytes()
     if len(payload) > 65536 or sha256(payload).hexdigest() != LOCK_SHA256:
         raise ValueError("study_lock_identity_changed")
     data = parse_json(payload, limit=65536)
-    if set(data) != {"version", "sources", "protocol_sha256", "supersedes_sha256"} or data[
-        "version"
-    ] != "memory-longitudinal-source-lock-v2":
+    if (
+        set(data) != {"version", "sources", "protocol_sha256", "supersedes_sha256"}
+        or data["version"] != "memory-longitudinal-source-lock-v2"
+    ):
         raise ValueError("study_lock_schema")
-    previous = path.with_name("source-lock-v2.json")
+    previous = path.with_name("source-lock-v3.json")
     if (
         data["supersedes_sha256"] != PREVIOUS_SOURCE_LOCK_SHA256
         or sha256(previous.read_bytes()).hexdigest() != PREVIOUS_SOURCE_LOCK_SHA256
+        or sha256(path.with_name("source-lock-v2.json").read_bytes()).hexdigest()
+        != LEGACY_SOURCE_LOCK_SHA256
         or sha256(path.with_name("source-lock-v1.json").read_bytes()).hexdigest()
-        != OLDER_SOURCE_LOCK_SHA256
+        != OLDEST_SOURCE_LOCK_SHA256
     ):
         raise ValueError("historical_source_lock_changed")
     expected = tuple(SourceHash.model_validate(x) for x in data["sources"])
@@ -121,8 +126,7 @@ def verify_git_provenance(run, root=ROOT):
     tree = _git_output("rev-parse", f"{revision}^{{tree}}", cwd=root)
     source_snapshot = digest([source.model_dump(mode="json") for source in run.source_hashes])
     dirty = any(
-        _git_blob_sha(revision, source.path, root) != source.sha256
-        for source in run.source_hashes
+        _git_blob_sha(revision, source.path, root) != source.sha256 for source in run.source_hashes
     )
     provenance = digest([revision, tree, dirty, source_snapshot])
     if (
@@ -140,27 +144,27 @@ def make_run():
     source_hashes = source_lock()
     # The anchor is outside its own hash recursion, but is included in each run.
     anchor = Path(__file__).parent / "seal.py"
-    lock = Path(__file__).parent / "source-lock-v3.json"
-    predecessor = Path(__file__).parent / "source-lock-v2.json"
+    lock = Path(__file__).parent / "source-lock-v4.json"
+    predecessor = Path(__file__).parent / "source-lock-v3.json"
     source_hashes += (
         SourceHash(
             path=str(anchor.relative_to(ROOT)), sha256=sha256(anchor.read_bytes()).hexdigest()
         ),
         SourceHash(path=str(lock.relative_to(ROOT)), sha256=sha256(lock.read_bytes()).hexdigest()),
+        SourceHash(path=str(predecessor.relative_to(ROOT)), sha256=PREVIOUS_SOURCE_LOCK_SHA256),
         SourceHash(
-            path=str(predecessor.relative_to(ROOT)), sha256=PREVIOUS_SOURCE_LOCK_SHA256
+            path=str(lock.with_name("source-lock-v2.json").relative_to(ROOT)),
+            sha256=LEGACY_SOURCE_LOCK_SHA256,
         ),
         SourceHash(
             path=str(lock.with_name("source-lock-v1.json").relative_to(ROOT)),
-            sha256=OLDER_SOURCE_LOCK_SHA256,
+            sha256=OLDEST_SOURCE_LOCK_SHA256,
         ),
     )
     revision = _git_output("rev-parse", "HEAD")
     tree = _git_output("rev-parse", f"{revision}^{{tree}}")
     source_snapshot = digest([source.model_dump(mode="json") for source in source_hashes])
-    dirty = any(
-        _git_blob_sha(revision, source.path) != source.sha256 for source in source_hashes
-    )
+    dirty = any(_git_blob_sha(revision, source.path) != source.sha256 for source in source_hashes)
     provenance = digest([revision, tree, dirty, source_snapshot])
     corpus = load_sources()
     protocol_manifest = protocol()
@@ -278,7 +282,7 @@ def render_report(run, report, metrics, decision):
             "Policy runtime receives no scoring file. Unknown model tokens, billed costs and native "
             "resources remain null. Local latency includes failed/unsupported attempts and setup; "
             "fixture tokens are word estimates. No independent review, native durability, deployed "
-        "recovery, private source rights, physical send or real model utility is established. Git provenance and content hashes establish local integrity relative to retained objects, not an external signature."
+            "recovery, private source rights, physical send or real model utility is established. Git provenance and content hashes establish local integrity relative to retained objects, not an external signature."
         ),
         "",
         "Phase exit: **BLOCKED**. Production: **NO_GO**.",

@@ -4,6 +4,39 @@ Updated 2026-11-04. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance.
 Independent final review and external acceptance remain open.
 
+## Synthetic memory governance
+
+A memory-specific grant overlay is implemented at E0/E1 only, with closed
+versioned intents/receipts, exact host-resolved source/registered-agent scopes,
+CAS/original-key reconciliation, monotonic generations, source/lifecycle/owner
+and recipient epoch intersection, and fail-closed snapshot reconciliation. The
+only authority/store adapters are public synthetic fixtures. Positive fixtures
+use canonical verified knowledge and the shared token-budgeted context builder;
+selection, packing and final internal observations revalidate current rights.
+No runtime issuer, route, tool, flag, migration, dispatcher or content copy is added.
+External delivery is always denied. Existing defaults, hard-disabled episodes,
+pending-only consolidation and explicit-profile-only portability remain intact.
+
+The additive 69-case author-visible campaign includes eight cross-agent/project
+positive/negative source pairs and temporal revoke, expiry, correction, forget,
+restore, crash/retry, quota and operator-plan failures. Noncompletion and
+unsupported observations remain in the denominator; boundary correctness is not
+a task-quality or physical-send claim. Retention inventory separates synthetic
+logical suppression from unobserved physical erasure, backups and external copies.
+Pure canary/rollback proposals cannot execute changes. Actual native resources,
+model tokens, billed cost and multi-agent utility remain unknown; the prior
+corrected longitudinal primary comparison stays 0 pp over 25 pairs.
+
+Adding governance modules changes the longitudinal recursive dependency inventory.
+An additive source-lock v4 preserves v1–v3, the corpus, scorer, protocol and all
+thresholds; it supplies fresh source evidence without rebinding historical runs.
+Planning/PI-6 identity failures remain separate gates. Status is
+**IMPLEMENTED_E1_GOVERNANCE / PHASE_EXIT_BLOCKED / PRODUCTION_NO_GO**;
+independent review remains pending. See the [implementation and reviewer handoff](memory/2026-11-04-governance-implementation.md),
+[verification](memory/2026-11-04-governance-verification.json),
+[blockers](memory/2026-11-04-governance-blockers.json) and
+[operator drills](memory/2026-11-04-governance-operator-drills.md).
+
 ## Release profile candidate tooling
 
 Versioned profile manifests, deterministic closed evidence validation, repeat
