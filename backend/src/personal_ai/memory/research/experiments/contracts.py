@@ -199,7 +199,7 @@ class Contrast(Record):
 
 
 class Protocol(Record):
-    version: Literal["memory-longitudinal-protocol-v1"] = "memory-longitudinal-protocol-v1"
+    version: Literal["memory-longitudinal-protocol-v2"] = "memory-longitudinal-protocol-v2"
     hypothesis: Literal["current_memory_improves_new_terminal_actions"] = (
         "current_memory_improves_new_terminal_actions"
     )
@@ -219,6 +219,9 @@ class Protocol(Record):
     exclusions: Literal["unsupported_or_incomplete_pairs_reported_never_imputed"] = (
         "unsupported_or_incomplete_pairs_reported_never_imputed"
     )
+    baseline_strategy: Literal["oracle_free_discover_apply_with_fenced_currentness"] = (
+        "oracle_free_discover_apply_with_fenced_currentness"
+    )
     repetition_seeds: tuple[int, ...] = Field(min_length=2, max_length=2)
     critical_threshold: Literal[0] = 0
     budgets: Budgets = Budgets()
@@ -237,8 +240,12 @@ class RunManifest(Record):
     version: Literal["memory-longitudinal-run-v1"] = "memory-longitudinal-run-v1"
     revision: Annotated[str, Field(pattern=r"^[a-f0-9]{40}$")]
     dirty: bool
+    revision_tree: Annotated[str, Field(pattern=r"^[a-f0-9]{40}$")]
+    source_snapshot_sha256: Digest
+    provenance_sha256: Digest
     source_hashes: tuple[SourceHash, ...] = Field(min_length=1, max_length=128)
     dataset: DatasetManifest
+    support_matrix_sha256: Digest
     model: ModelManifest
     policies: tuple[MemoryPolicyManifest, ...] = Field(min_length=1, max_length=12)
     protocol: Protocol
@@ -305,6 +312,18 @@ class AttemptReceipt(Record):
     selected: tuple[Identity, ...] = Field(default=(), max_length=128)
     packed: tuple[Identity, ...] = Field(default=(), max_length=128)
     consumed: tuple[Identity, ...] = Field(default=(), max_length=128)
+    target_id: Identity | None = None
+    target_before_version: int | None = Field(default=None, ge=0, le=1)
+    target_before_state_sha256: Digest | None = None
+    readback_task_id: Identity | None = None
+    readback_target_id: Identity | None = None
+    readback_original_intent: Digest | None = None
+    readback_state_version: int | None = Field(default=None, ge=0, le=1)
+    readback_state_sha256: Digest | None = None
+    readback_action: Identity | None = None
+    readback_effect_id: Digest | None = None
+    readback_effect_count: int | None = Field(default=None, ge=0, le=1)
+    readback_effect_authorized: bool | None = None
     terminal_state_sha256: Digest | None = None
     observed_action: Identity | None = None
     effect_count: int = Field(default=0, ge=0, le=4)
@@ -321,10 +340,44 @@ class AttemptReceipt(Record):
     def provenance(self):
         if not set(self.consumed) <= set(self.packed) <= set(self.selected):
             raise ValueError("attempt_provenance_invalid")
-        if self.status not in ("complete", "setup") and (
-            self.consumed or self.terminal_state_sha256 or self.observed_action
-        ):
-            raise ValueError("failed_attempt_disclosure")
+        readback_fields = (
+            self.target_id,
+            self.target_before_version,
+            self.target_before_state_sha256,
+            self.readback_task_id,
+            self.readback_target_id,
+            self.readback_original_intent,
+            self.readback_state_version,
+            self.readback_state_sha256,
+            self.readback_effect_count,
+        )
+        if any(value is not None for value in readback_fields):
+            if (
+                any(value is None for value in readback_fields)
+                or self.readback_task_id != self.task_id
+                or self.readback_target_id != self.target_id
+                or self.readback_original_intent != self.original_intent
+                or self.terminal_state_sha256 != self.readback_state_sha256
+                or (self.status == "complete" and self.effect_count != self.readback_effect_count)
+                or self.observed_action != self.readback_action
+            ):
+                raise ValueError("task_b_readback_binding_invalid")
+            if self.readback_effect_count == 1 and (
+                self.readback_state_version != 1
+                or self.readback_action is None
+                or self.readback_effect_id is None
+                or self.readback_effect_authorized is not True
+            ):
+                raise ValueError("task_b_effect_readback_invalid")
+            if self.readback_effect_count == 0 and (
+                self.readback_state_version != 0
+                or self.readback_action is not None
+                or self.readback_effect_id is not None
+                or self.readback_effect_authorized is not None
+            ):
+                raise ValueError("task_b_empty_readback_invalid")
+        elif self.observed_action is not None or self.terminal_state_sha256 is not None:
+            raise ValueError("task_b_independent_readback_required")
         if self.observed_action is not None and self.terminal_state_sha256 is None:
             raise ValueError("unobserved_success")
         return self
@@ -334,6 +387,10 @@ class PairedMetric(Record):
     baseline: Arm
     candidate: Arm
     attempted_scenarios: int = Field(ge=0, le=96)
+    structurally_eligible_scenarios: int = Field(ge=0, le=96)
+    started_pairs: int = Field(ge=0, le=96)
+    terminal_completed_pairs: int = Field(ge=0, le=96)
+    scored_pairs: int = Field(ge=0, le=96)
     eligible_pairs: int = Field(ge=0, le=96)
     excluded_pairs: int = Field(ge=0, le=96)
     wins: int = Field(ge=0, le=96)
@@ -349,6 +406,11 @@ class PairedMetric(Record):
         if (
             self.wins + self.losses + self.ties != self.eligible_pairs
             or self.eligible_pairs + self.excluded_pairs != self.attempted_scenarios
+            or self.scored_pairs != self.eligible_pairs
+            or self.structurally_eligible_scenarios > self.attempted_scenarios
+            or self.eligible_pairs > self.structurally_eligible_scenarios
+            or self.started_pairs > self.structurally_eligible_scenarios
+            or self.terminal_completed_pairs > self.started_pairs
         ):
             raise ValueError("pair_denominator")
         if self.interval_pp is not None and not (
@@ -367,6 +429,10 @@ class EvaluationReport(Record):
     source_verified: bool
     complete_grid: bool
     attempted_rows: int = Field(ge=0, le=9216)
+    support_matrix_sha256: Digest
+    supported_runtime_unsupported_rows: int = Field(default=0, ge=0, le=9216)
+    boundary_mismatch_rows: int = Field(default=0, ge=0, le=9216)
+    unaccounted_supported_rows: int = Field(default=0, ge=0, le=9216)
     status_counts: tuple[tuple[Status, int], ...] = Field(max_length=8)
     comparisons: tuple[PairedMetric, ...] = Field(max_length=6)
     safety_failures: tuple[Identity, ...] = Field(default=(), max_length=128)

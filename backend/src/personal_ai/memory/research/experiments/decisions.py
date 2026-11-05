@@ -28,6 +28,11 @@ CRITICAL_CHECKS = frozenset(
         "resource_bounds",
         "scorer_isolation",
         "configuration_unchanged",
+        "complete_attempt_accounting",
+        "support_matrix",
+        "terminal_readback",
+        "canonical_knowledge_fences",
+        "no_effect_planning",
     }
 )
 
@@ -70,6 +75,8 @@ def evaluate_decision(
         reasons.append("unattested_report_custody")
     if report.run_sha256 != digest(run):
         reasons.append("report_run_mismatch")
+    if report.support_matrix_sha256 != run.support_matrix_sha256:
+        reasons.append("support_matrix_mismatch")
     if not report.complete_grid or not report.source_verified or not report.replay_match:
         reasons.append("integrity_incomplete")
     checks = dict(report.safety_checks)
@@ -79,6 +86,10 @@ def evaluate_decision(
         reasons.append("critical_check_unknown_or_failed")
     if report.safety_failures:
         reasons.append("critical_safety_veto")
+    if report.boundary_mismatch_rows:
+        reasons.append("expected_boundary_mismatch_veto")
+    if report.supported_runtime_unsupported_rows or report.unaccounted_supported_rows:
+        reasons.append("unaccounted_supported_outcomes")
     if target != "offline":
         reasons.extend(
             ("synthetic_live_promotion_forbidden", "external_evidence_and_owner_required")
@@ -94,7 +105,7 @@ def evaluate_decision(
         ),
         None,
     )
-    if primary is None or not primary.eligible_pairs:
+    if primary is None or not primary.eligible_pairs or primary.scored_pairs != primary.eligible_pairs:
         reasons.append("no_eligible_primary_pairs")
     elif (
         primary.delta_pp is None

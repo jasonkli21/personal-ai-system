@@ -139,13 +139,23 @@ unsupported and fault outcomes. Setup receipts cannot count as later task succes
 Canonical verified knowledge/control reads and sealed navigation remain separate
 compatible source cohorts; no episode intake or pending-proposal admission is added.
 
-The additive final source generation reproduces the same semantic outcome digest
-as the preserved initial generation. Lexical versus no memory has 25/48 eligible
-scenario pairs: five wins, no losses, 20 ties, +20 percentage points with a fixed-seed
-descriptive 95% interval of [4, 36]. Topic/adaptive/full-history contrasts show zero
-paired change on their supported subsets. Explicit tool lookup loses all eight
-canonical pairs under the shared two-call budget; that negative result is retained.
-These are scripted action proxies, not model utility or independent acceptance.
+The independent-review remediation adds a preregistered baseline strategy and
+support/source provenance generation. The original +20 percentage-point lexical
+contrast (25/48 pairs) is strategy-confounded: no-memory spent a call checking a
+missing current hint before discovery. Preserve it as historical, pre-remediation
+evidence; use only the new protocol's result for the corrected descriptive contrast.
+The new comparison uses oracle-free discover→apply for no-memory under the same
+two-call ceiling, a pinned outcome-independent support matrix, and separately
+observed Task B material state. Its primary contrast is 0 pp across 25 eligible
+pairs (0 wins, 0 losses, 25 ties), so the corrected scripted comparison shows no
+incremental action-quality lift. Dated evidence records fresh-process runs and
+replays, denominators, digests and exact verification outcomes.
+
+Unexpected runtime-unsupported supported rows, denied-boundary mismatches and
+unaccounted attempts veto decisions instead of disappearing from denominators.
+Exact nine-member package inventory, Git-tree/source-snapshot provenance, and
+canonical knowledge revoke/forget/expiry/scope fences are checked. These remain
+scripted public/synthetic outcomes, not model utility or independent acceptance.
 
 Pure canary/rollback plans cannot change configuration, storage or lifecycle.
 The research decision is `needs_independent_review`; actual model tokens, billed
@@ -153,7 +163,8 @@ costs and native resources are unobserved. Legacy fixed and real semantic/hybrid
 comparisons remain unsupported for these fixtures. Research is implemented at
 E0/E1 only; scientific phase exit and production remain **BLOCKED / NO_GO**.
 Existing default-off controls and hard-disabled episode behavior remain effective.
-See [implementation and verification evidence](memory/2026-11-04-longitudinal-implementation.md)
+See [implementation and verification evidence](memory/2026-11-04-longitudinal-implementation.md),
+the [2026-11-04 independent-review remediation](memory/2026-11-04-longitudinal-review-remediation.md)
 and the [blocker registry](memory/2026-11-04-longitudinal-blockers.json).
 
 ## Delivered locally

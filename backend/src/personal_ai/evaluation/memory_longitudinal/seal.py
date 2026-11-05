@@ -1,3 +1,3 @@
-"""Additive author-locked source generation; the predecessor lock is immutable."""
+"""Integrity anchor for the additive longitudinal research source generation."""
 
-LOCK_SHA256 = "4a19369b4eb997b3dbda7a37f1febd9a2e8e5165a1cc53c6a2584b1ada92d95f"
+LOCK_SHA256 = "10b46a3a08ef8123e882673b710e44e8d65580ab4bb1739ba8e4de9f3a99cfb0"

@@ -226,4 +226,173 @@ def campaign():
         return all(getattr(before, n, None) == getattr(after, n, None) for n in names)
 
     check("configuration_unchanged", unchanged)
+
+    def canonical_knowledge_fences():
+        from personal_ai.evaluation.knowledge_runtime import request
+        from personal_ai.evaluation.memory_longitudinal.driver import KnowledgeCohort
+        from personal_ai.memory.knowledge import digest
+        from personal_ai.memory.lifecycle import MemoryLifecycleEvent
+        from personal_ai.memory.lifecycle.repositories import event_idempotency_id
+
+        task = next(t for t in tasks if t.profile == "canonical_knowledge")
+
+        def ready(arm="verified_knowledge"):
+            source = LongitudinalAuthority(task.id)
+            cohort = KnowledgeCohort(source, arm)
+            cohort.learn()
+            with request(cohort.scope):
+                record = cohort.record
+                if record is None:
+                    raise ValueError("canonical_fixture_not_admitted")
+                dependency = cohort.service().dependency(record, cohort.scope)
+            return source, cohort, record, dependency
+
+        # Revocation before ranking yields no selection through the real service.
+        source, cohort, record, dependency = ready()
+        source_id = record.evidence.edges[0].source_id
+        cohort.host.revoked.add(source_id)
+        with request(cohort.scope):
+            _build, selected, packed, *_ = cohort.pack(cohort.scope, _budgets())
+        before_rank = not selected and not packed
+
+        # Revocation after rank is caught by ContextBuilder before packing.
+        source, cohort, record, dependency = ready()
+        source_id = record.evidence.edges[0].source_id
+        with request(cohort.scope):
+            _build, selected, packed, *_ = cohort.pack(
+                cohort.scope,
+                _budgets(),
+                hook=lambda stage: cohort.host.revoked.add(source_id)
+                if stage == "ranked"
+                else None,
+            )
+        after_rank = bool(selected) and not packed
+
+        # A packed source revoked immediately before consume cannot invoke action.
+        source, cohort, record, dependency = ready("tool_lookup")
+        with request(cohort.scope):
+            _build, selected, packed, *_ = cohort.pack(cohort.scope, _budgets())
+            source_id = record.evidence.edges[0].source_id
+            cohort.host.revoked.add(source_id)
+            calls = []
+            try:
+                cohort.service().consume(dependency, lambda _: calls.append("effect"))
+            except KnowledgeSourceError:
+                denied_consume = not calls
+            else:
+                denied_consume = False
+        before_consume = bool(selected and packed) and denied_consume
+
+        # Lifecycle forget, project revision changes and source deletion invalidate
+        # an already packed dependency in a fresh service instance.
+        source, cohort, record, dependency = ready()
+        key = f"research-forget:{record.id}"
+        with request(cohort.scope):
+            event = MemoryLifecycleEvent(
+                id=event_idempotency_id(key),
+                owner_id=record.owner_id,
+                memory_id=record.id,
+                event_type="forgotten",
+                reason_code="research_fence_probe",
+                policy_version="verified-knowledge-v1",
+                actor="developer_test",
+                occurred_at=source.now(),
+                idempotency_key=key,
+                expected_state_version=0,
+            )
+            forgotten = cohort.lifecycle.apply_event(event).status == "applied"
+            stale_service = not cohort.service().is_current(dependency)
+
+        source, cohort, record, dependency = ready()
+        edge = record.evidence.edges[0]
+        with request(cohort.scope):
+            erased = cohort.repo.revoke_knowledge_source(
+                scope=cohort.scope,
+                resolver_id=edge.resolver_id,
+                source_id=edge.source_id,
+                expected_epoch=edge.epoch,
+                erase=True,
+            )
+            old_denied = not cohort.service().is_current(dependency)
+
+        # A fresh project grant epoch cannot revive an older source receipt.
+        source, cohort, record, dependency = ready()
+        cohort.host.change_project(
+            cohort.scope, task.project, permission_version="grant-two"
+        )
+        with request(cohort.scope):
+            new_grant_old_denied = not cohort.service().is_current(dependency)
+
+        # Expired evidence remains unusable even when its receipt binding is valid.
+        source, cohort, record, dependency = ready()
+        with request(cohort.scope):
+            expired = cohort.host.replace_evidence(
+                record.evidence.receipt_id, expires_at=source.now()
+            )
+            cohort.host.issued_fingerprints[expired.receipt_id] = digest(expired)
+            expired_denied = not cohort.service().is_current(dependency)
+
+        source, cohort, record, dependency = ready()
+        with request(cohort.scope):
+            cohort.host.change_project(cohort.scope, task.project, revision="rev-two")
+            revision_denied = not cohort.service().is_current(dependency)
+
+        source, cohort, _record, dependency = ready()
+        wrong_scopes = (
+            cohort.scope.model_copy(update={"owner_id": "other-owner"}),
+            cohort.scope.model_copy(update={"application_id": "other-app"}),
+            cohort.scope.model_copy(update={"workspace_id": "other-workspace"}),
+            cohort.scope.model_copy(update={"acting_user_id": "other-actor"}),
+        )
+        scope_denied = True
+        for wrong_scope in wrong_scopes:
+            with request(wrong_scope):
+                scope_denied &= not cohort.service().is_current(dependency)
+
+        pending = KnowledgeCohort(LongitudinalAuthority(task.id), "pending_diagnostic")
+        pending.learn()
+        pending_unadmitted = pending.record is None and not pending.repo.knowledge_records
+        return all(
+            (
+                before_rank,
+                after_rank,
+                before_consume,
+                forgotten,
+                stale_service,
+                erased,
+                old_denied,
+                new_grant_old_denied,
+                expired_denied,
+                revision_denied,
+                scope_denied,
+                pending_unadmitted,
+            )
+        )
+
+    check("canonical_knowledge_fences", canonical_knowledge_fences)
+
+    def no_effect_planning():
+        from personal_ai.memory.research.experiments.decisions import CanaryPlan, dry_run_rollback
+
+        before = Settings(_env_file=None, ai_provider="gemini", ai_model="synthetic").model_dump()
+        plan = CanaryPlan(
+            decision_sha256="0" * 64,
+            candidate_policy="1" * 64,
+            rollback_policy="2" * 64,
+        )
+        rollback = dry_run_rollback(plan)
+        after = Settings(_env_file=None, ai_provider="gemini", ai_model="synthetic").model_dump()
+        return (
+            before == after
+            and rollback["effective_policy"] == "unchanged"
+            and rollback["receipts"] == "retained"
+        )
+
+    check("no_effect_planning", no_effect_planning)
     return tuple(checks)
+
+
+def _budgets():
+    from personal_ai.memory.research.experiments.contracts import Budgets
+
+    return Budgets()

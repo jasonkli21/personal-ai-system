@@ -22,6 +22,10 @@ def passing_control(research_run):
         baseline=run.protocol.primary.baseline,
         candidate=run.protocol.primary.candidate,
         attempted_scenarios=48,
+        structurally_eligible_scenarios=24,
+        started_pairs=24,
+        terminal_completed_pairs=24,
+        scored_pairs=24,
         eligible_pairs=24,
         excluded_pairs=24,
         wins=12,
@@ -36,6 +40,9 @@ def passing_control(research_run):
         update={
             "comparisons": (primary, *report.comparisons[1:]),
             "safety_failures": (),
+            "boundary_mismatch_rows": 0,
+            "supported_runtime_unsupported_rows": 0,
+            "unaccounted_supported_rows": 0,
             "safety_checks": tuple((name, "pass") for name in sorted(CRITICAL_CHECKS)),
             "source_verified": True,
             "replay_match": True,
@@ -141,9 +148,43 @@ def test_empty_pairs_and_resource_unknowns_do_not_establish_scientific_exit(rese
     assert report.actual_model_resources is None and report.native_resources is None
 
 
+def test_self_reported_passes_cannot_override_boundary_or_accounting_vetoes(research_run):
+    run, report = passing_control(research_run)
+    for field, value, expected_reason in (
+        ("boundary_mismatch_rows", 1, "expected_boundary_mismatch_veto"),
+        ("unaccounted_supported_rows", 1, "unaccounted_supported_outcomes"),
+    ):
+        attacked = report.model_copy(update={field: value, "safety_failures": ()})
+        result = evaluate_decision(
+            run,
+            attacked,
+            registry=custody(run, attacked),
+            authority=review(attacked),
+            reviewer="reviewer",
+        )
+        assert result.status == "blocked"
+        assert expected_reason in result.reasons
+
+
 def test_reviewed_offline_canary_and_rollback_are_pure_and_exact(research_run):
     run, report = passing_control(research_run)
     before = digest(run)
+    from personal_ai.evaluation.knowledge_runtime import request
+    from personal_ai.evaluation.memory_longitudinal.dataset import load_sources
+    from personal_ai.evaluation.memory_longitudinal.driver import KnowledgeCohort
+    from personal_ai.evaluation.memory_longitudinal.source import LongitudinalAuthority
+    from personal_ai.settings import Settings
+
+    task = next(t for t in load_sources().tasks if t.profile == "canonical_knowledge")
+    cohort = KnowledgeCohort(LongitudinalAuthority(task.id), "verified_knowledge")
+    cohort.learn()
+    with request(cohort.scope):
+        before_state = (
+            Settings(_env_file=None, ai_provider="gemini", ai_model="synthetic").model_dump(),
+            tuple(sorted(str(k) for k in cohort.repo.knowledge_records)),
+            tuple(sorted(str(k) for k in cohort.lifecycle.events)),
+            tuple(sorted(str(k) for k in cohort.host.effects)),
+        )
     registry, authority = custody(run, report), review(report)
     decision = evaluate_decision(
         run, report, registry=registry, authority=authority, reviewer="reviewer"
@@ -164,6 +205,14 @@ def test_reviewed_offline_canary_and_rollback_are_pure_and_exact(research_run):
     assert rollback["effective_policy"] == "unchanged"
     assert rollback["receipts"] == "retained"
     assert digest(run) == before
+    with request(cohort.scope):
+        after_state = (
+            Settings(_env_file=None, ai_provider="gemini", ai_model="synthetic").model_dump(),
+            tuple(sorted(str(k) for k in cohort.repo.knowledge_records)),
+            tuple(sorted(str(k) for k in cohort.lifecycle.events)),
+            tuple(sorted(str(k) for k in cohort.host.effects)),
+        )
+    assert after_state == before_state
     with pytest.raises(ValueError, match="rollback_target"):
         plan_canary(
             decision,

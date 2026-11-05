@@ -26,7 +26,7 @@ from personal_ai.memory.research.experiments.decisions import EvidenceRegistry, 
 from .campaign import campaign
 from .dataset import load_sources
 from .scorer import analyze
-from .study import ROOT, make_run, render_report, replay
+from .study import ROOT, make_run, render_report, replay, verify_git_provenance
 
 
 def blocked_plans(run, decision):
@@ -57,6 +57,7 @@ def blocked_plans(run, decision):
 def verify(directory):
     verify_package(directory)
     run = RunManifest.model_validate(checked_json(directory / "run.json"))
+    verify_git_provenance(run, ROOT)
     report = EvaluationReport.model_validate(checked_json(directory / "report.json"))
     rows = tuple(
         AttemptReceipt.model_validate(r) for r in checked_json(directory / "receipts.json")

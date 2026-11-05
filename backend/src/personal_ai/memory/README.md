@@ -427,6 +427,17 @@ and [implementation evidence](../../../../docs/memory/2026-11-04-longitudinal-im
 Retained-byte counters describe serialized synthetic knowledge records and
 rebuildable derivative indexes. Common immutable fixture bytes are identified in
 the dataset manifest; these counters do not measure process RSS or native database
-storage. The initial study source lock is retained unchanged. An additive second
-source generation strengthens package-summary/decision verification without
-changing corpus bytes, scorer, protocol or semantic outcomes.
+storage. The initial study source locks are retained unchanged. Additive
+protocol/source generation 2/3 addresses the 2026-11-04 independent review:
+no-memory uses the oracle-free discover→apply strategy under the shared budget;
+supported outcomes cannot be censored as runtime-unsupported; and Task B is
+graded from a separate synthetic state transition/read-back. Runs pin a
+pre-outcome support matrix, source snapshot, Git tree and dirty-input status.
+Packages require the exact indexed member set. Canonical knowledge probes cover
+revocation before rank, after pack and before consume, plus expired evidence,
+changed grant/project epochs, scope mismatch, forget/source erase and pending-
+proposal exclusion. The prior +20 pp primary result is strategy-confounded and
+remains historical; only the new preregistered generation may be interpreted as
+the corrected scripted comparison. See the
+[2026-11-04 independent-review remediation](../../../../docs/memory/2026-11-04-longitudinal-review-remediation.md)
+for fresh-process results, checks and remaining gates.

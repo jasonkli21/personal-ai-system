@@ -15,6 +15,19 @@ from personal_ai.memory.research.experiments.contracts import (
 
 MAX_PACKAGE_BYTES = 16_777_216
 MAX_ROWS = 9216
+PACKAGE_MEMBERS = frozenset(
+    {
+        "run.json",
+        "receipts.json",
+        "report.json",
+        "metrics.json",
+        "decision.json",
+        "canary.json",
+        "rollback.json",
+        "report.md",
+        "faults.json",
+    }
+)
 
 
 def immutable_write(path, payload: bytes):
@@ -83,6 +96,11 @@ def validate_grid(run, rows, tasks):
     if len(rows) > MAX_ROWS:
         raise ValueError("receipt_capacity")
     rows = tuple(AttemptReceipt.model_validate(r.model_dump()) for r in rows)
+    from personal_ai.evaluation.memory_longitudinal.support import support_digest, support_matrix
+
+    support = support_matrix(tasks, run.policies, run.protocol.budgets)
+    if support_digest(support) != run.support_matrix_sha256:
+        raise ValueError("support_matrix_drift")
     expected = {
         (task.id, p.arm, rep, step.offset)
         for task in tasks
@@ -98,6 +116,11 @@ def validate_grid(run, rows, tasks):
             raise ValueError("receipt_binding_or_duplicate")
         if row.seed != run.protocol.repetition_seeds[row.repetition]:
             raise ValueError("receipt_seed_mismatch")
+        unsupported_reason = support[(row.task_id, row.arm)]
+        if row.time_step >= 2 and unsupported_reason is not None and (
+            row.status != "unsupported" or row.reason != unsupported_reason
+        ):
+            raise ValueError("structural_support_mismatch")
         budgets = run.protocol.budgets
         if (
             row.resources.tool_calls > budgets.tool_calls
@@ -123,33 +146,24 @@ def verify_sources(run, root):
 def verify_package(directory):
     """The package index is a digest inventory, not a signature or source grant."""
     directory = Path(directory)
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError("package_directory")
     inventory = checked_json(directory / "package.json", limit=65536)
     if set(inventory) != {"version", "files"} or inventory["version"] != "memory-replay-package-v1":
         raise ValueError("package_schema")
-    if not isinstance(inventory["files"], dict) or not 1 <= len(inventory["files"]) <= 16:
+    if not isinstance(inventory["files"], dict) or set(inventory["files"]) != PACKAGE_MEMBERS:
         raise ValueError("package_capacity")
+    entries = {path.name for path in directory.iterdir()}
+    if entries != PACKAGE_MEMBERS | {"package.json"}:
+        raise ValueError("package_inventory_mismatch")
     total = 0
     for name, fingerprint in inventory["files"].items():
-        if name not in {
-            "run.json",
-            "receipts.json",
-            "report.json",
-            "metrics.json",
-            "decision.json",
-            "canary.json",
-            "rollback.json",
-            "report.md",
-            "faults.json",
-        }:
-            raise ValueError("package_path")
         path = directory / name
-        if path.is_symlink():
+        if path.is_symlink() or not path.is_file():
             raise ValueError("package_link")
         total += path.stat().st_size
         if total > MAX_PACKAGE_BYTES or sha256(path.read_bytes()).hexdigest() != fingerprint:
             raise ValueError("package_integrity")
-    if not {"run.json", "receipts.json", "report.json"} <= inventory["files"].keys():
-        raise ValueError("package_missing_inputs")
     return inventory
 
 

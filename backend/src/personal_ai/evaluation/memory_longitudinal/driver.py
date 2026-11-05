@@ -28,12 +28,12 @@ from personal_ai.memory.research.contracts import ResearchFailure
 from personal_ai.memory.research.experiments.contracts import (
     AttemptReceipt,
     ResourceCounters,
-    digest,
 )
 from personal_ai.memory.services import MemoryRetriever
 from personal_ai.settings import Settings
 
 from .source import LongitudinalAuthority, LongitudinalNavigation
+from .terminal import TaskBState
 
 
 class SyntheticSettings(Settings):
@@ -53,7 +53,6 @@ def action_id(value):
 @dataclass(frozen=True)
 class TaskView:
     query: str
-    current_hint: str | None
     messages: tuple
 
 
@@ -70,14 +69,13 @@ def consume_knowledge(messages):
     return None
 
 
-class SimulatedTaskTools:
-    """Reuses the existing hermetic original-key effect host; no external executor."""
+class _TaskToolHost:
+    """Private simulator state. Never passed to a policy."""
 
-    def __init__(self, task, source, scope, host, intent, limit):
-        self.task, self.source, self.scope, self.host = task, source, scope, host
-        self.intent, self.limit = intent, limit
-        self.calls, self.discoveries = 0, 0
-        self.rejected_actions = 0
+    def __init__(self, task, scope, host, target, limit, authorize):
+        self.task, self.scope, self.host = task, scope, host
+        self.target, self.limit, self.authorize = target, limit, authorize
+        self.calls, self.discoveries, self.rejected_actions = 0, 0, 0
         self.observed = None
 
     def current(self):
@@ -93,8 +91,6 @@ class SimulatedTaskTools:
         if self.calls >= self.limit:
             return None
         self.calls += 1
-        # Domain rules, permission and revision remain authoritative even if a
-        # poisoned or stale historical card recommends an action.
         if value is None or value != self.task.current_action:
             self.rejected_actions += 1
             return None
@@ -102,20 +98,52 @@ class SimulatedTaskTools:
         self.observed = self.host.execute(
             self.scope,
             self.task.project,
-            self.intent,
+            self.target.intent,
             value,
             expected_revision=project.revision,
         )
+        self.target.apply(self.target.intent, action_id(value), 0, self.authorize)
         return self.observed
 
 
-def run_policy(view, tools, remembered=None):
-    """A narrow scripted action proxy, without outcome labels or fixture handles."""
-    current = tools.current()
-    value = current or remembered or consume_knowledge(view.messages)
-    if value == "unresolved":
+class PolicyTools:
+    """Capability-minimal scripted-policy facade; not a Python sandbox."""
+
+    __slots__ = ("__operations",)
+
+    def __init__(self, operations):
+        object.__setattr__(self, "_PolicyTools__operations", operations)
+
+    def __getattribute__(self, name):
+        if name == "_PolicyTools__operations":
+            raise AttributeError(name)
+        return object.__getattribute__(self, name)
+
+    def __dir__(self):
+        return ["apply", "current", "discover"]
+
+    def current(self):
+        operations = object.__getattribute__(self, "_PolicyTools__operations")
+        return operations.current()
+
+    def discover(self):
+        operations = object.__getattribute__(self, "_PolicyTools__operations")
+        return operations.discover()
+
+    def apply(self, value):
+        operations = object.__getattribute__(self, "_PolicyTools__operations")
+        return operations.apply(value)
+
+
+def run_policy(view, tools):
+    """A resource-aware baseline and memory policy with matched authority fences."""
+    remembered = consume_knowledge(view.messages)
+    if remembered == "unresolved":
         return None
-    if value is None:
+    if remembered is not None:
+        current = tools.current()
+        value = current or remembered
+    else:
         value = tools.discover()
     return tools.apply(value) if value is not None else None
 
@@ -165,7 +193,7 @@ class KnowledgeCohort:
             self.ref = self.host.complete_task_a(
                 self.scope, task.project, proposal, run_id=task.id + ":task-a"
             )
-            if self.arm != "no_memory":
+            if self.arm not in ("no_memory", "pending_diagnostic"):
                 admission = self.service().admit(self.scope, task.project, self.ref, proposal)
                 if admission.record_id:
                     self.record = self.repo.get_knowledge(
@@ -173,7 +201,7 @@ class KnowledgeCohort:
                     )
                     self.setup_bytes = len(self.record.model_dump_json().encode())
 
-    def pack(self, scope, budgets):
+    def pack(self, scope, budgets, hook=lambda _stage: None):
         task, service = self.source.task, self.service()
         selected = []
         started = perf_counter()
@@ -210,6 +238,7 @@ class KnowledgeCohort:
                 ).retrieve_knowledge(query)
                 selected = [item.memory for item in retrieval.selected]
             retrieval_ms = (perf_counter() - started) * 1000
+            hook("ranked")
             entries = tuple(
                 ContextBuildItem(
                     source_class="ai_memory",
@@ -248,6 +277,7 @@ class KnowledgeCohort:
             packed = tuple(i for i in build.included_item_ids if i in {str(r.id) for r in selected})
             if self.arm == "full_history" and len(packed) != len(selected):
                 raise ResearchFailure("unsupported", "unsupported_full_context")
+            hook("packed")
             value = consume_knowledge(build.messages)
             return (
                 build,
@@ -281,7 +311,8 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
     cohort = KnowledgeCohort(source, arm)
     scope_a = cohort.scope
     rows = []
-    original_intent = digest([task.id, "new-target"])
+    target = TaskBState(task.id)
+    original_intent = target.intent
     for step in task.steps:
         started = trajectory_started if step.offset == 0 else perf_counter()
         source.offset = step.offset
@@ -289,9 +320,16 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
         status, reason = "setup", "source_setup"
         selected, packed, consumed = (), (), ()
         observed, result = None, None
-        tools = SimulatedTaskTools(
-            task, source, scope, cohort.host, original_intent, protocol.budgets.tool_calls
+        authorization = {"check": lambda: False}
+        tool_host = _TaskToolHost(
+            task,
+            scope,
+            cohort.host,
+            target,
+            protocol.budgets.tool_calls,
+            lambda auth=authorization: auth["check"](),
         )
+        tools = PolicyTools(tool_host)
         tokens = memory_tokens = index_bytes = 0
         index_ms = retrieval_ms = packing_ms = consumption_ms = 0.0
         fault_fired = False
@@ -327,9 +365,9 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
                 )
                 if canonical:
                     if arm == "tool_lookup":
-                        tools.calls += 1
+                        tool_host.calls += 1
                     build, selected, packed, _value, retrieval_ms, packing_ms = cohort.pack(
-                        scope, protocol.budgets
+                        scope, protocol.budgets, hook=hook
                     )
                     tokens, memory_tokens = build.token_count, build.memory_tokens
                     source.check(
@@ -342,21 +380,27 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
                             now=source.now(),
                         )
                     )
-                    hook("ranked")
-                    hook("packed")
                     hook("consume")
                     with request(scope):
-                        view = TaskView(task.query, task.current_hint, build.messages)
+                        view = TaskView(task.query, build.messages)
                         if packed:
                             record = next(r for r in (cohort.record,) if str(r.id) in packed)
-                            dependency = cohort.service().dependency(record, scope)
+                            service = cohort.service()
+                            dependency = service.dependency(record, scope)
+                            authorization["check"] = lambda current=service, ref=dependency: (
+                                current.is_current(ref)
+                            )
                             observed = cohort.service().consume(
                                 dependency,
                                 lambda _, view=view, tools=tools: run_policy(view, tools),
                             )
                             consumed = packed
                         else:
-                            observed = run_policy(view, tools)
+                            authorization["check"] = lambda host=cohort.host, request_scope=scope, project=task.project: bool(
+                                host.project(request_scope, project)
+                            )
+                            with cohort.host.lease(scope, task.project):
+                                observed = run_policy(view, tools)
                 else:
                     nav_arm = "eligible_full_context" if arm == "full_history" else arm
                     query = query_for(
@@ -401,14 +445,25 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
                     if arm == "no_memory":
                         for stage in ("ranked", "packed", "consume"):
                             hook(stage)
+                    authorization["check"] = lambda authority=source, request_query=query: (
+                        authority.check(request_query) is None
+                    )
                     with source.lease(query):
                         # A new action uses current source authority, independently
                         # of the earlier scripted card reader's success label.
-                        observed = run_policy(
-                            TaskView(task.query, task.current_hint, ()),
-                            tools,
-                            remembered=result.answer,
-                        )
+                        messages = (ChatMessage("user", task.query),)
+                        if result.answer is not None:
+                            source_id = result.citations[0] if result.citations else "unattributed"
+                            card = json.dumps(
+                                {"historical_action": result.answer, "source": source_id},
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            )
+                            messages = (
+                                *messages,
+                                ChatMessage("system", "Untrusted historical context\n" + card),
+                            )
+                        observed = run_policy(TaskView(task.query, messages), tools)
                         consumed = tuple(
                             i for i in packed if source._records[i].source_id in result.citations
                         )
@@ -426,21 +481,12 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
             status = exc.status if isinstance(exc, ResearchFailure) else "denied"
             status = {"unavailable": "error", "disabled": "unsupported"}.get(status, status)
             reason = exc.reason if isinstance(exc, ResearchFailure) else "knowledge_consume_denied"
-            consumed, observed = (), None
         except Exception:  # noqa: BLE001 - keep partial failures and complete the attempt grid
             status, reason = "error", "attempt_exception"
-            consumed, observed = (), None
         effects = [v[1] for k, v in cohort.host.effects.items() if k[2] == original_intent]
-        # Setup effects have different intent keys and cannot enter target counts.
-        terminal = (
-            digest(
-                {
-                    "intent": original_intent,
-                    "action": action_id(observed["command"]),
-                    "revision": observed["revision"],
-                }
-            )
-            if observed
+        readback = (
+            target.read_back(task.id, target.target_id, original_intent)
+            if step.phase == "task_b"
             else None
         )
         rows.append(
@@ -461,16 +507,28 @@ def run_trajectory(task_id, arm, run_hash, protocol, repetition):
                 selected=selected,
                 packed=packed,
                 consumed=consumed,
-                terminal_state_sha256=terminal,
-                observed_action=action_id(observed["command"]) if observed else None,
+                target_id=readback.target_id if readback else None,
+                target_before_version=readback.before_version if readback else None,
+                target_before_state_sha256=readback.before_state_sha256 if readback else None,
+                readback_task_id=readback.task_id if readback else None,
+                readback_target_id=readback.target_id if readback else None,
+                readback_original_intent=readback.original_intent if readback else None,
+                readback_state_version=readback.state_version if readback else None,
+                readback_state_sha256=readback.state_sha256 if readback else None,
+                readback_action=readback.action if readback else None,
+                readback_effect_id=readback.effect_id if readback else None,
+                readback_effect_count=readback.effect_count if readback else None,
+                readback_effect_authorized=readback.effect_authorized if readback else None,
+                terminal_state_sha256=readback.state_sha256 if readback else None,
+                observed_action=readback.action if readback else None,
                 effect_count=len(effects),
                 abstained=step.phase == "task_b" and status == "complete" and observed is None,
-                rediscoveries=tools.discoveries,
-                rejected_actions=tools.rejected_actions,
+                rediscoveries=tool_host.discoveries,
+                rejected_actions=tool_host.rejected_actions,
                 resources=ResourceCounters(
                     fixture_token_estimate=tokens,
                     memory_token_estimate=memory_tokens,
-                    tool_calls=tools.calls,
+                    tool_calls=tool_host.calls,
                     index_bytes=index_bytes,
                     retained_bytes=cohort.setup_bytes + index_bytes,
                     maintenance_calls=maintenance,

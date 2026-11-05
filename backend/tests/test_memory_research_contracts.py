@@ -14,6 +14,7 @@ from personal_ai.evaluation.memory_longitudinal.dataset import (
     source_bytes,
 )
 from personal_ai.memory.research.experiments.artifacts import (
+    PACKAGE_MEMBERS,
     checked_json,
     immutable_write,
     validate_grid,
@@ -111,11 +112,38 @@ def test_package_does_not_read_untrusted_paths_or_accept_tampered_members(tmp_pa
     immutable_write(tmp_path / "run.json", b"{}")
     index = {"version": "memory-replay-package-v1", "files": {"../secret": "0" * 64}}
     (tmp_path / "package.json").write_bytes(canonical(index))
-    with pytest.raises(ValueError, match="package_path"):
+    with pytest.raises(ValueError, match="package_capacity"):
         verify_package(tmp_path)
     index["files"] = {"run.json": "0" * 64}
     (tmp_path / "package.json").write_bytes(canonical(index))
-    with pytest.raises(ValueError, match="package_integrity"):
+    with pytest.raises(ValueError, match="package_capacity"):
+        verify_package(tmp_path)
+
+
+def test_package_requires_exact_indexed_members_and_rejects_unindexed_files(tmp_path):
+    members = {name: name.encode() for name in PACKAGE_MEMBERS}
+    for name, payload in members.items():
+        immutable_write(tmp_path / name, payload)
+    inventory = {name: sha256(payload).hexdigest() for name, payload in members.items()}
+    index_path = tmp_path / "package.json"
+    index_path.write_bytes(
+        canonical({"version": "memory-replay-package-v1", "files": inventory})
+    )
+    assert set(verify_package(tmp_path)["files"]) == PACKAGE_MEMBERS
+
+    omitted = dict(inventory)
+    omitted.pop("faults.json")
+    index_path.write_bytes(
+        canonical({"version": "memory-replay-package-v1", "files": omitted})
+    )
+    with pytest.raises(ValueError, match="package_capacity"):
+        verify_package(tmp_path)
+
+    index_path.write_bytes(
+        canonical({"version": "memory-replay-package-v1", "files": inventory})
+    )
+    (tmp_path / "unindexed.json").write_text("{}")
+    with pytest.raises(ValueError, match="package_inventory_mismatch"):
         verify_package(tmp_path)
 
 

@@ -1,0 +1,214 @@
+{
+  "comparisons": [
+    {
+      "attempted_scenarios": 48,
+      "baseline": "no_memory",
+      "candidate": "lexical",
+      "delta_pp": 0.0,
+      "interval_pp": [
+        0.0,
+        0.0
+      ],
+      "losses": 0,
+      "scored_pairs": 25,
+      "started_pairs": 25,
+      "structurally_eligible_scenarios": 40,
+      "terminal_completed_pairs": 25,
+      "ties": 25,
+      "wins": 0
+    },
+    {
+      "attempted_scenarios": 48,
+      "baseline": "lexical",
+      "candidate": "topic_hierarchical",
+      "delta_pp": -4.0,
+      "interval_pp": [
+        -12.0,
+        0.0
+      ],
+      "losses": 1,
+      "scored_pairs": 25,
+      "started_pairs": 25,
+      "structurally_eligible_scenarios": 40,
+      "terminal_completed_pairs": 24,
+      "ties": 24,
+      "wins": 0
+    },
+    {
+      "attempted_scenarios": 48,
+      "baseline": "lexical",
+      "candidate": "adaptive",
+      "delta_pp": 0.0,
+      "interval_pp": [
+        0.0,
+        0.0
+      ],
+      "losses": 0,
+      "scored_pairs": 25,
+      "started_pairs": 25,
+      "structurally_eligible_scenarios": 40,
+      "terminal_completed_pairs": 25,
+      "ties": 25,
+      "wins": 0
+    },
+    {
+      "attempted_scenarios": 48,
+      "baseline": "lexical",
+      "candidate": "full_history",
+      "delta_pp": 0.0,
+      "interval_pp": [
+        0.0,
+        0.0
+      ],
+      "losses": 0,
+      "scored_pairs": 23,
+      "started_pairs": 23,
+      "structurally_eligible_scenarios": 38,
+      "terminal_completed_pairs": 23,
+      "ties": 23,
+      "wins": 0
+    },
+    {
+      "attempted_scenarios": 48,
+      "baseline": "no_memory",
+      "candidate": "verified_knowledge",
+      "delta_pp": 0.0,
+      "interval_pp": [
+        0.0,
+        0.0
+      ],
+      "losses": 0,
+      "scored_pairs": 8,
+      "started_pairs": 8,
+      "structurally_eligible_scenarios": 8,
+      "terminal_completed_pairs": 8,
+      "ties": 8,
+      "wins": 0
+    },
+    {
+      "attempted_scenarios": 48,
+      "baseline": "verified_knowledge",
+      "candidate": "tool_lookup",
+      "delta_pp": -100.0,
+      "interval_pp": [
+        -100.0,
+        -100.0
+      ],
+      "losses": 8,
+      "scored_pairs": 8,
+      "started_pairs": 8,
+      "structurally_eligible_scenarios": 8,
+      "terminal_completed_pairs": 8,
+      "ties": 0,
+      "wins": 0
+    }
+  ],
+  "decision": {
+    "effective_policy": "unchanged",
+    "live_promotion": false,
+    "reasons": [
+      "quality_threshold_not_met"
+    ],
+    "status": "blocked"
+  },
+  "fresh_process_packages": [
+    {
+      "fresh_process_replay_verified": true,
+      "package_index_sha256": "9327117b0c0d3df227f664864d49b65ce06fbdad4a317ec28734c654ccc91b4c",
+      "path": "artifacts/memory-research/4e4ae79f3cc5805c7d1b3446a623ae9d8445ce058999b2169dcd260eb1ad839d/21ea6ef1bc2e4b86992c3f428977a193",
+      "rows": 3528,
+      "run_sha256": "4e4ae79f3cc5805c7d1b3446a623ae9d8445ce058999b2169dcd260eb1ad839d",
+      "semantic_sha256": "4a42baf547556ec4dd51eff9e859cb200c24b77f5d9983aea30e2e5e5489efc3"
+    },
+    {
+      "fresh_process_replay_verified": true,
+      "package_index_sha256": "1e1201bfa380eb5bb934b8f14f446b798fc0a1ba9be070a41b030844c8ab24db",
+      "path": "artifacts/memory-research/4e4ae79f3cc5805c7d1b3446a623ae9d8445ce058999b2169dcd260eb1ad839d/7df0371a5d9d4b6cb99567e447ba55b9",
+      "rows": 3528,
+      "run_sha256": "4e4ae79f3cc5805c7d1b3446a623ae9d8445ce058999b2169dcd260eb1ad839d",
+      "semantic_sha256": "4a42baf547556ec4dd51eff9e859cb200c24b77f5d9983aea30e2e5e5489efc3"
+    }
+  ],
+  "remaining_gates": [
+    "independent blind E1 challenge and reviewer",
+    "E2 native database/source verification",
+    "real semantic embeddings and compatible provenance",
+    "E3 private/live issuer and transport",
+    "E4 deployed forget/restore and cold-restart deletion",
+    "E5 real-model longitudinal utility",
+    "independent release authority; production NO_GO"
+  ],
+  "review_target": "0289ac15bfa6b1267017d3ed55bce2134222aa36",
+  "rows": {
+    "attempted": 3528,
+    "statuses": {
+      "cancelled": 10,
+      "complete": 342,
+      "denied": 144,
+      "error": 10,
+      "incomplete": 12,
+      "setup": 2304,
+      "timed_out": 10,
+      "unsupported": 696
+    }
+  },
+  "run": {
+    "backend_uv_lock_sha256": "43e6b75954501a599000b192fd0075073716e893eed01dfadcd544069735cb7a",
+    "baseline_strategy": "oracle_free_discover_apply_with_fenced_currentness",
+    "dataset_id": "memory-longitudinal-study-v3",
+    "dirty_research_inputs": true,
+    "environment": {
+      "machine": "arm64",
+      "model_transport": "disabled",
+      "native": "not_observed",
+      "platform": "Darwin-27.0.0",
+      "pydantic": "2.13.5",
+      "python": "3.11.15"
+    },
+    "protocol_sha256": "00c70e86bf79cce7053dab9a98c30acf6839d102fbd411e66af91e2b8c008e11",
+    "provenance_sha256": "c30d8220908524c3b1018315fbd3a2d9ed0526066c3aa562f67a5500a34bf903",
+    "revision": "0289ac15bfa6b1267017d3ed55bce2134222aa36",
+    "revision_tree": "258f5a32355798d2ecde9a49abc61253b9f679db",
+    "run_sha256": "4e4ae79f3cc5805c7d1b3446a623ae9d8445ce058999b2169dcd260eb1ad839d",
+    "scorer_sha256": "69a3f4d91335ec3f72e9b8e5188b1cc221d7c5bd26bb72aaabff746fdf2dffeb",
+    "semantic_sha256": "4a42baf547556ec4dd51eff9e859cb200c24b77f5d9983aea30e2e5e5489efc3",
+    "source_fixture_sha256": "da7ccb44d7cf6076d33d4a14dfda04b2f907d5bb529fe05ee177bfc1abae8d6c",
+    "source_lock_v3_sha256": "10b46a3a08ef8123e882673b710e44e8d65580ab4bb1739ba8e4de9f3a99cfb0",
+    "source_snapshot_sha256": "4d9236a973e12432df9152406a3632a199be78a366d9351597318630c23bafc6",
+    "support_matrix_sha256": "fe5e9c21108cb6b747870f531ed3cadf9da0318c8445bbe38c321e80fcf1c9c9"
+  },
+  "safety": {
+    "boundary_mismatch_rows": 0,
+    "checks": {
+      "cancellation": "pass",
+      "canonical_knowledge_fences": "pass",
+      "complete_attempt_accounting": "pass",
+      "configuration_unchanged": "pass",
+      "correction": "pass",
+      "forget_restore": "pass",
+      "intent_replay": "pass",
+      "no_effect_planning": "pass",
+      "poisoning": "pass",
+      "resource_bounds": "pass",
+      "scope": "pass",
+      "scorer_isolation": "pass",
+      "source_revocation": "pass",
+      "support_matrix": "pass",
+      "tamper": "pass",
+      "terminal_readback": "pass"
+    },
+    "failures": [],
+    "supported_runtime_unsupported_rows": 0,
+    "unaccounted_supported_rows": 0
+  },
+  "verification": {
+    "adjacent": "memory-task-eval, memory-knowledge-eval, memory-control-eval, memory-navigation-check/eval and memory-consolidation-check/eval \u2014 all exit 0; navigation 57 tests passed; consolidation 107 tests passed; control 36/36.",
+    "focused": "make memory-research-check backend-lint naming-policy-check \u2014 exit 0; 111 focused tests passed; Ruff passed; naming policy passed (2 unit tests).",
+    "native": "PERSISTENCE_TEST_POSTGRES_DSN unset; native E2 checks not run.",
+    "offline_suite": "make backend-test-offline with SDK/Checklist source paths \u2014 2751 passed, 1 skipped, 36 failed, 92 errors, 180 deselected. Failures are unchanged PI-6/planning frozen identity assertions; HTTP integration setup cannot bind loopback under this sandbox (PermissionError).",
+    "offline_suite_initial": "without source PYTHONPATH, collection stopped on ModuleNotFoundError: personal_ai_sdk; no tests ran.",
+    "planning": "make planning-eval \u2014 exit 2, planning_baseline_changed_requires_new_version; frozen historical identity preserved.",
+    "tamper_probe": "Copied package to /private/tmp and added an unindexed extra file; verifier exited 1 with package_inventory_mismatch."
+  },
+  "version": "mem6-review-remediation-measurement-v1"
+}
