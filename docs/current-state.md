@@ -4,6 +4,18 @@ Updated 2026-11-04. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance.
 Independent final review and external acceptance remain open.
 
+## Reasoning policy and offline benchmark
+
+The [reasoning design and benchmark](reasoning-engine/README.md) implement an
+E0/E1 candidate with a proposed request contract, inert strategy catalog and
+frozen direct fake comparator. Two fresh processes reproduced all 64 rows
+from 32 synthetic cases, including 28 unsupported diagnostic rows, with zero
+safety vetoes. Task scores are scripted proxies. Effective effort, runtime
+strategy selection, model-step execution and strategy promotion are future
+work. Independent exact-commit review is pending. Native fencing, local
+model utility and installed/hosted/cloud acceptance remain unverified.
+Production remains NO_GO. See the [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md).
+
 ## Synthetic memory governance
 
 A memory-specific grant overlay is implemented at E0/E1 only, with closed

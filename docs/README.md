@@ -24,6 +24,7 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | Authentication and security | [Threat model](phase-9-threat-model.md), `backend/src/personal_ai/auth/`, [security policy](../SECURITY.md) |
 | Persistence and recovery | [Persistence README](../backend/src/personal_ai/persistence/README.md), [operations](../stabilization/OPERATIONS.md) |
 | Frontend and sidecar | [chat feature README](../frontend/src/features/chat/README.md), [API contract](api-contract.md) |
+| Reasoning policy and offline benchmark | [Reasoning engine](reasoning-engine/README.md), [execution authority](decisions/0028-reasoning-policy-and-execution-ownership.md) |
 | Evaluation and experiments | `backend/src/personal_ai/evaluation/`, fixture/lock and focused tests; [current status](current-state.md) |
 | Operations and release gates | [Release profiles and operator guide](harness-excellence/release-operator-guide.md), [Current verification](../stabilization/VERIFICATION.md), [operations](../stabilization/OPERATIONS.md), [current state](current-state.md) |
 | Compatibility and independent acceptance | [Platform independence](platform-independence/README.md), then the relevant contract and dated evidence |

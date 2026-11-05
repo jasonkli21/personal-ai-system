@@ -95,3 +95,9 @@ quality are unmeasured; cost is offline/no charge. Small author-visible families
 get descriptive paired mean/variance, without confidence or generalization claims.
 See the [dated receipt](../../../../docs/memory/2026-11-04-retrieval-implementation.md)
 and its retained machine-readable measurements.
+
+`make reasoning-check` and `make reasoning-eval` verify and run the frozen
+reasoning comparator. A single synthetic generation is paired with an
+arithmetic check only where the check is defined. The content-free report
+retains unsupported rows and reports scripted proxies separately from actual
+model evidence. See the [benchmark contract](../../../../docs/reasoning-engine/benchmark-contract.md).

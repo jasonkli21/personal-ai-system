@@ -1,0 +1,198 @@
+{
+  "suite": "reasoning-offline-v1",
+  "frozen_before_measurement": true,
+  "cohort": [
+    [
+      "extraction_1",
+      "extraction",
+      "development"
+    ],
+    [
+      "extraction_2",
+      "extraction",
+      "development"
+    ],
+    [
+      "extraction_3",
+      "extraction",
+      "development"
+    ],
+    [
+      "extraction_4",
+      "extraction",
+      "holdout"
+    ],
+    [
+      "planning_1",
+      "planning",
+      "development"
+    ],
+    [
+      "planning_2",
+      "planning",
+      "development"
+    ],
+    [
+      "planning_3",
+      "planning",
+      "development"
+    ],
+    [
+      "planning_4",
+      "planning",
+      "holdout"
+    ],
+    [
+      "citations_1",
+      "citations",
+      "development"
+    ],
+    [
+      "citations_2",
+      "citations",
+      "development"
+    ],
+    [
+      "citations_3",
+      "citations",
+      "development"
+    ],
+    [
+      "citations_4",
+      "citations",
+      "holdout"
+    ],
+    [
+      "debugging_1",
+      "debugging",
+      "development"
+    ],
+    [
+      "debugging_2",
+      "debugging",
+      "development"
+    ],
+    [
+      "debugging_3",
+      "debugging",
+      "development"
+    ],
+    [
+      "debugging_4",
+      "debugging",
+      "holdout"
+    ],
+    [
+      "numeric_1",
+      "numeric",
+      "development"
+    ],
+    [
+      "numeric_2",
+      "numeric",
+      "development"
+    ],
+    [
+      "numeric_3",
+      "numeric",
+      "development"
+    ],
+    [
+      "numeric_4",
+      "numeric",
+      "holdout"
+    ],
+    [
+      "uncertainty_1",
+      "uncertainty",
+      "development"
+    ],
+    [
+      "uncertainty_2",
+      "uncertainty",
+      "development"
+    ],
+    [
+      "uncertainty_3",
+      "uncertainty",
+      "development"
+    ],
+    [
+      "uncertainty_4",
+      "uncertainty",
+      "holdout"
+    ],
+    [
+      "scope_1",
+      "scope",
+      "development"
+    ],
+    [
+      "scope_2",
+      "scope",
+      "development"
+    ],
+    [
+      "scope_3",
+      "scope",
+      "development"
+    ],
+    [
+      "scope_4",
+      "scope",
+      "holdout"
+    ],
+    [
+      "resources_1",
+      "resources",
+      "development"
+    ],
+    [
+      "resources_2",
+      "resources",
+      "development"
+    ],
+    [
+      "resources_3",
+      "resources",
+      "development"
+    ],
+    [
+      "resources_4",
+      "resources",
+      "holdout"
+    ]
+  ],
+  "holdout_exposure": "author_visible",
+  "model": "deterministic_fixture_responder-v1",
+  "seed": null,
+  "temperature": null,
+  "baseline": "one prepared task, one admitted fake attempt, zero checks and retries",
+  "diagnostic": "same prepared task and attempt, one deterministic numeric check or unsupported",
+  "eligibility": "numeric family only for check arm; fixture scope and budget enforced in both",
+  "rubric": "exact fixture value, objective constraints, source slots, closed outcome and independent fake effect counts",
+  "budget": {
+    "max_model_attempts": 1,
+    "max_checks": 1,
+    "max_sources": 4,
+    "max_input_units": 512,
+    "max_output_units": 64,
+    "max_concurrency": 1,
+    "max_external_calls": 0,
+    "max_provider_cost_usd": "0.00",
+    "logical_deadline_ticks": 3,
+    "process_deadline_seconds": 30
+  },
+  "files": {
+    "../../../scripts/reasoning_eval.py": "824ab87c2db07f62b24c19c3ae2192eca1213561e15ee4de116711fcbbe8f601",
+    "../reasoning/__init__.py": "93e85d10ea7dae22f25352c2b2b5aa2f0b6197362cb530bf3b95b622ae614fb1",
+    "../reasoning/catalog.py": "8de387450cca1e0e31f6c72070958cfdeeb88f6621b5a1aba7c4ca6a85f701ad",
+    "../reasoning/proposed_request.py": "72df0e0db392514f5570fdb0cf479746451ae8ee15d21c21e1e6c19dd84c291d",
+    "fixtures/reasoning/cases-v1.json": "4b3815d5d23511d66e5089ca0cccc5c1c830097f597e55cd80be0d127741fc0b",
+    "reasoning_baseline.py": "1c0317a1b80f9c326fddc72dabdca974ac9b5f551edad22226de9740ac4ac821",
+    "reasoning_contracts.py": "99e6fd7d30062107ce3e4ed960fd7722c1516ed89f7581312f31ddc6ca99d399",
+    "reasoning_driver.py": "a40c00e30fda9b096efc3b227bd3005c7622c5a13e3a0bb1ea62f08c8ca65923",
+    "reasoning_harness.py": "284c1bb4fd8947552fdfa48aea0e971e09f04283d47a1cc950b02fcf13c892c3",
+    "reasoning_scoring.py": "b23f2889528fd98898c93b0384cde3ccd66de72fdd6c476fadc11853748b9ad6"
+  }
+}

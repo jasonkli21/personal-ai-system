@@ -340,3 +340,10 @@ memory-governance-check:
 
 memory-governance-eval:
 	cd backend && python -m personal_ai.evaluation.memory_governance $(GOVERNANCE_FLAGS)
+
+.PHONY: reasoning-check reasoning-eval
+reasoning-check:
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_baseline.py
+
+reasoning-eval:
+	$(PLATFORM_PYTHON) -B backend/scripts/reasoning_eval.py
