@@ -70,4 +70,7 @@ def _serialize_event(event: TurnEvent) -> str:
         )
     else:  # pragma: no cover - closed union guard
         raise TypeError(f"unsupported chat turn event: {type(event).__name__}")
-    return f"event: {name}\ndata: {payload.model_dump_json()}\n\n"
+    data = payload.model_dump_json()
+    if isinstance(event, (TurnCompleted, TurnFailed)) and event.reasoning is not None:
+        data = data[:-1] + ',"reasoning":' + event.reasoning.model_dump_json() + "}"
+    return f"event: {name}\ndata: {data}\n\n"

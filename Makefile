@@ -343,7 +343,7 @@ memory-governance-eval:
 
 .PHONY: reasoning-check reasoning-eval
 reasoning-check:
-	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_baseline.py backend/tests/test_reasoning_v2.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_baseline.py backend/tests/test_reasoning_v2.py backend/tests/test_continuation_effort.py
 
 reasoning-eval:
 	PYTHONPATH=$(CURDIR)/backend/src $(PLATFORM_PYTHON) -B backend/src/personal_ai/evaluation/reasoning_v2/runner.py

@@ -10,6 +10,7 @@ from personal_ai.api.schemas import (
     SSEResponseDelta,
     SSEResponseError,
 )
+from personal_ai.reasoning.policy import OBSERVATION_VERSION, Observation
 
 CONSUMER_API_VERSION = "1.2.0"
 OPERATIONS = {
@@ -87,6 +88,15 @@ def consumer_openapi():
                         }
                     },
                 }
+    schemas["ReasoningObservation"] = Observation.model_json_schema()
+    paths["/v1/conversations/{conversation_id}/continue"]["post"]["x-reasoning-observation"] = {
+        "requestHeader": "X-Reasoning-Observation",
+        "version": OBSERVATION_VERSION,
+        "terminalEvents": ["response.completed", "response.error"],
+        "terminalField": "reasoning",
+        "preStreamDenialHeader": "X-Reasoning-Observation",
+        "schema": {"$ref": "#/components/schemas/ReasoningObservation"},
+    }
     needed = set()
 
     def collect(value):

@@ -1,7 +1,9 @@
 # Reasoning engine
 
 - [Architecture and owners](architecture.md)
-- [Proposed request and result contract](api-contract-v1-proposed.md)
+- [Automatic continuation effort](continuation-effort.md)
+- [Continuation effort verification](2026-11-04-effort-verification.md)
+- [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)
 - [Implementation decisions at entry](2026-11-04-re-0-plan-hardening.md)

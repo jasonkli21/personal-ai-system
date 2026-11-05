@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 import anyio
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
 from personal_ai.api.chat_stream import sse_frames
@@ -45,8 +45,9 @@ from personal_ai.context.traces import (
     ContextTraceRepository,
     UnsupportedContextTraceSchemaError,
 )
-from personal_ai.contracts.execution import ContinuationRequestPayload
+from personal_ai.contracts.execution import AutomaticContinuationPayload
 from personal_ai.entities import Conversation
+from personal_ai.reasoning.policy import OBSERVATION_VERSION, ReasoningDenied, deny
 from personal_ai.services import ChatTurnService, ConversationService
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
@@ -193,6 +194,35 @@ def create_message(
     )
 
 
+def _reasoning_denial(error: ReasoningDenied) -> HTTPException:
+    observation = error.observation
+    return HTTPException(
+        status_code={"policy_denied": 403, "provider_unavailable": 503}.get(
+            observation.stop_reason, 422
+        ),
+        detail=f"reasoning_{observation.stop_reason}",
+        headers={"X-Reasoning-Observation": observation.model_dump_json()},
+    )
+
+
+def _continuation_input(
+    continuation: AutomaticContinuationPayload,
+    settings: Annotated[Settings, Depends(get_settings)],
+    observation_version: Annotated[str | None, Header(alias="X-Reasoning-Observation")] = None,
+) -> AutomaticContinuationPayload:
+    if continuation.reasoning is not None:
+        if observation_version != OBSERVATION_VERSION:
+            raise HTTPException(status_code=422, detail="reasoning_observation_required")
+        try:
+            if not settings.reasoning_enabled or settings.app_environment not in {"local", "test"}:
+                deny(continuation.reasoning, "policy_denied", "policy")
+            if settings.inference_profile not in {"offline_fake", "offline_fake_alt", "local_llama"}:
+                deny(continuation.reasoning, "unsupported", "capability", unsupported=True)
+        except ReasoningDenied as error:
+            raise _reasoning_denial(error) from None
+    return continuation
+
+
 @router.post(
     "/{conversation_id}/continue",
     response_class=StreamingResponse,
@@ -200,7 +230,7 @@ def create_message(
 )
 def continue_conversation_turn(
     conversation_id: UUID,
-    continuation: ContinuationRequestPayload,
+    continuation: Annotated[AutomaticContinuationPayload, Depends(_continuation_input)],
     http_request: Request,
     principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
     scope: Annotated[RequestScope, Depends(get_request_scope)],
@@ -208,13 +238,23 @@ def continue_conversation_turn(
     service: Annotated[ChatTurnService, Depends(get_chat_turn_service)],
 ) -> StreamingResponse:
     """Continue through the shared automatic lane or external-turn preparation UI."""
-    continuation = resolve_continuation_payload(continuation, principal, scope, runtime)
-    if continuation.choice.mode != "automatic":
-        raise HTTPException(status_code=422, detail="external_choice_requires_preparation")
     request_id = _request_id(http_request)
-    return _sse_response(
-        service.continue_turn(conversation_id, continuation), request_id=request_id
-    )
+    reasoning = continuation.reasoning
+    if reasoning is None:
+        canonical = resolve_continuation_payload(continuation, principal, scope, runtime)
+        if canonical.choice.mode != "automatic":
+            raise HTTPException(status_code=422, detail="external_choice_requires_preparation")
+        return _sse_response(service.continue_turn(conversation_id, canonical), request_id=request_id)
+
+    try:
+        if continuation.federation_choice_ids:
+            deny(reasoning, "unsupported", "source", unsupported=True)
+        stream = service.continue_turn(conversation_id, continuation.to_internal_request())
+    except ReasoningDenied as error:
+        raise _reasoning_denial(error) from None
+    response = _sse_response(stream, request_id=request_id)
+    response.headers["X-Reasoning-Observation"] = OBSERVATION_VERSION
+    return response
 
 
 @router.post(

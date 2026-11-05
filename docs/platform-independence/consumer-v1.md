@@ -50,6 +50,9 @@ context budget and be refused. Lists are bounded by the existing repository
 | `POST /v1/conversations/{id}/continue` | Stable UUID-keyed automatic continuation via shared assembler; SSE |
 | `GET /v1/conversations/{id}/continuations/{key}` | Read original key's canonical state and optional message UUID, including inactive branches |
 
+The optional [continuation effort extension](../reasoning-engine/continuation-effort.md)
+uses explicit HTTP negotiation and is default-off in development.
+
 The Reading Logbook host permits only conversation history. It supplies no
 memory/profile/domain provider. Planning previews show selections/exclusions,
 not context content or authorization promises for a later turn. Source policy,

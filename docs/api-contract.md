@@ -444,6 +444,11 @@ Confirmed account deletion fences future artifact retrieval/publication and prov
 
 ## Gated external-turn contract
 
+Automatic continuation accepts a [negotiated effort request](reasoning-engine/continuation-effort.md)
+in local and test environments with the server feature enabled. The optional
+field is included in the original intent digest. Ordinary continuation and
+legacy message streams retain their existing payload and SSE shapes.
+
 Message status adds `pending` for reserved external work; `streaming` continues to describe ordinary model streams. Messages may include safe producer `attribution`, an embedded execution reservation, and a normalized error fact source. Existing messages remain readable without those fields. Manual provenance is user-declared; connected external metadata is client-reported; ordinary server generation records observed adapter identity and usage confidence. No new HTTP issuer/import endpoint is enabled. Internal provider-neutral preparation/continuation values and canonical lifecycle semantics are described in the [external-turn lifecycle guide](personal-ai-chapter-2/phase-25-2-implementation-guide.md). authenticated route integration must compose them through authenticated thin routes and the existing Next.js API proxy.
 
 

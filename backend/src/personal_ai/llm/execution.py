@@ -6,7 +6,7 @@ No routing, retries, dynamic imports, paid admission or additional ledger lives 
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
+from contextlib import aclosing, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -16,6 +16,7 @@ from time import monotonic
 
 import anyio
 
+from personal_ai.llm import synthetic_reasoning
 from personal_ai.llm.client import (
     BoundedTextStream,
     ProviderCapabilities,
@@ -27,6 +28,7 @@ from personal_ai.llm.errors import LLMInvalidConfigurationError, LLMInvalidReque
 from personal_ai.llm.fake import FakeLLMClient
 from personal_ai.llm.litellm.profiles import _validate_inference_context
 from personal_ai.llm.preparation import prepare_bounded_input, require_matching_endpoint
+from personal_ai.reasoning.policy import Ceilings, deny, resolve_policy
 from personal_ai.routing.contracts import CountRequirement, EndpointCandidateRequirements
 from personal_ai.routing.registry import EndpointRegistryError
 from personal_ai.usage.accounting import unit_reservations
@@ -70,6 +72,37 @@ class LocalFakeCounter:
 
 class LocalFakeGeneration(FakeLLMClient):
     requires_inference_context = True
+
+    async def stream_reasoning(
+        self, messages, *, observation, max_output_tokens, timeout_seconds, inference_context,
+    ):
+        revalidate_disclosure()
+        if timeout_seconds <= 0:
+            raise LLMInvalidRequestError("generation bounds are invalid")
+        mapping = synthetic_reasoning.native_setting(
+            self.endpoint_profile, self.identity, observation.policy.ceiling, max_output_tokens,
+        )
+        if mapping:
+            version, setting = mapping
+            wire = synthetic_reasoning.serialize(
+                messages, self.identity.model_id, setting.wire_value, max_output_tokens,
+            )
+            if len(wire) > observation.policy.budget.max_input_tokens:
+                raise LLMInvalidRequestError("synthetic reasoning input exceeds budget")
+            synthetic_reasoning.verify_wire(
+                wire, messages, self.identity.model_id, setting.wire_value, max_output_tokens,
+            )
+            revalidate_disclosure()
+            observation.effective = setting.effort
+            observation.capability = version
+            observation.native_applied = True
+        emit(Event.DISPATCH, State.OK, operation="streaming", units="fake_bytes")
+        async with aclosing(super().stream_events(
+            messages, max_output_tokens=max_output_tokens,
+            timeout_seconds=timeout_seconds, inference_context=inference_context,
+        )) as events:
+            async for event in events:
+                yield event
 
 
 class SendAccounting:
@@ -224,8 +257,10 @@ class SelectedCounter:
         self.capabilities.require("token_counting")
         kwargs = {"response_schema": response_schema, "inference_context": inference_context}
         if self.admission is None:
+            emit(Event.DISPATCH, State.OK, operation="token_counting", units="fake_bytes")
             result = self.delegate.count(messages, **kwargs)
-            emit(Event.COUNT, State.OK, input_tokens=result.tokens, units="fake_bytes")
+            emit(Event.COUNT, State.OK, operation="token_counting", input_tokens=result.tokens,
+                 units="fake_bytes")
             return result
         profile = self.admission.profile
         schema_id = schema_identity(response_schema)
@@ -252,7 +287,7 @@ class SelectedGeneration:
         self.admission = admission
         require_matching_endpoint(self, counter)
 
-    def _prepare(self, messages, operation, max_output_tokens, timeout_seconds, inference_context, schema=None):
+    def _prepare(self, messages, operation, max_output_tokens, timeout_seconds, inference_context, schema=None, *, reasoning=None):
         _validate_inference_context(inference_context)
         self.capabilities.require(operation)
         if max_output_tokens < 1 or timeout_seconds <= 0:
@@ -264,6 +299,8 @@ class SelectedGeneration:
             self.settings.max_context_tokens,
             profile.context_limit_tokens if profile else self.settings.max_context_tokens,
         ) - max_output_tokens - self.settings.context_safety_margin_tokens
+        if reasoning is not None:
+            input_limit = min(input_limit, reasoning.policy.budget.max_input_tokens)
         if input_limit < 1 or (profile and max_output_tokens > profile.max_output_tokens):
             raise LLMInvalidRequestError("generation bounds exceed endpoint limits")
         # Check generation permission before disclosing even to its counter.
@@ -282,14 +319,53 @@ class SelectedGeneration:
         )
         return requirements.model_copy(update={"input_tokens": prepared.token_count.tokens}), prepared
 
-    async def stream_events(self, messages, *, max_output_tokens, timeout_seconds, inference_context=None):
+    def reasoning_policy(self, request):
+        profile = self.admission.profile if self.admission else None
+        if not self.settings.reasoning_enabled:
+            deny(request, "policy_denied", "policy")
+        if profile is None:
+            if type(self.delegate) is not LocalFakeGeneration or self.settings.inference_cost_mode != "offline_fake":
+                deny(request, "unsupported", "capability", unsupported=True)
+        elif (
+            not self.admission.local or self.settings.inference_cost_mode != "local_only"
+            or profile.cost_class != "LOCAL_NO_CHARGE"
+            or profile.context_limit_tokens is None or profile.max_output_tokens is None
+            or not profile.enabled or "streaming" not in profile.capabilities
+            or profile.counter is None or not profile.counter.approved
+            or profile.quota_membership != "verified"
+        ):
+            deny(request, "unsupported", "capability", unsupported=True)
+        # The existing scope and disclosure policy authorizes the direct turn.
+        # This lane adds no per-scope grant or authority. The installed local
+        # adapter only permits plain low, even with a higher operator ceiling.
+        return resolve_policy(
+            request, enabled=True,
+            ceilings=Ceilings(self.settings.reasoning_effort_ceiling, "max", "max", "max",
+                              "low" if profile else "high"),
+            input_limit=min(self.settings.max_context_tokens, profile.context_limit_tokens)
+                if profile else self.settings.max_context_tokens,
+            output_limit=min(self.settings.max_response_tokens, profile.max_output_tokens)
+                if profile else self.settings.max_response_tokens,
+            elapsed_limit=int(self.settings.request_timeout_seconds),
+            count_reservation=profile.context_limit_tokens if profile else 0,
+        )
+
+    async def stream_events(
+        self, messages, *, max_output_tokens, timeout_seconds, inference_context=None,
+        reasoning=None,
+    ):
         start = monotonic()
         requirements, prepared = await anyio.to_thread.run_sync(partial(
-            self._prepare, messages, "streaming", max_output_tokens, timeout_seconds, inference_context
+            self._prepare, messages, "streaming", max_output_tokens, timeout_seconds, inference_context,
+            reasoning=reasoning,
         ))
         revalidate_disclosure()
         extra = {"prepared_input": prepared} if getattr(self.delegate, "uses_prepared_input", False) else {}
-        iterator = self.delegate.stream_events(
+        stream = self.delegate.stream_events
+        if reasoning is not None and type(self.delegate) is LocalFakeGeneration:
+            stream = self.delegate.stream_reasoning
+            extra["observation"] = reasoning
+        iterator = stream(
             messages, max_output_tokens=max_output_tokens,
             timeout_seconds=max(0, timeout_seconds - (monotonic() - start)),
             inference_context=inference_context, **extra,
@@ -374,6 +450,7 @@ def compose_pair(settings, usage=None, *, profile=None):
         generator.identity = ProviderIdentity(
             generator.identity.provider_id, generator.identity.model_id, "pi3-local-json-bytes-v1"
         )
+        generator.endpoint_profile = synthetic_reasoning.offline_profile(generator.identity)
         counter = LocalFakeCounter(generator.identity)
     elif selected == "local_llama":
         from personal_ai.llm.local_endpoint import LocalEndpoint, local_profile

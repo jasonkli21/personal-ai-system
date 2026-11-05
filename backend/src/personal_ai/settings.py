@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     inference_cost_mode: Literal[
         "offline_fake", "strict_free", "local_only", "mostly_free_opt_in", "explicit_paid"
     ] = "offline_fake"
+    reasoning_enabled: bool = False
+    reasoning_effort_ceiling: Literal["low", "medium", "high", "max"] = "low"
     inference_summary_profile: Literal[
         "disabled", "offline_fake", "offline_fake_alt", "legacy_gemini"
     ] = "disabled"

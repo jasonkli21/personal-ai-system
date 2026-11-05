@@ -26,6 +26,7 @@ class Event(StrEnum):
     DISPATCH = "dispatch"
     OUTPUT = "output"
     SETTLE = "settle"
+    REASONING = "reasoning_resolution"
 
 
 class State(StrEnum):
@@ -49,6 +50,16 @@ class Reason(StrEnum):
 
 
 _active = ContextVar("inference_trace", default=None)
+_usage_observer = ContextVar("inference_usage_observer", default=None)
+
+
+@contextmanager
+def observe_usage(observer):
+    binding = _usage_observer.set(observer)
+    try:
+        yield
+    finally:
+        _usage_observer.reset(binding)
 
 
 class Trace:
@@ -77,7 +88,7 @@ class Trace:
     def record(
         self, event, state, *, invocation=None, attempt=None, operation=None,
         input_tokens=None, output_tokens=None, elapsed_ms=None, source_count=None,
-        source_refs=(), units=None, work_bytes=None, cost=None, reason=None,
+        source_refs=(), units=None, work_bytes=None, cost=None, reason=None, observation=None,
     ):
         scope = resolve_execution_context(event.value)
         entry = {
@@ -86,6 +97,11 @@ class Trace:
             "request": self._ref(scope.request_id),
             "task": self._ref(scope.task_id),
         }
+        if event == Event.REASONING:
+            from personal_ai.reasoning.policy import Observation
+
+            if type(observation) is Observation:
+                entry["reasoning"] = observation.model_dump(mode="json")
         if reason is not None:
             entry["reason"] = Reason(reason).value
         if scope.run_id:
@@ -161,6 +177,12 @@ class Trace:
 
 
 def emit(event, state, **facts):
+    observer = _usage_observer.get()
+    if observer is not None:
+        try:
+            observer(event, state, facts)
+        except Exception:  # noqa: BLE001, S110 - observations never authorize or block a send
+            pass
     trace = _active.get()
     if trace is not None:
         try:

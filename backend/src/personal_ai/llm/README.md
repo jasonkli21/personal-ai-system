@@ -91,3 +91,12 @@ The `local_llama` profile is an explicit development-only option. The
 private socket setup, the pinned native protocol, conservative usage limits,
 and the synthetic evaluation command. The default inference profile remains
 `offline_fake`.
+
+
+## Automatic continuation effort
+
+The [effort contract](../../../../docs/reasoning-engine/continuation-effort.md)
+uses the installed generation and counter pair. The synthetic adapter verifies
+its final wire bytes against an exact immutable profile proof. The local
+adapter uses its existing bounded plain-completion protocol and accounting.
+Hosted profiles have no eligible effort mapping or bounded opt-in fallback.

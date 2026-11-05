@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Sequence
-from dataclasses import dataclass
+from contextlib import nullcontext
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from time import monotonic
 from uuid import UUID, uuid4, uuid5
@@ -32,7 +33,7 @@ from personal_ai.context.history import (
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.context.traces import ContextTraceManifest, ContextTraceRepository
 from personal_ai.contracts.context_references import ContextEntityReference, ContextSourceSnapshot
-from personal_ai.contracts.execution import continuation_message_id
+from personal_ai.contracts.execution import ContinuationRequest, continuation_message_id
 from personal_ai.entities import MAX_MESSAGE_CONTENT_CHARS, Message, MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.llm import (
@@ -48,6 +49,7 @@ from personal_ai.llm.client import GenerationEvent, GenerationMetadata, Generati
 from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.errors import LLMIncompleteGenerationError
 from personal_ai.llm.preparation import require_matching_endpoint
+from personal_ai.reasoning.policy import Observation, ReasoningDenied, TurnObservation, deny
 from personal_ai.services.chat.events import (
     TurnCompleted,
     TurnDelta,
@@ -74,9 +76,19 @@ from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 from personal_ai.usage.context import bind_usage_task
-from personal_ai.usage.trace import Event, Reason, State, emit
+from personal_ai.usage.trace import Event, Reason, State, emit, observe_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _reasoning_result(observation: TurnObservation, **facts) -> Observation:
+    result = observation.result(**facts)
+    with bind_usage_task("chat_generation", request_id=observation.request_id):
+        emit(
+            Event.REASONING, State.OK if result.status == "complete" else State.FAILED,
+            observation=result,
+        )
+    return result
 
 
 class InvalidRetryTargetError(Exception):
@@ -95,6 +107,7 @@ class _PreparedTurn:
     source_snapshots: tuple[ContextSourceSnapshot, ...] = ()
     effective_context_sensitivity: ContextSensitivity | None = None
     inference_context: InferenceContext | None = None
+    reasoning: TurnObservation | None = None
 
 
 class ChatTurnService:
@@ -395,8 +408,27 @@ class ChatTurnService:
             raise ContextPreparationError("continuation_source_policy_denied")
         return plan, len(history)
 
-    def continue_turn(self, conversation_id: UUID, request) -> AsyncIterator[TurnEvent]:
+    def continue_turn(
+        self, conversation_id: UUID, request: ContinuationRequest,
+    ) -> AsyncIterator[TurnEvent]:
         """An automatic continuation uses the configured generation lane and shared assembly."""
+        started = monotonic()
+        reasoning = request.reasoning
+        if reasoning is not None:
+            if (
+                not self._context.settings.reasoning_enabled
+                or self._context.settings.app_environment not in {"local", "test"}
+            ):
+                deny(reasoning, "policy_denied", "policy")
+            if (
+                request.choice.mode != "automatic"
+                or request.federation_context or request.retrieval_context
+                or request.candidate_message_ids or request.entity_refs
+            ):
+                deny(reasoning, "unsupported", "source", unsupported=True)
+            if self._application_context is None or self._application_context.scope.owner_id != self._owner_id:
+                deny(reasoning, "policy_denied", "policy")
+            require_current_client_authority()
         if request.choice.mode != "automatic":
             raise ContextPreparationError("external_choice_requires_preparation")
         if request.launch_context is not None:
@@ -413,7 +445,16 @@ class ChatTurnService:
             conversation_id, self._owner_id, scope, request.idempotency_key
         )
         intent_digest = request.intent_digest
-        active = self._active(conversation_id)
+        request_id = str(request.idempotency_key)
+        if reasoning is not None:
+            conversation = self._conversations.get(
+                owner_id=self._owner_id, conversation_id=conversation_id,
+            )
+            if (conversation.application_id, conversation.workspace_id) != (
+                scope.application_id, scope.workspace_id,
+            ):
+                raise ResourceNotFoundError("conversation not found")
+        active = self._active(conversation_id) if reasoning is None else None
         try:
             existing_assistant = self.get_message(conversation_id, identity)
         except ResourceNotFoundError:
@@ -422,9 +463,23 @@ class ChatTurnService:
             if existing_assistant.continuation_digest != intent_digest:
                 raise ConversationConflictError("idempotency_input_changed")
             if existing_assistant.status is MessageStatus.COMPLETED:
-                return self._replay_completed_continuation(conversation_id, existing_assistant)
+                replay = None
+                if reasoning is not None:
+                    replay = Observation(
+                        requested_effort=reasoning.effort, status="complete",
+                        stop_reason="sufficient", replayed=True,
+                    )
+                return self._replay_completed_continuation(conversation_id, existing_assistant, replay)
             raise ConversationConflictError("continuation_exists_inspect_canonical_state")
 
+        observation = None
+        if reasoning is not None:
+            resolve = getattr(self._llm, "reasoning_policy", None)
+            if resolve is None:
+                deny(reasoning, "unsupported", "capability", unsupported=True)
+            observation = TurnObservation(resolve(reasoning), started, request_id)
+        if active is None:
+            active = self._active(conversation_id)
         user_id = uuid5(identity, "user")
         try:
             user = self.get_message(conversation_id, user_id)
@@ -457,6 +512,8 @@ class ChatTurnService:
                 or active[-1].id != user.id
             ):
                 raise ConversationConflictError("idempotency_input_changed_or_turn_not_resumable")
+            if reasoning is not None:
+                raise ConversationConflictError("continuation_exists_inspect_canonical_state")
             already_persisted = True
             supersede_from = None
         return self._prepare_context_stream(
@@ -465,13 +522,14 @@ class ChatTurnService:
             () if already_persisted else (user,),
             supersede_from,
             None,
-            request_id=str(request.idempotency_key),
+            request_id=request_id,
             candidate_message_ids=request.candidate_message_ids,
             candidate_entities=request.entity_refs,
             explicit_context_selections=request.explicit_context_selections,
             assistant_id=identity,
             continuation_digest=intent_digest,
             user_already_persisted=already_persisted,
+            reasoning=observation,
         )
 
     def send(
@@ -544,8 +602,25 @@ class ChatTurnService:
         )
         return self._prepare_context_stream(active, user, (user,), target.id, None, request_id)
 
-    def _prepare_context_stream(self, *args, **kwargs) -> AsyncIterator[TurnEvent]:
-        return self._stream(self._prepare_context_turn(*args, **kwargs))
+    def _prepare_context_stream(
+        self, *args, reasoning: TurnObservation | None = None, **kwargs,
+    ) -> AsyncIterator[TurnEvent]:
+        if reasoning is None:
+            return self._stream(self._prepare_context_turn(*args, **kwargs))
+        with observe_usage(reasoning.record):
+            try:
+                turn = self._prepare_context_turn(*args, reasoning=reasoning, **kwargs)
+            except LLMTimeoutError:
+                raise ReasoningDenied(_reasoning_result(reasoning, stop="budget_exhausted")) from None
+            except ContextError as error:
+                if error.code in {"context_message_too_large", "context_budget_invalid"}:
+                    raise ReasoningDenied(_reasoning_result(reasoning, stop="budget_exhausted")) from None
+                raise
+            except ContextPreparationError:
+                raise ReasoningDenied(_reasoning_result(reasoning, stop="policy_denied")) from None
+            except LLMError:
+                raise ReasoningDenied(_reasoning_result(reasoning, stop="provider_unavailable")) from None
+        return self._stream(turn)
 
     def _prepare_context_turn(
         self,
@@ -568,6 +643,7 @@ class ChatTurnService:
         context_assembler: ContextAssembler | None = None,
         excluded_source_classes=frozenset(),
         maximum_context_sensitivity: ContextSensitivity | None = None,
+        reasoning: TurnObservation | None = None,
     ) -> _PreparedTurn:
         if self._application_context is None and getattr(
             self._llm, "requires_inference_context", True
@@ -581,6 +657,23 @@ class ChatTurnService:
         context = context_assembler or self._context
         reservation = uuid4()
         deadline = monotonic() + context.settings.request_timeout_seconds
+        if reasoning is not None:
+            budget = reasoning.policy.budget
+            margin = context.settings.context_safety_margin_tokens
+            context = ContextAssembler(
+                context.settings.model_copy(update={
+                    "max_context_tokens": min(
+                        context.settings.max_context_tokens,
+                        budget.max_input_tokens + budget.max_output_tokens + margin,
+                    ),
+                    "max_response_tokens": budget.max_output_tokens,
+                }),
+                context.counter,
+            )
+            deadline = reasoning.started + budget.max_elapsed_seconds
+            context.input_budget()
+            remaining(deadline)
+            authorize_base_disclosure(self._application_context)
         appended_users = self._messages.prepare_message_turn(
             owner_id=self._owner_id,
             conversation_id=user.conversation_id,
@@ -596,8 +689,8 @@ class ChatTurnService:
                 owner_id=self._owner_id,
                 conversation_id=user.conversation_id,
             )
-            history_for_context = post_active[:-1]
-            if candidate_message_ids is not None:
+            history_for_context = post_active[:-1] if reasoning is None else ()
+            if reasoning is None and candidate_message_ids is not None:
                 from personal_ai.context.contracts import complete_turns
 
                 requested = set(candidate_message_ids)
@@ -611,7 +704,7 @@ class ChatTurnService:
             context_plan = None
             use_planned_memory = False
             history_exclusions = {}
-            if self._application_context is not None:
+            if reasoning is None and self._application_context is not None:
                 authorize_base_disclosure(self._application_context)
                 context_plan = context.plan_context(
                     user.content,
@@ -637,7 +730,7 @@ class ChatTurnService:
                     raise ContextPreparationError("continuation_source_policy_denied")
             if history_authorizer is not None:
                 history_authorizer(tuple(m.id for m in history_for_context))
-            if self._application_context is not None:
+            if reasoning is None and self._application_context is not None:
                 history_for_context = list(
                     conversation_context_messages(
                         history_for_context,
@@ -690,6 +783,8 @@ class ChatTurnService:
             )
 
             def revalidate_preparation():
+                if reasoning is not None and not self._context.settings.reasoning_enabled:
+                    raise ContextPreparationError("reasoning_disabled")
                 if self._application_context is not None:
                     require_current_client_authority()
                     authorize_base_disclosure(self._application_context)
@@ -705,13 +800,16 @@ class ChatTurnService:
                 if not preparation_ids.issubset({message.id for message in current_active}):
                     raise ContextPreparationError("context_source_authority_changed")
 
-            with bind_disclosure_guard(revalidate_preparation):
+            with (
+                bind_disclosure_guard(revalidate_preparation),
+                bind_usage_task("chat_generation", request_id=request_id) if reasoning else nullcontext(),
+            ):
                 assembled = context.assemble(
                     history_for_context,
                     post_active[-1],
                     deadline=deadline,
                     retrieval=retrieval,
-                    refresh=not external,
+                    refresh=not external and reasoning is None,
                     application_context=self._application_context,
                     context_plan=context_plan,
                     history_exclusions=history_exclusions,
@@ -733,7 +831,7 @@ class ChatTurnService:
                 )
             remaining(deadline)
             assistant_id = assistant_id or uuid4()
-            if self._context_traces is not None:
+            if reasoning is None and self._context_traces is not None:
                 if assembled.manifest is None:
                     raise ContextError("actual_context_manifest_unavailable")
                 trace = ContextTraceManifest.from_build(
@@ -858,6 +956,7 @@ class ChatTurnService:
             selected_message_ids=assembled.selected_message_ids,
             source_snapshots=unique_snapshots,
             effective_context_sensitivity=assembled.manifest.effective_sensitivity,
+            reasoning=reasoning,
         )
 
     def _stream(self, turn: _PreparedTurn) -> AsyncIterator[TurnEvent]:
@@ -930,6 +1029,8 @@ class ChatTurnService:
         parts: list[str] = []
         content_length = 0
         terminal = False
+        reasoning = turn.reasoning
+        generation_metadata: GenerationMetadata | None = None
         try:
             # Keep creation events inside the protected lifecycle. A disconnect
             # while sending either event must fail the already-persisted turn.
@@ -938,6 +1039,11 @@ class ChatTurnService:
                 yield TurnMessageCreated(message)
             def revalidate_send():
                 require_current_client_authority()
+                if reasoning is not None:
+                    if not self._context.settings.reasoning_enabled:
+                        raise ContextPreparationError("reasoning_disabled")
+                    authorize_base_disclosure(self._application_context)
+                    remaining(turn.deadline)
                 if not source_snapshots_current(
                     turn.source_snapshots, self._context.permission_revalidator,
                     now=datetime.now(UTC),
@@ -953,19 +1059,30 @@ class ChatTurnService:
                 raise ContextPreparationError("context_source_authority_changed")
             events: asyncio.Queue[GenerationEvent | Exception | None] = asyncio.Queue(maxsize=1)
             demand = asyncio.Semaphore(0)
-            with bind_usage_task("chat_generation"), bind_disclosure_guard(revalidate_send):
+            output_limit = self._context.settings.max_response_tokens
+            extra = {}
+            if reasoning is not None:
+                output_limit = reasoning.policy.budget.max_output_tokens
+                extra["reasoning"] = reasoning
+            with (
+                bind_usage_task(
+                    "chat_generation", request_id=turn.request_id if reasoning else None,
+                ),
+                bind_disclosure_guard(revalidate_send),
+                observe_usage(reasoning.record if reasoning else None),
+            ):
                 provider_iterator = self._llm.stream_events(
                     turn.history,
-                    max_output_tokens=self._context.settings.max_response_tokens,
+                    max_output_tokens=output_limit,
                     timeout_seconds=remaining(turn.deadline),
                     inference_context=turn.inference_context,
+                    **extra,
                 ).__aiter__()
                 # One task owns the entire iterator: SDK timeout scopes and cleanup
                 # may depend on task identity remaining stable across every yield.
                 provider_task = asyncio.create_task(
                     _produce_deltas(provider_iterator, events, demand, request_id=turn.request_id)
                 )
-            generation_metadata: GenerationMetadata | None = None
             try:
                 while True:
                     demand.release()
@@ -1057,13 +1174,15 @@ class ChatTurnService:
             )
             if completed is None:
                 terminal = True
-                yield self._stale_turn_event(turn.assistant)
+                event = self._stale_turn_event(turn.assistant)
+                yield replace(event, reasoning=_reasoning_result(reasoning)) if reasoning else event
                 return
             terminal = True
             completed_turn.append(completed)
-            self.schedule_post_completion(
-                completed, turn.selected_memory_ids, request_id=turn.request_id
-            )
+            if reasoning is None:
+                self.schedule_post_completion(
+                    completed, turn.selected_memory_ids, request_id=turn.request_id
+                )
             usage = generation_metadata.usage
             logger.info(
                 "Chat generation completed request_id=%s provider=%s model=%s "
@@ -1076,10 +1195,15 @@ class ChatTurnService:
                 usage.confidence if usage else "unavailable",
             )
             await self._require_output_authority(turn.source_snapshots)
-            yield TurnCompleted(message=completed)
+            yield TurnCompleted(
+                message=completed,
+                reasoning=_reasoning_result(reasoning, complete=True, usage=usage) if reasoning else None,
+            )
         except asyncio.CancelledError:
             if not terminal:
                 await self._fail(turn.assistant, "client_cancelled", "" if turn.source_snapshots else "".join(parts))
+            if reasoning:
+                _reasoning_result(reasoning, stop="cancelled", partial=bool(parts))
             logger.info(
                 "Chat stream cancelled request_id=%s error_class=CancelledError", turn.request_id
             )
@@ -1088,11 +1212,13 @@ class ChatTurnService:
             if not terminal:
                 await self._fail(turn.assistant, "client_cancelled", "" if turn.source_snapshots else "".join(parts))
                 logger.info("Chat stream closed request_id=%s", turn.request_id)
+            if reasoning and not terminal:
+                _reasoning_result(reasoning, stop="cancelled", partial=bool(parts))
             raise
         except ContextPreparationError as error:
             event = await self._error_event(turn.assistant, error.code, "")
             terminal = True
-            yield event
+            yield replace(event, reasoning=_reasoning_result(reasoning, stop="policy_denied")) if reasoning else event
         except LLMError as error:
             logger.warning(
                 "Chat stream failed request_id=%s error_class=%s",
@@ -1101,6 +1227,16 @@ class ChatTurnService:
             )
             event = await self._error_event(turn.assistant, error.code, "" if turn.source_snapshots else "".join(parts))
             terminal = True
+            if reasoning:
+                usage = generation_metadata.usage if generation_metadata else None
+                stop = None
+                if isinstance(error, LLMTimeoutError) and not reasoning.count("streaming", "dispatch") or (
+                    isinstance(error, LLMIncompleteGenerationError) and usage
+                    and usage.output_tokens == reasoning.policy.budget.max_output_tokens
+                ):
+                    stop = "budget_exhausted"
+                observation = _reasoning_result(reasoning, partial=bool(parts), stop=stop, usage=usage)
+                event = replace(event, reasoning=observation)
             yield event
         except Exception:  # noqa: BLE001
             logger.error(
@@ -1108,7 +1244,7 @@ class ChatTurnService:
             )
             event = await self._error_event(turn.assistant, "llm_unavailable", "" if turn.source_snapshots else "".join(parts))
             terminal = True
-            yield event
+            yield replace(event, reasoning=_reasoning_result(reasoning, stop="internal_failure")) if reasoning else event
 
     async def _error_event(self, assistant: Message, code: str, content: str) -> TurnFailed:
         failed = await self._fail(assistant, code, content)
@@ -1188,7 +1324,7 @@ class ChatTurnService:
         )
 
     def _replay_completed_continuation(
-        self, conversation_id: UUID, assistant: Message
+        self, conversation_id: UUID, assistant: Message, reasoning: Observation | None = None,
     ) -> AsyncIterator[TurnEvent]:
         async def replay():
             snapshots = source_snapshots_for_message(assistant)
@@ -1223,7 +1359,7 @@ class ChatTurnService:
                     message="The response could not be completed. Please retry.",
                 )
                 return
-            yield TurnCompleted(message=assistant)
+            yield TurnCompleted(message=assistant, reasoning=reasoning)
 
         return replay()
 

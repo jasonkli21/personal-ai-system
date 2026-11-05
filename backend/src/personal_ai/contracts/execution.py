@@ -3,15 +3,16 @@
 import re
 from enum import StrEnum
 from hashlib import sha256
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from personal_ai.applications.contracts import ApplicationLaunchContext
 from personal_ai.contracts.context_categories import ContextSourceClass
 from personal_ai.contracts.context_references import ContextEntityReference
 from personal_ai.contracts.federation import FederationContextChoice
+from personal_ai.reasoning.proposed_request import ReasoningRequest
 from personal_ai.routing.contracts import EndpointRef
 
 
@@ -116,6 +117,18 @@ class ExecutionChoice(BaseModel):
         return self
 
 
+def _reject_null_reasoning(value):
+    if value is None:
+        raise ValueError("reasoning_must_be_an_object")
+    return value
+
+
+OptionalReasoning = Annotated[
+    ReasoningRequest | None,
+    BeforeValidator(_reject_null_reasoning, json_schema_input_type=ReasoningRequest),
+]
+
+
 class ContinuationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     content: str = Field(min_length=1, max_length=20000)
@@ -129,6 +142,7 @@ class ContinuationRequest(BaseModel):
     # Bounded source-class narrowing. This can only remove planner-selected sources.
     retrieval_context: bool = Field(default=False, strict=True)
     excluded_source_classes: tuple[ContextSourceClass, ...] = Field(default=(), max_length=9)
+    reasoning: OptionalReasoning = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def unique_exclusions(self):
@@ -207,6 +221,18 @@ class ContinuationRequestPayload(BaseModel):
             launch_context=self.launch_context,
             excluded_source_classes=self.excluded_source_classes,
         )
+
+
+class AutomaticContinuationPayload(ContinuationRequestPayload):
+    """Optional effort is negotiated on automatic continuation only."""
+
+    reasoning: OptionalReasoning = Field(default=None, exclude_if=lambda value: value is None)
+
+    def to_internal_request(self, federation_context=()) -> ContinuationRequest:
+        request = super().to_internal_request(federation_context)
+        if self.reasoning is None:
+            return request
+        return request.model_copy(update={"reasoning": self.reasoning})
 
 
 def continuation_message_id(conversation_id: UUID, owner_id: str, scope, key: UUID) -> UUID:

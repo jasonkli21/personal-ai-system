@@ -1,8 +1,9 @@
 # Proposed reasoning request v1
 
 The [static validator](../../backend/src/personal_ai/reasoning/proposed_request.py)
-accepts the object below as the future optional `reasoning` field. The
-sketch has no HTTP, SDK or runtime registration.
+defined the original request sketch below. Automatic continuation now uses
+its validation semantics under a narrower [runtime contract](continuation-effort.md).
+This historical example includes preferences the direct runtime rejects.
 
 ```json
 {

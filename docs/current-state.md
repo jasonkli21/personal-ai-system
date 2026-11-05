@@ -12,9 +12,13 @@ rights, policy-denial witnesses, verifier integrity and checkout provenance.
 The v2 offline fake replay retains 32 synthetic cases and 64 rows; task scores
 remain scripted proxies. The local remediation receipt records the focused
 checks and replay identity. Independent exact-commit acceptance remains open.
-Effective effort, runtime strategy selection, model-step execution and
-strategy promotion are future work. Native fencing, local model utility and
-installed/hosted/cloud acceptance remain unverified. Production remains
+[Automatic continuation effort](reasoning-engine/continuation-effort.md) is
+a default-off development candidate with fixed direct policy, a synthetic
+native-wire fixture, and a plain private-local lane through existing
+admission. The [effort verification receipt](reasoning-engine/2026-11-04-effort-verification.md)
+records the local checks and open gates. Dynamic strategy selection, multi-step execution and promotion
+are future work. Real native mappings, native fencing, local model utility
+and installed/hosted/cloud acceptance remain unverified. Production remains
 NO_GO. See the [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
 and [remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
 
