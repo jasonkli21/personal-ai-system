@@ -24,7 +24,8 @@ from personal_ai.retrieval.context import (
     excerpt_context_item,
 )
 from personal_ai.retrieval.contracts import RetrievalOutcome, RetrievalQuery, item_from_quote
-from personal_ai.retrieval.installation import local_rights_authority_id
+from personal_ai.retrieval.installation import LexicalIndex, local_rights_authority_id
+from personal_ai.retrieval.service import RetrievalService
 from personal_ai.workflow.reasoning import ENDPOINT_DIGEST, infer_fixture
 
 FIXTURE_LICENSE = "public-synthetic-fixture-v1"
@@ -148,6 +149,29 @@ def validate_retrieval(outcome, query, snapshot, scope):
     ):
         raise Stop("internal_failure")
     require_items(snapshot, items, scope, query.max_age_seconds)
+
+    # Item provenance does not prove that the result set is complete. The
+    # grounded profile admits only the deterministic local index, so replay its
+    # bounded search against this same pinned, currently authorized snapshot.
+    # This is a pure read and does not dispatch another retrieval operation.
+    if query.sources != ("local",):
+        raise Stop("policy_denied")
+    now = datetime.now(UTC)
+    if not snapshot.installation.allows(scope):
+        raise Stop("source_changed")
+    documents = tuple(
+        doc for doc in snapshot.installation.documents if doc.allows(scope, now)
+    )
+    if snapshot.installation.issuer_id is None:
+        raise Stop("source_changed")
+    issuer_id = snapshot.installation.issuer_id
+    index = LexicalIndex(documents, issuer_id=str(issuer_id))
+    expected_items, expected_reasons = index.search(
+        query, scope, now, report_limit=True,
+    )
+    expected = RetrievalService.outcome(query, expected_items, expected_reasons)
+    if outcome != expected:
+        raise Stop("internal_failure")
     return items
 
 

@@ -208,6 +208,61 @@ def test_forged_retrieval_item_is_rejected_before_packing(tmp_path, monkeypatch,
         assert not claims and steps(progress) == ("initial",)
 
 
+@pytest.mark.parametrize("fault", [
+    "omitted_conflict", "forged_complete", "forged_reasons", "clipped_budget",
+    "reordered", "wrong_query",
+])
+def test_grounded_replay_rejects_incomplete_or_forged_result_envelope(tmp_path, monkeypatch, fault):
+    raw_query = RetrievalService.query
+    calls = []
+
+    async def alter(service, query, **kwargs):
+        calls.append(query.query)
+        result = await raw_query(service, query, **kwargs)
+        items = result.items
+        changes = {}
+        if fault in {"omitted_conflict", "forged_complete", "forged_reasons"}:
+            items = items[:1]
+        if fault == "forged_complete":
+            changes["state"] = "complete"
+            changes["reasons"] = ()
+        elif fault == "forged_reasons":
+            changes["state"] = "partial"
+            changes["reasons"] = ("budget",)
+        elif fault == "clipped_budget":
+            changes["state"] = "complete"
+            changes["reasons"] = ()
+        elif fault == "reordered":
+            items = tuple(reversed(items))
+        elif fault == "wrong_query":
+            other_query = query.model_copy(update={"query": f"{SUBJECT}_duration"})
+            other = await raw_query(service, other_query, **kwargs)
+            items = other.items
+            changes["state"] = other.state
+            changes["reasons"] = other.reasons
+        changes.update(
+            items=items,
+            quote_bytes=sum(len(item.quote.encode()) for item in items),
+            token_upper_bound=sum(len(item.model_dump_json().encode()) for item in items),
+        )
+        return result.model_copy(update=changes)
+
+    monkeypatch.setattr(RetrievalService, "query", alter)
+    sources = [BASE, {**BASE, "facts": {"capacity": 4}}]
+    fields = ("capacity",)
+    if fault in {"reordered", "wrong_query"}:
+        sources = [BASE, {"tags": ["overview"], "facts": {"duration": 9}}]
+        fields = ("capacity", "duration") if fault == "reordered" else ("capacity",)
+    elif fault == "clipped_budget":
+        sources = [{"tags": ["overview"], "facts": {"capacity": "x" * 1500}}]
+    with fixture_service(tmp_path / "source.json", SUBJECT, sources) as service:
+        progress, claims = execute(service, request(fields))
+        assert not claims
+        assert progress.reason == "internal_failure"
+        assert calls == [f"{SUBJECT}_overview"]
+        assert steps(progress) == ("initial",)
+
+
 @pytest.mark.parametrize("fault", ["wrong_value", "unknown_id", "duplicate", "freeform", "other_slot"])
 def test_candidates_cannot_create_authority(tmp_path, monkeypatch, fault):
     draft = grounded.draft_from_messages

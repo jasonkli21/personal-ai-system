@@ -17,13 +17,15 @@ simple lookup, multi-source joins, missing and stale facts, contradiction,
 source instructions, fabricated and misbound citations, unsupported facts,
 pre/post-send revocation, and wrong scope. The one-shot arm uses the exact
 candidate plan and initial query and suppresses the optional query. The
-source-free direct arm makes one canonical fake call per case and abstains
-without evidence. It fits within the common operation envelope. The
-independent scorer receives the separate sealed gold after candidate
-execution. Cases are authored variants of a narrow fixture grammar. The
-split tests replay and limited transfer within that grammar.
+The `direct` arm is a **source-free abstention safety negative control**: it
+makes one canonical fake call per case without authorized evidence and
+abstains. It is not a matched-task estimate of direct versus grounded utility.
+The `one_shot` and `grounded` arms use the same grounded task and permitted
+resource envelope. The independent scorer receives the separate sealed gold
+after candidate execution. Cases are authored variants of a narrow fixture
+grammar. The split tests replay and limited transfer within that grammar.
 
-| Measurement | Direct | One-shot | Grounded |
+| Measurement | Source-free abstention control | One-shot grounded | Grounded |
 | --- | ---: | ---: | ---: |
 | Exact completions, eligible | 0/30 | 18/30 | 30/30 |
 | Exact completions, eligible holdout | 0/15 | 9/15 | 15/15 |
@@ -37,10 +39,14 @@ split tests replay and limited transfer within that grammar.
 | Reserved count input bytes | 430,080 | 6,537,216 | 7,913,472 |
 | Elapsed milliseconds, first / second process | 1,501 / 1,473 | 3,883 / 3,792 | 4,709 / 4,579 |
 
-The observed paired improvement is 40 percentage points overall and on the
-eligible holdout, against a 10-point threshold. Simple and objectively
-sufficient cohorts incurred zero extra queries. The observed veto count is
-zero. The verdict is `OFFLINE_SIGNAL_ONLY`. The unknown attempts are
+The one-shot comparison records 18/30 exact eligible completions and 9/15
+eligible holdout completions; grounded records 30/30 and 15/15. This is a
+scripted within-fixture-grammar follow-up ablation, not a generalized utility
+estimate. It consumed 60 local reads in one-shot and 84 in grounded, despite
+sharing the same permitted envelope. The source-free arm's 0/30 is an
+abstention safety result and is excluded from utility comparisons. Simple and
+objectively sufficient cohorts incurred zero extra queries. The observed veto
+count is zero. The verdict is `OFFLINE_SIGNAL_ONLY`. The unknown attempts are
 revoked local reads that lost their final observation. Reported quote and
 token-bound totals cover received and retained observations. All fake
 generation byte receipts were observed. The fake counts serialized bytes
@@ -141,3 +147,15 @@ disablement, and the [gate table](re-3-blockers.md) for limits of the claims.
 Independent acceptance and live, deployment, anti-rollback and real-model
 evidence remain open. This report records author observations at the local
 fixture topology.
+
+## Independent review correction
+
+The independent review found that per-item provenance checks did not prove
+that the local result set was complete. A same-shaped reply could omit one
+conflicting authorized item and forge completion while retaining valid
+provenance and byte counters. The remediation replays the deterministic local
+search, with the same query and caps, against the pinned authorized snapshot
+and requires the full result envelope to match before grounded execution can
+continue. This read-only proof adds no retrieval tool call. Full regression
+and remediation evidence is recorded in
+[the review remediation receipt](re-3-review-remediation.md).

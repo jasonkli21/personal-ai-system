@@ -39,8 +39,13 @@ original key and steps to the source snapshot, uses registered local
 retrieval and packs exact authorized excerpts through canonical chat
 context. Objective coverage permits at most one focused follow-up. An
 exact-slot citation check gates live disclosure, and durable replay carries
-metadata only. The [grounded verification report](reasoning-engine/re-3-verification.md)
-records the sealed E1 result and focused native PostgreSQL evidence.
+metadata only. Before accepting local evidence, the grounded fixture now
+replays the deterministic bounded search against its pinned authorized
+snapshot and checks the entire result envelope for completeness. The
+[grounded verification report](reasoning-engine/re-3-verification.md) and
+[review remediation receipt](reasoning-engine/re-3-review-remediation.md)
+record the sealed E1 result, review correction, and focused native PostgreSQL
+evidence.
 Independent acceptance, live issuer and send authority, installed and hosted
 model evidence, rollback-resistant restore, and real-model utility remain
 [open or blocked](reasoning-engine/re-3-blockers.md).

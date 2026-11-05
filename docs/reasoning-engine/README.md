@@ -9,6 +9,7 @@
 - [RE-2 independent-review remediation](re-2-review-remediation.md)
 - [Grounded iterative reasoning](re-3-implementation.md)
 - [Grounded verification and review handoff](re-3-verification.md)
+- [RE-3 independent-review remediation receipt](re-3-review-remediation.md)
 - [Grounded release gates](re-3-blockers.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
