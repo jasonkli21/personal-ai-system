@@ -138,8 +138,8 @@ class StoreVerification(Closed):
 
     @model_validator(mode="after")
     def physical_proof(self):
-        if self.status == "physical_verified" and self.proof is None:
-            raise ValueError("physical_proof_required")
+        if self.status == "physical_verified":
+            raise ValueError("physical_verification_requires_observed_topology_contract")
         return self
 
 

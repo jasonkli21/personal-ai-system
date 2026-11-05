@@ -18,9 +18,12 @@ No runtime composition imports it.
 original-key races and CAS changes. Grants retain the original actor/body digest;
 replay observes a receipt and never reapplies a grant. Replacement and revoke
 permanently suppress older coverage; a new ID and generation are required to
-regrant. A separately surviving monotonic authority must reconcile restored
-state before any read **or mutation**. These are protocol obligations; the
-in-memory simulator establishes no durable SQL or cold-restart guarantee.
+regrant. The synthetic host explicitly bootstraps each registered fixture owner;
+a missing surviving anchor for a registered owner fails unavailable and cannot
+be inferred from an empty restored ledger. A separately surviving monotonic
+authority must reconcile restored state before any read **or mutation**. These
+are protocol obligations; the in-memory simulator establishes no durable SQL or
+cold-restart guarantee.
 
 Call `observe` at selection, packing and final internal use. A prior decision is
 only an exact dependency observation; recheck it against current authority. Hold
@@ -39,15 +42,20 @@ mutation outcomes; retry the identical original key/body after recovery.
 `owner_preview` is a host-private rendering helper, not a new owner route. It
 never returns source text or enables export/import. `retention_inventory` names
 twelve stores with synthetic logical suppression or unknown/inventory statuses;
-it never claims global physical erasure. Backups and external copies need actual
-topology proofs. `operator_plan` returns inert canary/rollback proposals only.
+the v1 inventory contract rejects `physical_verified` for all currently modeled
+topologies, even when a caller supplies a hash. It never claims global physical
+erasure. A future observed-topology contract needs independently trusted proof;
+backups and external copies remain unknown. `operator_plan` returns inert
+canary/rollback proposals only.
 
 Run `make memory-governance-check` and `make memory-governance-eval` from the
 repository root using the existing backend virtual environment on PATH. For a
 report, pass `GOVERNANCE_FLAGS='--output /tmp/governance.json'`; verify/replay in a
 fresh process with `GOVERNANCE_FLAGS='--verify /tmp/governance.json'`. Source
 hashes cover runtime Python dependencies and the additive author-visible corpus.
-Changed sources require new evidence; no frozen benchmark lock is rebound.
+Changed sources require new evidence; no frozen benchmark lock is rebound. Report
+v2 binds deterministic case resource envelopes and representation estimates into
+semantic replay while leaving runtime timing and host telemetry outside it.
 
 Full phase exit remains BLOCKED; production NO_GO. Independent review, native
 transactions, deployed issuer/registry, physical sends, erasure/restore and real

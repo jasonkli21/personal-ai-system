@@ -152,6 +152,29 @@ def test_old_snapshot_cannot_overwrite_surviving_grant_or_original_key_authority
     assert f.store.surviving == anchor
 
 
+def test_missing_surviving_anchor_after_restore_is_unavailable_without_mutation():
+    f = Fixture()
+    original, _ = f.grant()
+    assert f.revoke(original).outcome == "committed"
+    f.store.ledgers["owner-a"] = type(f.store.load("owner-a"))()
+    f.store.surviving.pop("owner-a")
+    before = f.snapshot()
+    fresh = f.intent("anchor-lost", grant_id=uid("anchor-lost"))
+
+    assert f.service.mutate(f.host.manager, fresh).outcome == "unavailable"
+    assert not f.observe(fresh).allowed
+    assert f.snapshot() == before
+    assert f.store.registered_owners == {"owner-a"}
+
+
+def test_unregistered_owner_cannot_be_implicitly_bootstrapped_by_mutation():
+    f = Fixture()
+    f.store.registered_owners.remove("owner-a")
+    fresh = f.intent("unregistered", grant_id=uid("unregistered"))
+    assert f.service.mutate(f.host.manager, fresh).outcome == "unavailable"
+    assert not f.store.load("owner-a").grants
+
+
 def test_duplicate_concurrent_first_submissions_commit_once():
     f = Fixture()
     intent = f.intent()
@@ -213,6 +236,13 @@ def test_per_store_receipt_rejects_omitted_stores_or_unproved_physical_claim():
         )
     with pytest.raises(ValidationError):
         DeletionPropagationReceipt(operation_id=uid("delete"), owner_epoch=1, stores=())
+    with pytest.raises(ValidationError, match="physical_verification_requires_observed_topology_contract"):
+        StoreVerification(
+            store="backups",
+            topology="unobserved_external",
+            status="physical_verified",
+            proof="0" * 64,
+        )
 
 
 def test_policy_intersects_current_owner_source_and_recipient_even_with_old_receipt():
@@ -285,6 +315,32 @@ def test_semantic_replay_is_complete_and_source_drift_denies():
         campaign.verify(report)
 
 
+def test_semantic_replay_binds_resource_evidence_but_ignores_runtime_telemetry():
+    report = campaign.evaluate()
+    assert report["schema_version"] == "memory-governance-report-v2"
+    changed = json.loads(json.dumps(report))
+    changed["observations"]["case_resource_envelopes"][0]["grants"] = 999999
+    with pytest.raises(ValueError, match="report_tamper"):
+        campaign.verify(changed)
+
+    changed = json.loads(json.dumps(report))
+    changed["observations"]["ledger_representation_bytes_estimate"][0] += 1
+    with pytest.raises(ValueError, match="report_tamper"):
+        campaign.verify(changed)
+
+    changed = json.loads(json.dumps(report))
+    changed["observations"]["case_runtime_ns"][0] += 1
+    assert campaign.verify(changed) == report["semantic_sha256"]
+
+
+def test_semantic_replay_rejects_missing_resource_envelope():
+    report = campaign.evaluate()
+    report["observations"]["case_resource_envelopes"].pop()
+    report["semantic_sha256"] = campaign.fingerprint(campaign.semantic(report))
+    with pytest.raises(ValueError, match="report_accounting_mismatch"):
+        campaign.verify(report)
+
+
 def test_default_service_has_no_issuer_dispatcher_or_runtime_registration():
     assert GovernanceService.__init__.__kwdefaults__["limits"] is None
     root = Path(__file__).parents[1] / "src" / "personal_ai"
@@ -298,6 +354,7 @@ def test_two_owners_with_live_records_share_store_without_cross_tenant_grants():
     second.store = first.store
     second.host.store = first.store
     second.service.repository = first.store
+    first.store.bootstrap_owner("owner-b")
     left, _ = first.grant()
     right, receipt = second.grant()
     assert receipt.outcome == "committed"

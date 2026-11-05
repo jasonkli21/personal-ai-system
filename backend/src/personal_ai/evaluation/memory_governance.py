@@ -36,10 +36,24 @@ def source_hashes():
 
 
 def semantic(report):
-    # Compare the wire representation across fresh JSON processes, including tuple plans.
+    # Bind deterministic E1 evidence, while excluding host-dependent telemetry.
+    observations = report.get("observations", {})
+    deterministic_resources = {
+        "ledger_representation_bytes_estimate": observations.get(
+            "ledger_representation_bytes_estimate"
+        ),
+        "case_resource_envelopes": observations.get("case_resource_envelopes"),
+    }
     return json.loads(
         json.dumps(
-            {k: v for k, v in report.items() if k not in {"observations", "semantic_sha256"}}
+            {
+                **{
+                    k: v
+                    for k, v in report.items()
+                    if k not in {"observations", "semantic_sha256"}
+                },
+                "deterministic_resource_evidence": deterministic_resources,
+            }
         )
     )
 
@@ -109,6 +123,7 @@ def exercise(case):
         other.store = f.store
         other.host.store = f.store
         other.service.repository = f.store
+        f.store.bootstrap_owner("owner-b")
         other_intent, receipt = other.grant()
         trace.append(receipt.model_dump(mode="json"))
         assert receipt.outcome == "committed" and other.observe(other_intent).allowed
@@ -420,11 +435,23 @@ def evaluate():
                 "tier": "E1",
                 "receipts": [],
             }
+            # Failed attempts still receive an explicit empty baseline envelope.
+            sizes.append(0)
+            envelopes.append(
+                {
+                    "case_id": case["id"],
+                    "grants": 0,
+                    "original_keys": 0,
+                    "tombstones": 0,
+                    "source_fences": 0,
+                    "representation_bytes_estimate": 0,
+                }
+            )
         rows.append(row)
         elapsed.append(perf_counter_ns() - started)
     counts = Counter(row["outcome"] for row in rows)
     report = {
-        "schema_version": "memory-governance-report-v1",
+        "schema_version": "memory-governance-report-v2",
         "visibility": "author_visible_public_synthetic",
         "source_hashes": source_hashes(),
         "case_count": len(rows),
@@ -464,6 +491,19 @@ def verify(report):
         raise ValueError("source_drift")
     if report.get("semantic_sha256") != fingerprint(semantic(report)):
         raise ValueError("report_tamper")
+    manifest = json.loads(FIXTURE.read_text())
+    expected_ids = [case["id"] for case in manifest["cases"]]
+    observations = report.get("observations", {})
+    envelopes = observations.get("case_resource_envelopes")
+    if (
+        report.get("schema_version") != "memory-governance-report-v2"
+        or report.get("case_count") != len(expected_ids)
+        or [row.get("id") for row in report.get("rows", [])] != expected_ids
+        or not isinstance(envelopes, list)
+        or [item.get("case_id") for item in envelopes] != expected_ids
+        or len(observations.get("ledger_representation_bytes_estimate", [])) != len(expected_ids)
+    ):
+        raise ValueError("report_accounting_mismatch")
     replay = evaluate()
     if semantic(report) != semantic(replay):
         raise ValueError("semantic_replay_mismatch")

@@ -27,6 +27,18 @@ class SyntheticStore:
         self.available = True
         self.lost_ack = False
         self.surviving = {}
+        # Trusted synthetic bootstrap is separate from restorable ledger state.
+        self.registered_owners = set()
+
+    def bootstrap_owner(self, owner):
+        """Explicitly register a fresh synthetic owner before serving requests."""
+        with self.lock:
+            if owner in self.registered_owners:
+                return
+            ledger = Ledger()
+            self.ledgers[owner] = ledger
+            self.surviving[owner] = overlay_identity(ledger)
+            self.registered_owners.add(owner)
 
     @contextmanager
     def transaction(self, owner):
@@ -53,6 +65,7 @@ class SyntheticHost:
         self.pair = pair
         self.lock = RLock()
         self.store = store
+        self.store.bootstrap_owner(owner)
         from personal_ai.evaluation.knowledge_runtime import NOW
 
         self.now = NOW
@@ -196,9 +209,9 @@ class SyntheticHost:
         )
 
     def recovery_current(self, owner):
-        return self.state.reconciled and overlay_identity(
-            self.store.load(owner)
-        ) == self.store.surviving.get(owner, overlay_identity(Ledger()))
+        if owner not in self.store.registered_owners or owner not in self.store.surviving:
+            return False
+        return self.state.reconciled and overlay_identity(self.store.load(owner)) == self.store.surviving[owner]
 
     def resolve(self, source, destination):
         from personal_ai.evaluation.knowledge_runtime import request

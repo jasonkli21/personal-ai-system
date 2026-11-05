@@ -10,9 +10,13 @@ A memory-specific grant overlay is implemented at E0/E1 only, with closed
 versioned intents/receipts, exact host-resolved source/registered-agent scopes,
 CAS/original-key reconciliation, monotonic generations, source/lifecycle/owner
 and recipient epoch intersection, and fail-closed snapshot reconciliation. The
-only authority/store adapters are public synthetic fixtures. Positive fixtures
-use canonical verified knowledge and the shared token-budgeted context builder;
-selection, packing and final internal observations revalidate current rights.
+only authority/store adapters are public synthetic fixtures. A registered
+synthetic owner with a missing surviving anchor is unavailable; only explicit
+fixture bootstrap establishes fresh-owner state. The v1 deletion inventory
+rejects physical-verification claims for every modeled topology. Positive
+fixtures use canonical verified knowledge and the shared token-budgeted context
+builder; selection, packing and final internal observations revalidate current
+rights.
 No runtime issuer, route, tool, flag, migration, dispatcher or content copy is added.
 External delivery is always denied. Existing defaults, hard-disabled episodes,
 pending-only consolidation and explicit-profile-only portability remain intact.
@@ -26,6 +30,12 @@ logical suppression from unobserved physical erasure, backups and external copie
 Pure canary/rollback proposals cannot execute changes. Actual native resources,
 model tokens, billed cost and multi-agent utility remain unknown; the prior
 corrected longitudinal primary comparison stays 0 pp over 25 pairs.
+
+The v2 replay report binds deterministic resource envelopes and representation
+estimates while excluding nondeterministic timing and host telemetry. The
+2026-11-04 independent review findings and local remediation are recorded in the
+[remediation report](memory/2026-11-04-governance-review-remediation.md); separate
+independent review of the revised commit remains required.
 
 Adding governance modules changes the longitudinal recursive dependency inventory.
 An additive source-lock v4 preserves v1–v3, the corpus, scorer, protocol and all
