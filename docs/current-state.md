@@ -6,15 +6,17 @@ Independent final review and external acceptance remain open.
 
 ## Reasoning policy and offline benchmark
 
-The [reasoning design and benchmark](reasoning-engine/README.md) implement an
-E0/E1 candidate with a proposed request contract, inert strategy catalog and
-frozen direct fake comparator. Two fresh processes reproduced all 64 rows
-from 32 synthetic cases, including 28 unsupported diagnostic rows, with zero
-safety vetoes. Task scores are scripted proxies. Effective effort, runtime
-strategy selection, model-step execution and strategy promotion are future
-work. Independent exact-commit review is pending. Native fencing, local
-model utility and installed/hosted/cloud acceptance remain unverified.
-Production remains NO_GO. See the [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md).
+The [reasoning design and benchmark](reasoning-engine/README.md) retain the
+frozen v1 evidence and add a separately sealed v2 remediation lane for input
+rights, policy-denial witnesses, verifier integrity and checkout provenance.
+The v2 offline fake replay retains 32 synthetic cases and 64 rows; task scores
+remain scripted proxies. The local remediation receipt records the focused
+checks and replay identity. Independent exact-commit acceptance remains open.
+Effective effort, runtime strategy selection, model-step execution and
+strategy promotion are future work. Native fencing, local model utility and
+installed/hosted/cloud acceptance remain unverified. Production remains
+NO_GO. See the [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
+and [remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
 
 ## Synthetic memory governance
 

@@ -1,0 +1,196 @@
+{
+  "suite": "reasoning-offline-v2",
+  "frozen_before_measurement": true,
+  "cohort": [
+    [
+      "extraction_1",
+      "extraction",
+      "development"
+    ],
+    [
+      "extraction_2",
+      "extraction",
+      "development"
+    ],
+    [
+      "extraction_3",
+      "extraction",
+      "development"
+    ],
+    [
+      "extraction_4",
+      "extraction",
+      "holdout"
+    ],
+    [
+      "planning_1",
+      "planning",
+      "development"
+    ],
+    [
+      "planning_2",
+      "planning",
+      "development"
+    ],
+    [
+      "planning_3",
+      "planning",
+      "development"
+    ],
+    [
+      "planning_4",
+      "planning",
+      "holdout"
+    ],
+    [
+      "citations_1",
+      "citations",
+      "development"
+    ],
+    [
+      "citations_2",
+      "citations",
+      "development"
+    ],
+    [
+      "citations_3",
+      "citations",
+      "development"
+    ],
+    [
+      "citations_4",
+      "citations",
+      "holdout"
+    ],
+    [
+      "debugging_1",
+      "debugging",
+      "development"
+    ],
+    [
+      "debugging_2",
+      "debugging",
+      "development"
+    ],
+    [
+      "debugging_3",
+      "debugging",
+      "development"
+    ],
+    [
+      "debugging_4",
+      "debugging",
+      "holdout"
+    ],
+    [
+      "numeric_1",
+      "numeric",
+      "development"
+    ],
+    [
+      "numeric_2",
+      "numeric",
+      "development"
+    ],
+    [
+      "numeric_3",
+      "numeric",
+      "development"
+    ],
+    [
+      "numeric_4",
+      "numeric",
+      "holdout"
+    ],
+    [
+      "uncertainty_1",
+      "uncertainty",
+      "development"
+    ],
+    [
+      "uncertainty_2",
+      "uncertainty",
+      "development"
+    ],
+    [
+      "uncertainty_3",
+      "uncertainty",
+      "development"
+    ],
+    [
+      "uncertainty_4",
+      "uncertainty",
+      "holdout"
+    ],
+    [
+      "scope_1",
+      "scope",
+      "development"
+    ],
+    [
+      "scope_2",
+      "scope",
+      "development"
+    ],
+    [
+      "scope_3",
+      "scope",
+      "development"
+    ],
+    [
+      "scope_4",
+      "scope",
+      "holdout"
+    ],
+    [
+      "resources_1",
+      "resources",
+      "development"
+    ],
+    [
+      "resources_2",
+      "resources",
+      "development"
+    ],
+    [
+      "resources_3",
+      "resources",
+      "development"
+    ],
+    [
+      "resources_4",
+      "resources",
+      "holdout"
+    ]
+  ],
+  "holdout_exposure": "author_visible",
+  "model": "deterministic_fixture_responder-v2",
+  "seed": null,
+  "temperature": null,
+  "baseline": "one prepared task, one admitted fake attempt, zero checks and retries",
+  "diagnostic": "same prepared task and attempt, one deterministic numeric check or unsupported",
+  "eligibility": "numeric family only for check arm; fixture scope and budget enforced in both",
+  "rubric": "exact fixture value, objective constraints, source slots, closed outcome and independent fake effect counts",
+  "budget": {
+    "max_model_attempts": 1,
+    "max_checks": 1,
+    "max_sources": 4,
+    "max_input_units": 512,
+    "max_output_units": 64,
+    "max_concurrency": 1,
+    "max_external_calls": 0,
+    "max_provider_cost_usd": "0.00",
+    "logical_deadline_ticks": 3,
+    "process_deadline_seconds": 30
+  },
+  "files": {
+    "__init__.py": "69e5cd8971f348be696f83a6682b30245e42f7ed8d449df68507ae88e793da00",
+    "fixtures/reasoning/cases-v2.json": "980fafe1cbd4a9c3251e2f4da5a6988539b64380ac3f44d2f74eee51bea825b7",
+    "reasoning_baseline.py": "b22774f43d0f5ae3152cbea018dfe447091a8fe76cdd14ff63733f6c0b6566b6",
+    "reasoning_contracts.py": "c8a1bf21f21de2108a51d8166359c577fe7603e0ff769e35a3469e082696f832",
+    "reasoning_driver.py": "a40c00e30fda9b096efc3b227bd3005c7622c5a13e3a0bb1ea62f08c8ca65923",
+    "reasoning_harness.py": "62e439e6f8f1b4a5e93bacdd78ed52085c32788a3f8e529c67b6ffc3024f9616",
+    "reasoning_scoring.py": "82611da207cee484eafa55b699e22d1eef870733c8e3a0000e7b21c73064e339",
+    "runner.py": "49cb48b9e2f210816c6f3e53c4b0e038d7c201d89fb0ade71203edc2115411c9"
+  }
+}
