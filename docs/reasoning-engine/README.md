@@ -4,6 +4,8 @@
 - [Automatic continuation effort](continuation-effort.md)
 - [Continuation effort verification](2026-11-04-effort-verification.md)
 - [RE-1 independent-review remediation](2026-11-05-re-1-review-remediation.md)
+- [Finite reasoning workflow](re-2-implementation.md)
+- [Finite reasoning verification](re-2-verification.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)
@@ -16,3 +18,8 @@ with the backend environment provisioned. The benchmark is a scripted
 offline evaluation. `make reasoning-eval` uses the sealed v2 lane; the v1
 manifest and source files remain available for historical replay. The
 [living implementation status](../current-state.md) tracks gate disposition.
+
+Run `make reasoning-orchestrator-check` and `make reasoning-orchestrator-eval`
+for the separate, sealed finite reasoning lane. Use `make workflow-postgres-check`
+for native process, fencing and acknowledgement faults against a disposable
+local PostgreSQL fixture with pgvector.

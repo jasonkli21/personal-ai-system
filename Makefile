@@ -267,7 +267,7 @@ workflow-check:
 
 workflow-postgres-check:
 	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
-	cd backend && python -m pytest -q tests/persistence/test_workflow_postgres.py
+	cd backend && python -m pytest -q tests/persistence/test_workflow_postgres.py tests/persistence/test_reasoning_workflow_postgres.py
 
 .PHONY: release-profile-check release-preflight release-build-report release-canary-check
 release-profile-check:
@@ -347,3 +347,10 @@ reasoning-check:
 
 reasoning-eval:
 	PYTHONPATH=$(CURDIR)/backend/src $(PLATFORM_PYTHON) -B backend/src/personal_ai/evaluation/reasoning_v2/runner.py
+
+.PHONY: reasoning-orchestrator-check reasoning-orchestrator-eval
+reasoning-orchestrator-check:
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_orchestrator.py
+
+reasoning-orchestrator-eval:
+	PYTHONPATH=$(CURDIR)/backend/src $(PLATFORM_PYTHON) -B -m personal_ai.evaluation.reasoning_orchestrator.runner

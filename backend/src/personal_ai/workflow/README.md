@@ -56,3 +56,24 @@ receipt adapter for trusted episode hosts. It returns original key, intent/sourc
 fingerprints and attempt metadata without query, event tail or result copying.
 It grants no project/source authority; hosts must authenticate original submission
 bindings separately. Historical rows still lack original observation timestamps.
+
+## Synthetic reasoning profile
+
+A trusted local/test host can construct `WorkflowService` with `enabled=True`
+and a `ReasoningHost` holding the current bound `ApplicationContextRequest`,
+scope ceilings and a closed scripted fixture. The host must use the live
+registry and request-authority callback and select `offline_fake` for both
+inference profile and cost mode. The same `submit`, `execute`, `status` and
+`cancel` methods then address a separate synthetic reasoning purpose. Submit a
+`reasoning-run-request-v1` with an original UUID, typed task and explicit
+resource ceilings. Omitted work limits are zero. The service compiles the
+versioned plan internally.
+
+The live result is a tuple of verified `(slot, value)` pairs. Partial results
+contain supported slots only. Progress and replay are metadata-only and
+include workflow fences' resulting attempt states, exact synthetic resource
+observations, cursor gaps and terminal stop reasons. The original request
+recovers the same run ID. An interrupted reserved attempt can be abandoned
+and resumed under the stable child key. A dispatched attempt without a
+committed result remains uncertain. See the
+[reasoning workflow guide](../../../../docs/reasoning-engine/re-2-implementation.md).

@@ -15,17 +15,15 @@ the separation of strategy policy, execution, and independent measurement.
 | HTTP/SDK and app identity | HXE-0 and verified consumer boundary | Version any future exposure and bind principal and workspace on the server. |
 | External edits, shell, tests, Git, retries and sessions | External coding harness | Receive separately authorized, read-only PAS assistance and opaque correlation. |
 
-The current [workflow contract](../../backend/src/personal_ai/workflow/README.md)
-admits bounded foreground retrieval DAGs. The future extension needs a
-versioned inference-step kind with a closed payload, bounded context and
-resource envelope, canonical continuation and exact-attempt binding, and
-source dependency references. Older hosts reject unknown kinds before
-admission. Revalidate at reservation, dispatch and disclosure. Preserve
-original-key collision semantics, committed event order, cancellation,
-uncertain attempt reconciliation, cursor gaps and terminal receipts.
-Model continuation and attempt records remain under existing owners. The
-workflow owns ordering across steps. Domain mutation proposals remain under
-their authoritative domain transitions. This phase defines the seam.
+The [workflow contract](../../backend/src/personal_ai/workflow/README.md)
+admits bounded foreground retrieval DAGs and a separate default-off synthetic
+reasoning profile. The reasoning profile uses closed inference and verifier
+step kinds, bounded context and resource envelopes, and canonical continuation
+and exact-attempt bindings. It carries an empty source set. The workflow owns
+original-key collisions, committed event order, cancellation, uncertain
+attempts, cursor gaps and terminal receipts. Chat still owns continuation
+identity and selected inference owns the operation boundary. Domain mutation
+proposals remain under their authoritative domain transitions.
 
 ## Strategy and task descriptors
 
@@ -35,7 +33,9 @@ and effect descriptions. Availability records whether an entry is an offline
 comparator or inert. The catalog carries no imports, execution paths, plugin
 installation or strategy promotion state.
 
-A future policy starts with measurable, explainable descriptors. Record
+The finite policy uses typed synthetic arithmetic slots, declared ambiguity,
+a fixed sensitivity and registered objective predicates. A future grounded
+policy needs measurable, explainable descriptors for external dependencies. Record
 ambiguity as missing/conflicting/complete required slots, freshness as a
 class derived from source age and policy thresholds, objective-check
 availability as registered predicate/verifier ID, constraints as count and

@@ -1,0 +1,1689 @@
+[
+  {
+    "id": "simple-01",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 2,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[5]}",
+      "subanswers": [
+        "{\"values\":[5]}"
+      ],
+      "synthesis": "{\"values\":[5]}",
+      "revision": "{\"values\":[5]}"
+    },
+    "oracle": [
+      5
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-02",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 3,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[6]}",
+      "subanswers": [
+        "{\"values\":[6]}"
+      ],
+      "synthesis": "{\"values\":[6]}",
+      "revision": "{\"values\":[6]}"
+    },
+    "oracle": [
+      6
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-03",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 4,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[7]}",
+      "subanswers": [
+        "{\"values\":[7]}"
+      ],
+      "synthesis": "{\"values\":[7]}",
+      "revision": "{\"values\":[7]}"
+    },
+    "oracle": [
+      7
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-04",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 5,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[8]}",
+      "subanswers": [
+        "{\"values\":[8]}"
+      ],
+      "synthesis": "{\"values\":[8]}",
+      "revision": "{\"values\":[8]}"
+    },
+    "oracle": [
+      8
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-05",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 6,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[9]}",
+      "subanswers": [
+        "{\"values\":[9]}"
+      ],
+      "synthesis": "{\"values\":[9]}",
+      "revision": "{\"values\":[9]}"
+    },
+    "oracle": [
+      9
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-06",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 7,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[10]}",
+      "subanswers": [
+        "{\"values\":[10]}"
+      ],
+      "synthesis": "{\"values\":[10]}",
+      "revision": "{\"values\":[10]}"
+    },
+    "oracle": [
+      10
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-07",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 8,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[11]}",
+      "subanswers": [
+        "{\"values\":[11]}"
+      ],
+      "synthesis": "{\"values\":[11]}",
+      "revision": "{\"values\":[11]}"
+    },
+    "oracle": [
+      11
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-08",
+    "cohort": "simple",
+    "held_out": false,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 9,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[12]}",
+      "subanswers": [
+        "{\"values\":[12]}"
+      ],
+      "synthesis": "{\"values\":[12]}",
+      "revision": "{\"values\":[12]}"
+    },
+    "oracle": [
+      12
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-09",
+    "cohort": "simple",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 10,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[13]}",
+      "subanswers": [
+        "{\"values\":[13]}"
+      ],
+      "synthesis": "{\"values\":[13]}",
+      "revision": "{\"values\":[13]}"
+    },
+    "oracle": [
+      13
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-10",
+    "cohort": "simple",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 11,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[14]}",
+      "subanswers": [
+        "{\"values\":[14]}"
+      ],
+      "synthesis": "{\"values\":[14]}",
+      "revision": "{\"values\":[14]}"
+    },
+    "oracle": [
+      14
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-11",
+    "cohort": "simple",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 12,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[15]}",
+      "subanswers": [
+        "{\"values\":[15]}"
+      ],
+      "synthesis": "{\"values\":[15]}",
+      "revision": "{\"values\":[15]}"
+    },
+    "oracle": [
+      15
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "simple-12",
+    "cohort": "simple",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 13,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[16]}",
+      "subanswers": [
+        "{\"values\":[16]}"
+      ],
+      "synthesis": "{\"values\":[16]}",
+      "revision": "{\"values\":[16]}"
+    },
+    "oracle": [
+      16
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-01",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 2,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 3,
+          "right": 4
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[5,0]}",
+      "subanswers": [
+        "{\"values\":[5]}",
+        "{\"values\":[-1]}"
+      ],
+      "synthesis": "{\"values\":[5,-1]}",
+      "revision": "{\"values\":[5,-1]}"
+    },
+    "oracle": [
+      5,
+      -1
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-02",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 3,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 4,
+          "right": 4
+        },
+        {
+          "operation": "multiply",
+          "left": 5,
+          "right": 5
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[6,0,26]}",
+      "subanswers": [
+        "{\"values\":[6]}",
+        "{\"values\":[0]}",
+        "{\"values\":[25]}"
+      ],
+      "synthesis": "{\"values\":[6,0,25]}",
+      "revision": "{\"values\":[6,0,25]}"
+    },
+    "oracle": [
+      6,
+      0,
+      25
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-03",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 4,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 5,
+          "right": 4
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[7,2]}",
+      "subanswers": [
+        "{\"values\":[7]}",
+        "{\"values\":[1]}"
+      ],
+      "synthesis": "{\"values\":[7,1]}",
+      "revision": "{\"values\":[7,1]}"
+    },
+    "oracle": [
+      7,
+      1
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-04",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 5,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 6,
+          "right": 4
+        },
+        {
+          "operation": "multiply",
+          "left": 7,
+          "right": 5
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[8,2,36]}",
+      "subanswers": [
+        "{\"values\":[8]}",
+        "{\"values\":[2]}",
+        "{\"values\":[35]}"
+      ],
+      "synthesis": "{\"values\":[8,2,35]}",
+      "revision": "{\"values\":[8,2,35]}"
+    },
+    "oracle": [
+      8,
+      2,
+      35
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-05",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 6,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 7,
+          "right": 4
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[9,4]}",
+      "subanswers": [
+        "{\"values\":[9]}",
+        "{\"values\":[3]}"
+      ],
+      "synthesis": "{\"values\":[9,3]}",
+      "revision": "{\"values\":[9,3]}"
+    },
+    "oracle": [
+      9,
+      3
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-06",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 7,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 8,
+          "right": 4
+        },
+        {
+          "operation": "multiply",
+          "left": 9,
+          "right": 5
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[10,4,46]}",
+      "subanswers": [
+        "{\"values\":[10]}",
+        "{\"values\":[4]}",
+        "{\"values\":[45]}"
+      ],
+      "synthesis": "{\"values\":[10,4,45]}",
+      "revision": "{\"values\":[10,4,45]}"
+    },
+    "oracle": [
+      10,
+      4,
+      45
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-07",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 8,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 9,
+          "right": 4
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[11,6]}",
+      "subanswers": [
+        "{\"values\":[11]}",
+        "{\"values\":[5]}"
+      ],
+      "synthesis": "{\"values\":[11,5]}",
+      "revision": "{\"values\":[11,5]}"
+    },
+    "oracle": [
+      11,
+      5
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-08",
+    "cohort": "independent",
+    "held_out": false,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 9,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 10,
+          "right": 4
+        },
+        {
+          "operation": "multiply",
+          "left": 11,
+          "right": 5
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[12,6,56]}",
+      "subanswers": [
+        "{\"values\":[12]}",
+        "{\"values\":[6]}",
+        "{\"values\":[55]}"
+      ],
+      "synthesis": "{\"values\":[12,6,55]}",
+      "revision": "{\"values\":[12,6,55]}"
+    },
+    "oracle": [
+      12,
+      6,
+      55
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-09",
+    "cohort": "independent",
+    "held_out": true,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 10,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 11,
+          "right": 4
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[13,8]}",
+      "subanswers": [
+        "{\"values\":[13]}",
+        "{\"values\":[7]}"
+      ],
+      "synthesis": "{\"values\":[13,7]}",
+      "revision": "{\"values\":[13,7]}"
+    },
+    "oracle": [
+      13,
+      7
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-10",
+    "cohort": "independent",
+    "held_out": true,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 11,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 12,
+          "right": 4
+        },
+        {
+          "operation": "multiply",
+          "left": 13,
+          "right": 5
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[14,8,66]}",
+      "subanswers": [
+        "{\"values\":[14]}",
+        "{\"values\":[8]}",
+        "{\"values\":[65]}"
+      ],
+      "synthesis": "{\"values\":[14,8,65]}",
+      "revision": "{\"values\":[14,8,65]}"
+    },
+    "oracle": [
+      14,
+      8,
+      65
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-11",
+    "cohort": "independent",
+    "held_out": true,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 12,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 13,
+          "right": 4
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[15,10]}",
+      "subanswers": [
+        "{\"values\":[15]}",
+        "{\"values\":[9]}"
+      ],
+      "synthesis": "{\"values\":[15,9]}",
+      "revision": "{\"values\":[15,9]}"
+    },
+    "oracle": [
+      15,
+      9
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "independent-12",
+    "cohort": "independent",
+    "held_out": true,
+    "task": {
+      "kind": "independent",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 13,
+          "right": 3
+        },
+        {
+          "operation": "subtract",
+          "left": 14,
+          "right": 4
+        },
+        {
+          "operation": "multiply",
+          "left": 15,
+          "right": 5
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[16,10,76]}",
+      "subanswers": [
+        "{\"values\":[16]}",
+        "{\"values\":[10]}",
+        "{\"values\":[75]}"
+      ],
+      "synthesis": "{\"values\":[16,10,75]}",
+      "revision": "{\"values\":[16,10,75]}"
+    },
+    "oracle": [
+      16,
+      10,
+      75
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-01",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 2,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[5]}",
+      "subanswers": [
+        "{\"values\":[5]}"
+      ],
+      "synthesis": "{\"values\":[5]}",
+      "revision": "{\"values\":[5]}"
+    },
+    "oracle": [
+      5
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-02",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 3,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[7]}",
+      "subanswers": [
+        "{\"values\":[6]}"
+      ],
+      "synthesis": "{\"values\":[6]}",
+      "revision": "{\"values\":[6]}"
+    },
+    "oracle": [
+      6
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-03",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 4,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[7]}",
+      "subanswers": [
+        "{\"values\":[7]}"
+      ],
+      "synthesis": "{\"values\":[7]}",
+      "revision": "{\"values\":[7]}"
+    },
+    "oracle": [
+      7
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-04",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 5,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[9]}",
+      "subanswers": [
+        "{\"values\":[8]}"
+      ],
+      "synthesis": "{\"values\":[8]}",
+      "revision": "{\"values\":[8]}"
+    },
+    "oracle": [
+      8
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-05",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 6,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[9]}",
+      "subanswers": [
+        "{\"values\":[9]}"
+      ],
+      "synthesis": "{\"values\":[9]}",
+      "revision": "{\"values\":[9]}"
+    },
+    "oracle": [
+      9
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-06",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 7,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[11]}",
+      "subanswers": [
+        "{\"values\":[10]}"
+      ],
+      "synthesis": "{\"values\":[10]}",
+      "revision": "{\"values\":[10]}"
+    },
+    "oracle": [
+      10
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-07",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 8,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[11]}",
+      "subanswers": [
+        "{\"values\":[11]}"
+      ],
+      "synthesis": "{\"values\":[11]}",
+      "revision": "{\"values\":[11]}"
+    },
+    "oracle": [
+      11
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-08",
+    "cohort": "correctable",
+    "held_out": false,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 9,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[13]}",
+      "subanswers": [
+        "{\"values\":[12]}"
+      ],
+      "synthesis": "{\"values\":[12]}",
+      "revision": "{\"values\":[12]}"
+    },
+    "oracle": [
+      12
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-09",
+    "cohort": "correctable",
+    "held_out": true,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 10,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[13]}",
+      "subanswers": [
+        "{\"values\":[13]}"
+      ],
+      "synthesis": "{\"values\":[13]}",
+      "revision": "{\"values\":[13]}"
+    },
+    "oracle": [
+      13
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-10",
+    "cohort": "correctable",
+    "held_out": true,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 11,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[15]}",
+      "subanswers": [
+        "{\"values\":[14]}"
+      ],
+      "synthesis": "{\"values\":[14]}",
+      "revision": "{\"values\":[14]}"
+    },
+    "oracle": [
+      14
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-11",
+    "cohort": "correctable",
+    "held_out": true,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 12,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[15]}",
+      "subanswers": [
+        "{\"values\":[15]}"
+      ],
+      "synthesis": "{\"values\":[15]}",
+      "revision": "{\"values\":[15]}"
+    },
+    "oracle": [
+      15
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "correctable-12",
+    "cohort": "correctable",
+    "held_out": true,
+    "task": {
+      "kind": "correctable",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 13,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[17]}",
+      "subanswers": [
+        "{\"values\":[16]}"
+      ],
+      "synthesis": "{\"values\":[16]}",
+      "revision": "{\"values\":[16]}"
+    },
+    "oracle": [
+      16
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-01",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 2,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[5]}",
+      "subanswers": [
+        "{\"values\":[5]}"
+      ],
+      "synthesis": "{\"values\":[5]}",
+      "revision": "{\"values\":[5]}"
+    },
+    "oracle": [
+      5
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-02",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 3,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[7]}",
+      "subanswers": [
+        "{\"values\":[6]}"
+      ],
+      "synthesis": "{\"values\":[6]}",
+      "revision": "{\"values\":[6]}"
+    },
+    "oracle": [
+      6
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-03",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 4,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[7]}",
+      "subanswers": [
+        "{\"values\":[7]}"
+      ],
+      "synthesis": "{\"values\":[7]}",
+      "revision": "{\"values\":[7]}"
+    },
+    "oracle": [
+      7
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-04",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 5,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[9]}",
+      "subanswers": [
+        "{\"values\":[8]}"
+      ],
+      "synthesis": "{\"values\":[8]}",
+      "revision": "{\"values\":[8]}"
+    },
+    "oracle": [
+      8
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-05",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 6,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[9]}",
+      "subanswers": [
+        "{\"values\":[9]}"
+      ],
+      "synthesis": "{\"values\":[9]}",
+      "revision": "{\"values\":[9]}"
+    },
+    "oracle": [
+      9
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-06",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 7,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[11]}",
+      "subanswers": [
+        "{\"values\":[10]}"
+      ],
+      "synthesis": "{\"values\":[10]}",
+      "revision": "{\"values\":[]}"
+    },
+    "oracle": [
+      10
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-07",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 8,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[11]}",
+      "subanswers": [
+        "{\"values\":[11]}"
+      ],
+      "synthesis": "{\"values\":[11]}",
+      "revision": "{\"values\":[11]}"
+    },
+    "oracle": [
+      11
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-08",
+    "cohort": "arithmetic",
+    "held_out": false,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 9,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[13]}",
+      "subanswers": [
+        "{\"values\":[12]}"
+      ],
+      "synthesis": "{\"values\":[12]}",
+      "revision": "{\"values\":[12]}"
+    },
+    "oracle": [
+      12
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-09",
+    "cohort": "arithmetic",
+    "held_out": true,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 10,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[13]}",
+      "subanswers": [
+        "{\"values\":[13]}"
+      ],
+      "synthesis": "{\"values\":[13]}",
+      "revision": "{\"values\":[13]}"
+    },
+    "oracle": [
+      13
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-10",
+    "cohort": "arithmetic",
+    "held_out": true,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 11,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[15]}",
+      "subanswers": [
+        "{\"values\":[14]}"
+      ],
+      "synthesis": "{\"values\":[14]}",
+      "revision": "{\"values\":[14]}"
+    },
+    "oracle": [
+      14
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-11",
+    "cohort": "arithmetic",
+    "held_out": true,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 12,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[15]}",
+      "subanswers": [
+        "{\"values\":[15]}"
+      ],
+      "synthesis": "{\"values\":[15]}",
+      "revision": "{\"values\":[15]}"
+    },
+    "oracle": [
+      15
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "arithmetic-12",
+    "cohort": "arithmetic",
+    "held_out": true,
+    "task": {
+      "kind": "arithmetic",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 13,
+          "right": 3
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[17]}",
+      "subanswers": [
+        "{\"values\":[16]}"
+      ],
+      "synthesis": "{\"values\":[16]}",
+      "revision": "{\"values\":[]}"
+    },
+    "oracle": [
+      16
+    ],
+    "fault": "none"
+  },
+  {
+    "id": "negative-01",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "policy"
+  },
+  {
+    "id": "negative-02",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3],\"tool\":\"shell\",\"payment\":true}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "injection"
+  },
+  {
+    "id": "negative-03",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "conflict"
+  },
+  {
+    "id": "negative-04",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "budget"
+  },
+  {
+    "id": "negative-05",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "cancel"
+  },
+  {
+    "id": "negative-06",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "unknown_receipt"
+  },
+  {
+    "id": "negative-07",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "replay"
+  },
+  {
+    "id": "negative-08",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ],
+      "ambiguity": "conflicting"
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "ambiguity"
+  },
+  {
+    "id": "negative-09",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "deadline"
+  },
+  {
+    "id": "negative-10",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "revoke"
+  },
+  {
+    "id": "negative-11",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "unknown",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[3]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "no_verifier"
+  },
+  {
+    "id": "negative-12",
+    "cohort": "negative",
+    "held_out": true,
+    "task": {
+      "kind": "simple",
+      "requirements": [
+        {
+          "operation": "add",
+          "left": 1,
+          "right": 2
+        }
+      ]
+    },
+    "fixture": {
+      "answer": "{\"values\":[true]}"
+    },
+    "oracle": [
+      3
+    ],
+    "fault": "malformed"
+  }
+]

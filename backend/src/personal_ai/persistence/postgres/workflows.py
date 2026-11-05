@@ -3,8 +3,12 @@
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import timedelta
+from hashlib import sha256
+from time import monotonic
 from uuid import uuid4
 
+from personal_ai.contracts.delegated_tasks import canonical_bytes
+from personal_ai.contracts.reasoning_workflow import ReasoningProgress
 from personal_ai.contracts.workflow import TERMINAL, RunProgress
 from personal_ai.storage.errors import PersistenceConflict
 
@@ -33,6 +37,16 @@ class WorkflowRow:
         del events[:-_EVENT_LIMIT]
 
     def terminal(self, state, reason=None):
+        if self.reasoning:
+            reason = {
+                "operator_reconciliation_required": "uncertain_effect",
+                "deadline": "budget_exhausted",
+                "claim_budget": "budget_exhausted",
+                "step_unavailable": "internal_failure",
+            }.get(reason, reason)
+            if state == "canceled":
+                reason = "cancelled"
+            self.record.pop("checkpoints", None)
         self.spec = None
         self.record.update(state=state, reason=reason, fence=None, lease=None)
         self.event(state)
@@ -41,7 +55,10 @@ class WorkflowRow:
         row = self.record
         if row["state"] in TERMINAL:
             return
-        if row["lease"] is not None and self.now.timestamp() < row["lease"]:
+        if (
+            row["lease"] is not None and self.now.timestamp() < row["lease"]
+            and not (self.reasoning and self.now >= self.deadline)
+        ):
             return
         attempt = self.pending
         if attempt is not None:
@@ -61,6 +78,32 @@ class WorkflowRow:
             self.event("requeued")
 
     @property
+    def reasoning(self):
+        return self.record.get("reasoning")
+
+    def reserve(self, step, operation_binding, *, resources=None):
+        if self.pending is not None:
+            raise ValueError("workflow_attempt_pending")
+        attempt_id = str(uuid4())
+        attempt = {
+            "attempt_id": attempt_id, "step": step, "state": "reserved",
+            "operation_binding": operation_binding,
+        }
+        if resources is not None:
+            attempt["resources"] = resources
+        self.record["attempts"].append(attempt)
+        self.event("reserved", attempt_id)
+        return attempt_id
+
+    def succeed(self, attempt_id):
+        if self.pending is None or self.pending["state"] != "dispatched" or (
+            self.pending["attempt_id"] != attempt_id
+        ):
+            raise ValueError("workflow_attempt_not_dispatched")
+        self.pending["state"] = "succeeded"
+        self.event("step_succeeded", attempt_id)
+
+    @property
     def pending(self):
         attempts = self.record["attempts"]
         if attempts and attempts[-1]["state"] in {"reserved", "dispatched"}:
@@ -77,6 +120,12 @@ class WorkflowRow:
         ):
             raise ValueError("workflow_attempt_binding_changed")
         attempt["state"] = "dispatched"
+        if self.reasoning:
+            resources = attempt["resources"]
+            if operation_binding["tool_id"] == "reasoning.inference.v1":
+                resources["physical_attempts"] = None
+            else:
+                resources["verifier_calls"] = None
         self.event("dispatched", attempt_id)
 
     def claim(self):
@@ -112,16 +161,46 @@ class WorkflowRow:
         events = self.record["events"]
         if type(cursor) is not int or not 0 <= cursor <= self.record["cursor"]:
             raise ValueError("workflow_cursor_invalid")
-        return RunProgress(
-            run_id=self.run_id,
-            state=self.record["state"],
-            cancel_requested=self.record["cancel_requested"],
-            reason=self.record["reason"],
-            cursor=self.record["cursor"],
-            gap=cursor < events[0]["sequence"] - 1,
-            events=tuple(event for event in events if event["sequence"] > cursor),
-            attempts=self.record["attempts"],
+        facts = {
+            "run_id": self.run_id,
+            "state": self.record["state"],
+            "cancel_requested": self.record["cancel_requested"],
+            "reason": self.record["reason"],
+            "cursor": self.record["cursor"],
+            "gap": cursor < events[0]["sequence"] - 1,
+            "events": tuple(event for event in events if event["sequence"] > cursor),
+            "attempts": self.record["attempts"],
+        }
+        if not self.reasoning:
+            return RunProgress(**facts)
+        state = self.record["state"]
+        return ReasoningProgress(
+            **facts, **self.reasoning, plan_digest=self.record["plan_digest"],
+            phase="terminal" if state in TERMINAL else self.record.get("phase", "planning"),
+            outcome=(
+                "complete" if state == "succeeded" else
+                self.record.get("outcome", "unavailable") if state in TERMINAL else "pending"
+            ),
         )
+
+    @classmethod
+    def new(cls, spec, source_digest, now, *, deadline_ms):
+        record = {
+            "state": "queued", "fence": None, "lease": None, "claims": 0,
+            "cursor": 0, "events": [], "attempts": [], "cancel_requested": False, "reason": None,
+        }
+        if spec.schema_version == "reasoning-run-v1":
+            record["reasoning"] = spec.model_dump(include={
+                "policy", "catalog", "strategy", "strategy_version", "selection", "requested_effort", "effort",
+            })
+            record["plan_digest"] = sha256(canonical_bytes(spec.model_dump(mode="json"))).hexdigest()
+            record["checkpoints"] = []
+        row = cls(
+            uuid4(), now + timedelta(milliseconds=deadline_ms), source_digest,
+            spec.model_dump(mode="json"), record, now,
+        )
+        row.event("queued")
+        return row
 
 
 class PostgresWorkflowStore:
@@ -129,10 +208,11 @@ class PostgresWorkflowStore:
         self.database = database
 
     def find(self, scope_digest, spec):
+        return self.find_intent(scope_digest, spec.original_key, spec.intent_digest(scope_digest))
+
+    def find_intent(self, scope_digest, original_key, digest):
         with self.database.transaction(timeout_seconds=2) as connection:
-            return self._find(
-                connection, scope_digest, spec.original_key, spec.intent_digest(scope_digest)
-            )
+            return self._find(connection, scope_digest, original_key, digest)
 
     @staticmethod
     def _find(connection, scope_digest, original_key, digest):
@@ -147,7 +227,7 @@ class PostgresWorkflowStore:
             raise PersistenceConflict("workflow_intent_conflict")
         return existing[0]
 
-    def submit(self, scope_digest, spec, source_digest):
+    def submit(self, scope_digest, spec, source_digest, *, monotonic_deadline=None):
         from psycopg.types.json import Jsonb
 
         digest = spec.intent_digest(scope_digest)
@@ -160,32 +240,18 @@ class PostgresWorkflowStore:
             if connection.execute("SELECT count(*) FROM workflow_runs").fetchone()[0] >= _RUN_LIMIT:
                 raise ValueError("workflow_capacity")
             now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
-            run_id = uuid4()
-            row = WorkflowRow(
-                run_id,
-                now + timedelta(milliseconds=spec.deadline_ms),
-                source_digest,
-                spec.model_dump(mode="json"),
-                {
-                    "state": "queued",
-                    "fence": None,
-                    "lease": None,
-                    "claims": 0,
-                    "cursor": 0,
-                    "events": [],
-                    "attempts": [],
-                    "cancel_requested": False,
-                    "reason": None,
-                },
-                now,
-            )
-            row.event("queued")
+            deadline_ms = spec.deadline_ms
+            if monotonic_deadline is not None:
+                deadline_ms = min(deadline_ms, int((monotonic_deadline - monotonic()) * 1000))
+                if deadline_ms <= 0:
+                    raise TimeoutError("workflow_submission_deadline")
+            row = WorkflowRow.new(spec, source_digest, now, deadline_ms=deadline_ms)
             connection.execute(
                 "INSERT INTO workflow_runs "
                 "(run_id, scope_digest, original_key, intent_digest, source_digest, "
                 "spec, deadline, record) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                 (
-                    run_id,
+                    row.run_id,
                     scope_digest,
                     spec.original_key,
                     digest,
@@ -195,7 +261,7 @@ class PostgresWorkflowStore:
                     Jsonb(row.record),
                 ),
             )
-            return run_id
+            return row.run_id
 
     @contextmanager
     def locked(self, scope_digest, run_id):
@@ -230,6 +296,8 @@ class PostgresWorkflowStore:
             ).fetchone()
             if row is None:
                 raise LookupError("workflow_not_found")
+            if row[3].get("reasoning"):
+                raise LookupError("workflow_episode_unavailable")
             from personal_ai.memory.episodes import TerminalReceiptEnvelope
 
             return (

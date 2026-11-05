@@ -39,3 +39,21 @@ must demonstrate compatible step admission, shared context packing, native
 recovery and send-time authority before real multi-step dispatch. Synthetic
 proxy scores provide a benchmark plumbing baseline. They grant no rollout,
 provider, spend, tool, source or memory permission.
+
+## Finite synthetic workflow extension
+
+The default-off synthetic profile implements the versioned seam under the
+existing workflow authority. Its executable `tool-verify-pure.v1` variant
+uses a registered pure predicate over typed synthetic data. The historical
+catalog's proposal-only `tool_verify` remains reserved for later grounded or
+proposal work. The synthetic profile has an empty source set and uses only the
+installed offline fake. Requests for external sources, provider spend or
+arbitrary executable steps fall outside its closed contract.
+
+The workflow binds its original key and plan to a canonical child
+continuation and reserves its attempt before the fake transport can dispatch.
+The installed fake uses the reserved physical ID for its terminal receipt.
+Canonical provider accounting remains responsible for any future real
+operation. Scoped live disclosure rechecks authority and replays expose only
+redacted metadata. The JSON row extension uses the existing PostgreSQL table
+and lease/fence state machine.

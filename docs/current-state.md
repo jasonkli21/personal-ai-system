@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-11-04. This is the living implementation boundary. Code, contracts,
+Updated 2026-11-05. This is the living implementation boundary. Code, contracts,
 migrations and tests control behavior; dated evidence controls acceptance.
 Independent final review and external acceptance remain open.
 
@@ -19,10 +19,15 @@ admission. Attempt counts require a generation receipt; missing receipt,
 reservation, settlement and count facts remain unknown. Runtime effort is
 fail-closed to `low` for app, workspace and user ceilings until trusted grants
 are installed. The [RE-1 independent-review remediation](reasoning-engine/2026-11-05-re-1-review-remediation.md)
-records the focused checks and remaining gates. Dynamic strategy selection,
-multi-step execution and promotion are future work. Real native mappings,
-native fencing, local model utility and installed/hosted/cloud acceptance
-remain unverified. Production remains NO_GO. See the
+records the focused checks and remaining gates. The separate
+[finite reasoning workflow](reasoning-engine/re-2-implementation.md) is a
+default-off synthetic development candidate. Its four closed templates use
+the canonical PostgreSQL workflow lifecycle and canonical chat continuation.
+Its [verification report](reasoning-engine/re-2-verification.md) records the
+paired fixture results and native workflow fault tests. Independent review,
+installed and hosted inference, actual source permissions at physical send,
+deployment recovery and real-model utility remain open. Production remains
+NO_GO. See the
 [verification and blockers](reasoning-engine/2026-11-04-re-0-verification.md)
 and [RE-0 remediation receipt](reasoning-engine/2026-11-04-re-0-remediation.md).
 

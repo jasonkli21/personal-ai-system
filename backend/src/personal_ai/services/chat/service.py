@@ -49,6 +49,7 @@ from personal_ai.llm.client import GenerationEvent, GenerationMetadata, Generati
 from personal_ai.llm.disclosure import bind_disclosure_guard
 from personal_ai.llm.errors import LLMIncompleteGenerationError
 from personal_ai.llm.preparation import require_matching_endpoint
+from personal_ai.llm.workflow_fixture import fixture_attempt
 from personal_ai.reasoning.policy import (
     Observation,
     ReasoningDenied,
@@ -1146,6 +1147,9 @@ class ChatTurnService:
                 raise LLMInvalidResponseError("language model response was empty")
             if reasoning is not None and not has_generation_receipt(generation_metadata):
                 raise LLMIncompleteGenerationError("generation receipt was incomplete")
+            fixture = fixture_attempt.get()
+            if fixture is not None:
+                fixture.accept(generation_metadata, turn.request_id)
             await io_call(require_current_client_authority)
             if not source_snapshots_current(
                 turn.source_snapshots,

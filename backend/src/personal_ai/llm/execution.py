@@ -30,6 +30,7 @@ from personal_ai.llm.errors import LLMInvalidConfigurationError, LLMInvalidReque
 from personal_ai.llm.fake import FakeLLMClient
 from personal_ai.llm.litellm.profiles import _validate_inference_context
 from personal_ai.llm.preparation import prepare_bounded_input, require_matching_endpoint
+from personal_ai.llm.workflow_fixture import fixture_attempt
 from personal_ai.reasoning.policy import Ceilings, deny, resolve_policy
 from personal_ai.routing.contracts import CountRequirement, EndpointCandidateRequirements
 from personal_ai.routing.registry import EndpointRegistryError
@@ -62,12 +63,20 @@ class LocalFakeCounter:
 
     def count(self, messages, *, response_schema=None, inference_context=None):
         _validate_inference_context(inference_context)
+        fixture = fixture_attempt.get()
+        if fixture is not None:
+            fixture.require_endpoint(self.identity)
+            revalidate_disclosure()
+            fixture.reserve_count()
         wire = json.dumps({
             "messages": [(m.role, m.content) for m in messages],
             "schema": response_schema,
         }, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        size = len(wire.encode())
+        if fixture is not None:
+            fixture.observe_count(size)
         return TokenCount(
-            len(wire.encode()), "provider", self.identity.provider_id,
+            size, "provider", self.identity.provider_id,
             self.identity.model_id, self.identity.serializer_id, "authoritative",
         )
 
@@ -85,6 +94,7 @@ class LocalFakeGeneration(FakeLLMClient):
             self.endpoint_profile, self.identity, observation.policy.ceiling, max_output_tokens,
         )
         wire_messages = messages
+        fixture = fixture_attempt.get()
         if mapping:
             version, setting = mapping
             wire = synthetic_reasoning.serialize(
@@ -103,6 +113,12 @@ class LocalFakeGeneration(FakeLLMClient):
             wire_messages = tuple(
                 ChatMessage(role, content) for role, content in received["messages"]
             )
+        if fixture is not None:
+            fixture.require_endpoint(self.identity)
+            if not mapping:
+                raise LLMInvalidRequestError("workflow fixture wire is unavailable")
+            fixture.dispatch(len(wire))
+            revalidate_disclosure()
         emit(Event.DISPATCH, State.OK, operation="streaming", units="fake_bytes")
         async with aclosing(super().stream_events(
             wire_messages,
@@ -111,11 +127,22 @@ class LocalFakeGeneration(FakeLLMClient):
         )) as events:
             async for event in events:
                 if event.kind == "terminal":
-                    event = replace(event, metadata=replace(
-                        event.metadata,
-                        invocation_id=str(uuid4()),
-                        attempt_ids=(str(uuid4()),),
-                    ))
+                    if fixture is None:
+                        event = replace(event, metadata=replace(
+                            event.metadata,
+                            invocation_id=str(uuid4()),
+                            attempt_ids=(str(uuid4()),),
+                        ))
+                    else:
+                        output_bytes = len("".join(self.deltas).encode())
+                        usage = replace(
+                            event.metadata.usage, input_tokens=len(wire), output_tokens=output_bytes,
+                            total_tokens=len(wire) + output_bytes, source="provider", confidence="reported",
+                        )
+                        event = replace(event, metadata=replace(
+                            event.metadata, invocation_id=str(fixture.child_key),
+                            attempt_ids=(str(fixture.attempt_id),), usage=usage,
+                        ))
                 yield event
 
 
