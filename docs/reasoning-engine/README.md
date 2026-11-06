@@ -17,6 +17,7 @@
 - [RE-4 independent-review remediation](2026-11-05-re-4-review-remediation.md)
 - [Loopback synthetic reasoning preview](synthetic-preview.md)
 - [Preview verification and independent review handoff](2026-11-05-re-5-verification.md)
+- [RE-5 independent-review remediation](2026-11-05-re-5-review-remediation.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)

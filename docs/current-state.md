@@ -78,6 +78,11 @@ The [implementation evidence](reasoning-engine/2026-11-05-re-5-verification.md)
 separately records native PostgreSQL lifecycle drills, the pinned historical
 adaptive replay and E2–E5 blockers. Production remains `NO_GO` and adaptive
 selection remains `NO_PROMOTION`.
+The [RE-5 review remediation](reasoning-engine/2026-11-05-re-5-review-remediation.md)
+hardens public SDK receipt parsing and makes artifact safety tests portable
+across clean and dirty checkouts. Inherited SDK/PI-6 source seals remain
+failed; native process-loss and durable consumer restart evidence remain
+unverified. E2–E5 and production gates remain blocked.
 
 ## Synthetic memory governance
 

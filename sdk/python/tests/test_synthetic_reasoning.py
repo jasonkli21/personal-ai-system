@@ -22,6 +22,37 @@ def descriptor():
     }
 
 
+def receipt(*, state="succeeded", result=None):
+    progress = {
+        "schema_version": "reasoning-run-progress-v1",
+        "run_id": str(uuid4()),
+        "state": state,
+        "cancel_requested": False,
+        "reason": None,
+        "cursor": 1,
+        "gap": False,
+        "events": [],
+        "attempts": [],
+        "policy": "reasoning-finite-policy-v1",
+        "catalog": "reasoning-finite-catalog-v1",
+        "strategy": "direct",
+        "strategy_version": "direct-verified.v1",
+        "selection": "simple",
+        "requested_effort": "auto",
+        "plan_digest": "a" * 64,
+        "budget_class": "bounded_synthetic_bytes",
+        "effort": "low",
+        "phase": "terminal"
+        if state in {"succeeded", "failed", "canceled", "uncertain"}
+        else "answering",
+        "outcome": "complete" if state == "succeeded" else "pending",
+    }
+    value = {"progress": progress}
+    if result is not None:
+        value["result"] = result
+    return value
+
+
 def test_changed_or_disabled_epoch_cannot_silently_admit_new_work(monkeypatch):
     client = SyntheticReasoning("http://127.0.0.1:8766", "fixture")
     facts = descriptor()
@@ -80,3 +111,41 @@ def test_oversized_response_is_uncertain(monkeypatch):
     )
     with pytest.raises(UncertainTurn, match="response_too_large"):
         client.negotiate()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda p: p.pop("run_id"),
+        lambda p: p.pop("plan_digest"),
+        lambda p: p.pop("strategy_version"),
+        lambda p: p.update(cursor=True),
+        lambda p: p.update(state="future_state"),
+        lambda p: p.update(schema_version="reasoning-run-progress-v2"),
+        lambda p: p.update(strategy_version="unknown"),
+        lambda p: p.update(state="failed", outcome="complete"),
+    ],
+)
+def test_malformed_success_progress_is_uncertain(change):
+    value = receipt(result=[])
+    change(value["progress"])
+    with pytest.raises(UncertainTurn, match="invalid_reasoning_receipt"):
+        SyntheticReasoning._receipt(value, result=True)
+
+
+@pytest.mark.parametrize(
+    "result", [[["not_a_slot", 3]], [[0, "not_an_integer"]], [[0, 3], [0, 4]]]
+)
+def test_malformed_success_result_is_uncertain(result):
+    with pytest.raises(UncertainTurn, match="invalid_reasoning_receipt"):
+        SyntheticReasoning._receipt(receipt(result=result), result=True)
+
+
+def test_valid_partial_result_and_metadata_only_receipts():
+    partial = receipt(state="failed", result=[[0, 3]])
+    partial["progress"].update(outcome="partial", reason="budget_exhausted")
+    assert SyntheticReasoning._receipt(partial, result=True) is partial
+    metadata = receipt(state="running")
+    assert SyntheticReasoning._receipt(metadata) is metadata
+    with pytest.raises(UncertainTurn, match="invalid_reasoning_receipt"):
+        SyntheticReasoning._receipt(metadata | {"result": []})

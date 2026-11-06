@@ -100,6 +100,37 @@ class ArtifactTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "wheel_metadata"):
                 inspect_wheel(self.wheel, pin)
 
+    def test_dirty_checkout_stops_before_installer(self):
+        pin = self.write()
+        pins = self.root / "pins.json"
+        pins.write_text(
+            json.dumps(
+                {
+                    "schema": "sdk-origin-v1",
+                    "source": source(),
+                    "origin": "synthetic-operator-fixture",
+                    "filename": self.wheel.name,
+                    "sha256": pin,
+                    "name": "personal-ai-sdk",
+                    "version": "0.1.0",
+                    "tools": {"uv_sha256": "a" * 64, "python_sha256": "b" * 64},
+                }
+            )
+        )
+        with (
+            patch("release_artifacts.checkout_state", return_value={"clean": False}),
+            patch("release_artifacts.native_fence") as fence,
+            self.assertRaisesRegex(ValueError, "dirty_checkout"),
+        ):
+            install(
+                self.wheel,
+                pins,
+                Path(sys.executable),
+                expected_source=source(),
+                expected_tool_digests=release_tool_digests(),
+            )
+        fence.assert_not_called()
+
     def test_untrusted_tool_pin_stops_before_installer(self):
         pin = self.write()
         trust = {
@@ -115,8 +146,9 @@ class ArtifactTest(unittest.TestCase):
         pins = self.root / "pins.json"
         pins.write_text(json.dumps(trust))
         with (
+            patch("release_artifacts.checkout_state", return_value={"clean": True}),
             patch("release_artifacts.native_fence") as fence,
-            self.assertRaisesRegex(ValueError, "dirty_checkout"),
+            self.assertRaisesRegex(ValueError, "untrusted_install_toolchain"),
         ):
             install(
                 self.wheel,
@@ -325,15 +357,15 @@ class ArtifactTest(unittest.TestCase):
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and not grandchild_ready.exists():
                 time.sleep(0.01)
-            self.assertTrue(pid_file.exists() and grandchild_ready.exists(), "process tree did not start")
+            self.assertTrue(
+                pid_file.exists() and grandchild_ready.exists(), "process tree did not start"
+            )
             self.assertEqual(len(pid_file.read_text().split(",")), 2)
             proc.send_signal(number)
             output, _ = proc.communicate(timeout=3)
             self.assertEqual(proc.returncode, 0, output.decode(errors="replace"))
             result = json.loads(output)
-            self.assertIn(
-                result["process_group_cleanup"], {"STOPPED", "BLOCKED_SIGNAL_PERMISSION"}
-            )
+            self.assertIn(result["process_group_cleanup"], {"STOPPED", "BLOCKED_SIGNAL_PERMISSION"})
             self.assertTrue(child_marker.exists(), "owned child did not receive TERM")
             self.assertTrue(grandchild_marker.exists(), "owned grandchild did not receive TERM")
 
