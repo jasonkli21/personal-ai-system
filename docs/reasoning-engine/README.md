@@ -15,6 +15,8 @@
 - [Adaptive strategy experiment protocol](adaptive-experiment.md)
 - [Adaptive strategy verification and review handoff](re-4-verification.md)
 - [RE-4 independent-review remediation](2026-11-05-re-4-review-remediation.md)
+- [Loopback synthetic reasoning preview](synthetic-preview.md)
+- [Preview verification and independent review handoff](2026-11-05-re-5-verification.md)
 - [Historical request and result sketch](api-contract-v1-proposed.md)
 - [Threat model](threat-model.md)
 - [Frozen offline benchmark](benchmark-contract.md)
@@ -37,8 +39,10 @@ Run `make reasoning-grounded-check` and `make reasoning-grounded-eval` for
 the separate sealed grounded lane. The grounded host is default-off, local
 fixture-only and uses the same foreground workflow and chat continuation.
 
-Run `make reasoning-adaptive-check` and `make reasoning-adaptive-eval`
-for the sealed adaptive fixture lane. Adaptive selection defaults to
-disabled. The [operator contract](adaptive-selection.md#local-operator-control)
-describes explicit shadow installation, signed local-canary admission and
-one-command rollback.
+Run `make reasoning-adaptive-check` for current-source conformance and
+`make reasoning-adaptive-eval` for the historical sealed experiment at its
+original revision. `make reasoning-adaptive-conformance` verifies the
+separate source seal for the non-promoting developer controls. Adaptive
+selection defaults to disabled. The
+[operator contract](adaptive-selection.md#local-operator-control) describes
+explicit shadow installation, blocked canary admission and rollback.

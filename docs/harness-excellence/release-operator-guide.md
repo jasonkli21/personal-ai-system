@@ -205,3 +205,12 @@ source-free SDK plus signed installed server proof, (4) pinned real-model/fence/
 store task and measured idle/setup/TTFT resources, (5) separately authorized
 hosted/account or cloud/restore/erasure evidence. E3–E5 and production personal
 data remain NO_GO. No peer work is needed to close the core preview gates.
+
+
+## Synthetic reasoning preview
+
+The [loopback operator guide](../reasoning-engine/synthetic-preview.md)
+covers the separate development process, one-command admission disablement
+and original-epoch reconciliation. Its [evidence and blockers](../reasoning-engine/2026-11-05-re-5-verification.md)
+are scoped to fixture HTTP and the internal native workflow. All deployed
+release and adaptive promotion gates keep their existing dispositions.

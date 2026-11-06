@@ -11,6 +11,7 @@ from .client import (
     ContractMismatch,
     UncertainTurn,
 )
+from .synthetic_reasoning import SyntheticReasoning
 
 __all__ = [
     "CONSUMER_VERSION",
@@ -21,5 +22,6 @@ __all__ = [
     "Continuation",
     "ContinuationStatus",
     "ContractMismatch",
+    "SyntheticReasoning",
     "UncertainTurn",
 ]

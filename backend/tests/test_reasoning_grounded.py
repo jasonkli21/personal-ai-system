@@ -28,6 +28,10 @@ BASE = {"tags": ["overview"], "facts": {"capacity": 3}, "poison": True}
 FOCUSED = {"tags": ["duration"], "facts": {"duration": 9}}
 
 
+class FixtureWorkerLost(BaseException):
+    """Bypass workflow exception recovery while allowing event-loop teardown."""
+
+
 def request(requirements=("capacity",), **changes):
     return grounded.Request(
         schema_version="reasoning-grounded-request-v1", original_key=uuid4(),
@@ -401,21 +405,21 @@ def test_crash_and_stale_lease_preserve_canonical_keys(tmp_path, monkeypatch, bo
         async def query_step(self, spec, **kwargs):
             calls.append(spec.idempotency_key)
             if boundary == "retrieve":
-                raise SystemExit(23)
+                raise FixtureWorkerLost
             return await query(self, spec, **kwargs)
 
         async def infer_step(*args, **kwargs):
             if boundary == "reserved":
-                raise SystemExit(23)
+                raise FixtureWorkerLost
             return await raw_infer(*args, **kwargs)
 
         async def send_step(*args, **kwargs):
-            raise SystemExit(23)
+            raise FixtureWorkerLost
             yield  # pragma: no cover
 
         def reserve_step(self, step, *args, **kwargs):
             if step == "synthesis":
-                raise SystemExit(23)
+                raise FixtureWorkerLost
             return raw_reserve(self, step, *args, **kwargs)
 
         with monkeypatch.context() as patcher:
@@ -427,9 +431,9 @@ def test_crash_and_stale_lease_preserve_canonical_keys(tmp_path, monkeypatch, bo
                 patcher.setattr(WorkflowRow, "reserve", reserve_step)
             if boundary == "verify":
                 def crash(*args):
-                    raise SystemExit(23)
+                    raise FixtureWorkerLost
                 patcher.setattr(grounded, "verify", crash)
-            with pytest.raises(SystemExit):
+            with pytest.raises(FixtureWorkerLost):
                 asyncio.run(service.execute(run_id))
         scope = service.scope_digest()
         with service.store.locked(scope, run_id) as row:

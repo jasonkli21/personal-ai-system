@@ -7,7 +7,7 @@ from contextlib import aclosing, contextmanager
 from dataclasses import replace
 from hashlib import sha256
 from threading import Event, Thread
-from time import time
+from time import monotonic, time
 from uuid import uuid4, uuid5
 
 import pytest
@@ -20,6 +20,9 @@ from personal_ai.evaluation.reasoning_adaptive import runner
 from personal_ai.evaluation.reasoning_adaptive.fixture import (
     FIXTURE_BUILD,
     FIXTURE_PROTOCOL,
+    OfflineWorkflow,
+    observe,
+    offline_submit,
     shadow_host,
 )
 from personal_ai.evaluation.reasoning_grounded.fixture import fixture_service
@@ -35,15 +38,15 @@ from personal_ai.reasoning.adaptive_control import (
     PromotionEvidence,
     SignedEvidence,
 )
-from personal_ai.reasoning.adaptive_plan import AdaptivePlan
+from personal_ai.reasoning.adaptive_plan import AdaptivePlan, compile_candidate
 from personal_ai.reasoning.adaptive_receipts import AdaptiveProgress
-from personal_ai.reasoning.orchestration import HARD_LIMIT, Checkpoint, Request, Stop
+from personal_ai.reasoning.orchestration import HARD_LIMIT, Checkpoint, Request, Stop, compile_plan
 from personal_ai.retrieval.service import RetrievalService
 from personal_ai.storage.errors import PersistenceConflict
 from personal_ai.workflow import service as workflows
-from personal_ai.workflow.adaptive import AdaptiveHost, finite_fixture_binding
-from personal_ai.workflow.reasoning import ENDPOINT_DIGEST, Fixture
-from tests.test_reasoning_grounded import BASE, FOCUSED, SUBJECT
+from personal_ai.workflow.adaptive import finite_fixture_binding
+from personal_ai.workflow.reasoning import ENDPOINT_DIGEST, SOURCE_DIGEST, Fixture
+from tests.test_reasoning_grounded import BASE, FOCUSED, SUBJECT, FixtureWorkerLost
 from tests.test_reasoning_grounded import request as grounded_request
 from tests.test_reasoning_orchestrator import request
 
@@ -70,22 +73,20 @@ def signed_sample(scope, *, key=None, **changes):
     return SignedEvidence(evidence=evidence, approval=signature), key.public_key().public_bytes_raw()
 
 
-def canary(service, directory, **changes):
-    directory = directory.resolve()
-    directory.chmod(0o700)
-    scope = service.scope_digest()
-    approval, key = signed_sample(scope, **changes)
-    control = LocalPolicyControl(directory)
-    control.update(0, PolicyPointer(
-        generation=1, mode="local_fixture_canary", policy_digest=adaptive.FINITE.identity,
-        build_digest=FIXTURE_BUILD, issued_at=approval.evidence.issued_at,
-        expires_at=approval.evidence.expires_at, approval=approval,
-    ), reviewer_key=key)
-    bindings = frozenset({
-        finite_fixture_binding(request("independent").task, service.reasoning_host.fixture_digest),
-    })
-    service.adaptive_host = AdaptiveHost(control, scope, FIXTURE_BUILD, FIXTURE_PROTOCOL, key, bindings)
-    return control
+@contextmanager
+def offline_service(fixture):
+    with synthetic_service(fixture) as service:
+        yield OfflineWorkflow(
+            service.store, service.retrieval, service.application_registry,
+            enabled=True, reasoning_host=service.reasoning_host,
+        )
+
+
+def install_shadow(service, directory):
+    service.adaptive_host = shadow_host(
+        service, directory.resolve(), adaptive.FINITE, task=request("independent").task,
+    )
+    return service.adaptive_host.control
 
 
 @pytest.fixture
@@ -134,10 +135,9 @@ def witness(monkeypatch):
 def test_candidate_comparison_uses_only_objectively_supported_slots(
     tmp_path, witness, first, second, outcome, values, generations,
 ):
-    with synthetic_service(Fixture(answer=first, revision=second)) as service:
-        canary(service, tmp_path)
+    with offline_service(Fixture(answer=first, revision=second)) as service:
         original = request("independent")
-        run_id = service.submit(original)
+        run_id = offline_submit(service, original, "adaptive")
         progress, output = asyncio.run(service.execute(run_id))
         assert isinstance(progress, AdaptiveProgress) and progress.outcome == outcome and output == values
         assert len(witness["model"]) == len(witness["check"]) == generations and not witness["retrieval"]
@@ -167,10 +167,10 @@ def test_candidate_comparison_uses_only_objectively_supported_slots(
     {"count_input_bytes": 8192}, {"input_bytes": 1024}, {"output_bytes": 128},
     {"result_bytes": 128}, {"deadline_ms": 8000},
 ])
-def test_canary_cannot_expand_narrowed_reservation(tmp_path, witness, change):
+def test_shadow_cannot_expand_narrowed_reservation(tmp_path, witness, change):
     limits = HARD_LIMIT.model_copy(update=change)
     with synthetic_service(Fixture(answer=GOOD)) as service:
-        canary(service, tmp_path, limits=limits)
+        install_shadow(service, tmp_path)
         try:
             run_id = service.submit(request("independent", limits=limits))
         except Stop:
@@ -181,25 +181,26 @@ def test_canary_cannot_expand_narrowed_reservation(tmp_path, witness, change):
             assert type(progress) is ReasoningProgress
 
 
-@pytest.mark.parametrize("mismatch", ["low_effort", "scope", "protocol", "endpoint", "build", "reviewer", "fixture", "stale"])
-def test_mismatched_canary_slice_uses_baseline(tmp_path, mismatch, monkeypatch):
+@pytest.mark.parametrize("mismatch", ["scope", "policy", "build", "fixture", "stale"])
+def test_mismatched_shadow_installation_uses_baseline(tmp_path, mismatch, monkeypatch, caplog):
+    caplog.set_level("INFO", logger="personal_ai.workflow.adaptive")
     with synthetic_service(Fixture(answer=GOOD)) as service:
-        changes = {
-            "endpoint": {"endpoint_digest": "c" * 64},
-            "protocol": {"protocol_digest": "c" * 64},
-        }.get(mismatch, {})
-        canary(service, tmp_path, **changes)
+        install_shadow(service, tmp_path)
         host = service.adaptive_host
-        if mismatch in {"scope", "build", "reviewer", "fixture"}:
+        if mismatch in {"scope", "build", "fixture"}:
             service.adaptive_host = replace(host, **{
                 "scope": {"scope_digest": "c" * 64}, "build": {"build_digest": "c" * 64},
                 "fixture": {"finite_fixtures": frozenset()},
-                "reviewer": {"reviewer_key": Ed25519PrivateKey.generate().public_key().public_bytes_raw()},
             }[mismatch])
+        if mismatch == "policy":
+            directory = tmp_path / "other"
+            directory.mkdir(mode=0o700)
+            service.adaptive_host = shadow_host(service, directory.resolve(), adaptive.GROUNDED)
         if mismatch == "stale":
             monkeypatch.setattr("personal_ai.workflow.adaptive.time", lambda: time() + 301)
-        run_id = service.submit(request("independent", effort="low" if mismatch == "low_effort" else "max"))
+        run_id = service.submit(request("independent"))
         assert type(service.status(run_id)) is ReasoningProgress
+        assert not any(line.message.startswith("adaptive_shadow") for line in caplog.records)
 
 
 @pytest.mark.parametrize("change", [
@@ -223,7 +224,7 @@ def test_unapproved_pointer_cannot_be_published(tmp_path):
         build_digest=FIXTURE_BUILD, issued_at=evidence.issued_at, expires_at=evidence.expires_at,
         approval=signed.model_copy(update={"approval": "0" * 128}),
     )
-    with pytest.raises(ValueError, match="unapproved"):
+    with pytest.raises(ValueError, match="blocked_unverified_independent_evidence"):
         control.update(0, pointer, reviewer_key=key)
     assert control.rollback()[0] is False
 
@@ -253,6 +254,63 @@ def test_valid_signature_without_verified_artifact_cannot_publish_canary(tmp_pat
         control.update(0, pointer, reviewer_key=key)
     with control.admission() as current:
         assert current.mode == "disabled" and current.generation == 0
+
+
+@pytest.mark.parametrize("invalid", ["none", "signature", "scope", "protocol", "endpoint", "stale"])
+def test_restored_canary_pointer_cannot_select_v2(tmp_path, invalid, witness):
+    from personal_ai.reasoning.adaptive_control import POINTER
+
+    with synthetic_service(Fixture(answer=GOOD, synthesis=GOOD)) as service:
+        install_shadow(service, tmp_path)
+        scope = service.scope_digest()
+        now = int(time())
+        changes = {
+            "scope": {"scope_digest": "c" * 64}, "protocol": {"protocol_digest": "c" * 64},
+            "endpoint": {"endpoint_digest": "c" * 64},
+            "stale": {"issued_at": now - 600, "expires_at": now - 300},
+        }.get(invalid, {})
+        approval, key = signed_sample(scope, **changes)
+        if invalid == "signature":
+            approval = approval.model_copy(update={"approval": "0" * 128})
+        service.adaptive_host = replace(service.adaptive_host, reviewer_key=key)
+        evidence = approval.evidence
+        pointer = PolicyPointer(
+            generation=2, mode="local_fixture_canary", approval=approval,
+            policy_digest=evidence.policy_digest, build_digest=evidence.build_digest,
+            issued_at=evidence.issued_at, expires_at=evidence.expires_at,
+        )
+        # Simulate a persisted pointer from an older binary.
+        (tmp_path / POINTER).write_text(pointer.model_dump_json())
+        run_id = service.submit(request("independent"))
+        progress, result = asyncio.run(service.execute(run_id))
+        assert type(progress) is ReasoningProgress and result == ((0, 3), (1, 6))
+        assert [item.step for item in progress.attempts] == ["slot_0", "slot_1", "synthesis", "check"]
+        assert len(witness["model"]) == 3 and not witness["retrieval"]
+
+
+def test_restored_signed_plan_cannot_dispatch(tmp_path, witness):
+    with synthetic_service(Fixture(answer=GOOD)) as service:
+        install_shadow(service, tmp_path)
+        scope = service.scope_digest()
+        original = request("independent")
+        baseline = compile_plan(
+            original, service.reasoning_host.ceilings, scope_digest=scope,
+            endpoint_digest=ENDPOINT_DIGEST, fixture_digest=service.reasoning_host.fixture_digest,
+        )
+        signed, key = signed_sample(scope)
+        assert signed.verified(key, time())
+        service.adaptive_host = replace(service.adaptive_host, reviewer_key=key)
+        assert finite_fixture_binding(original.task, baseline.fixture_digest) in service.adaptive_host.finite_fixtures
+        decision = adaptive.decision(
+            adaptive.finite_features(baseline), adaptive.FINITE, 1, "baseline",
+            "candidate_compare", "eligible", approval=signed.evidence,
+        )
+        plan = compile_candidate(baseline, decision, approval=signed)
+        run_id = service.store.submit(scope, plan, SOURCE_DIGEST, monotonic_deadline=monotonic() + 30)
+        progress, result = asyncio.run(service.execute(run_id))
+        assert progress.reason == "policy_denied" and not result and not any(witness.values())
+        assert service.submit(original) == run_id
+        assert asyncio.run(service.execute(run_id)) == (progress, ())
 
 
 @pytest.mark.parametrize("profile", ["finite", "grounded"])
@@ -305,8 +363,8 @@ def test_injected_feature_and_unknown_verifier_cannot_grant_permission():
 
 
 def test_rollback_linearizes_against_admission_preserves_run_and_rejects_stale_write(tmp_path):
-    with synthetic_service(Fixture(answer=PART, revision=OTHER)) as service:
-        control = canary(service, tmp_path)
+    with synthetic_service(Fixture(answer=PART, revision=OTHER, synthesis=GOOD)) as service:
+        control = install_shadow(service, tmp_path)
         original = request("independent")
         run_id = service.submit(original)
         pinned = service.status(run_id)
@@ -331,18 +389,17 @@ def test_rollback_linearizes_against_admission_preserves_run_and_rejects_stale_w
         new_run = service.submit(original.model_copy(update={"original_key": uuid4()}))
         assert type(service.status(new_run)) is ReasoningProgress
         progress, result = asyncio.run(service.execute(run_id))
-        assert progress.plan_digest == pinned.plan_digest and progress.adaptive_decision == pinned.adaptive_decision
+        assert progress.plan_digest == pinned.plan_digest and progress.strategy_version == pinned.strategy_version
         assert result == ((0, 3), (1, 6))
 
 
 def test_corrupt_v2_plan_and_receipt_are_rejected(tmp_path):
-    with synthetic_service(Fixture(answer=GOOD)) as service:
-        canary(service, tmp_path)
-        run_id = service.submit(request("independent"))
+    with offline_service(Fixture(answer=GOOD)) as service:
+        run_id = offline_submit(service, request("independent"), "adaptive")
         with service.store.locked(service.scope_digest(), run_id) as row:
             body = row.spec
             for changes in (
-                {"strategy": "decompose"}, {"ablation": "no_features"}, {"approval": None},
+                {"strategy": "decompose"}, {"ablation": "invalid"}, {"approval": {}},
                 {"steps": list(reversed(body["steps"]))},
             ):
                 with pytest.raises(ValidationError):
@@ -357,9 +414,8 @@ def test_corrupt_v2_plan_and_receipt_are_rejected(tmp_path):
 @pytest.mark.parametrize("target", ["candidate_first", "check_first", "candidate_alternative", "compare"])
 @pytest.mark.parametrize("fault", ["cancel", "deadline"])
 def test_cancel_and_deadline_at_every_reservation(tmp_path, monkeypatch, witness, target, fault):
-    with synthetic_service(Fixture(answer=PART, revision=OTHER)) as service:
-        canary(service, tmp_path)
-        run_id = service.submit(request("independent"))
+    with offline_service(Fixture(answer=PART, revision=OTHER)) as service:
+        run_id = offline_submit(service, request("independent"), "adaptive")
         raw_reserve = WorkflowRow.reserve
 
         def reserve(row, step, *args, **kwargs):
@@ -383,21 +439,21 @@ def test_cancel_and_deadline_at_every_reservation(tmp_path, monkeypatch, witness
 def test_unknown_alternative_preserves_original_key_after_lease_loss_and_rollback(tmp_path, monkeypatch):
     sent = []
     raw = FakeLLMClient.stream_events
-    with synthetic_service(Fixture(answer=PART, revision=OTHER)) as service:
-        control = canary(service, tmp_path)
+    with offline_service(Fixture(answer=PART, revision=OTHER)) as service:
+        control = install_shadow(service, tmp_path)
         original = request("independent")
-        run_id = service.submit(original)
+        run_id = offline_submit(service, original, "adaptive")
 
         async def send(client, *args, **kwargs):
             sent.append(fixture_attempt.get().child_key)
             if len(sent) == 2:
-                raise SystemExit("fixture worker lost after dispatch")
+                raise FixtureWorkerLost("fixture worker lost after dispatch")
             async with aclosing(raw(client, *args, **kwargs)) as events:
                 async for event in events:
                     yield event
 
         monkeypatch.setattr(FakeLLMClient, "stream_events", send)
-        with pytest.raises(SystemExit):
+        with pytest.raises(FixtureWorkerLost):
             asyncio.run(service.execute(run_id))
         with service.store.locked(service.scope_digest(), run_id) as row:
             pending = row.pending.copy()
@@ -429,30 +485,32 @@ def test_sealed_member_tamper(tmp_path, member):
             runner.load(directory)
 
 
-def test_degenerate_verifier_and_no_benefit_controls(monkeypatch):
+def finite_control():
+    return {
+        "profile": "finite", "fault": "none",
+        "task": {"kind": "independent", "requirements": [
+            {"operation": "add", "left": 1, "right": 2},
+            {"operation": "multiply", "left": 2, "right": 3},
+        ]},
+        "fixture": {"answer": PART, "revision": OTHER, "synthesis": GOOD},
+    }
+
+
+def test_degenerate_verifier_is_detected_by_objective_scorer(tmp_path, monkeypatch):
+    case = finite_control()
+
     def degenerate(step, plan, checkpoints):
         return Checkpoint(step=step.name, verdict="pass", values=checkpoints[step.dependencies[-1]].values)
 
     monkeypatch.setattr(workflows, "run_check", degenerate)
-    _, cases, split, _ = runner.load()
-    control_cases = {
-        case_id for case_id in cases if split[case_id]["partition"] == "development"
-        and split[case_id]["stratum"] == "simple_no_benefit"
-    }
-    report, rows = asyncio.run(runner.evaluate(case_ids=control_cases))
-    assert report["fixture_verdict"] == "SAFETY_VETO" and report["promotion"] == "NO_PROMOTION"
-    assert any(not row["safe"] and row["arm"] == "adaptive" for row in rows)
+    observation = asyncio.run(observe(uuid4(), case, "adaptive", tmp_path.resolve()))
+    _, safe, _ = runner.score(case, {"values": {"0": 3, "1": 6}, "eligible": True}, observation)
+    assert not safe
 
 
-def test_sealed_evaluation():
-    report, rows = asyncio.run(runner.evaluate())
-    assert report["rows"] == 924 and report["cases"] == 182
-    assert report["safety_vetoes"] == 0 and report["promotion"] == "NO_PROMOTION"
-    assert report["fixture_verdict"] == "OFFLINE_SIGNAL_ONLY"
-    assert any(row["work_after_pass"] for row in rows if row["arm"] == "no_early_exit")
-    assert any(row["paired_work_delta"] > 0 and row["paired_exact_delta"] == 0 for row in rows if row["arm"] == "no_features")
-    print(json.dumps({"observations": rows}, sort_keys=True))
-    print(json.dumps(report, sort_keys=True))
+def test_historical_source_seal_rejects_current_runtime():
+    with pytest.raises(ValueError, match="adaptive_experiment_member_changed"):
+        runner.load()
 
 
 @pytest.mark.parametrize("fault", ["omitted_conflict", "revoked_after_read", "revoked_at_terminal"])
@@ -501,7 +559,7 @@ def test_invalid_local_pointer_never_enables_selection_or_replaces_file(tmp_path
     from personal_ai.reasoning.adaptive_control import POINTER
 
     with synthetic_service(Fixture(answer=GOOD)) as service:
-        control = canary(service, tmp_path)
+        control = install_shadow(service, tmp_path)
         pointer = tmp_path / POINTER
         before = pointer.read_text()
         if invalid == "duplicate":
@@ -518,25 +576,18 @@ def test_invalid_local_pointer_never_enables_selection_or_replaces_file(tmp_path
             control.rollback()
 
 
-def test_fixture_execution_inputs_exclude_partition_or_oracle(tmp_path, monkeypatch):
-    original = runner.observe
-    inputs = []
-
-    async def observe(key, case, arm, directory):
-        from uuid import UUID
-
-        assert type(key) is UUID
-        assert set(case) == {"task", "fixture", "profile", "fault"}
-        inputs.append(arm)
-        return await original(key, case, arm, directory)
-
-    monkeypatch.setattr(runner, "observe", observe)
-    _, cases, split, _ = runner.load()
-    case_id = next(case_id for case_id, case in cases.items() if (
-        case["profile"] == "finite" and split[case_id]["partition"] == "development"
-    ))
-    report, _ = asyncio.run(runner.evaluate(case_ids={case_id}))
-    assert report["safety_vetoes"] == 0 and len(inputs) == 6
+def test_fixture_execution_inputs_exclude_partition_or_oracle(tmp_path):
+    case = finite_control()
+    assert set(case) == {"task", "fixture", "profile", "fault"}
+    observations = {}
+    for arm in ("baseline", "shadow", "adaptive", "no_features", "no_early_exit", "no_compare"):
+        directory = tmp_path / arm
+        directory.mkdir(mode=0o700)
+        observations[arm] = asyncio.run(observe(uuid4(), case, arm, directory.resolve()))
+    baseline, shadow = observations["baseline"], observations["shadow"]
+    assert baseline["result"] == shadow["result"] == ((0, 3), (1, 6))
+    assert baseline["ledger"] == shadow["ledger"]
+    assert all(item["safety"] and item["ledger"]["reconciled"] for item in observations.values())
 
 
 def test_grounded_shadow_disagreement_does_not_suppress_a_permitted_focus(tmp_path, caplog, witness):

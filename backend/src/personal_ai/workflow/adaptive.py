@@ -7,7 +7,6 @@ from time import monotonic, time
 
 from personal_ai.reasoning import adaptive
 from personal_ai.reasoning.adaptive_control import LocalPolicyControl
-from personal_ai.reasoning.adaptive_plan import compile_candidate
 
 _LOG = logging.getLogger(__name__)
 
@@ -59,33 +58,12 @@ class AdaptiveHost:
         recommendation = "candidate_compare" if reason == "eligible" else "baseline"
         if pointer.mode == "shadow":
             observe(adaptive.decision(features, adaptive.FINITE, pointer.generation, "baseline", recommendation, reason))
-            return baseline
-        signed = pointer.approval
-        evidence = signed.evidence
-        if reason != "eligible" or (
-            evidence.scope_digest != self.scope_digest or evidence.protocol_digest != self.protocol_digest
-            or evidence.endpoint_digest != endpoint_digest or evidence.family != features.family
-            or evidence.effort != features.effort or evidence.limits != baseline.limits
-            or not signed.verified(self.reviewer_key, time())
-        ):
-            return baseline
-        receipt = adaptive.decision(
-            features, adaptive.FINITE, pointer.generation, "baseline", recommendation, reason, approval=evidence,
-        )
-        return compile_candidate(baseline, receipt, approval=signed)
+        return baseline
 
     def authorizes(self, plan, scope_digest):
-        signed = plan.approval
-        if signed is None or self.scope_digest != scope_digest or not self.has_fixture(plan):
-            return False
-        evidence = signed.evidence
-        now = time()
-        return (
-            evidence.build_digest == self.build_digest and evidence.protocol_digest == self.protocol_digest
-            and evidence.issued_at <= now < evidence.expires_at + plan.deadline_ms / 1000
-            # The admitted run may finish across the approval's expiry within its pinned deadline.
-            and signed.verified(self.reviewer_key, evidence.issued_at)
-        )
+        # Restored pointers and signed plans cannot bypass the publication
+        # gate. Independent artifact verification is required at execution too.
+        return False
 
     def grounded_shadow(self, plan, gaps, can_focus, scope_digest):
         with self.pointer(scope_digest, adaptive.GROUNDED) as pointer:

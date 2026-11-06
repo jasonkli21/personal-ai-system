@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_WHEEL = 2_000_000
-SDK_FILES = {"__init__.py", "client.py", "py.typed"}
+SDK_FILES = {"__init__.py", "client.py", "py.typed", "synthetic_reasoning.py"}
 
 
 def digest(raw):

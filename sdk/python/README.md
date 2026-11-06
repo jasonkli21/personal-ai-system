@@ -67,3 +67,16 @@ independent pins/review. `make release-profile-check` includes wheel tamper,
 startup-hook, source-import and source-free synthetic protocol negatives. Native
 install and signed installed server proof remain separate gates; these commands
 do not promote the provisional contract or enable a capability.
+
+
+## Synthetic reasoning preview
+
+`SyntheticReasoning` is an opt-in client for the separately launched
+[loopback preview](../../docs/reasoning-engine/synthetic-preview.md).
+Use `negotiate()` and journal its `epoch` with your original UUID and request
+before `submit(key, "sum")`. Use `status(key, cursor=...)` or `cancel(key)`
+under that epoch. A restarted client can pass the journaled
+`expected_epoch` and negotiate for reconciliation. A changed server epoch
+requires an uncertain outcome for the old run. The client has no automatic
+POST retries and durable receipts expose metadata only. Install evidence
+comes from `make synthetic-reasoning-install-check`.

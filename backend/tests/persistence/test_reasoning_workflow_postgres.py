@@ -3,7 +3,7 @@
 import asyncio
 import multiprocessing
 import os
-from contextlib import aclosing
+from contextlib import aclosing, contextmanager
 from dataclasses import replace
 from uuid import UUID, uuid4, uuid5
 
@@ -77,8 +77,21 @@ def _process(dsn, run_id, phase, sent, ready, go):
             return emit(event, state, **facts)
         execution.emit = stop
 
+    store = PostgresWorkflowStore(db)
+    if phase == "after_terminal":
+        locked = store.locked
+
+        @contextmanager
+        def stop(*args):
+            with locked(*args) as row:
+                yield row
+                terminal = row.record["state"] == "succeeded"
+            if terminal:
+                os._exit(23)
+
+        store.locked = stop
     try:
-        with synthetic_service(FIXTURE, store=PostgresWorkflowStore(db)) as service:
+        with synthetic_service(FIXTURE, store=store) as service:
             ready.put(True)
             if not go.wait(15):
                 raise RuntimeError("claim barrier timed out")
@@ -114,7 +127,7 @@ def processes(dsn, run_id, phase, sent, count=1):
 
 @pytest.mark.parametrize("phase,expected_sends", [
     ("before_reserve", 0), ("after_reserve", 0), ("after_dispatch", 0),
-    ("after_ack", 1), ("between_steps", 1),
+    ("after_ack", 1), ("between_steps", 1), ("after_terminal", 1),
 ])
 def test_process_exit_keeps_original_attempt_and_never_resends_dispatched_work(
     database, isolated_postgres_dsn, tmp_path, monkeypatch, phase, expected_sends,
@@ -136,6 +149,9 @@ def test_process_exit_keeps_original_attempt_and_never_resends_dispatched_work(
             assert progress.attempts[0].resources.physical_attempts is None
             assert progress.attempts[0].attempt_id == prior.attempts[0].attempt_id
             assert len(path.read_text().splitlines()) == expected_sends
+        elif phase == "after_terminal":
+            assert progress == prior and progress.outcome == "complete" and not result
+            assert len(path.read_text().splitlines()) == 1
         else:
             assert result == ((0, 3),) and progress.outcome == "complete"
             assert len(path.read_text().splitlines()) == 1
@@ -233,7 +249,7 @@ def test_cancellation_keeps_classification_and_prevents_follow_on_sends(database
         uncertain = phase == "dispatched"
         assert progress.reason == ("uncertain_effect" if uncertain else "cancelled")
         assert progress.cancel_requested and not result
-        assert physical == 1
+        assert physical == (0 if phase in {"queued", "reserved"} else 1)
         assert asyncio.run(service.execute(run_id)) == (progress, ())
 
 
@@ -307,8 +323,6 @@ def test_live_deadline_after_reserve_abandons_without_dispatch(database, monkeyp
 
 
 def test_cancel_after_dispatch_commit_before_send_withholds_physical_attempt(database, monkeypatch):
-    from contextlib import contextmanager
-
     store = PostgresWorkflowStore(database)
     lock = store.locked
     cancelled = False

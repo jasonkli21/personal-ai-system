@@ -8,8 +8,8 @@ setting activates the host.
 | Local state | Finite source-free fixtures | Grounded public-source fixtures |
 | --- | --- | --- |
 | `disabled` (default) | Existing V1 template | Existing V1 template |
-| `shadow` | Recommend a bounded candidate comparison when its registered fixture and full reserve qualify | Observe coverage and recommend bounded focus only for one recoverable gap. Existing focus behavior executes. |
-| `local_fixture_canary` | Exact signed approval can admit V2 for an allowlisted fixture. Missing, expired or mismatched approval uses V1. | Existing V1 template |
+| `shadow` | Observe finite features and abstain, retaining the existing V1 template | Observe coverage and recommend bounded focus only for one recoverable gap. Existing focus behavior executes. |
+| `local_fixture_canary` | Publication and execution are blocked. A restored pointer falls back to V1. | Existing V1 template |
 
 ## Policy and workflow
 
@@ -76,18 +76,13 @@ when the row settles.
    mechanics only and are not promotion evidence. Do not use them to enable a
    pointer.
 
-   Once a verified independent evidence publication path exists, the operator
-   must pin a trusted independent reviewer's Ed25519 public key in the host
-   and pass the same key to
-   `control.update(..., reviewer_key=key)`. The reviewer signs the
-   canonical JSON of `PromotionEvidence`. Approval binds the independent
-   holdout custody and result digests, exact budget and scope slice,
-   matched sample size, both lower bounds, safety and synthetic resource
-   observations, and a bounded validity period. The host verifies the
-   signature and slice before new admissions and retains the signed proof
-   only in the active plan. Retain the signed review artifact separately
-   from the pointer for historical inspection. This implementation ships
-   no signed approval or live promotion mode.
+   Installed workflow hosts also deny execution of restored V2 plans,
+   including validly signed plans. Offline V2 comparison stays in its
+   isolated evaluation host. A future independent verifier needs custody
+   of the exact paired corpus and oracle, complete matched-budget rows,
+   preregistered thresholds, recomputed confidence bounds and subgroup and
+   safety vetoes, plus a trusted reviewer and exact source, endpoint,
+   build and scope bindings. A signed summary alone is insufficient.
 
 To stop new adaptive admissions, run the following against the same
 private directory.

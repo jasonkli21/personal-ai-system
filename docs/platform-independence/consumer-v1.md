@@ -166,3 +166,11 @@ binding. These additions expose no raw research, memory controls or generic tool
 dispatch. The Reading Logbook client can make explicit retrieval calls; its local
 records are never automatically uploaded. The historical conversation operations,
 SSE/idempotency and PI-4 history restrictions above remain unchanged.
+
+
+## Separate synthetic reasoning preview
+
+The optional [synthetic reasoning protocol](../reasoning-engine/synthetic-preview.md)
+is separately negotiated on a disposable loopback process. It uses the same
+SDK distribution and does not change the provisional consumer v1.2.0
+deployment contract or OpenAPI surface.

@@ -362,12 +362,22 @@ reasoning-grounded-check:
 reasoning-grounded-eval:
 	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -qs backend/tests/test_reasoning_grounded.py -k sealed_evaluation
 
-.PHONY: reasoning-adaptive-check reasoning-adaptive-eval reasoning-adaptive-rollback
+.PHONY: reasoning-adaptive-check reasoning-adaptive-eval reasoning-adaptive-conformance reasoning-adaptive-rollback
 reasoning-adaptive-check:
-	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_adaptive.py -k "not sealed_evaluation"
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_reasoning_adaptive.py
 
 reasoning-adaptive-eval:
-	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -qs backend/tests/test_reasoning_adaptive.py -k sealed_evaluation
+	$(PLATFORM_PYTHON) -B backend/scripts/replay_adaptive_history.py
+
+reasoning-adaptive-conformance:
+	$(PLATFORM_PYTHON) -B backend/scripts/replay_adaptive_history.py --conformance
 
 reasoning-adaptive-rollback:
 	PYTHONPATH=$(CURDIR)/backend/src $(PLATFORM_PYTHON) -B -m personal_ai.reasoning.adaptive_control "$${REASONING_ADAPTIVE_CONTROL_DIR:-}"
+
+.PHONY: synthetic-reasoning-check synthetic-reasoning-install-check
+synthetic-reasoning-check:
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_synthetic_reasoning_http.py
+
+synthetic-reasoning-install-check:
+	$(PLATFORM_PYTHON) -B backend/scripts/synthetic_reasoning_install.py "$(UV)"

@@ -52,8 +52,8 @@ model evidence, rollback-resistant restore, and real-model utility remain
 
 [Adaptive strategy selection](reasoning-engine/adaptive-selection.md) adds
 default-disabled shadow recommendations for both local fixture profiles
-and signed, scope-bound canary admission for a separate source-free finite
-V2 template. The candidate can stop after one verified generation or compare
+and a separate offline source-free finite V2 comparator. The candidate can
+stop after one verified generation or compare
 two independent typed vectors with an exact predicate. The local operator
 pointer supports generation-checked rollback for new admissions. Existing
 V1 and grounded citation verification retain their execution contracts.
@@ -61,13 +61,23 @@ The [sealed author-visible evaluation](reasoning-engine/re-4-verification.md)
 records a scripted aggregate gain, a decomposition subgroup regression and
 `NO_PROMOTION`. Following the 2026-11-05 review, finite runtime selection now
 abstains because no trusted pre-generation feature has independent evidence
-that separates the harmful subgroup. Canary publication is fail-closed while
+that separates the harmful subgroup. Canary publication and restored V2 execution are fail-closed while
 no artifact verifier and independent blind custody are installed. The original
 author-visible experiment remains historical evidence; this remediation does
 not retcon its result. The [remediation receipt](reasoning-engine/2026-11-05-re-4-review-remediation.md)
 records the exact checks and remaining gates. Independent acceptance remains open. Installed-model,
 external provider/source rights, distributed restore and real-task quality
 remain blocked or unverified. Production remains `NO_GO`.
+
+The [synthetic reasoning preview](reasoning-engine/synthetic-preview.md)
+is a separate opt-in loopback API with an installed SDK consumer. It offers
+two source-free scripted tasks with fixed V1 execution, single-scope
+backpressure, original-key metadata reconciliation, cancellation and an
+operator admission switch. Preview receipts last for one process epoch.
+The [implementation evidence](reasoning-engine/2026-11-05-re-5-verification.md)
+separately records native PostgreSQL lifecycle drills, the pinned historical
+adaptive replay and E2–E5 blockers. Production remains `NO_GO` and adaptive
+selection remains `NO_PROMOTION`.
 
 ## Synthetic memory governance
 

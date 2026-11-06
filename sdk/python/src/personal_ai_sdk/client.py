@@ -103,6 +103,14 @@ SAFE_CODES = frozenset(
         "tool_unavailable",
         "retrieval_unavailable",
         "retrieval_intent_conflict",
+        "reasoning_epoch_changed",
+        "reasoning_busy",
+        "reasoning_disabled",
+        "reasoning_capacity",
+        "reasoning_intent_conflict",
+        "reasoning_cursor_invalid",
+        "budget_exhausted",
+        "policy_denied",
     }
 )
 
@@ -290,7 +298,7 @@ class Client:
             "workspace_configured": self._workspace is not None,
         }
 
-    def _request(self, method: str, path: str, body: object = None):
+    def _request(self, method: str, path: str, body: object = None, *, max_body=131072):
         headers = {
             "Authorization": "Bearer " + self._token,
             "X-Application-ID": self._application,
@@ -302,7 +310,7 @@ class Client:
             headers["X-Workspace-ID"] = self._workspace
         data = None if body is None else json.dumps(body, allow_nan=False).encode()
         if data is not None:
-            if len(data) > 131072:
+            if len(data) > max_body:
                 raise APIError(413, "request_body_too_large")
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(
@@ -330,11 +338,19 @@ class Client:
         except (OSError, ValueError, http.client.HTTPException):
             raise UncertainTurn("transport_unknown; retain the original key") from None
 
-    def _json(self, method: str, path: str, body: object = None) -> JsonObject:
+    def _json(
+        self,
+        method: str,
+        path: str,
+        body: object = None,
+        *,
+        max_body=131072,
+        max_response=4_000_000,
+    ) -> JsonObject:
         try:
-            with self._request(method, path, body) as response:
-                raw = response.read(4_000_001)
-                if len(raw) > 4_000_000:
+            with self._request(method, path, body, max_body=max_body) as response:
+                raw = response.read(max_response + 1)
+                if len(raw) > max_response:
                     raise UncertainTurn("response_too_large")
                 value = json.loads(raw)
                 if not isinstance(value, dict):
