@@ -127,7 +127,7 @@
       "provider_cost_usd": "0",
       "decision_state": "research_needed"
     },
-    "meaningful_improvement": "A follow-up supplies an explicit, exact-ID price proposal; the claim verifier checks it, applies the unchanged $50 hard limit, and changes research_needed to recommended.",
+    "meaningful_improvement": "A follow-up supplies an explicit, exact-ID price proposal; Phase 6 verifies it, applies the unchanged $50 hard limit, and changes research_needed to recommended.",
     "comparison_expectation": "followup_improves_verified_decision"
   },
   {
@@ -830,7 +830,7 @@
       "decision_state": "research_needed",
       "followup_query_count": 1
     },
-    "meaningful_improvement": "Fail closed because the claim verifier cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
+    "meaningful_improvement": "Fail closed because Phase 6 cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
     "comparison_expectation": "unsupported_claim_fails_closed"
   },
   {
@@ -899,7 +899,7 @@
       "decision_state": "research_needed",
       "followup_query_count": 1
     },
-    "meaningful_improvement": "Fail closed because the claim verifier cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
+    "meaningful_improvement": "Fail closed because Phase 6 cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
     "comparison_expectation": "unsupported_claim_fails_closed"
   },
   {
@@ -966,7 +966,7 @@
       "decision_state": "research_needed",
       "followup_query_count": 1
     },
-    "meaningful_improvement": "Fail closed because the claim verifier cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
+    "meaningful_improvement": "Fail closed because Phase 6 cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
     "comparison_expectation": "unsupported_claim_fails_closed"
   },
   {
@@ -1031,7 +1031,7 @@
       "decision_state": "research_needed",
       "followup_query_count": 1
     },
-    "meaningful_improvement": "Fail closed because the claim verifier cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
+    "meaningful_improvement": "Fail closed because Phase 6 cannot verify a fresh, conflict-free, correctly scoped typed price claim for the requested candidate.",
     "comparison_expectation": "unsupported_claim_fails_closed"
   },
   {

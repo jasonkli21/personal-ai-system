@@ -39,6 +39,7 @@ from personal_ai.evaluation.planning_quality import (
 from personal_ai.evaluation.source_contracts import (
     PLANNING_EVALUATOR_VERSION,
     PLANNING_LOCK_FILENAME,
+    PLANNING_LOCK_GENERATION,
     PLANNING_SOURCE_CONTRACT,
     planning_source_digest,
     planning_source_entries,
@@ -69,6 +70,7 @@ HISTORICAL_V32_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V33_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v33.json"
 HISTORICAL_V34_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v34.json"
 HISTORICAL_V35_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v35.json"
+HISTORICAL_V36_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v36.json"
 FREEZE_PATH = Path(__file__).parent / f"fixtures/context/{PLANNING_LOCK_FILENAME}"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -85,7 +87,7 @@ def freeze_identity():
     distributions = _runtime_distributions()
     source_files = planning_source_entries(REPOSITORY_ROOT)
     return {
-        "baseline_lock_version": "planning-baseline-lock-v36",
+        "baseline_lock_version": f"planning-baseline-lock-v{PLANNING_LOCK_GENERATION}",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,

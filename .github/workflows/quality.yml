@@ -16,6 +16,8 @@ jobs:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -84,14 +86,14 @@ jobs:
       - run: uv pip install --python .venv/bin/python --no-deps --no-index ../reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl
       - run: python -m ruff check .
       - run: make backend-test-offline
-        working-directory: ..
+        working-directory: .
         env:
           PYTHONPATH: ../sdk/python/src:../examples/project-checklist/client/src:../examples/project-checklist/host/src
       - run: python -m pytest -m persistence_integration tests/persistence/test_provider_usage_accounting.py tests/persistence/test_artifact_tier.py tests/persistence/test_routing_decisions.py
         env:
           PERSISTENCE_TEST_POSTGRES_DSN: postgresql://personal_ai:personal_ai_test_only@127.0.0.1:5432/personal_ai_test
       - run: make workflow-postgres-check memory-episode-postgres-check memory-consolidation-postgres-check memory-navigation-postgres-check
-        working-directory: ..
+        working-directory: .
         env:
           PERSISTENCE_TEST_POSTGRES_DSN: postgresql://personal_ai:personal_ai_test_only@127.0.0.1:5432/personal_ai_test
       - run: python -m personal_ai.evaluation.context
@@ -112,6 +114,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

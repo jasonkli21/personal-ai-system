@@ -3,11 +3,14 @@ import unittest
 from pathlib import Path
 
 from naming_policy_check import (
+    IMMUTABLE_TEXT_SHA256,
     PHASE_DECLARATION,
     PHASE_PATH,
     PHASE_TEXT,
+    VERSIONED_MIGRATION_SHA256,
     active_paths,
     current_doc_files,
+    immutable_source_hash_errors,
     is_allowed_text,
     visible_text,
 )
@@ -96,6 +99,23 @@ class NamingPolicyCheckTests(unittest.TestCase):
 
             current_doc.write_text("Phase " + "12" + " behavior", encoding="utf-8")
             self.assertIsNotNone(PHASE_TEXT.search(current_doc.read_text(encoding="utf-8")))
+
+    def test_versioned_migrations_and_frozen_fixture_bytes_are_hash_pinned(self):
+        for relative, expected in {**IMMUTABLE_TEXT_SHA256, **VERSIONED_MIGRATION_SHA256}.items():
+            path = Path(__file__).parents[2] / relative
+            self.assertEqual(
+                immutable_source_hash_errors(path, relative),
+                [],
+                msg=f"historical bytes must remain pinned: {relative} != {expected}",
+            )
+        with tempfile.TemporaryDirectory() as temporary:
+            altered = Path(temporary) / "008_storage_migration_control.sql"
+            altered.write_text("-- edited historical migration")
+            relative = next(iter(VERSIONED_MIGRATION_SHA256))
+            self.assertTrue(
+                any("immutable source bytes changed" in error
+                    for error in immutable_source_hash_errors(altered, relative))
+            )
 
 
 if __name__ == "__main__":

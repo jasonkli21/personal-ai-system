@@ -134,9 +134,14 @@ HISTORICAL_DOC_PREFIXES = (
 DATE_IN_PATH = re.compile(r"20\d{2}-\d{2}-\d{2}")
 CURRENT_DOC_ROOTS = ("experiments", "stabilization")
 
-# The renamed frozen corpus files are checked by hash before their historical
-# identifiers are excluded from the active-text scan.
-FROZEN_FIXTURE_SHA256 = {
+# Historical fixture and active-lock bytes are checked before their identifiers
+# are excluded from the active-text scan.
+IMMUTABLE_TEXT_SHA256 = {
+    "backend/src/personal_ai/evaluation/fixtures/decisions/decision-fixtures.json": "221e9a3b42945b33363720b67a6d50e8204b3e01cae582fc81f24d1f2c870cb2",
+    "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures.json": "6db4b06c7d371c2a54fec37886c4b9df4ff555b671689a1c96cf9c4935ff4ef1",
+    "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures-v2.json": "b65ee153b020ae44dbefab33fb21ff268585ca08b0a490af98d0aa5d87ecc129",
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v36.json": "d6e0c9a6abc936eb2d9e64564ccf4f6009876b10901129d5067423fff0fc8fdc",
+    "backend/src/personal_ai/evaluation/fixtures/offline_information_handling/source-manifest-v2-generation-10.json": "de316118c1eaa556a9110b9807a9c288dfc992bbb3215978b5ece8b4852e56c7",
     "backend/src/personal_ai/evaluation/fixtures/offline_information_handling/cases-v1.json": "84c0e5a1e990ac5b282a24348e4319406d3ec4188d179099777ab5aa4b5651bf",
     "backend/src/personal_ai/evaluation/fixtures/offline_information_handling/cases-v2.json": "25df654eda27040c3b52695fd6ec695b53238a7cf76b82e1ed4e5d442b55205d",
     "backend/src/personal_ai/evaluation/fixtures/offline_information_handling/manifest-v1.json": "8480771c464c353a8899a36a4c510fe08a3665ff97a0cde7c0b867f5ff0d99bf",
@@ -154,6 +159,20 @@ FROZEN_FIXTURE_SHA256 = {
     "backend/src/personal_ai/evaluation/fixtures/memory/memory-knowledge-pairs-v1.json": "587e87f11422719e8ad2f512ede7020c0bae937cb555b1035cd8eb386866756e",
     "backend/src/personal_ai/evaluation/fixtures/memory/memory-task-cases-v1.json": "043edaae3461286b49bcb4fda4f73bdc5059e528361bad3fa670a3b1c4e58b18",
     "backend/src/personal_ai/evaluation/fixtures/memory/memory-task-cases-v2.json": "592a0e3799aeafc32ebf7cba0c7e162ff0af98d0049af2cf683de653e5fc02e1",
+}
+
+# Released migration files are checksum identities. Their historical phase
+# labels are tolerated only while the exact versioned bytes remain unchanged.
+VERSIONED_MIGRATION_SHA256 = {
+    "backend/src/personal_ai/persistence/migrations/008_storage_migration_control.sql": "85b2431c757e14c830fa1debdbb2edb367d0a6e32d420b33543ad49300bf0fad",
+    "backend/src/personal_ai/persistence/migrations/009_derived_source_migration_metadata.sql": "3048dbe3fb767e3c26240456014bbdb9f8664de4890db379d5de91efd1a9bffd",
+    "backend/src/personal_ai/persistence/migrations/011_effect_receipt_migration_payload.sql": "96c8809151a86eaf63dc0f7e962b564f01681ef5ab41b444261a6aba0c98ff7e",
+    "backend/src/personal_ai/persistence/migrations/012_provider_rate_limit_source_payload.sql": "4cf0223fd84b1235695c5b63cec176cbab4798f46a9fb8133522f76ef77f4299",
+    "backend/src/personal_ai/persistence/migrations/027_memory_dependency_epochs.sql": "3591c9d2ea669d66f994e3fb5492484fd7c5ea9c8321b66fea0fda1014543009",
+    "backend/src/personal_ai/persistence/migrations/028_verified_memory_knowledge.sql": "652c92c1251ede51ae0697d72a74e1bcc61ebbdf9b101d3cbf00ac312ced067c",
+    "backend/src/personal_ai/persistence/migrations/030_memory_control.sql": "0690004c83086e1dce8539f9311fb24a1d0f1afba6666e6b5077d0618d56a058",
+    "backend/src/personal_ai/persistence/migrations/032_profile_consents.sql": "18551d07e8ac2f494d9da8bdae7f15dfdef41040e65611740b0bed0ddbbd1f0b",
+    "backend/src/personal_ai/persistence/migrations_py/022_routing_authorities.py": "003787e63cf27e4552f2505a9de189d738e8fafce6b94ab7edf1c46252f19b35",
 }
 
 # Exact path-and-token matches only. This intentionally does not exempt files or
@@ -189,10 +208,18 @@ EXACT_TEXT_EXCEPTIONS = {
     "backend/src/personal_ai/evaluation/offline_information_handling.py": {
         _compat("pi", 3, "-local-json-bytes-v1"),
     },
-    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v36.json": {
+    "backend/src/personal_ai/evaluation/offline_information_contracts.py": {
+        _compat("P", 6),
+        _compat("P", 6, "V2"),
+        _compat("pi", 6, "-offline-v1"),
+        _compat("pi", 6, "-offline-v2"),
+        _compat("pi", 6, "-rubric-v1"),
+        _compat("pi", 6, "-rubric-v2"),
+    },
+    "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v37.json": {
         _compat("phase", 13, "-envelope-byte-estimate-v1"),
     },
-    "backend/src/personal_ai/evaluation/fixtures/offline_information_handling/source-manifest-v2-generation-10.json": {
+    "backend/src/personal_ai/evaluation/fixtures/offline_information_handling/source-manifest-v2-generation-11.json": {
         _compat("pi", 6, "-offline-v2"),
         _compat("pi", 6, "-rubric-v2"),
     },
@@ -400,16 +427,17 @@ def is_allowed_text(relative: str, token: str, line: str, root: Path = ROOT) -> 
     }
 
 
-def _frozen_fixture_hash_errors(path: Path, relative: str) -> list[str]:
-    expected = FROZEN_FIXTURE_SHA256.get(relative)
+def immutable_source_hash_errors(path: Path, relative: str) -> list[str]:
+    """Require pinned bytes for versioned migrations and historical fixtures."""
+    expected = IMMUTABLE_TEXT_SHA256.get(relative) or VERSIONED_MIGRATION_SHA256.get(relative)
     if expected is None:
         return []
     try:
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError as error:
-        return [f"cannot read frozen fixture {relative}: {error}"]
+        return [f"cannot read immutable source {relative}: {error}"]
     if actual != expected:
-        return [f"frozen fixture bytes changed for {relative}: expected={expected} current={actual}"]
+        return [f"immutable source bytes changed for {relative}: expected={expected} current={actual}"]
     return []
 
 
@@ -418,8 +446,8 @@ def visible_text(root: Path = ROOT) -> list[str]:
     files = active_source_files(root) + current_doc_files(root)
     for path in sorted(set(files)):
         relative = path.relative_to(root).as_posix()
-        errors.extend(_frozen_fixture_hash_errors(path, relative))
-        if relative in FROZEN_FIXTURE_SHA256:
+        errors.extend(immutable_source_hash_errors(path, relative))
+        if relative in IMMUTABLE_TEXT_SHA256 or relative in VERSIONED_MIGRATION_SHA256:
             continue
         historical_lock = HISTORICAL_PLANNING_LOCK_RE.fullmatch(relative)
         if historical_lock and int(historical_lock.group(1)) < 36:
@@ -472,6 +500,9 @@ def _document_exception_errors(root: Path) -> list[str]:
         "P" + "8-*",
         "pi" + "8-audit-v1",
         "pi" + "8-command-receipts-v2",
+        "P" + "6",
+        "P" + "6V2",
+        "case identifier prefixes",
         "P" + "10_CLOUD_ADAPTERS_CONFIGURED",
         "P" + "10_NEON_RUNTIME_DSN",
         "P" + "10_NEON_POOL_MAX_SIZE",

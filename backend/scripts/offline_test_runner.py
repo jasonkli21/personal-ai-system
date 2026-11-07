@@ -9,6 +9,13 @@ import socket
 import sys
 from pathlib import Path
 
+# urllib3 probes IPv6 support by creating a socket and binding loopback when it
+# is first imported. Prime that local capability check before installing the
+# test-time fence; the fence remains active for every collected test and run.
+import urllib3.util.connection as urllib3_connection
+
+_ = urllib3_connection.HAS_IPV6
+
 attempts = []
 
 

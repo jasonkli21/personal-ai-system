@@ -76,7 +76,7 @@ class Oracle(Closed):
 
 
 class Case(Closed):
-    case_id: str = Field(pattern=r"^[A-Z0-9]{2,8}-[A-H][1-4]$")
+    case_id: str = Field(pattern=r"^P6(?:V2)?-[A-H][1-4]$")
     lineage: str = Field(pattern=r"^[a-z]{4,30}$")
     source_configuration: str = Field(pattern=r"^[a-z]{4,30}$")
     split: Literal["calibration", "heldout"]
@@ -88,8 +88,8 @@ class Case(Closed):
 
 
 class Corpus(Closed):
-    suite: str
-    rubric: str
+    suite: Literal["pi6-offline-v1", "pi6-offline-v2"]
+    rubric: Literal["pi6-rubric-v1", "pi6-rubric-v2"]
     seed: Literal[61, 62]
     input_cap: Literal[32768]
     output_cap: Literal[256]
@@ -116,8 +116,13 @@ class Corpus(Closed):
                 "transition",
             }:
                 raise ValueError("family_variants")
-        if not self.suite or not self.rubric:
-            raise ValueError("suite_identity_missing")
+        expected_suite = "pi6-offline-v2" if self.seed == 62 else "pi6-offline-v1"
+        expected_rubric = "pi6-rubric-v2" if self.seed == 62 else "pi6-rubric-v1"
+        expected_case_prefix = "P6V2" if self.seed == 62 else "P6"
+        if self.suite != expected_suite or self.rubric != expected_rubric:
+            raise ValueError("suite_version_mismatch")
+        if any(not case.case_id.startswith(f"{expected_case_prefix}-") for case in self.cases):
+            raise ValueError("case_id_version_mismatch")
         if any(
             c.provenance
             != ("authored_synthetic_v2" if self.seed == 62 else "authored_synthetic_v1")

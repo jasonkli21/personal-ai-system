@@ -26,11 +26,13 @@ Experimental capabilities remain off until their owning acceptance evidence is c
 
 ## Current-source verification repair
 
-The current planning source lock is `planning-baseline-v36.json`; the current offline information-handling source manifest is generation 10. Both bind descriptive paths and exact file hashes. Historical planning locks, prior benchmark manifests, frozen case bytes, scoring, and non-promotion decisions remain preserved. Prior measurements remain bound to their original source identities and do not validate the renamed source tree.
+The rejected W0 review commit's source locks and verification claims are historical. Its remediation adds planning lock v37 and offline information-handling source manifest generation 11; both preserve the prior identities and frozen cases while binding the repaired source bytes. The remediation restores byte-pinned released migrations and frozen fixtures, hardens active evidence metadata checks, closes offline suite/rubric/case identifiers, fixes backend workflow working directories, and keeps the offline network fence active after initializing urllib3's local capability probe.
+
+Planning remains `non_promotion`; the current strict planning replay has zero model-answer quality cases. The generation 11 preregistration claims no new measurements. The hermetic capability gate completed with zero blocked network attempts. The local loopback HTTP subset, native PostgreSQL upgrade path, hosted CI, and installed native consumer checks remain unverified. See [the current source integrity report](verification/current-source-integrity.md) for exact results and limits.
 
 The longitudinal memory study now uses additive source lock v5, which supersedes v4 by SHA-256 and preserves locks v1 through v4. The reasoning baseline and adaptive conformance use source identity v2 while preserving their v1 manifests and frozen cases. These source migrations preserve the existing protocols and decisions; they do not reclassify earlier measurements as evidence for the new source identities.
 
-[Current source integrity and verification results](verification/current-source-integrity.md) records the before/after hashes, commands, environment, executed counts, and remaining blockers. `make source-contract-check` is read-only and fails if bound files are dirty or drifted. The explicit proposal commands create a new versioned candidate and refuse to overwrite an existing identity.
+`make source-contract-check` is read-only and fails if bound files are dirty or drifted. The explicit proposal commands create a new versioned candidate and refuse to overwrite an existing identity.
 
 ## Release boundary
 

@@ -5,7 +5,7 @@
 
 This module is part of migration 022's checksum and must not be edited after
 that migration is released. Later corrections belong in a new numbered
-migration. Keep this file self-contained: it must not import live routing and quota
+migration. Keep this file self-contained: it must not import live Phase 18/19
 models, repositories, or quota helpers.
 """
 

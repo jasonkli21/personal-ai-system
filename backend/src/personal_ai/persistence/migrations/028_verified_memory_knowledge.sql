@@ -1,4 +1,4 @@
--- immutable bounded knowledge, source fences and complete normalized edges.
+-- MEM-1: immutable bounded knowledge, source fences and complete normalized edges.
 -- V1 assertions and V2 support-v1 tables/readers are deliberately unchanged.
 CREATE TABLE memory_knowledge (
     scope_id text NOT NULL REFERENCES scope_namespaces(scope_id),

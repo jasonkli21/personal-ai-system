@@ -113,7 +113,7 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     assert sha(historical_v2) == "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c"
     old_hashes = json.loads(historical_v2)["hashes"]
     changed_in_source_rename = {"core_runtime", "contracts", "driver", "http"}
-    if manifest["source_generation"] == 10:
+    if manifest["source_generation"] == 11:
         changed_in_source_rename |= {"audit", "runner", "scoring"}
     for name in old_hashes.keys() - changed_in_source_rename:
         assert manifest["hashes"][name] == old_hashes[name]
@@ -133,7 +133,7 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     }
 
 
-@pytest.mark.parametrize("generation", [7, 8, 9, 10])
+@pytest.mark.parametrize("generation", [7, 8, 9, 10, 11])
 def test_source_identity_preserves_prior_protocol_generations(generation):
     current = json.loads((FIXTURES / f"source-manifest-v2-generation-{generation}.json").read_bytes())
     previous = json.loads((FIXTURES / f"source-manifest-v2-generation-{generation - 1}.json").read_bytes())
@@ -153,6 +153,13 @@ def test_source_identity_preserves_prior_protocol_generations(generation):
         ]
         assert current["source_files"]["core_runtime"]
         changed_protocols = set(current["changed_protocols"])
+    if generation == 11:
+        assert current["schema_version"] == 3
+        assert current["source_contract_version"] == "offline-benchmark-source-closure-v1"
+        assert current["source_generation"] == 11
+        assert current["source_revision"] == "3b92dfbbd27ee1735e8957d2acc65d084230c100"
+        assert current["source_files"]["core_runtime"]
+        changed_protocols = set(current["changed_protocols"])
     for name in previous["hashes"].keys() - changed_protocols:
         assert current["hashes"][name] == previous["hashes"][name]
 
@@ -168,7 +175,22 @@ def test_source_generation_nine_and_historical_offline_information_handling_inpu
     assert manifest["frozen_before_measurement"] is True
 
 
-@pytest.mark.parametrize("mutation", ["duplicate", "leakage", "extra", "url", "code", "budget"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "duplicate",
+        "leakage",
+        "extra",
+        "url",
+        "code",
+        "budget",
+        "suite",
+        "rubric",
+        "wrong_id",
+        "wrong_id_generation",
+        "wrong_seed",
+    ],
+)
 def test_untrusted_corpus_rejects(mutation):
     raw = json.loads((FIXTURES / "cases-v2.json").read_text())
     if mutation == "duplicate":
@@ -181,6 +203,16 @@ def test_untrusted_corpus_rejects(mutation):
         raw["cases"][0]["task"]["subject"] = "http://127.0.0.1/secret"
     elif mutation == "code":
         raw["cases"][0]["oracle"]["scorer"] = "__import__('os').system('unsafe')"
+    elif mutation == "suite":
+        raw["suite"] = "arbitrary-test-suite"
+    elif mutation == "rubric":
+        raw["rubric"] = "arbitrary-rubric"
+    elif mutation == "wrong_id":
+        raw["cases"][0]["case_id"] = "ALT-A1"
+    elif mutation == "wrong_id_generation":
+        raw["cases"][0]["case_id"] = "P" + "6-A1"
+    elif mutation == "wrong_seed":
+        raw["seed"] = 61
     else:
         raw["input_cap"] = 999999999
     with pytest.raises(ValidationError):

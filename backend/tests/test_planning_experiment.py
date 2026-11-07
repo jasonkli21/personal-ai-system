@@ -1051,10 +1051,10 @@ def test_v30_is_preserved_and_v31_binds_review_remediation_source():
 
 def test_current_planning_lock_binds_portable_source_contract_without_promoting():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V35_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V36_FREEZE_PATH.read_text())
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["baseline_lock_version"] == "planning-baseline-lock-v36"
-    assert current["source_revision"] == "adb5b744a8a17bdc22e3953bfaa1903b927ce38c"
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v37"
+    assert current["source_revision"] == "3b92dfbbd27ee1735e8957d2acc65d084230c100"
     assert current["source_contract_version"] == "planning-source-closure-v1"
     assert current["runtime_identity_scope"].startswith("strict planning replay only;")
     assert current["source_identity_files"] == planning.freeze_identity()["source_identity_files"]

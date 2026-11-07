@@ -4,13 +4,14 @@ import copy
 import hashlib
 import importlib
 import json
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from personal_ai.persistence.postgres import migration_checksum
+from personal_ai.persistence.postgres import apply_migrations, migration_checksum
 from personal_ai.routing import CounterCompatibility, EndpointRegistrySnapshot
 from personal_ai.routing.contracts import EndpointProfile, ProviderAccessPolicy
 from personal_ai.routing.definitions import (
@@ -239,6 +240,80 @@ def test_migration_checksum_is_deterministic_and_covers_frozen_implementation():
     assert migration_checksum(22, sql) == expected
     assert migration_checksum(22, sql) == migration_checksum(22, sql)
     assert migration_checksum(21, sql) == hashlib.sha256(sql.encode("utf-8")).hexdigest()
+
+
+def test_released_migration_checksums_match_the_parent_identity():
+    expected = {
+        8: "85b2431c757e14c830fa1debdbb2edb367d0a6e32d420b33543ad49300bf0fad",
+        9: "3048dbe3fb767e3c26240456014bbdb9f8664de4890db379d5de91efd1a9bffd",
+        11: "96c8809151a86eaf63dc0f7e962b564f01681ef5ab41b444261a6aba0c98ff7e",
+        12: "4cf0223fd84b1235695c5b63cec176cbab4798f46a9fb8133522f76ef77f4299",
+        22: "5cdfc9c6a4b913384431cb6928fc57d8231d7620eb378f016cd823f10a9ffb21",
+        27: "3591c9d2ea669d66f994e3fb5492484fd7c5ea9c8321b66fea0fda1014543009",
+        28: "652c92c1251ede51ae0697d72a74e1bcc61ebbdf9b101d3cbf00ac312ced067c",
+        30: "0690004c83086e1dce8539f9311fb24a1d0f1afba6666e6b5077d0618d56a058",
+        32: "18551d07e8ac2f494d9da8bdae7f15dfdef41040e65611740b0bed0ddbbd1f0b",
+    }
+    migration_directory = _ROOT / "src/personal_ai/persistence/migrations"
+    for version, checksum in expected.items():
+        migration = next(migration_directory.glob(f"{version:03d}_*.sql"))
+        assert migration_checksum(version, migration.read_text(encoding="utf-8")) == checksum
+
+
+def test_previously_applied_migration_records_accept_the_parent_checksums():
+    migration_directory = _ROOT / "src/personal_ai/persistence/migrations"
+    records = {
+        int(migration.name[:3]): migration_checksum(
+            int(migration.name[:3]), migration.read_text(encoding="utf-8")
+        )
+        for migration in migration_directory.glob("*.sql")
+    }
+    records.update(
+        {
+            8: "85b2431c757e14c830fa1debdbb2edb367d0a6e32d420b33543ad49300bf0fad",
+            9: "3048dbe3fb767e3c26240456014bbdb9f8664de4890db379d5de91efd1a9bffd",
+            11: "96c8809151a86eaf63dc0f7e962b564f01681ef5ab41b444261a6aba0c98ff7e",
+            12: "4cf0223fd84b1235695c5b63cec176cbab4798f46a9fb8133522f76ef77f4299",
+            22: "5cdfc9c6a4b913384431cb6928fc57d8231d7620eb378f016cd823f10a9ffb21",
+            27: "3591c9d2ea669d66f994e3fb5492484fd7c5ea9c8321b66fea0fda1014543009",
+            28: "652c92c1251ede51ae0697d72a74e1bcc61ebbdf9b101d3cbf00ac312ced067c",
+            30: "0690004c83086e1dce8539f9311fb24a1d0f1afba6666e6b5077d0618d56a058",
+            32: "18551d07e8ac2f494d9da8bdae7f15dfdef41040e65611740b0bed0ddbbd1f0b",
+        }
+    )
+
+    class Connection:
+        def __init__(self):
+            self.version = None
+            self.migration_sql = []
+
+        def execute(self, query, params=None, **kwargs):
+            if query.startswith("SELECT checksum FROM schema_migrations"):
+                self.version = params[0]
+            elif query.startswith("SELECT pg_advisory_xact_lock"):
+                pass
+            elif not query.startswith("CREATE TABLE IF NOT EXISTS schema_migrations"):
+                self.migration_sql.append(query)
+            return self
+
+        def fetchone(self):
+            checksum = records.get(self.version)
+            return (checksum,) if checksum is not None else None
+
+    class Database:
+        def __init__(self):
+            self.connection = Connection()
+
+        def open(self):
+            pass
+
+        @contextmanager
+        def transaction(self):
+            yield self.connection
+
+    database = Database()
+    assert apply_migrations(database) == ()
+    assert database.connection.migration_sql == []
 
 
 def test_endpoint_definition_decoders_are_versioned_and_independent_of_current_model(monkeypatch):
