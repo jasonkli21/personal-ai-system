@@ -63,10 +63,10 @@ epoch are required.
 This is a runbook, not deployment evidence or authorization. Use each owning
 repository's existing deployment/security guidance:
 
-- PAI root README/infra and Phase9/36 acceptance records.
+- PAI root README/infra and the preserved historical acceptance records.
 - [Shopping runbook](https://github.com/jasonkli21/shopping-assistant/blob/main/docs/deployment/runbook.md).
 - [Finance security/deployment](https://github.com/jasonkli21/personal-finance-and-investments/blob/main/docs/06-security-and-deployment.md), Stage4 and PostgreSQL/Neon evidence contracts.
-- [Travel operational hardening](https://github.com/jasonkli21/travel-app/blob/main/docs/releases/phase-9-operational-hardening.md).
+- Travel operational hardening guidance in the Travel repository's deployment and security documentation.
 - [Health deployment](https://github.com/jasonkli21/health-app/blob/main/docs/deployment/technology-deployment.md) and infra/gcp/README.md.
 
 1. Obtain approved synthetic staging records, resource names/budgets, identities,

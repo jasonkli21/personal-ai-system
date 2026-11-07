@@ -33,7 +33,7 @@ def main(*, files=None, runner=None):
     if "--fenced" not in sys.argv:
         if sys.platform != "darwin":
             raise SystemExit("Provider isolation requires an equivalent native network sandbox on this OS")
-        with tempfile.TemporaryDirectory(prefix="pi3-", dir="/tmp") as directory:
+        with tempfile.TemporaryDirectory(prefix="execution-test-", dir="/tmp") as directory:
             address = directory + "/probe.sock"
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
                 listener.bind(address)

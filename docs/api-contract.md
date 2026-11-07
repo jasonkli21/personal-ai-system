@@ -4,7 +4,7 @@ This document defines the implemented HTTP boundary. All `/v1` routes require an
 Google OIDC and resolve an opaque owner from issuer and stable subject; client
 payloads cannot select an owner. Local/test development explicitly uses the
 unauthenticated `local` principal. Cloud Run service IAM is an additional
-web-to-API boundary. See the [authorization matrix](phase-9-authorization-matrix.md).
+web-to-API boundary. See the [security contract](../SECURITY.md).
 
 ## Conventions
 
@@ -88,9 +88,7 @@ authority and sensitivity, and produces a metadata-only manifest for the
 messages actually built. Sources remain caller-selected; deterministic
 automatic planning is context planner scope. The development inspector reports an
 estimated current view and does not claim historical prompt reconstruction.
-See the [profile policy guide](personal-ai-chapter-2/phase-11-implementation-guide.md),
-[context builder guide](personal-ai-chapter-2/phase-12-implementation-guide.md), and
-[context builder evidence](personal-ai-chapter-2/phase-12-implementation-evidence.md).
+Profile authorization and context assembly follow the contracts in this document and the shared context assembler.
 
 ### Itinerary proposal capability (accepted for local integration)
 
@@ -186,6 +184,9 @@ Context inspection includes `coverage_message_ids`, `coverage_fingerprint`, and
 `skipped_message_ids` alongside summary source provenance. Only complete source
 turns enter summary generation; skipped incomplete turns remain covered for branch
 validation. Legacy summaries omit explicit coverage and require a complete prefix.
+The context-inspection `requested_variant` and `applied_variant` fields retain
+their established wire values across internal capability-name changes; changing
+those values requires a separately versioned API migration.
 Preparation counting and generation share `REQUEST_TIMEOUT_SECONDS`; expiration
 returns the safe `llm_timeout` envelope before streaming.
 
@@ -222,7 +223,7 @@ The public API has no `/tasks/research` or `/tasks/memory` route. The private
 under Cloud Run IAM; it decodes a bounded envelope containing a job ID/schema version
 and obtains owner/source authority from durable storage. Disabled/completed/terminal
 work returns 204; active leases and retryable processing return 503. See the
-[memory lifecycle guide](phase-4-implementation-guide.md) for gates and failure recovery.
+the [memory module guide](../backend/src/personal_ai/memory/README.md) for gates and failure recovery.
 
 ## Research sessions (`research-v1`)
 
@@ -264,7 +265,7 @@ Existing chat SSE events remain unchanged. The result is validated literal sourc
 excerpts with adjacent numbered citations, not unrestricted factual synthesis.
 Each citation exposes original normalized URL, optional title, observation time,
 evidence expiry and source/evidence IDs. Known old publication dates are excluded;
-missing dates remain unknown. See [research session plan](phase-5-implementation-plan.md).
+missing dates remain unknown. See the [research capability guide](research-agent.md).
 
 ## Booking document extraction candidate (`booking-document-extraction-v1`)
 
@@ -319,7 +320,7 @@ idempotency conflicts and unusable evidence return safe 409/422 responses;
 storage failures return 503. The decision result page presents supported claim
 values, observation/expiry times, requirement outcomes, and source links. The
 development inspector is separately gated and read-only. See the
-[decision service guide](phase-6-implementation-guide.md) and
+[decision-support ADR](decisions/0012-evidence-grounded-decision-support.md) and
 [decision-support ADR](decisions/0012-evidence-grounded-decision-support.md).
 
 ## Domain comparisons (`domain-module-v1`)
@@ -356,7 +357,7 @@ requests only bounded product identity fields, shares a Firestore rate record
 with a four-second minimum interval, and uses a thirty-day catalog TTL. It does
 not provide merchant offers, stock, shipping, or delivery. Both adapters and
 their policy-approval gates default off; adapter policy links and setup are in
-the [domain comparison guide](phase-7-implementation-guide.md) and
+the [reference applications guide](../reference-apps/README.md) and
 [ADRs](decisions/0013-nominatim-travel-place-source.md).
 
 ## Bounded iterative research (`iterative-research-v1`)
@@ -394,7 +395,7 @@ retried. Explicit constraints remain immutable; a decision service decision inte
 re-evaluates through the shared entity, claim, constraint, and ranking service.
 Any unresolved required gap yields an incomplete/insufficient result with all
 open gap classes visible. Firestore storage and index changes are described in
-the [iterative research guide](phase-8-implementation-guide.md) and [ADRs](decisions/0016-bounded-iterative-research.md).
+the [iterative research ADR](decisions/0016-bounded-iterative-research.md).
 
 ## Identity and account controls
 
@@ -440,7 +441,7 @@ from account usage or application limits.
 
 When artifact storage is enabled, `POST /v1/account/export` returns a ready `account-artifact-export-v1` frozen envelope containing the existing declared DB snapshot, exact object manifest, live artifact bodies and explicit body coverage. Previous export bodies, expired and deleted bodies are excluded. Required storage/body failure or artifact envelope overflow returns 503 `export_artifact_unavailable`; existing database-export limits remain 413 `export_limit_exceeded`. Ready retries reuse the original frozen export. Full snapshot atomicity across stores is not promised. With artifact storage disabled, the synchronous database export remains available when no live artifact bodies exist; if live artifacts exist, export returns 503 rather than omit them. Scheduled maintenance still cleans existing artifacts while new writes and retrieval API access are disabled.
 
-Confirmed account deletion fences future artifact retrieval/publication and provider sends while physical cleanup is reconciled. Verified request and worker gates use the canonical fence; deletion control paths remain accessible. Cancellation can un-fence before irreversible artifact cleanup, after which it returns the existing 409 lifecycle conflict. Full canonical account deletion remains an operator workflow. See the [private artifacts guide](personal-ai-chapter-2/phase-20-implementation-guide.md) for source/grant and cloud acceptance gates.
+Confirmed account deletion fences future artifact retrieval/publication and provider sends while physical cleanup is reconciled. Verified request and worker gates use the canonical fence; deletion control paths remain accessible. Cancellation can un-fence before irreversible artifact cleanup, after which it returns the existing 409 lifecycle conflict. Full canonical account deletion remains an operator workflow. See the [security contract](../SECURITY.md) for source/grant and cloud acceptance gates.
 
 ## Gated external-turn contract
 
@@ -449,7 +450,7 @@ in local and test environments with the server feature enabled. The optional
 field is included in the original intent digest. Ordinary continuation and
 legacy message streams retain their existing payload and SSE shapes.
 
-Message status adds `pending` for reserved external work; `streaming` continues to describe ordinary model streams. Messages may include safe producer `attribution`, an embedded execution reservation, and a normalized error fact source. Existing messages remain readable without those fields. Manual provenance is user-declared; connected external metadata is client-reported; ordinary server generation records observed adapter identity and usage confidence. No new HTTP issuer/import endpoint is enabled. Internal provider-neutral preparation/continuation values and canonical lifecycle semantics are described in the [external-turn lifecycle guide](personal-ai-chapter-2/phase-25-2-implementation-guide.md). authenticated route integration must compose them through authenticated thin routes and the existing Next.js API proxy.
+Message status adds `pending` for reserved external work; `streaming` continues to describe ordinary model streams. Messages may include safe producer `attribution`, an embedded execution reservation, and a normalized error fact source. Existing messages remain readable without those fields. Manual provenance is user-declared; connected external metadata is client-reported; ordinary server generation records observed adapter identity and usage confidence. No new HTTP issuer/import endpoint is enabled. Internal provider-neutral preparation/continuation values and canonical lifecycle semantics are described in the [workflow module guide](../backend/src/personal_ai/workflow/README.md). Authenticated route integration must compose them through authenticated thin routes and the existing Next.js API proxy.
 
 
 ## Authoritative mutation proposals

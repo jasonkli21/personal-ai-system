@@ -1,4 +1,4 @@
-"""Existing search registrations, literal snippet attribution and P19 admission."""
+"""Existing search registrations, literal snippet attribution and quota admission."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -34,7 +34,7 @@ class ExternalBridge:
         self.settings = settings
         self.initial_configuration = self.configuration_digest(settings)
         self.adapter = compose_search_adapter(settings, usage_factory, registrations=registrations)
-        # Non-synthetic implementations must use the canonical P19 accounting path.
+        # Non-synthetic implementations must use the canonical quota accounting path.
         if (
             self.adapter.source_origin != "synthetic"
             and getattr(self.adapter, "usage_accounting", None) is None

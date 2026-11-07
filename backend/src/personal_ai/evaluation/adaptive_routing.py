@@ -1,7 +1,7 @@
 """Privacy-safe routing/quality observation projection, leakage-safe splits and rollout gates.
 
 This module does not dispatch, train on prompt text, invent missing labels, or
-publish runtime policy. P19 and P22 remain authoritative for measured outcomes.
+publish runtime policy. quota and adaptive routing remain authoritative for measured outcomes.
 """
 
 import json
@@ -372,7 +372,7 @@ def build_dataset(
             view = d.strategy_view()
             # Paired cases are grouped, but never assigned as labels to this
             # row's unexecuted alternatives. Pair comparison needs its own exact
-            # input/config join; P22 target-only decisions cannot establish it.
+            # input/config join; adaptive routing target-only decisions cannot establish it.
             labels = tuple(label if c.endpoint == d.selected else None for c in view.candidates)
             rows.append(
                 DatasetRow(
@@ -416,7 +416,7 @@ def build_dataset(
         "split_policy": split_policy.model_dump(mode="json"),
         "splits": split_stats,
         "group_policy": "scoped-request-root-run-and-exact-paired-case-connected-components",
-        "label_policy": "p22-selected-executed-route-only-v1",
+        "label_policy": "adaptive-route-selected-and-executed-v1",
         "label_versions": sorted({x.source_version for r in rows for x in r.labels if x}),
         "coverage": sorted({r.coverage_sha256 for r in rows}),
         "application_task_profiles": sorted(
@@ -829,7 +829,7 @@ def main():
 
 
 def paired_outcomes(records, run_states):
-    """Separate P22 paired measurements with exact input/rubric/run identity.
+    """Separate adaptive routing paired measurements with exact input/rubric/run identity.
 
     These are observations from executed cases, not labels assigned to an
     unexecuted choice in another request. Different serializer/preparation hashes

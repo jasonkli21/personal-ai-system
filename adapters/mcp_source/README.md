@@ -38,4 +38,4 @@ network operations. The HTTP path uses ASGI without sockets.
 Rollback is to withdraw the host selections, quiesce any in-flight exchanges
 and remove the optional package. Existing retrieval installations, attempt
 receipts and model context policies retain their own lifecycle. See
-[ADR 0024](../../docs/decisions/0024-hxe1-read-only-mcp.md).
+[ADR 0024](../../docs/decisions/0024-read-only-mcp-source-adapter.md).

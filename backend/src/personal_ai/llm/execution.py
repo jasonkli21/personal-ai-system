@@ -40,7 +40,7 @@ from personal_ai.usage.trace import Event, Reason, State, emit
 PROFILE_VERSION = "pi3-execution-v1"
 # Code-reviewed installed factories only. Neither requests nor manifests extend this set.
 PROFILES = frozenset({"offline_fake", "offline_fake_alt", "legacy_gemini", "local_llama"})
-_send_authority: ContextVar[tuple | None] = ContextVar("pi3_send_authority", default=None)
+_send_authority: ContextVar[tuple | None] = ContextVar("execution_send_authority", default=None)
 
 
 def schema_identity(schema):
@@ -152,7 +152,7 @@ class LocalFakeGeneration(FakeLLMClient):
 
 
 class SendAccounting:
-    """Recheck disclosure at physical reservation, then use the existing P19 ledger."""
+    """Recheck disclosure at physical reservation, then use the existing quota ledger."""
 
     def __init__(self, ledger):
         self.ledger = ledger
@@ -180,7 +180,7 @@ class SendAccounting:
         requirements = self.check_send(invocation)
         # Reserve the prepared bound, not the transport's character estimate. Count
         # operations reserve the entire approved input ceiling. Unknown outcomes
-        # retain P19's existing conservative reservations.
+        # retain quota's existing conservative reservations.
         units = unit_reservations(
             input_tokens=requirements.input_tokens,
             output_tokens=requirements.output_tokens or 0,

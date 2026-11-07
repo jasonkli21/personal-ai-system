@@ -10,7 +10,7 @@ chooses direct response, decomposition, critique or tool verification and owns
 effort controls and promotion. For workflow dispatch it will submit the
 versioned run specification to this lifecycle. It cannot create a second
 executor or mint tool, spend, approval or source authority. Existing chat
-continuations and P19 continue to own continuation and physical model attempt
+continuations and usage accounting continue to own continuation and physical model attempt
 identities. A future workflow using inference must delegate to those boundaries.
 
 External coding harnesses own their edits, shells, tests, Git and execution

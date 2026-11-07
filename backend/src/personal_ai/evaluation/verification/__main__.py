@@ -26,7 +26,7 @@ MATRIX_PATH = Path(__file__).with_name("matrix.json")
 GENERATED_EVIDENCE_PATHS = frozenset(
     {
         "docs/personal-ai-chapter-2/phase-36/matrix-results.json",
-        "docs/personal-ai-chapter-2/phase-36/receipts.json",
+        "docs/personal-ai-chapter-2/verification/receipts.json",
         "docs/personal-ai-chapter-2/phase-36/blockers.json",
         "docs/personal-ai-chapter-2/phase-36/release-report.md",
     }
@@ -184,11 +184,11 @@ def run(output, external_evidence_path=None):
     refs = sorted(
         {ref for row in matrix.rows if row.evidence_class == "offline" for ref in row.test_refs}
     )
-    with tempfile.TemporaryDirectory(prefix="phase36-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="verification-") as scratch:
         receipt_path = Path(scratch) / "receipts.json"
         env = {
             **os.environ,
-            "PHASE36_RECEIPTS": str(receipt_path),
+            "VERIFICATION_RECEIPTS": str(receipt_path),
             "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
             "ARTIFACTS_ENABLED": "false",
         }
@@ -315,7 +315,7 @@ def run(output, external_evidence_path=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "artifacts/phase36")
+    parser.add_argument("--output", type=Path, default=ROOT / "artifacts/verification")
     parser.add_argument(
         "--external-evidence",
         type=Path,

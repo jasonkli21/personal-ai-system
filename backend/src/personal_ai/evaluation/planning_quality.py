@@ -40,7 +40,7 @@ class PlanningAnswerQualityEvidence(BaseModel):
         min_length=1, max_length=200,
         pattern=r"^[A-Za-z0-9@][A-Za-z0-9._:/@+_-]{0,199}$",
     )
-    evidence_kind: Literal["phase22_observed"] = "phase22_observed"
+    evidence_kind: Literal["observed_planning_quality"] = "observed_planning_quality"
     tested_revision: str = Field(
         min_length=7, max_length=100,
         pattern=r"^[0-9a-f]{7,64}(-working-tree-[0-9a-f]{12})?$",
@@ -143,7 +143,7 @@ def measure_planning_answer(
         provider_id=provider_id,
         model_id=model_id,
         evaluation_evidence_identity=evaluation_evidence_identity,
-        evidence_kind="phase22_observed",
+        evidence_kind="observed_planning_quality",
         tested_revision=tested_revision,
         counter_identity=counter_identity,
         assembled_context_digest=context_digest,

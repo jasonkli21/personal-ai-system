@@ -1,4 +1,4 @@
-"""P35 hard-admission, canonical composition, replay/dataset and shadow contracts."""
+"""adaptive admission hard-admission, canonical composition, replay/dataset and shadow contracts."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -641,7 +641,7 @@ def test_historical_aggregate_cutoff_does_not_use_future_outcomes():
     label = OutcomeLabel(
         endpoint=v.candidates[0].endpoint,
         source="synthetic",
-        source_version="p22-v1",
+        source_version="adaptive-route-v1",
         evaluation_identity_sha256="a" * 64,
         known_at=NOW + timedelta(hours=1),
         quality=0.9,
@@ -701,7 +701,7 @@ def test_observation_collection_truncation_and_empty_are_distinct(monkeypatch):
     assert calls[0]["owner_id"] == "owner"
 
 
-def test_p19_projection_counts_every_claim_retry_count_and_unknown_consumption():
+def test_projection_counts_every_claim_retry_count_and_unknown_consumption():
     base = {
         "dispatch_claimed_at": NOW,
         "status": "success",
@@ -758,7 +758,7 @@ def test_adaptive_routing_evaluation_does_not_promote_synthetic_agreement(monkey
     )
     assert report["strategy2"].startswith("deferred") and report["strategy3"].startswith("deferred")
     evidence = {"manifest": dataset.manifest, "report": report}
-    (tmp_path / "phase35-evaluation.json").write_text(json.dumps(evidence, indent=2))
+    (tmp_path / "adaptive-evaluation.json").write_text(json.dumps(evidence, indent=2))
     snapshot = {
         "schema_version": "adaptive-routing-synthetic-snapshot-v1",
         "dataset_sha256": dataset.sha256,
@@ -770,7 +770,7 @@ def test_adaptive_routing_evaluation_does_not_promote_synthetic_agreement(monkey
     print(
         json.dumps(
             {
-                "phase35": {
+                "adaptive_control": {
                     "rows": len(dataset.rows),
                     "groups": 1,
                     "dataset_sha256": dataset.sha256,
@@ -863,7 +863,7 @@ def test_unobserved_alternative_is_missing_even_when_shadow_prefers_it(monkeypat
     label = OutcomeLabel(
         endpoint=selected,
         source="synthetic",
-        source_version="p22-v1",
+        source_version="adaptive-route-v1",
         evaluation_identity_sha256="a" * 64,
         known_at=NOW + timedelta(seconds=1),
         quality=0.95,

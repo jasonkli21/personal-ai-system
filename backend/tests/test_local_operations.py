@@ -130,7 +130,7 @@ def test_interrupt_cleans_only_owned_workspace(tmp_path):
     ) as child:
         try:
             deadline = time.monotonic() + 10
-            while not list(tmp_path.glob("pi7-local-*/running")):
+            while not list(tmp_path.glob("installed-local-store-*/running")):
                 assert child.poll() is None and time.monotonic() < deadline
                 time.sleep(0.02)
             child.terminate()
@@ -140,7 +140,7 @@ def test_interrupt_cleans_only_owned_workspace(tmp_path):
             if child.poll() is None:
                 child.kill()
                 child.wait(timeout=5)
-    assert not list(tmp_path.glob("pi7-local-*"))
+    assert not list(tmp_path.glob("installed-local-store-*"))
     assert keep.read_text() == "synthetic unrelated file"
 
 

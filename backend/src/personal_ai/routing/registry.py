@@ -149,7 +149,7 @@ class EndpointRegistry:
         """Return every profile fact and hard-admission rejection, without scores.
 
         When called from routing admission, read and lock the profile snapshot
-        through the caller's transaction so endpoint and P19 ledger facts share
+        through the caller's transaction so endpoint and quota ledger facts share
         one admission boundary.
         """
         instant = _aware_utc(now or datetime.now(UTC))

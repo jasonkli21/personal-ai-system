@@ -219,12 +219,12 @@ class CascadeCoordinator:
                     permit.attempt_id,
                     decision.selected,
                 )
-            # P19 fences unknown/timeout outcomes before any child can be created.
+            # quota fences unknown/timeout outcomes before any child can be created.
             parent = decision.routing_decision_id
         raise CascadeRejected("cascade_validation_exhausted")
 
     def _reselect_after_known_endpoint_failure(self, *, owner_id, scope, decision, reason):
-        """Persist a known pre-dispatch failure for P21's linked child transition."""
+        """Persist a known pre-dispatch failure for dispatch lifecycle's linked child transition."""
         try:
             self.routing.finish(
                 owner_id=owner_id,

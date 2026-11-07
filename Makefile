@@ -25,6 +25,10 @@ naming-policy-check:
 	$(PLATFORM_PYTHON) -I backend/scripts/naming_policy_check.py
 	$(PLATFORM_PYTHON) -I -m unittest discover -s backend/scripts -p test_naming_policy_check.py
 
+.PHONY: source-contract-check
+source-contract-check:
+	$(PLATFORM_PYTHON) -I backend/scripts/source_contract_check.py --check
+
 .PHONY: real-task-eval
 real-task-eval:
 	$(PLATFORM_PYTHON) -m personal_ai.evaluation.real_tasks $(REAL_TASK_FLAGS)
@@ -193,8 +197,8 @@ retrieval-security-check:
 
 .PHONY: offline-benchmark-check
 offline-benchmark-check: consumer-build
-	$(PLATFORM_PYTHON) backend/scripts/pi6_checks.py
-	$(PLATFORM_PYTHON) backend/scripts/pi6_installed_checks.py
+	$(PLATFORM_PYTHON) backend/scripts/offline_benchmark_checks.py
+	$(PLATFORM_PYTHON) backend/scripts/installed_offline_benchmark_checks.py
 
 .PHONY: installed-core-smoke standalone-consumer-smoke
 installed-core-smoke:
@@ -242,7 +246,7 @@ sdk-check:
 	PYTHONPATH=sdk/python/src:examples/project-checklist/client/src:examples/project-checklist/host/src \
 	  $(PLATFORM_PYTHON) backend/scripts/offline_test_runner.py -q -m 'not loopback_http' \
 	    sdk/python/tests backend/tests/test_external_consumer_http.py backend/tests/test_openapi.py \
-	    backend/tests/test_planning_experiment.py backend/tests/test_pi6.py \
+	    backend/tests/test_planning_experiment.py backend/tests/test_offline_information_handling.py backend/tests/test_source_contracts.py \
 	    backend/tests/test_standalone_client.py backend/tests/test_retrieval_context.py \
 	    backend/tests/test_retrieval_integrations.py backend/tests/test_application_lifecycle.py \
 	    backend/tests/test_inference_execution.py backend/tests/test_provider_usage.py \
@@ -381,3 +385,9 @@ synthetic-reasoning-check:
 
 synthetic-reasoning-install-check:
 	$(PLATFORM_PYTHON) -B backend/scripts/synthetic_reasoning_install.py "$(UV)"
+
+.PHONY: hermetic-capability-check
+hermetic-capability-check: reasoning-check reasoning-orchestrator-check reasoning-grounded-check \
+	reasoning-adaptive-check reasoning-adaptive-conformance synthetic-reasoning-check \
+	memory-episode-check memory-consolidation-check memory-navigation-check memory-research-check \
+	memory-governance-check workflow-check

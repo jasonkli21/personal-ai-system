@@ -5,7 +5,7 @@
 
 ## Context
 
-Phase 1 needs hosted model inference, while the project must retain the ability to replace a provider without changing its application behavior. A fixed model identifier in source would make routine configuration changes unnecessarily invasive.
+The initial application needs hosted model inference, while the project must retain the ability to replace a provider without changing its behavior. A fixed model identifier in source would make routine configuration changes unnecessarily invasive.
 
 ## Decision
 

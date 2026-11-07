@@ -46,11 +46,11 @@ def record(active, content="Launch color is amber.", **overrides):
     return ConversationSummary(**values)
 
 
-def test_fixture_suite_reproduces_baseline_and_passes_bounded_phase_2():
+def test_fixture_suite_reproduces_baseline_and_passes_bounded_context():
     rows = evaluate()
     assert all(row["result"] == "passed" for row in rows)
     long = next(row for row in rows if row["fixture"] == "beyond-fixed-cap")
-    assert long["phase_1"]["result"] == "fixed_cap_rejected"
+    assert long["message_count_baseline"]["result"] == "fixed_cap_rejected"
     assert long["required_facts_retained"] and long["summary_id"]
     assert all(row["provider_token_count"] is None for row in rows)
     assert rows[-1]["failure_reason"] == "context_message_too_large"

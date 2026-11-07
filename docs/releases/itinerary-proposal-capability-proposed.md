@@ -1,7 +1,7 @@
 # Proposed itinerary proposal capability evidence
 
 **Date:** 2026-10-04 (America/Los_Angeles)
-**Verified revision:** `b2b9d4a` on `codex/phase-6-decision-support`
+**Verified revision:** `b2b9d4a` on `codex/itinerary-decision-support`
 **Status:** implemented for independent review; contract remains proposed and unaccepted.
 
 This upstream capability provides a separately gated `itinerary-proposal-v1`

@@ -34,7 +34,7 @@ def load_fixtures():
 
 def build_fixture(fixture, variant="fixed"):
     """Sources live in independent conversations; identities and time are reproducible."""
-    uid = lambda name: uuid5(NAMESPACE_URL, "phase4:" + fixture["name"] + ":" + name)
+    uid = lambda name: uuid5(NAMESPACE_URL, "memory-lifecycle:" + fixture["name"] + ":" + name)
     settings = Settings(
         _env_file=None,
         ai_provider="gemini",

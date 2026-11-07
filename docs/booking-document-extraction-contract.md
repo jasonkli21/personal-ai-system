@@ -1,6 +1,6 @@
 # Booking document extraction contract
 
-**Status:** accepted for the reviewed local travel Phase 6 integration; external private-input gates remain closed
+**Status:** accepted for the reviewed local travel integration; external private-input gates remain closed
 **Schema:** `booking-document-extraction-v1`  
 **Date:** 2026-10-05
 
@@ -70,19 +70,19 @@ every field before reservation confirmation.
 The capability and provider gates default off independently. Local tests use
 the fake generator and explicit synthetic fixtures. Real model use still needs
 provider data-use/retention review, deployed verified user and service
-authentication, Firestore retention/deletion policy and deployed verification. Local whole-Phase 6
-coordinator acceptance is recorded below. No live provider, Google IAM, cloud project, or real private
+authentication, Firestore retention/deletion policy and deployed verification. Local coordinator
+acceptance is recorded below. No live provider, Google IAM, cloud project, or real private
 document was used for this local acceptance. Verification currently covers the full
 backend suite and synthetic API flows; it does not establish hosted readiness.
 
 ## Local coordinator acceptance — 2026-10-05
 
-The travel coordinator independently reviewed the whole Phase 6 integration and
+The travel coordinator independently reviewed the whole travel integration and
 accepted code revision `ebd00a8e2fb2d8b59a5fb5fa3aa44268e5e79b63` after remediation.
 The final upstream suite passed 561 tests with 12 opt-in skips. The travel
 coordinator suite passed 231 migrated PostgreSQL tests with zero skips and 42
 frontend tests. Synthetic plaintext/PDF mounted evidence and its final-clock-
-amend caveat are recorded in the travel Phase 6 release. This acceptance is
+amend caveat are recorded in the travel integration release. This acceptance is
 for local code and contract behavior; live Google/IAM/provider data-use,
 Firestore retention/deletion and deployment gates remain unverified and off.
-No Phase 7 travel work was performed.
+No additional travel capability was evaluated in this review.

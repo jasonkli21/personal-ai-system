@@ -14,8 +14,7 @@ searches.
 Iterative research is an opt-in bounded workflow. It identifies an evidence gap,
 issues a focused follow-up, reuses the same evidence and decision services, and
 stops under an immutable budget. It remains separate from the single-pass
-default and does not run in the background. See the [iterative research design](decisions/0016-bounded-iterative-research.md)
-and [historical implementation guide](phase-8-implementation-guide.md).
+default and does not run in the background. See the [iterative research design](decisions/0016-bounded-iterative-research.md).
 
 ## Boundaries
 

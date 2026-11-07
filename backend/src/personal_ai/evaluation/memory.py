@@ -186,7 +186,7 @@ def evaluate():
                 "fixture": f["name"],
                 "fixture_version": 1,
                 "result": "passed" if passed else "failed",
-                "phase_2": {
+                "cross_conversation_baseline": {
                     "selected_message_ids": [str(i) for i in baseline.selected_message_ids],
                     "memory_ids": [],
                     "required_cross_conversation_fact_available": False,

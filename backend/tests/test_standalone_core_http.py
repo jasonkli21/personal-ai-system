@@ -33,7 +33,7 @@ pytestmark = pytest.mark.loopback_http
 
 @pytest.fixture
 def core(monkeypatch):
-    settings = Settings(_env_file=None, ai_provider="fake", ai_model="pi7", app_environment="test")
+    settings = Settings(_env_file=None, ai_provider="fake", ai_model="local-operation-test", app_environment="test")
     monkeypatch.setattr("personal_ai.auth.middleware.get_settings", lambda: settings)
     conversations = InMemoryConversationRepository()
     messages = InMemoryMessageRepository(conversations)

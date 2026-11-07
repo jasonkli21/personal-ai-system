@@ -47,8 +47,8 @@ from personal_ai.memory.services import MemoryRetriever
 from personal_ai.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[4]
-FIXTURE = Path(__file__).parent / "fixtures/memory/mem1-paired-v1.json"
-ARMS = ("none", "fixed", "mem1_verified_knowledge", "full_eligible_history")
+FIXTURE = Path(__file__).parent / "fixtures/memory/memory-knowledge-pairs-v1.json"
+ARMS = ("none", "fixed", "verified_knowledge", "full_eligible_history")
 
 
 class Case(Strict):
@@ -431,7 +431,7 @@ def run_case(case, arm):
             created_at=NOW,
         )
         assembler = ContextAssembler(settings, FakeTokenCounter(), permission_revalidator=validator)
-        if arm == "mem1_verified_knowledge" and case.fault != "irrelevant":
+        if arm == "verified_knowledge" and case.fault != "irrelevant":
             retrieval = MemoryRetriever(
                 settings, repo, messages, None, lifecycle, knowledge_service=service
             ).retrieve_knowledge(query)
@@ -467,7 +467,7 @@ def run_case(case, arm):
                         entries.append(
                             ContextBuildItem(
                                 source_class="domain_history",
-                                provider_id="mem1.history",
+                                provider_id="memory.history",
                                 source_id=ref,
                                 item_id=ref,
                                 content=proposal.model_dump_json(),
@@ -659,7 +659,7 @@ def write_run(output=None):
         or source_before != source_identity()
     ):
         raise ValueError("knowledge_inputs_changed_during_replay")
-    output = output or ROOT / "artifacts/mem1"
+    output = output or ROOT / "artifacts/memory-knowledge"
     output.mkdir(parents=True, exist_ok=True)
     manifest = {
         "suite_id": corpus.suite_id,

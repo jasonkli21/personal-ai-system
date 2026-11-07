@@ -1,4 +1,4 @@
-"""Exercise the full PI-6 evaluator from installed wheels outside the checkout."""
+"""Exercise the full offline information handling evaluator from installed wheels outside the checkout."""
 
 import hashlib
 import json
@@ -11,15 +11,15 @@ import venv
 import zipfile
 from pathlib import Path
 
-from pi6_checks import PROFILE
+from offline_benchmark_checks import PROFILE
 
 ROOT = Path(__file__).resolve().parents[2]
 PROBE = r"""
 def main():
  import importlib.util,json,sys
  from pathlib import Path
- from personal_ai.evaluation.pi6 import evaluate
- from personal_ai.evaluation.pi6_contracts import load_corpus
+ from personal_ai.evaluation.offline_information_handling import evaluate
+ from personal_ai.evaluation.offline_information_contracts import load_corpus
  assert importlib.util.find_spec('personal_ai_reference_apps') is None
  corpus,manifest=load_corpus()
  assert len(corpus.cases)==32
@@ -29,7 +29,7 @@ def main():
  assert len(result['rows']) == 68
  assert not result['analysis']['safety_veto']
  if manifest['missing_dependencies']:
-     assert result['pi6_offline_evaluation']=='changes_required'
+     assert result['offline_evaluation']=='changes_required'
      assert result['analysis']['coverage']['non_measured_arms'] > 0
      missing_rows=[row for row in result['rows']
                    if row['observation']['status']!='measured']
@@ -43,7 +43,7 @@ def main():
                         'ineligibility':row['observation']['ineligibility'],
                         'error':row['observation']['error']}
                         for row in missing_rows]})
-     print(json.dumps({'PI6_INSTALLED_CORE_PATH':'PASS','rows':len(result['rows']),
+     print(json.dumps({'OFFLINE_BENCHMARK_INSTALLED_CORE_PATH':'PASS','rows':len(result['rows']),
                        'ineligible_dependencies':manifest['missing_dependencies'],
                        'coverage':result['analysis']['coverage']}),flush=True)
  else:
@@ -66,7 +66,7 @@ def main():
      assert result['analysis']['native_fence_complete']
      identity=result['runtime_identity']
      assert all(row['package_sha256']!='not_installed' for row in identity['distributions'])
-     print(json.dumps({'PI6_INSTALLED_FULL_EVALUATOR':'PASS','rows':len(result['rows']),
+     print(json.dumps({'OFFLINE_BENCHMARK_INSTALLED_FULL_EVALUATOR':'PASS','rows':len(result['rows']),
                        'analysis':result['analysis'],'runtime_identity':identity}),flush=True)
 
 if __name__ == '__main__':
@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
 def main():
     if sys.platform != "darwin":
-        raise SystemExit("PI6 installed probe needs reviewed native fence")
+        raise SystemExit("OFFLINE_BENCHMARK installed probe needs reviewed native fence")
     uv = shutil.which("uv")
     if not uv:
         raise SystemExit("offline installer uv required")
@@ -86,14 +86,14 @@ def main():
     )
     host = sorted((ROOT / "examples/reading-logbook/host/dist").glob("reading_logbook_host-*.whl"))
     if len(core) != 1 or len(client) != 1 or len(host) != 1:
-        raise SystemExit("build PI2 wheels before installed PI6 evaluation")
+        raise SystemExit("build consumer wheels before the installed offline benchmark")
     wheels = [*core, *client, *host]
     for wheel in wheels:
         with zipfile.ZipFile(wheel) as archive:
             names = archive.namelist()
             assert not any("personal_ai_reference_apps" in name for name in names)
             assert not any(name.startswith("personal_ai/") for name in names if wheel != core[0])
-    with tempfile.TemporaryDirectory(prefix="pi6-installed-") as directory:
+    with tempfile.TemporaryDirectory(prefix="offline_information_handling-installed-") as directory:
         workspace = Path(directory).resolve()
         venv_dir = workspace / "venv"
         venv.EnvBuilder(with_pip=False).create(venv_dir)
@@ -165,7 +165,7 @@ def main():
                 flush=True,
             )
             if completed.returncode:
-                raise SystemExit(f"PI6 installed evaluator failed during {label}")
+                raise SystemExit(f"OFFLINE_BENCHMARK installed evaluator failed during {label}")
 
         install(core)
         run("core_only")
@@ -174,7 +174,7 @@ def main():
         print(
             json.dumps(
                 {
-                    "PI6_INSTALLED_PROBE": "PASS",
+                    "OFFLINE_BENCHMARK_INSTALLED_PROBE": "PASS",
                     "network_fence": "native_loopback_only",
                     "dependency_installation": "offline_no_index_no_deps",
                     "wheels": [

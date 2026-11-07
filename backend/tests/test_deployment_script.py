@@ -87,7 +87,7 @@ def test_legacy_default_and_apply_cannot_invoke_cloud(shell, args):
         (("storage", "neon_secret_version"), CANARY, "neon_secret_reference"),
         (
             ("storage", "neon_secret_version"),
-            "projects/pi7-synthetic/secrets/dsn/versions/latest",
+            "projects/synthetic-deployment/secrets/dsn/versions/latest",
             "neon_secret_reference",
         ),
         (("services", "api", "ingress"), "public", "service_ingress_identity_or_limits"),

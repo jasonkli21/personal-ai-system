@@ -56,7 +56,7 @@ def test_corpus_frozen_identity_and_review_governance(corpus):
     assert sha256(FIXTURES.read_bytes()).hexdigest() == (
         "592a0e3799aeafc32ebf7cba0c7e162ff0af98d0049af2cf683de653e5fc02e1"
     )
-    historical_v1 = FIXTURES.with_name("mem0-cases-v1.json")
+    historical_v1 = FIXTURES.with_name("memory-task-cases-v1.json")
     assert sha256(historical_v1.read_bytes()).hexdigest() == (
         "043edaae3461286b49bcb4fda4f73bdc5059e528361bad3fa670a3b1c4e58b18"
     )
@@ -375,7 +375,7 @@ def test_trace_invariant_failure_is_written_as_failed_and_cli_exits_nonzero(
         return tuple(reversed(actions)) if view.task.operation == "workflow" else actions
 
     monkeypatch.setattr(baseline, "run_driver", reverse_workflows)
-    output = tmp_path / "artifacts" / "mem0"
+    output = tmp_path / "artifacts" / "memory-task"
     monkeypatch.setattr(baseline, "OUTPUT", output)
     manifest = write_run(output=output)
     assert manifest["status"] == "failed"
@@ -722,7 +722,7 @@ def test_actual_v2_dependency_revalidation_after_forget():
     )
     from personal_ai.auth.scope import RequestScope, bind_request_scope, reset_request_scope
 
-    token = bind_request_scope(RequestScope(owner_id="local", request_id="mem0-derived-probe"))
+    token = bind_request_scope(RequestScope(owner_id="local", request_id="memory-task-derived-probe"))
     try:
         deps = record_dependencies(view, env["memories"], env["lifecycle"])
         assert all(validator.is_current(d) for d in deps)
@@ -732,8 +732,8 @@ def test_actual_v2_dependency_revalidation_after_forget():
             owner_id="local",
             memory_id=original.id,
             event_type="forgotten",
-            reason_code="mem0_probe",
-            policy_version="mem0-v1",
+            reason_code="memory_task_probe",
+            policy_version="memory-task-v1",
             idempotency_key="probe",
             expected_state_version=state.state_version,
             occurred_at=NOW + timedelta(seconds=1),

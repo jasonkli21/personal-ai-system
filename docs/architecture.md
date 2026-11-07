@@ -38,6 +38,6 @@ The web application uses Next.js, React, and TypeScript. FastAPI and Uvicorn pow
 
 Memory and external evidence are different data classes. User preferences may remain useful over time; prices, inventory, availability, and opening hours are observations and require an explicit freshness policy. Recommendations retain their source evidence and policy rather than becoming facts.
 
-The current runtime assigns conversation/message timelines and operational state to DynamoDB, and query-rich durable records and vectors to Postgres/pgvector. These stores remain behind repository contracts. Cross-store writes must preserve their correctness and recovery boundaries; details belong in [ADR 0021](decisions/0021-polyglot-persistence-foundation.md) and the [storage contract](personal-ai-chapter-2/phase-10-storage-ownership-and-access-patterns.md).
+The current runtime assigns conversation/message timelines and operational state to DynamoDB, and query-rich durable records and vectors to Postgres/pgvector. These stores remain behind repository contracts. Cross-store writes must preserve their correctness and recovery boundaries; details belong in [ADR 0021](decisions/0021-polyglot-persistence-foundation.md) and the [storage module README](../backend/src/personal_ai/storage/README.md).
 
 External domain applications own authoritative trips, bookings, purchases, and other domain records. The shared substrate may hold source-attributed preferences and evidence, but it does not silently replace that authority.

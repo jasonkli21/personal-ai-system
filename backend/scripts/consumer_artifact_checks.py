@@ -131,7 +131,7 @@ from personal_ai.main import create_app
 assert create_app(selected_contributions=()).state.application_registry.application_ids == {"personal_ai"}
 """)
 subprocess.run([str(python), str(probe)], env=env, cwd=workspace, check=True)
-test_root = workspace / "pi2"
+test_root = workspace / "consumer"
 tests = test_root / "tests"
 tests.mkdir(parents=True)
 (test_root / "pytest.ini").write_text(

@@ -119,8 +119,8 @@ def test_paired_baseline_counts_every_attempt_and_keeps_direct(tmp_path):
         )
 
     report = run_paired_cascade_baseline(
-        execute, configuration_sha256=hashlib.sha256(b"phase24-synthetic-p23-runtime-v1").hexdigest(),
-        tested_revision="working-tree-phase24",
+        execute, configuration_sha256=hashlib.sha256(b"cascade-synthetic-runtime-v1").hexdigest(),
+        tested_revision="working-tree-cascade",
     )
     assert report["quality_safe"]
     assert report["totals"]["direct"]["accepted"] == len(report["cases"])

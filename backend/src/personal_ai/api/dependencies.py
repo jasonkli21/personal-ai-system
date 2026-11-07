@@ -534,7 +534,7 @@ def get_routing_decision_service(
 ) -> RoutingDecisionService:
     """Canonical FastAPI composition for internal routing decision lifecycle routed workflows.
 
-    The shared factory remains the owner of endpoint registry, P19 accounting,
+    The shared factory remains the owner of endpoint registry, quota accounting,
     durable observations, and default-off adaptive routing shadow composition. This
     dependency is intentionally not attached to user workflows until their
     membership and revocation policy membership/revocation acceptance gate closes.
@@ -557,7 +557,7 @@ def get_external_turn_service(
     signer: Annotated[DispatchGrantSigner | None, Depends(get_external_dispatch_signer)],
     workspace_authorizer: Annotated[WorkspaceAuthorizer, Depends(get_workspace_authorizer)],
 ) -> ExternalTurnService:
-    """Compose external execution over existing P18, context, auth, and chat seams."""
+    """Compose external execution over existing routing, context, auth, and chat seams."""
     if not settings.external_turn_acceptance_enabled:
         raise HTTPException(status_code=404, detail="external_execution_not_accepted")
     authority = PrincipalBoundExternalTurnAuthority(

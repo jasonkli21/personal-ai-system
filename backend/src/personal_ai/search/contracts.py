@@ -53,7 +53,7 @@ class SearchCostProfile:
 
 @dataclass(frozen=True, slots=True)
 class SearchDispatch:
-    """Adapter output with references returned by the canonical P19 path."""
+    """Adapter output with references returned by the canonical quota path."""
 
     results: tuple[SearchResult, ...]
     usage_invocation_id: UUID | None = None

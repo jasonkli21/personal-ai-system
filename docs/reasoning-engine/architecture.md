@@ -5,14 +5,14 @@ the separation of strategy policy, execution, and independent measurement.
 
 | Boundary | Owner | Future interaction |
 | --- | --- | --- |
-| Effort, task features, sufficiency, strategy | Reasoning | RE-1 narrows requested effort, RE-2 compiles bounded specs, RE-3 supplies verifiers, RE-4 owns promotion, RE-5 owns rollout evidence. |
-| Run, step, original intent, attempt, cancel, uncertainty, replay and events | HXE-3 / PAS workflow | RE-2 submits a typed versioned spec and consumes ordered receipts. |
-| Model continuations and physical model attempts | Existing chat/P19 | Inference step binds the canonical continuation and physical operation identity. |
-| Provider admission, disclosure, strict-free proof, quota, reservations and settlement | PI-3 routing and LLM | Recheck exact provider/account/operation and outbound data at physical send, retaining uncertainty on missing acknowledgement. |
-| Sources, identity, citations, freshness and final-send authority | PI-4/5, HXE-1, auth and context | Resolve against current grants, assemble token-budgeted context for every model turn and recheck dependencies before dispatch, disclosure or replay. |
-| Memory lifecycle, use rights, research and promotion | MEM, including MEM-6 research | A future eligible experiment uses governed memory reads and preserves their distinct provenance. |
-| Telemetry and evaluation infrastructure | HXE-2 | Use safe observation and resource conventions. Reasoning owns this cohort and its rubric. |
-| HTTP/SDK and app identity | HXE-0 and verified consumer boundary | Version any future exposure and bind principal and workspace on the server. |
+| Effort, task features, sufficiency, strategy | Reasoning | The orchestrator narrows requested effort, compiles bounded specifications, verifies results, and keeps promotion behind explicit evidence. |
+| Run, step, original intent, attempt, cancel, uncertainty, replay and events | PAS workflow | The orchestrator submits a typed versioned specification and consumes ordered receipts. |
+| Model continuations and physical model attempts | Existing chat and usage accounting | Inference steps bind the canonical continuation and physical operation identity. |
+| Provider admission, disclosure, strict-free proof, quota, reservations and settlement | LLM routing | Recheck exact provider/account/operation and outbound data at physical send, retaining uncertainty on missing acknowledgement. |
+| Sources, identity, citations, freshness and final-send authority | Retrieval, authentication and context | Resolve against current grants, assemble token-budgeted context for every model turn and recheck dependencies before dispatch, disclosure or replay. |
+| Memory lifecycle, use rights, research and promotion | Governed memory lifecycle | A future eligible experiment uses governed memory reads and preserves their distinct provenance. |
+| Telemetry and evaluation infrastructure | Evaluation infrastructure | Use safe observation and resource conventions. Reasoning owns this cohort and its rubric. |
+| HTTP/SDK and app identity | Verified consumer boundary | Version any future exposure and bind principal and workspace on the server. |
 | External edits, shell, tests, Git, retries and sessions | External coding harness | Receive separately authorized, read-only PAS assistance and opaque correlation. |
 
 The [workflow contract](../../backend/src/personal_ai/workflow/README.md)

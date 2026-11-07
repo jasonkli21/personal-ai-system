@@ -212,7 +212,7 @@ def _decode_v1(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _decode_v2(payload: dict[str, Any]) -> dict[str, Any]:
-    """Freeze the V2 static profile shape independently of future P18 models."""
+    """Freeze the V2 static profile shape independently of future routing models."""
     normalized = _validate_profile_shape(payload, dynamic_quota_fields=False)
     _canonicalize_unordered_fields(normalized)
     return normalized

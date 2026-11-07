@@ -58,7 +58,7 @@ class EndpointProfileResolver:
 
     @property
     def endpoint_registry(self) -> EndpointRegistry:
-        """Return the canonical registry used by P18 selection and revalidation."""
+        """Return the canonical registry used by routing selection and revalidation."""
         return self._current_registry()
 
     def resolve(self, *, provider_id: str, model_id: str, operation: str) -> ProviderEndpoint:

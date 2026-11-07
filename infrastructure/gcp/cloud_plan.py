@@ -1,4 +1,4 @@
-"""Validate a proposed PI-7 topology against a closed, static policy."""
+"""Validate a proposed cloud topology against a closed, static policy."""
 
 import argparse
 import hashlib

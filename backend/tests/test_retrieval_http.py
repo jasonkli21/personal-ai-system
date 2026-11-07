@@ -267,8 +267,8 @@ def test_retrieval_external_brave_safe_unavailable_no_provider_retry(http_platfo
     assert not h.llm.requests
 
 
-def test_retrieval_independent_http_brave_mock_transport_with_p19_test_port(http_platform, tmp_path):
-    """Actual external bridge/Brave serializer. Fake P19 storage and HTTP, not live eligibility."""
+def test_retrieval_independent_http_brave_mock_transport_with_quota_test_port(http_platform, tmp_path):
+    """Actual external bridge/Brave serializer. Fake quota storage and HTTP, not live eligibility."""
     import httpx
 
     from personal_ai.api.dependencies import get_request_scope

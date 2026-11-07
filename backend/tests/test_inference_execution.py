@@ -59,7 +59,7 @@ def scope():
     registration = default_application_registry().registration("personal_ai")
     return ApplicationContextRequest(
         scope=RequestScope(
-            owner_id="local", acting_user_id="local", application_id="personal_ai", request_id="pi3"
+            owner_id="local", acting_user_id="local", application_id="personal_ai", request_id="execution-test"
         ),
         definition=registration.definition,
     )
@@ -80,7 +80,7 @@ async def test_two_backends_use_canonical_chat_and_exact_local_count(profile):
         conversations, messages, pair.generator, owner_id="local", application_context=scope(),
         model=pair.generator.identity.model_id, context_assembler=ContextAssembler(config, pair.counter),
     )
-    events = [event async for event in service.send(conversation.id, "hello", request_id="pi3")]
+    events = [event async for event in service.send(conversation.id, "hello", request_id="execution-test")]
     assert events[-1].__class__.__name__ == "TurnCompleted"
     assert len(pair.generator.delegate.requests) == 1
     assert pair.generator.identity.provider_id == profile
@@ -295,7 +295,7 @@ def test_stale_attestation_and_policy_change_after_count_block_generation():
 
 
 @pytest.mark.parametrize("denial", ["provider_quota_exhausted", "provider_outcome_unresolved"])
-def test_p19_reservation_denial_has_no_physical_send(denial):
+def test_reservation_denial_has_no_physical_send(denial):
     _, ledger, pair = legacy()
     ledger.denial = denial
     install_transport(pair, lambda request: pytest.fail("send after quota denial"))

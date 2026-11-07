@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS storage_migration_records_generation_idx
     ON storage_migration_records(epoch_id, family, seen_generation, disposition);
 
 -- Older Firestore lifecycle operation documents describe completed work but do
--- not contain the P10.3 receipt protocol's attempt, fingerprint, or deadline.
+-- not contain the receipt migration receipt protocol's attempt, fingerprint, or deadline.
 -- Keep those original records queryable without inventing receipt semantics.
 CREATE TABLE IF NOT EXISTS legacy_memory_lifecycle_operations (
     scope_id text NOT NULL REFERENCES scope_namespaces(scope_id),

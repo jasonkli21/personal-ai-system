@@ -4,9 +4,9 @@ Status: Accepted. Date: 2026-10-02.
 
 ## Context
 
-Phase 3 adds cross-conversation user knowledge to the existing bounded chat path.
+The durable memory capability adds cross-conversation user knowledge to the existing bounded chat path.
 It must remain distinguishable from lossy working summaries and external evidence.
-The Phase 3 plan supplies defaults; the user explicitly authorized implementation.
+This decision supplies defaults; the user explicitly authorized implementation.
 
 ## Decisions
 
@@ -35,12 +35,12 @@ The Phase 3 plan supplies defaults; the user explicitly authorized implementatio
    edited-out sources stay auditable but cannot be injected. Earlier independent
    statements remain active and inspectable.
 6. Count the complete memory-bearing request through the shared assembler.
-   Preserve Phase 2 selected history/summary and mandatory newest prompt.
+   Preserve active-branch selected history/summary and the mandatory newest prompt.
    Add whole records only within memory and total budgets. Render labelled
    historical personal context before the working summary/history. Current
    instructions and explicit corrections take precedence. Similarity, provenance
    IDs and vectors stay out of model prompts. A counting error falls back to the
-   already counted Phase 2 request.
+   already counted context request.
 7. Master, extraction and inspection gates default off. Sensitive/external
    categories and configurable terms are denied before provider embedding;
    sensitive queries also skip embedding. Log safe aggregate counts/reasons only.
@@ -51,7 +51,7 @@ The Phase 3 plan supplies defaults; the user explicitly authorized implementatio
 ## Consequences and gaps closed
 
 Retrieval has a separate short deadline within one quarter of remaining chat
-preparation time, leaving time for Phase 2 preparation. Every memory provider call
+preparation time, leaving time for context preparation. Every memory provider call
 has a timeout and disables retries. Memory storage RPCs use remaining operation
 budgets; transactional begin/commit are explicitly deadline-bound inside the
 repository because the SDK decorator otherwise uses default retries. Source
@@ -74,7 +74,7 @@ fake similarity scores. This resolves the plan's tension between semantic select
 inspection and its prohibition on embedding during inspection.
 
 When memory is disabled, its default budget need not fit a deliberately tiny
-Phase 2 test configuration. An enabled or explicitly configured memory budget
+context test configuration. An enabled or explicitly configured memory budget
 must fit the usable input budget. Normal environment examples fit both budgets.
 
 Provider and vector-index behavior still needs opt-in credentialed verification.
@@ -83,4 +83,4 @@ forgetting, evidence/search, or worker changes are included.
 
 References: [Gemini embeddings](https://ai.google.dev/gemini-api/docs/embeddings),
 [Firestore vector search](https://firebase.google.com/docs/firestore/vector-search),
-[Phase 3 plan](../phase-3-implementation-plan.md).
+The accepted behavior and defaults are specified in this decision.

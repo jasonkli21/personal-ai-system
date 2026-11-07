@@ -156,7 +156,7 @@ class RetrievalOutcome(ResearchRecord):
     items: tuple[RetrievalItem, ...] = Field(default=(), max_length=8)
     quote_bytes: int = Field(default=0, ge=0, le=8192)
     token_upper_bound: int = Field(default=0, ge=0, le=16384)
-    # External pricing is governed by P19, never inferred from an estimated price.
+    # External pricing is governed by quota, never inferred from an estimated price.
     usage_invocation_id: UUID | None = None
     usage_attempt_id: UUID | None = None
     context_integration: Literal["unavailable"] = "unavailable"

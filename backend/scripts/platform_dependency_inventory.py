@@ -1,7 +1,6 @@
 """Read-only AST inventory of core -> example imports; never imports application code.
 
-This is a bounded static guard, not a dynamic import or installation audit. See
-docs/platform-independence/pi-0-dependency-inventory.md for policy and blind spots.
+This is a bounded static guard, not a dynamic import or installation audit.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ EXAMPLE_FACADE_PREFIXES = (
     "personal_ai.domains.fixtures",
     "personal_ai.domains.registry",
 )
-WAIVER_FIELDS = {"from", "to", "rationale", "phase", "review_status"}
+WAIVER_FIELDS = {"from", "to", "rationale", "policy", "review_status"}
 
 
 def under(module: str, prefix: str) -> bool:
@@ -163,8 +162,8 @@ def check(current: dict, baseline: dict) -> list[str]:
                 or type(rationale) is not str
                 or not rationale.strip()
                 or rationale != rationale.strip()
-                or type(waiver["phase"]) is not str
-                or waiver["phase"] != "PI-1"
+                or type(waiver["policy"]) is not str
+                or waiver["policy"] != "platform-independence"
                 or type(waiver["review_status"]) is not str
                 or waiver["review_status"] != "implementation-reviewed; independent-pending"
             ):
@@ -194,7 +193,7 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--baseline",
         type=Path,
-        default=(ROOT / "docs/platform-independence/pi-0-import-waivers.json"),
+        default=(ROOT / "docs/platform-independence/import-waivers.json"),
     )
     args = parser.parse_args(argv)
     try:

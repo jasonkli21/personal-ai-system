@@ -85,7 +85,7 @@ class ExternalTurnAuthority(Protocol):
 
     Snapshot is content-derived from current source/grant revisions, never client labels.
     No permissive production default exists. The integration must retain/recheck every
-    selected dependency, including history/summary derivations (P15 acceptance gate).
+    selected dependency, including history/summary derivations (acceptance gate for selected dependencies).
     """
 
     def snapshot(

@@ -1,4 +1,4 @@
-"""Per-operation PI-6 effect observation and loopback-only Python fence."""
+"""Per-operation offline information handling effect observation and loopback-only Python fence."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ EVENTS = (
     "audit_overflow",
 )
 FORBIDDEN = ("external_send", "write_tool", "stale_disclosure")
-_CURRENT: ContextVar[EffectAudit | None] = ContextVar("pi6_effect_audit", default=None)
+_CURRENT: ContextVar[EffectAudit | None] = ContextVar("offline_information_handling_effect_audit", default=None)
 
 
 @dataclass
@@ -71,7 +71,7 @@ def install_python_network_fence(audit: EffectAudit) -> None:
             denied = not isinstance(address, tuple) or address[0] not in {"127.0.0.1", "::1"}
         if denied:
             audit.observe("external_send")
-            raise PermissionError("pi6_network_denied")
+            raise PermissionError("offline_information_handling_network_denied")
 
     sys.addaudithook(fence)
 

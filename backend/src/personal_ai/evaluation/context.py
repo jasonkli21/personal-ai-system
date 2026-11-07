@@ -128,7 +128,7 @@ def evaluate() -> list[dict]:
             "fixture": fixture["name"],
             "fixture_version": 2,
             "configuration": safe_configuration,
-            "phase_1": {
+            "message_count_baseline": {
                 "input_message_count": len(active) + 1,
                 "result": "fixed_cap_rejected" if len(active) + 1 > 40 else "accepted",
                 "known_limitation": "no token-budget gate or working summary",

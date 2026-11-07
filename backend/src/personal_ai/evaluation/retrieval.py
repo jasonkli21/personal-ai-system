@@ -358,7 +358,7 @@ async def run(*, repository=None, artifacts=None, owner_id="local", scope=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--persist-owner", help="Explicit canonical evaluation owner; opt-in Postgres/P20")
+    parser.add_argument("--persist-owner", help="Explicit canonical evaluation owner; opt-in Postgres/database-backed evaluation")
     args = parser.parse_args()
     repository, artifacts = None, None
     if args.persist_owner:

@@ -221,7 +221,7 @@ class IterativeResearchService:
             self.owner_id, request.idempotency_key, self.application_context.scope
         )
         budget = self._budget()
-        phase5_request = ResearchRequest(
+        verification_request = ResearchRequest(
             question=request.question,
             freshness=request.freshness,
             allowed_domains=budget.allowed_domains,
@@ -235,8 +235,8 @@ class IterativeResearchService:
         session = ResearchSession(
             id=uuid4(),
             owner_id=self.owner_id,
-            request=phase5_request,
-            request_fingerprint=phase5_request.fingerprint(),
+            request=verification_request,
+            request_fingerprint=verification_request.fingerprint(),
             state="pending",
             created_at=now,
             updated_at=now,

@@ -2,7 +2,7 @@
 
 Date: 2026-10-02
 
-Status: Accepted for the Phase 7 adapter; disabled by default
+Status: Accepted for the Open Food Facts adapter; disabled by default
 
 ## Decision
 

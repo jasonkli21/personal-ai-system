@@ -353,7 +353,7 @@ def test_usage_confidence_does_not_promote_estimates_to_provider_facts():
     assert _usage_confidence(UsageMetadata(input_tokens=10)) == "exact"
 
 
-def test_matrix_uses_generic_profiles_task_contract_and_p21_p19_seams():
+def test_matrix_uses_generic_profiles_task_contract_and_routing_accounting_seams():
     runner, repository, observations, executor, profiles, fixtures, task = _matrix()
     summary, cases, quality_profiles = runner.run(
         evaluation_run_id=uuid4(),

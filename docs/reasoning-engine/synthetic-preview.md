@@ -83,5 +83,5 @@ separate internal-host tests.
 and disablement. `make synthetic-reasoning-install-check` builds the SDK and
 the independent fixture auditor, installs only their wheels in a clean
 environment, and runs against a disposable numeric-loopback server. The
-[verification and blockers](2026-11-05-re-5-verification.md) record the
-profile and release dispositions.
+[current state](../current-state.md) records the profile and release
+dispositions.

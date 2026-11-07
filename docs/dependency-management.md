@@ -65,4 +65,4 @@ environment files, installed dependencies, caches, and generated output.
 These changes lock dependency resolution; they do not promise byte-identical
 images. Python/Node base image tags and GitHub Action major tags remain mutable.
 Docker build success also does not verify Firestore, Gemini, or deployed service
-behavior; those checks remain in the Phase 1 verification closeout plan.
+behavior; those checks remain in the verification closeout plan.

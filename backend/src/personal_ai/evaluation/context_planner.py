@@ -69,7 +69,7 @@ NOW = datetime(2026, 10, 7, 12, tzinfo=UTC)
 class _EnvelopeTokenCounter:
     """Conservative offline estimate that counts serialized source envelopes."""
 
-    counter_version = "phase13-envelope-byte-estimate-v1"
+    counter_version = "planning-envelope-byte-estimate-v1"
 
     def count(self, messages):
         tokens = 10 + sum(ceil(len(message.content.encode("utf-8")) / 4) + 2 for message in messages)
@@ -89,7 +89,7 @@ class _FixtureProvider:
         self.spec = ContextProviderSpec(
             provider_id=provider_id,
             source_class=source_class,
-            source_version="phase13-synthetic-v1",
+            source_version="planning-synthetic-v1",
             operations=(operation,),
             maximum_items_per_call=operation.maximum_results,
         )
@@ -163,10 +163,10 @@ class _RecordingFactory:
 
 
 def _builtin_memory(scope) -> Memory:
-    source_message_id = uuid5(NAMESPACE_URL, "phase13-eval-memory-source-message")
+    source_message_id = uuid5(NAMESPACE_URL, "planning-eval-memory-source-message")
     content = "I prefer an aisle seat when I travel."
     return Memory(
-        id=uuid5(NAMESPACE_URL, "phase13-eval-memory"),
+        id=uuid5(NAMESPACE_URL, "planning-eval-memory"),
         owner_id=scope.owner_id,
         memory_type="preference",
         content=content,
@@ -174,14 +174,14 @@ def _builtin_memory(scope) -> Memory:
         source_message_ids=(source_message_id,),
         rationale_code="user_preference",
         normalized_content=normalize(content),
-        source_conversation_id=uuid5(NAMESPACE_URL, "phase13-eval-memory-conversation"),
-        source_turn_id=uuid5(NAMESPACE_URL, "phase13-eval-memory-turn"),
+        source_conversation_id=uuid5(NAMESPACE_URL, "planning-eval-memory-conversation"),
+        source_turn_id=uuid5(NAMESPACE_URL, "planning-eval-memory-turn"),
         source_fingerprint=sha256(str(source_message_id).encode()).hexdigest(),
         observed_at=NOW,
         effective_at=NOW,
         created_at=NOW,
         embedding=(1.0, 0.0),
-        embedding_model="phase13-offline-fixture",
+        embedding_model="planning-offline-fixture",
         embedding_dimensions=2,
         application_id=scope.application_id,
         workspace_id=scope.workspace_id,
@@ -287,8 +287,8 @@ def _builtin_profile_repository(scope, shared_fields) -> InMemoryGlobalProfileRe
 
     for field in sorted(shared_fields):
         repository.mutate_consent(scope.owner_id, scope.acting_user_id, ProfileShareIntent(
-            operation_id=uuid5(NAMESPACE_URL, f"pi4-fixture:{scope.owner_id}:{field}:operation"),
-            operation="grant", grant_id=uuid5(NAMESPACE_URL, f"pi4-fixture:{scope.owner_id}:{field}:grant"), field=field,
+            operation_id=uuid5(NAMESPACE_URL, f"profile-consent-fixture:{scope.owner_id}:{field}:operation"),
+            operation="grant", grant_id=uuid5(NAMESPACE_URL, f"profile-consent-fixture:{scope.owner_id}:{field}:grant"), field=field,
             destination=scope.model_dump(include={"application_id", "workspace_id"}),
             expected_revision=repository.get_consents(scope.owner_id).revision,
             expected_profile_revision=1, expires_at=NOW + timedelta(hours=1),
@@ -428,7 +428,7 @@ def _run_fixture(
         max_summary_tokens=min(512, available_context_tokens - 1),
         memory_enabled=True,
         profile_sharing_enabled=True,
-        memory_embedding_model="phase13-offline-fixture",
+        memory_embedding_model="planning-offline-fixture",
         memory_embedding_dimensions=2,
         memory_max_context_tokens=min(512, max(1, available_context_tokens)),
         context_profile_max_tokens=min(512, available_context_tokens),
@@ -465,7 +465,7 @@ def _run_fixture(
                     )
                 )
             else:
-                raise ValueError("phase13_builtin_fixture_provider_unsupported")
+                raise ValueError("builtin_fixture_provider_unsupported")
             continue
 
         if fixture.get("ambiguous"):

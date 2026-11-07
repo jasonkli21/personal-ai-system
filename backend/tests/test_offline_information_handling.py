@@ -1,4 +1,4 @@
-"""PI-6 R01–R11 scorer, isolation, coverage, source and packaging regressions."""
+"""offline information handling R01–R11 scorer, isolation, coverage, source and packaging regressions."""
 
 import inspect
 import json
@@ -12,15 +12,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from personal_ai.evaluation import pi6
-from personal_ai.evaluation.pi6 import (
-    enforce_operation_budgets,
-    nearest_rank,
-    runtime_identity,
-    safe_dispatch,
-)
-from personal_ai.evaluation.pi6_audit import BoundedTextSink, EffectAudit, bind_audit
-from personal_ai.evaluation.pi6_contracts import (
+from personal_ai.evaluation import offline_information_handling
+from personal_ai.evaluation.evaluation_effect_audit import BoundedTextSink, EffectAudit, bind_audit
+from personal_ai.evaluation.offline_information_contracts import (
     Corpus,
     Observation,
     Task,
@@ -29,7 +23,13 @@ from personal_ai.evaluation.pi6_contracts import (
     load_historical_v1,
     sha,
 )
-from personal_ai.evaluation.pi6_scoring import (
+from personal_ai.evaluation.offline_information_handling import (
+    enforce_operation_budgets,
+    nearest_rank,
+    runtime_identity,
+    safe_dispatch,
+)
+from personal_ai.evaluation.offline_information_scoring import (
     aggregate,
     expected_answer_sha256,
     expected_effect_counts,
@@ -40,7 +40,7 @@ from personal_ai.evaluation.pi6_scoring import (
     score,
 )
 
-FIXTURES = Path(__file__).parents[1] / "src/personal_ai/evaluation/fixtures/pi6"
+FIXTURES = Path(__file__).parents[1] / "src/personal_ai/evaluation/fixtures/offline_information_handling"
 
 
 def case_for(family, variant=None, split="heldout"):
@@ -104,13 +104,18 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
         == "8480771c464c353a8899a36a4c510fe08a3665ff97a0cde7c0b867f5ff0d99bf"
     )
     assert old_manifest["hashes"]["cases"] == sha((FIXTURES / "cases-v1.json").read_bytes())
-    assert v1.suite == "pi6-offline-v1" and v2.suite == "pi6-offline-v2"
+    assert v1.suite == old_manifest["suite"]
+    assert v2.suite == manifest["legacy_corpus_identity"]["suite"]
+    assert v2.rubric == manifest["legacy_corpus_identity"]["rubric"]
     assert all(case.provenance == "authored_synthetic_v2" for case in v2.cases)
     assert not ({case.task.subject for case in v1.cases} & {case.task.subject for case in v2.cases})
     historical_v2 = (FIXTURES / "manifest-v2.json").read_bytes()
     assert sha(historical_v2) == "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c"
     old_hashes = json.loads(historical_v2)["hashes"]
-    for name in old_hashes.keys() - {"core_runtime", "contracts", "driver", "http"}:
+    changed_in_source_rename = {"core_runtime", "contracts", "driver", "http"}
+    if manifest["source_generation"] == 10:
+        changed_in_source_rename |= {"audit", "runner", "scoring"}
+    for name in old_hashes.keys() - changed_in_source_rename:
         assert manifest["hashes"][name] == old_hashes[name]
     assert manifest["hashes"]["core_runtime"] != old_hashes["core_runtime"]
     assert manifest["frozen_before_measurement"] is True
@@ -128,18 +133,39 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     }
 
 
-@pytest.mark.parametrize("generation", [7, 8, 9])
+@pytest.mark.parametrize("generation", [7, 8, 9, 10])
 def test_source_identity_preserves_prior_protocol_generations(generation):
-    current = json.loads((FIXTURES / f"manifest-v2-source-{generation}.json").read_bytes())
-    previous = json.loads((FIXTURES / f"manifest-v2-source-{generation - 1}.json").read_bytes())
+    current = json.loads((FIXTURES / f"source-manifest-v2-generation-{generation}.json").read_bytes())
+    previous = json.loads((FIXTURES / f"source-manifest-v2-generation-{generation - 1}.json").read_bytes())
     assert current["frozen_before_measurement"] is True
     assert f"source generation {generation}" in current["preregistration"]
     assert current["hashes"]["cases"] == previous["hashes"]["cases"]
     changed_protocols = {"core_runtime", "contracts"}
     if generation == 9:
         changed_protocols |= {"driver", "http"}
+    if generation == 10:
+        assert current["schema_version"] == 3
+        assert current["source_contract_version"] == "offline-benchmark-source-closure-v1"
+        assert current["source_generation"] == 10
+        assert current["source_revision"] == "adb5b744a8a17bdc22e3953bfaa1903b927ce38c"
+        assert current["changed_protocols"] == [
+            "audit", "contracts", "core_runtime", "driver", "http", "runner", "scoring"
+        ]
+        assert current["source_files"]["core_runtime"]
+        changed_protocols = set(current["changed_protocols"])
     for name in previous["hashes"].keys() - changed_protocols:
         assert current["hashes"][name] == previous["hashes"][name]
+
+
+def test_source_generation_nine_and_historical_offline_information_handling_inputs_remain_byte_preserved():
+    generation_nine = (FIXTURES / "source-manifest-v2-generation-9.json").read_bytes()
+    assert sha(generation_nine) == (
+        "a00a8faf9f8a8f7dc17efbc81e07a8053c80415a7735eae362ed43ad95bc6a3e"
+    )
+    current, manifest = load_corpus()
+    assert len(current.cases) == 32
+    assert manifest["hashes"]["cases"] == json.loads(generation_nine)["hashes"]["cases"]
+    assert manifest["frozen_before_measurement"] is True
 
 
 @pytest.mark.parametrize("mutation", ["duplicate", "leakage", "extra", "url", "code", "budget"])
@@ -339,11 +365,11 @@ def test_budget_enforcement_and_source_bytes_are_hard_limits(monkeypatch):
     over = Observation(outcome="correct", hard_valid=True, factual=True, input_units=32769)
     bounded = enforce_operation_budgets(over, corpus)
     assert bounded.error == "budget_exceeded" and not bounded.hard_valid
-    from personal_ai.evaluation import pi6_http
+    from personal_ai.evaluation import loopback_synthetic_host
 
-    monkeypatch.setattr(pi6_http, "SOURCE_BYTE_LIMIT", 4)
-    with pytest.raises(ValueError, match="pi6_source_budget_exceeded"):
-        pi6_http.checked_source_text("12345")
+    monkeypatch.setattr(loopback_synthetic_host, "SOURCE_BYTE_LIMIT", 4)
+    with pytest.raises(ValueError, match="offline_information_handling_source_budget_exceeded"):
+        loopback_synthetic_host.checked_source_text("12345")
 
 
 def test_suite_deadline_marks_remaining_required_arms_unmeasured(monkeypatch):
@@ -362,10 +388,10 @@ def test_suite_deadline_marks_remaining_required_arms_unmeasured(monkeypatch):
             "native_loopback_only",
         )
 
-    monkeypatch.setattr(pi6, "perf_counter", clock)
-    monkeypatch.setattr(pi6, "safe_dispatch", warmup)
-    result = pi6.evaluate(require_native=True)
-    assert pi6.SUITE_DEADLINE_SECONDS == 300
+    monkeypatch.setattr(offline_information_handling, "perf_counter", clock)
+    monkeypatch.setattr(offline_information_handling, "safe_dispatch", warmup)
+    result = offline_information_handling.evaluate(require_native=True)
+    assert offline_information_handling.SUITE_DEADLINE_SECONDS == 300
     assert len(result["rows"]) == 68
     assert result["analysis"]["coverage"]["non_measured_arms"] == 68
     assert not result["analysis"]["coverage"]["valid"]
@@ -394,13 +420,13 @@ def test_runtime_identity_uses_packages_without_git_or_checkout_paths():
 
 
 def test_native_launcher_has_no_python_flag_capability():
-    launcher = Path(__file__).parents[1] / "scripts/pi6_checks.py"
-    assert "_pi6_native_fenced" not in launcher.read_text()
-    assert "verify_native_fence" in Path(pi6.__file__).read_text()
+    launcher = Path(__file__).parents[1] / "scripts/offline_benchmark_checks.py"
+    assert "_offline_information_handling_native_fenced" not in launcher.read_text()
+    assert "verify_native_fence" in Path(offline_information_handling.__file__).read_text()
 
 
 def test_memory_revocation_executes_same_denied_read_on_both_arms():
-    from personal_ai.evaluation.pi6_driver import memory_task
+    from personal_ai.evaluation.offline_task_driver import memory_task
 
     case = case_for("memory", "revoke")
     for arm in ("baseline", "candidate"):
@@ -413,7 +439,7 @@ def test_memory_revocation_executes_same_denied_read_on_both_arms():
 
 
 def test_memory_positive_recall_checks_content_fingerprint_not_only_id():
-    from personal_ai.evaluation.pi6_driver import memory_task
+    from personal_ai.evaluation.offline_task_driver import memory_task
 
     case = case_for("memory", "recall", split="calibration")
     with bind_audit(EffectAudit()):
@@ -425,7 +451,7 @@ def test_memory_positive_recall_checks_content_fingerprint_not_only_id():
 
 
 def _secret_failure_driver(_task, _arm):
-    secret = "PI6_WORKER_SECRET_NEVER_RETAIN"
+    secret = "OFFLINE_BENCHMARK_WORKER_SECRET_NEVER_RETAIN"
     print(secret)
     raise RuntimeError(secret)
 
@@ -440,8 +466,8 @@ def _crashing_driver(_task, _arm):
 
 
 def _thread_log_driver(_task, _arm):
-    secret = "PI6_THREAD_SECRET_NEVER_RETAIN"
-    logger = logging.getLogger("pi6_test_thread")
+    secret = "OFFLINE_BENCHMARK_THREAD_SECRET_NEVER_RETAIN"
+    logger = logging.getLogger("offline_information_handling_test_thread")
     thread = threading.Thread(target=lambda: logger.error(secret), daemon=True)
     thread.start()
     thread.join()
@@ -473,8 +499,8 @@ def test_worker_exception_text_and_stdout_are_not_retained(capsys):
         task, "baseline", driver=_secret_failure_driver, require_native=False
     )
     assert observation.error == "offline_failure"
-    assert "PI6_WORKER_SECRET_NEVER_RETAIN" not in observation.model_dump_json()
-    assert "PI6_WORKER_SECRET_NEVER_RETAIN" not in str(capsys.readouterr())
+    assert "OFFLINE_BENCHMARK_WORKER_SECRET_NEVER_RETAIN" not in observation.model_dump_json()
+    assert "OFFLINE_BENCHMARK_WORKER_SECRET_NEVER_RETAIN" not in str(capsys.readouterr())
     assert audit["complete"]
 
 
@@ -507,7 +533,7 @@ def test_child_logs_are_bounded_and_never_escape_to_parent(driver, capsys):
     observation, audit, _wall, _cpu, _fence = safe_dispatch(
         task, "baseline", driver=driver, require_native=False
     )
-    assert "PI6_THREAD_SECRET_NEVER_RETAIN" not in observation.model_dump_json()
+    assert "OFFLINE_BENCHMARK_THREAD_SECRET_NEVER_RETAIN" not in observation.model_dump_json()
     assert audit["complete"]
     if driver is _oversized_output_driver:
         assert audit["log_truncated"]
@@ -524,7 +550,7 @@ def test_child_logs_are_bounded_and_never_escape_to_parent(driver, capsys):
 def test_signed_http_foreign_scope_is_opaque(tmp_path, change):
     from uuid import uuid4
 
-    from personal_ai.evaluation.pi6_http import environment
+    from personal_ai.evaluation.loopback_synthetic_host import environment
 
     audit = EffectAudit()
     with environment(tmp_path, audit=audit) as h:
@@ -553,7 +579,7 @@ def test_signed_http_foreign_scope_is_opaque(tmp_path, change):
 def test_disabled_external_and_tool_payloads_cannot_dispatch(tmp_path, operation):
     from uuid import uuid4
 
-    from personal_ai.evaluation.pi6_http import environment
+    from personal_ai.evaluation.loopback_synthetic_host import environment
 
     audit = EffectAudit()
     with environment(tmp_path, audit=audit) as h:
@@ -577,7 +603,9 @@ def test_disabled_external_and_tool_payloads_cannot_dispatch(tmp_path, operation
 
 
 def test_emit_receives_safe_copy_and_never_changes_measurement(monkeypatch):
-    from personal_ai.evaluation import pi6 as pi6_module
+    from personal_ai.evaluation import (
+        offline_information_handling as offline_information_handling_module,
+    )
 
     corpus, _manifest = load_corpus()
     emitted = []
@@ -591,13 +619,13 @@ def test_emit_receives_safe_copy_and_never_changes_measurement(monkeypatch):
             "untrusted",
         )
 
-    monkeypatch.setattr(pi6_module, "safe_dispatch", fake_dispatch)
+    monkeypatch.setattr(offline_information_handling_module, "safe_dispatch", fake_dispatch)
 
     def emit(row):
         emitted.append(json.dumps(row))
         row["observation"]["outcome"] = "changed_by_sink"
 
-    result = pi6_module.evaluate(emit=emit, require_native=False)
+    result = offline_information_handling_module.evaluate(emit=emit, require_native=False)
     assert all(row["observation"]["outcome"] == "correct" for row in result["rows"])
     raw = "".join(emitted)
     assert not any(
@@ -606,8 +634,8 @@ def test_emit_receives_safe_copy_and_never_changes_measurement(monkeypatch):
             "Authorization",
             corpus.cases[0].task.value,
             corpus.cases[0].task.subject,
-            "PI6 fact:",
-            "pi6-synthetic",
+            "OFFLINE_BENCHMARK fact:",
+            "offline_information_handling-synthetic",
         ]
     )
     assert len(emitted) == 68 and result["analysis"]["untrusted_python_only"]
@@ -615,7 +643,7 @@ def test_emit_receives_safe_copy_and_never_changes_measurement(monkeypatch):
 
 @pytest.mark.loopback_http
 def test_calibration_empty_required_source_is_unknown_without_dispatch():
-    from personal_ai.evaluation.pi6_driver import dispatch
+    from personal_ai.evaluation.offline_task_driver import dispatch
 
     case = next(
         c

@@ -41,7 +41,7 @@ def test_immutable_concurrent_replay_namespace_truncation_and_expiry():
     if not dsn:
         pytest.skip("isolated PostgreSQL/pgvector environment is deferred")
     database = PostgresDatabase(dsn, environment="test", min_size=1, max_size=8)
-    owner = "phase33-" + str(uuid4())
+    owner = "research-test-" + str(uuid4())
     repository = PostgresResearchExperimentRepository(database)
     record = summary(owner)
     try:

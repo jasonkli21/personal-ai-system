@@ -102,7 +102,7 @@ def runtime(tmp_path):
     settings = Settings(
         _env_file=None,
         ai_provider="fake",
-        ai_model="pi5-test",
+        ai_model="test-retrieval-model",
         app_environment="test",
         retrieval_enabled=True,
         retrieval_installation_file=str(path),
@@ -446,7 +446,7 @@ async def test_domain_noop_does_not_consume_other_scopes_attempt_capacity(runtim
         ("unexpected", "external_outcome_unknown", "unknown", "search_unavailable"),
     ],
 )
-async def test_brave_failures_keep_p19_ids_in_retrieval_outcome(
+async def test_brave_failures_keep_accounting_ids_in_retrieval_outcome(
     runtime, failure, reason, settlement, error_code
 ):
     from personal_ai.search.providers.brave import BraveSearchAdapter
@@ -751,7 +751,7 @@ async def test_external_rights_revoke_and_credential_rotation_during_collection(
 
 
 @pytest.mark.anyio
-async def test_brave_p19_reservation_denial_and_after_reserve_source_guard(runtime):
+async def test_brave_reservation_denial_and_after_reserve_source_guard(runtime):
     from personal_ai.llm.disclosure import bind_disclosure_guard
     from personal_ai.search.providers.brave import BraveSearchAdapter
     from personal_ai.usage.contracts import UsageAdmissionDenied

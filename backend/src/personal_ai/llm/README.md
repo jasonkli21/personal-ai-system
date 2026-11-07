@@ -30,7 +30,7 @@ settings; they no longer implicitly authorize the normal inference profile.
 
 Offline fakes need no credentials, examples or provider ledger/database. They
 report distinct fake identities, exact local JSON-byte input units (serializer
-`pi3-local-json-bytes-v1`), and estimated synthetic output usage. These units are
+the persisted local JSON counter identity), and estimated synthetic output usage. These units are
 not a token bound for any remote model. Fake research retains its existing
 literal-excerpt synthesizer and estimated local counter.
 
@@ -48,7 +48,7 @@ belong in profile JSON or evidence references.
 
 Each remote counter/summary/generation/extraction operation uses canonical
 EndpointRegistry admission before disclosure and revalidation immediately before
-P19 physical-attempt reservation. Count operations reserve the approved input
+physical-attempt quota reservation. Count operations reserve the approved input
 ceiling; generation reserves its exact prepared count plus bounded output.
 The bounded async transport also converts connection/protocol errors to its own
 safe fault before LiteLLM can create an unbounded retry client; SDK retry flags

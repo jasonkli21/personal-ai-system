@@ -10,7 +10,7 @@ class PipelineMetrics(BaseModel):
     schema_version: Literal["p19-resource-projection-v1"] = "p19-resource-projection-v1"
     complete: bool
     settled: bool
-    # A retained P19 snapshot does not by itself prove that prior invocations
+    # A retained quota snapshot does not by itself prove that prior invocations
     # have not expired. Complete root lineage/end-to-end measurements are a
     # separate evidence requirement, not inferred from bounded case metrics.
     lineage_complete: Literal[False] = False
@@ -30,7 +30,7 @@ class PipelineMetrics(BaseModel):
 def pipeline_metrics(attempts, *, complete):
     """Do not impute unknown consumption or count reservations as physical sends.
 
-    Each input row is a canonical P19 invocation/attempt join. Quota reservations
+    Each input row is a canonical quota invocation/attempt join. Quota reservations
     are reported separately from known actual token consumption. Claims with an
     uncertain external outcome remain physical dispatch attempts, never successes.
     """

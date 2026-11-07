@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Apply the versioned P10 Postgres schema")
+    parser = argparse.ArgumentParser(description="Apply the versioned Postgres schema")
     parser.add_argument("--environment", choices=("local", "staging", "production"), required=True)
     parser.add_argument("--strict-zero-report", type=Path)
     parser.add_argument("--strict-zero-maximum-age-days", type=int)
@@ -31,9 +31,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         if failures:
             raise SystemExit("strict-$0 gate blocks schema work: " + ",".join(failures))
-    dsn = os.environ.get("P10_SCHEMA_POSTGRES_DSN", "")
+    dsn = os.environ.get("POSTGRES_SCHEMA_DSN") or os.environ.get(
+        "P10_SCHEMA_POSTGRES_DSN", ""
+    )
     if not dsn:
-        raise SystemExit("P10_SCHEMA_POSTGRES_DSN is required")
+        raise SystemExit("POSTGRES_SCHEMA_DSN is required")
     if args.environment in {"staging", "production"}:
         from personal_ai.persistence.postgres.neon import NeonDirectDatabase
 

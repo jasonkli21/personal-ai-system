@@ -2206,7 +2206,7 @@ def test_memory_wrapper_preserves_source_refs_without_disclosing_embeddings():
 
 
 class _PackingPermissions:
-    """These tests isolate fitting; source authority is covered by phase34 runtime tests."""
+    """These tests isolate fitting; source authority is covered by later runtime tests."""
 
     def is_current(self, dependency):
         return dependency.permission_id == "packing_fixture" and dependency.version == "v1"
@@ -2494,6 +2494,17 @@ def test_inspector_logs_manifest_as_an_estimated_view(caplog):
     assert report["manifest"]["view_kind"] == "estimated_current_view"
     assert "'view_kind': 'estimated_current_view'" in caplog.text
     assert "'actual_build': True" not in caplog.text
+
+
+def test_context_inspection_keeps_existing_verified_knowledge_wire_label():
+    from personal_ai.context.inspection import _wire_variant
+    from personal_ai.memory.contracts import (
+        LEGACY_VERIFIED_KNOWLEDGE_WIRE_VALUE,
+        VERIFIED_KNOWLEDGE_VARIANT,
+    )
+
+    assert _wire_variant(VERIFIED_KNOWLEDGE_VARIANT) == LEGACY_VERIFIED_KNOWLEDGE_WIRE_VALUE
+    assert _wire_variant("fixed") == "fixed"
 
 
 def test_summary_manifest_log_keeps_summary_identity_after_preparation(caplog):

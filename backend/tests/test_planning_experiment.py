@@ -479,7 +479,7 @@ def test_v14_source_rebind_preserves_corpus_runtime_and_non_promotion():
     assert current["source_revision"] == "20ef41ae6b76de691c003ae6a345fdb91b3ecd02"
 
 
-def test_v15_mem0_rebind_remains_immutable_historical_evidence():
+def test_historical_memory_benchmark_rebind_remains_immutable_evidence():
     current = json.loads(planning.HISTORICAL_V15_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V14_FREEZE_PATH.read_text())
     for key in (
@@ -711,7 +711,7 @@ def test_promotion_thresholds_reject_missing_overhead_and_hard_regressions():
         irrelevant_rate=0.02,
         supported_answer_rate=0.7,
         coverage_key=coverage,
-        measurement_origin="phase22_observed",
+        measurement_origin="observed_planning_quality",
         measurement_version="planning-measurements-v1",
         evidence_identity="a" * 64,
         total_tokens=1000,
@@ -881,7 +881,7 @@ def test_sensitivity_ceiling_is_checked_before_experiment_metadata(broker_case):
     assert f["adapter"].calls == 0
 
 
-def test_v21_pi2_review_source_rebind_preserves_v20_and_non_promotion():
+def test_v21_review_source_rebind_preserves_v20_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V21_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V20_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v21"
@@ -902,7 +902,7 @@ def test_v21_pi2_review_source_rebind_preserves_v20_and_non_promotion():
     assert current["source_identity_digest"] != previous["source_identity_digest"]
 
 
-def test_v22_pi3_source_rebind_preserves_v21_and_non_promotion():
+def test_v22_source_rebind_preserves_v21_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V22_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V21_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v22"
@@ -922,7 +922,7 @@ def test_v22_pi3_source_rebind_preserves_v21_and_non_promotion():
         assert current[key] == previous[key]
 
 
-def test_v23_pi4_source_rebind_preserves_v22_and_non_promotion():
+def test_v23_source_rebind_preserves_v22_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V23_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V22_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v23"
@@ -942,7 +942,7 @@ def test_v23_pi4_source_rebind_preserves_v22_and_non_promotion():
         assert current[key] == previous[key]
 
 
-def test_v24_pi5_source_rebind_preserves_v23_and_non_promotion():
+def test_v24_source_rebind_preserves_v23_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V24_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V23_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v24"
@@ -983,7 +983,7 @@ def test_v25_source_binding_preserves_v24_corpus_rubric_and_non_promotion():
     )
 
 
-def test_v26_pi6_additive_source_binding_preserves_v25_and_non_promotion():
+def test_v26_offline_information_handling_additive_source_binding_preserves_v25_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V26_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V25_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v26"
@@ -1003,7 +1003,7 @@ def test_v26_pi6_additive_source_binding_preserves_v25_and_non_promotion():
     )
 
 
-def test_v27_pi6_review_rebind_preserves_v26_and_non_promotion():
+def test_v27_offline_information_handling_review_rebind_preserves_v26_and_non_promotion():
     current = json.loads(planning.HISTORICAL_V27_FREEZE_PATH.read_text())
     previous = json.loads(planning.HISTORICAL_V26_FREEZE_PATH.read_text())
     assert current["baseline_lock_version"] == "planning-baseline-lock-v27"
@@ -1049,17 +1049,27 @@ def test_v30_is_preserved_and_v31_binds_review_remediation_source():
     assert current["evaluator_version"] != previous["evaluator_version"]
 
 
-def test_current_planning_lock_binds_owner_portability_source_without_promoting():
+def test_current_planning_lock_binds_portable_source_contract_without_promoting():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V34_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V35_FREEZE_PATH.read_text())
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["baseline_lock_version"] == "planning-baseline-lock-v35"
-    assert current["source_revision"] == "bc4a0b555f8885ef03135a3358384c6f182baf3f"
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v36"
+    assert current["source_revision"] == "adb5b744a8a17bdc22e3953bfaa1903b927ce38c"
+    assert current["source_contract_version"] == "planning-source-closure-v1"
+    assert current["runtime_identity_scope"].startswith("strict planning replay only;")
+    assert current["source_identity_files"] == planning.freeze_identity()["source_identity_files"]
     assert current["source_identity_digest"] == planning.freeze_identity()["source_identity_digest"]
     assert current["source_identity_digest"] != previous["source_identity_digest"]
+    assert current["counter_identity"] == previous["counter_identity"]
+    assert current["counter_identity"] != planning.freeze_identity()["counter_identity"]
     for field in (
         "baseline_version", "configuration_digest", "corpus_digest", "counter_identity",
         "evaluator_version", "fixture_dependency_digest", "promotion_decision",
+    ):
+        assert current[field] == previous[field]
+    for field in (
+        "python_runtime", "python_implementation", "python_abi", "platform_runtime",
+        "runtime_distribution_count", "runtime_dependency_digest", "pydantic_runtime",
     ):
         assert current[field] == previous[field]
 

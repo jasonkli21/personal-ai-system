@@ -36,6 +36,14 @@ from personal_ai.evaluation.planning_promotion import (
 from personal_ai.evaluation.planning_quality import (
     PlanningAnswerQualityEvidence,
 )
+from personal_ai.evaluation.source_contracts import (
+    PLANNING_EVALUATOR_VERSION,
+    PLANNING_LOCK_FILENAME,
+    PLANNING_SOURCE_CONTRACT,
+    planning_source_digest,
+    planning_source_entries,
+    planning_source_paths,
+)
 
 CORPUS_PATH = Path(__file__).parent / "fixtures/context/planning-heldout-v2.json"
 HISTORICAL_V13_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v13.json"
@@ -60,70 +68,11 @@ HISTORICAL_V31_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V32_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v32.json"
 HISTORICAL_V33_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v33.json"
 HISTORICAL_V34_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v34.json"
-FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v35.json"
-PLANNING_EVALUATOR_VERSION = "planning-evaluator-v8"
+HISTORICAL_V35_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v35.json"
+FREEZE_PATH = Path(__file__).parent / f"fixtures/context/{PLANNING_LOCK_FILENAME}"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
-SOURCE_IDENTITY_PATHS = (
-    "backend/src/personal_ai/applications/contracts.py",
-    "backend/src/personal_ai/applications/registry.py",
-    "backend/src/personal_ai/auth/scope.py",
-    "backend/src/personal_ai/context/assembler.py",
-    "backend/src/personal_ai/context/adapters.py",
-    "backend/src/personal_ai/context/authorization.py",
-    "backend/src/personal_ai/context/builder.py",
-    "backend/src/personal_ai/context/deployment.py",
-    "backend/src/personal_ai/context/planner.py",
-    "backend/src/personal_ai/context/planning_experiment.py",
-    "backend/src/personal_ai/context/providers.py",
-    "backend/src/personal_ai/context/runtime.py",
-    "backend/src/personal_ai/context/traces.py",
-    "backend/src/personal_ai/contracts/context_references.py",
-    "backend/src/personal_ai/federation/broker.py",
-    "backend/src/personal_ai/federation/contracts.py",
-    "backend/src/personal_ai/federation/deployment.py",
-    "backend/src/personal_ai/federation/service.py",
-    "backend/src/personal_ai/evaluation/context_planner.py",
-    "backend/src/personal_ai/evaluation/planning_fixtures.py",
-    "backend/src/personal_ai/evaluation/planning_promotion.py",
-    "backend/src/personal_ai/evaluation/planning_quality.py",
-    "backend/src/personal_ai/evaluation/planning.py",
-    "backend/src/personal_ai/evaluation/provider_matrix.py",
-    "backend/src/personal_ai/evaluation/provider_matrix_contracts.py",
-    "backend/src/personal_ai/settings.py",
-    "backend/pyproject.toml",
-    "backend/uv.lock",
-    "backend/src/personal_ai/evaluation/fixtures/context/context-plan-fixtures.json",
-    "backend/src/personal_ai/evaluation/fixtures/context/planning-heldout-v2.json",
-)
-SOURCE_IDENTITY_PATHS = tuple(
-    sorted(
-        set(SOURCE_IDENTITY_PATHS)
-        | {
-            str(path.relative_to(REPOSITORY_ROOT))
-            for path in (REPOSITORY_ROOT / "backend/src/personal_ai").rglob("*")
-            if path.is_file()
-            and not path.name.startswith("planning-baseline-")
-            # Generated protocol manifests bind this lock, so they cannot
-            # themselves be inputs to the planning source digest.
-            and path.relative_to(REPOSITORY_ROOT).as_posix() not in {
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-2.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-3.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-4.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-5.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-6.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-7.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-8.json",
-                "backend/src/personal_ai/evaluation/fixtures/pi6/manifest-v2-source-9.json",
-            }
-            and "__pycache__" not in path.parts
-            and path.suffix != ".pyc"
-            and path.name != ".DS_Store"
-        }
-        | {"backend/pyproject.toml", "backend/uv.lock"}
-    )
-)
+SOURCE_IDENTITY_PATHS = planning_source_paths(REPOSITORY_ROOT)
 
 
 def baseline_planner():
@@ -134,15 +83,20 @@ def baseline_planner():
 
 def freeze_identity():
     distributions = _runtime_distributions()
+    source_files = planning_source_entries(REPOSITORY_ROOT)
     return {
-        "baseline_lock_version": "planning-baseline-lock-v35",
+        "baseline_lock_version": "planning-baseline-lock-v36",
         "baseline_version": ContextPlanner.VERSION,
         "configuration_digest": baseline_planner().configuration_digest,
         "evaluator_version": PLANNING_EVALUATOR_VERSION,
-        "source_identity_digest": _source_identity_digest(),
+        "source_contract_version": PLANNING_SOURCE_CONTRACT,
+        "source_identity_files": source_files,
+        "source_identity_digest": planning_source_digest(
+            source_files, PLANNING_EVALUATOR_VERSION
+        ),
         "corpus_digest": sha256(CORPUS_PATH.read_bytes()).hexdigest(),
         "fixture_dependency_digest": sha256(FIXTURE_PATH.read_bytes()).hexdigest(),
-        "counter_identity": "phase13-envelope-byte-estimate-v1",
+        "counter_identity": "planning-envelope-byte-estimate-v1",
         "python_runtime": platform.python_version(),
         "python_implementation": platform.python_implementation(),
         "python_abi": sys.implementation.cache_tag,
@@ -152,6 +106,9 @@ def freeze_identity():
             json.dumps(distributions, separators=(",", ":")).encode()
         ).hexdigest(),
         "pydantic_runtime": pydantic.__version__,
+        "runtime_identity_scope": (
+            "strict planning replay only; portable current-source conformance does not compare this runtime fingerprint"
+        ),
     }
 
 
@@ -164,12 +121,10 @@ def _runtime_distributions():
 
 
 def _source_identity_digest():
-    identity = {
-        relative: sha256((REPOSITORY_ROOT / relative).read_bytes()).hexdigest()
-        for relative in SOURCE_IDENTITY_PATHS
-    }
-    identity["evaluator_version"] = PLANNING_EVALUATOR_VERSION
-    return sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return planning_source_digest(
+        planning_source_entries(REPOSITORY_ROOT, paths=SOURCE_IDENTITY_PATHS),
+        PLANNING_EVALUATOR_VERSION,
+    )
 
 
 def _git_revision_pair():
@@ -338,7 +293,13 @@ def evaluate(
 ):
     frozen = json.loads(FREEZE_PATH.read_text())
     identity = freeze_identity()
-    if any(frozen[key] != value for key, value in identity.items()):
+    # The active lock retains the measurement's original counter label as
+    # provenance. Runtime identity now uses the descriptive capability name.
+    if any(
+        frozen[key] != value
+        for key, value in identity.items()
+        if key != "counter_identity"
+    ):
         raise ValueError("planning_baseline_changed_requires_new_version")
     head, parent = _git_revision_pair()
     if head != frozen["source_revision"] and parent != frozen["source_revision"]:
@@ -647,7 +608,7 @@ def evaluate(
             ),
             coverage_key=key,
             measurement_origin=(
-                "phase22_observed"
+                "observed_planning_quality"
                 if measured_quality and all(value is not None for value in measured_quality)
                 else "synthetic_offline"
             ),

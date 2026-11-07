@@ -456,7 +456,6 @@ def test_message_count_cap_is_replaced_by_context_budget(client: TestClient) -> 
     app.dependency_overrides[get_settings] = lambda: Settings(
         ai_provider="gemini",
         ai_model="test-model",
-        max_phase_1_history_messages=1,
     )
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
     for content in ("first", "second"):
@@ -525,7 +524,6 @@ def test_edit_and_retry_capacity_uses_the_replacement_prefix(client: TestClient)
         ai_provider="gemini",
         ai_model="test-model",
         ai_api_key="test-key",
-        max_phase_1_history_messages=3,
     )
     conversation_id = client.post("/v1/conversations", json={}).json()["id"]
     first = client.post(f"/v1/conversations/{conversation_id}/messages", json={"content": "first"})

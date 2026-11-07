@@ -109,7 +109,7 @@ def database():
         db.close()
 
 
-def test_synthetic_matrix_persists_through_postgres_and_p21_p19(database):
+def test_synthetic_matrix_persists_through_postgres_and_routing_accounting(database):
     scope = ApplicationScope(application_id="personal_ai")
     owner_id = "personal-ai-system"
     run_id = uuid4()
@@ -205,7 +205,7 @@ def test_synthetic_matrix_persists_through_postgres_and_p21_p19(database):
         )
 
 
-def test_postgres_floor_publication_is_consumed_by_p21(database):
+def test_postgres_floor_publication_is_consumed_by_routing(database):
     scope = ApplicationScope(application_id="personal_ai")
     owner_id = "personal-ai-system"
     run_id = uuid4()
@@ -350,7 +350,7 @@ def test_unresolved_unknown_attempt_blocks_same_case_under_new_run_id(database):
     assert retry_summary.status == "partial"
     blocked = next(case for case in retry_cases if case.fixture_id == failed_cases[0].fixture_id)
     # The existing report contract calls internal finalization denial a failed
-    # case, even though no physical send was authorized. P19 remains the effect
+    # case, even though no physical send was authorized. quota remains the effect
     # authority; client preparation alone is not evidence of a provider send.
     assert blocked.status == "failed"
     assert blocked.reason == "routing_evaluation_quality_gate_denied"

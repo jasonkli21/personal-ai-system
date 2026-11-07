@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from hashlib import sha256
 
-from personal_ai.evaluation.pi6_audit import FORBIDDEN
-from personal_ai.evaluation.pi6_contracts import FAMILIES, canonical, memory_command
+from personal_ai.evaluation.evaluation_effect_audit import FORBIDDEN
+from personal_ai.evaluation.offline_information_contracts import FAMILIES, canonical, memory_command
 
 EXPECTED_DISPATCHES = {
     "one_app": 1,
@@ -116,7 +116,7 @@ def expected_retrieval_evidence_sha256(case):
     facts = (
         []
         if case.task.variant == "irrelevant"
-        else [f"PI6 fact: {case.task.subject}={case.task.value}."]
+        else [f"OFFLINE_BENCHMARK fact: {case.task.subject}={case.task.value}."]
     )
     return sha256(canonical(sorted(facts)).encode()).hexdigest()
 

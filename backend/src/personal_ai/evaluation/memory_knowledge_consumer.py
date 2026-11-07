@@ -60,7 +60,7 @@ from personal_ai.memory.services import MemoryRetriever
 from personal_ai.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[4]
-FIXTURE = Path(__file__).parent / "fixtures/memory/mem1-consumer-v1.json"
+FIXTURE = Path(__file__).parent / "fixtures/memory/memory-knowledge-consumer-v1.json"
 ALLOWED_COMMANDS = frozenset({"make backend-lint", "make backend-test-offline", "make memory-eval"})
 DECISION = "Use the compact component layout."
 DECISION_OVERRIDE = "Use the expanded component layout."
@@ -836,7 +836,7 @@ def write_run(output=None):
         or source_hash != _source_identity()
     ):
         raise ValueError("consumer_replay_or_safety_failed")
-    output = output or ROOT / "artifacts/mem1-consumer"
+    output = output or ROOT / "artifacts/memory-knowledge-consumer"
     output.mkdir(parents=True, exist_ok=True)
     manifest = {
         "suite_id": corpus.suite_id,

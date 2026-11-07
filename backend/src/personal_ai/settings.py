@@ -31,6 +31,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         hide_input_in_errors=True,
+        populate_by_name=True,
     )
 
     application_contributions: tuple[str, ...] = ()
@@ -159,8 +160,8 @@ class Settings(BaseSettings):
     # Raw Ed25519 private key as unpadded base64url. Store in Secret Manager or
     # an untracked local environment file; never expose it to browser or bridge.
     external_dispatch_grant_private_key: SecretStr = Field(default=SecretStr(""))
-    # P25.3 remains unavailable until membership and revocation policy source/revocation and P25.2
-    # storage acceptance gates are explicitly reviewed and accepted.
+    # External turn acceptance stays unavailable until membership, source
+    # revocation, and storage acceptance gates are explicitly reviewed.
     external_turn_acceptance_enabled: bool = False
     gcp_project_id: str = Field(default="", max_length=200)
     persistence_local_postgres_dsn: SecretStr = Field(
@@ -173,15 +174,57 @@ class Settings(BaseSettings):
     )
     app_environment: str = Field(default="local", pattern=r"^(local|test|staging|production)$")
     # Deployed runtime persistence uses the verified Neon pooler and federated AWS role.
-    p10_cloud_adapters_configured: bool = False
-    p10_neon_runtime_dsn: SecretStr = Field(default=SecretStr(""))
-    p10_neon_pool_max_size: int = Field(default=4, ge=1, le=4)
-    p10_dynamodb_region: str = Field(default="us-east-1", min_length=1, max_length=32)
-    p10_dynamodb_table_name: str = Field(
-        default="personal-ai-runtime-v1", min_length=3, max_length=255
+    deployed_persistence_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "DEPLOYED_PERSISTENCE_ENABLED", "P10_CLOUD_ADAPTERS_CONFIGURED"
+        ),
     )
-    p10_dynamodb_role_arn: str = Field(default="", max_length=600)
-    p10_dynamodb_identity_token_audience: str = Field(default="", max_length=500)
+    deployed_neon_runtime_dsn: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices(
+            "DEPLOYED_NEON_RUNTIME_DSN", "P10_NEON_RUNTIME_DSN"
+        ),
+    )
+    deployed_neon_pool_max_size: int = Field(
+        default=4,
+        ge=1,
+        le=4,
+        validation_alias=AliasChoices(
+            "DEPLOYED_NEON_POOL_MAX_SIZE", "P10_NEON_POOL_MAX_SIZE"
+        ),
+    )
+    deployed_dynamodb_region: str = Field(
+        default="us-east-1",
+        min_length=1,
+        max_length=32,
+        validation_alias=AliasChoices(
+            "DEPLOYED_DYNAMODB_REGION", "P10_DYNAMODB_REGION"
+        ),
+    )
+    deployed_dynamodb_table_name: str = Field(
+        default="personal-ai-runtime-v1",
+        min_length=3,
+        max_length=255,
+        validation_alias=AliasChoices(
+            "DEPLOYED_DYNAMODB_TABLE_NAME", "P10_DYNAMODB_TABLE_NAME"
+        ),
+    )
+    deployed_dynamodb_role_arn: str = Field(
+        default="",
+        max_length=600,
+        validation_alias=AliasChoices(
+            "DEPLOYED_DYNAMODB_ROLE_ARN", "P10_DYNAMODB_ROLE_ARN"
+        ),
+    )
+    deployed_dynamodb_identity_token_audience: str = Field(
+        default="",
+        max_length=500,
+        validation_alias=AliasChoices(
+            "DEPLOYED_DYNAMODB_IDENTITY_TOKEN_AUDIENCE",
+            "P10_DYNAMODB_IDENTITY_TOKEN_AUDIENCE",
+        ),
+    )
     auth_mode: str = Field(default="development", pattern=r"^(development|google_oidc)$")
     auth_required: bool = False
     auth_issuer: str = Field(default="https://accounts.google.com", min_length=1, max_length=200)
@@ -702,23 +745,23 @@ class Settings(BaseSettings):
             or not self.cloudflare_preflight_reference.strip()
         ):
             raise ValueError("cloudflare_provider_preflight_required")
-        if self.p10_cloud_adapters_configured:
+        if self.deployed_persistence_enabled:
             if self.app_environment not in {"staging", "production"}:
-                raise ValueError("p10_cloud_adapters_require_deployed_environment")
+                raise ValueError("deployed_persistence_requires_staging_or_production")
             from personal_ai.persistence.dynamodb.cloud import FederatedDynamoDBConfig
             from personal_ai.persistence.postgres.neon import NeonRuntimeDatabase
 
-            dsn = self.p10_neon_runtime_dsn.get_secret_value()
+            dsn = self.deployed_neon_runtime_dsn.get_secret_value()
             NeonRuntimeDatabase(
                 dsn,
                 environment=self.app_environment,
-                max_size=self.p10_neon_pool_max_size,
+                max_size=self.deployed_neon_pool_max_size,
             )
             FederatedDynamoDBConfig(
-                region=self.p10_dynamodb_region,
-                table_name=self.p10_dynamodb_table_name,
-                role_arn=self.p10_dynamodb_role_arn,
-                identity_token_audience=self.p10_dynamodb_identity_token_audience,
+                region=self.deployed_dynamodb_region,
+                table_name=self.deployed_dynamodb_table_name,
+                role_arn=self.deployed_dynamodb_role_arn,
+                identity_token_audience=self.deployed_dynamodb_identity_token_audience,
             ).validate()
         available = (
             self.max_context_tokens - self.max_response_tokens - self.context_safety_margin_tokens
@@ -985,5 +1028,5 @@ def validate_startup_configuration() -> None:
         settings = get_settings()
         if cloud_run_service and settings.app_environment not in {"staging", "production"}:
             raise ValueError("deployed_environment_must_be_explicit")
-        if not settings.p10_cloud_adapters_configured:
+        if not settings.deployed_persistence_enabled:
             raise ValueError("deployed_polyglot_persistence_required")

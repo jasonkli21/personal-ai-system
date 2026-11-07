@@ -16,21 +16,21 @@ pytestmark = pytest.mark.cloud_smoke
 
 def _reviewed_opt_in() -> bool:
     return (
-        os.environ.get("P10_CLOUD_SMOKE") == "1"
+        os.environ.get("CLOUD_PERSISTENCE_SMOKE") == "1"
         and os.environ.get("K_SERVICE", "").strip() != ""
-        and os.environ.get("P10_CLOUD_SMOKE_APPROVAL_REF", "").strip() != ""
-        and os.environ.get("P10_STRICT_ZERO_REPORT", "").strip() != ""
-        and os.environ.get("P10_STRICT_ZERO_MAXIMUM_AGE_DAYS", "").isdigit()
-        and os.environ.get("P10_NEON_RUNTIME_DSN", "").strip() != ""
-        and os.environ.get("P10_DYNAMODB_ROLE_ARN", "").strip() != ""
-        and os.environ.get("P10_AWS_OIDC_AUDIENCE", "").strip() != ""
+        and os.environ.get("CLOUD_PERSISTENCE_SMOKE_APPROVAL_REF", "").strip() != ""
+        and os.environ.get("STRICT_ZERO_REPORT", "").strip() != ""
+        and os.environ.get("STRICT_ZERO_MAXIMUM_AGE_DAYS", "").isdigit()
+        and os.environ.get("CLOUD_PERSISTENCE_NEON_DSN", "").strip() != ""
+        and os.environ.get("CLOUD_PERSISTENCE_DYNAMODB_ROLE_ARN", "").strip() != ""
+        and os.environ.get("CLOUD_PERSISTENCE_IDENTITY_TOKEN_AUDIENCE", "").strip() != ""
     )
 
 
 def _gate_validator():
     root = Path(__file__).resolve().parents[3]
     module_path = root / "infrastructure/policy/strict_zero/strict_zero_release_gate.py"
-    spec = importlib.util.spec_from_file_location("p10_strict_zero_gate", module_path)
+    spec = importlib.util.spec_from_file_location("cloud_persistence_strict_zero_gate", module_path)
     if spec is None or spec.loader is None:
         raise RuntimeError("strict_zero_release_gate_unavailable")
     module = importlib.util.module_from_spec(spec)
@@ -40,9 +40,9 @@ def _gate_validator():
 
 @pytest.mark.skipif(not _reviewed_opt_in(), reason="explicit reviewed cloud smoke opt-in is absent")
 def test_reviewed_neon_and_dynamodb_smoke_without_provisioning():
-    report_path = Path(os.environ["P10_STRICT_ZERO_REPORT"])
+    report_path = Path(os.environ["STRICT_ZERO_REPORT"])
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    maximum_age = int(os.environ["P10_STRICT_ZERO_MAXIMUM_AGE_DAYS"])
+    maximum_age = int(os.environ["STRICT_ZERO_MAXIMUM_AGE_DAYS"])
     failures = _gate_validator()(report, maximum_age_days=maximum_age)
     assert not failures, "strict-$0 evidence blocks cloud smoke: " + ",".join(failures)
 
@@ -54,37 +54,37 @@ def test_reviewed_neon_and_dynamodb_smoke_without_provisioning():
     from personal_ai.persistence.postgres.neon import NeonRuntimeDatabase
 
     database = NeonRuntimeDatabase(
-        os.environ["P10_NEON_RUNTIME_DSN"],
+        os.environ["CLOUD_PERSISTENCE_NEON_DSN"],
         environment=os.environ.get("APP_ENVIRONMENT", "production"),
     )
     table = FederatedDynamoDBRuntimeTable(FederatedDynamoDBConfig(
-        region=os.environ.get("P10_DYNAMODB_REGION", "us-east-1"),
-        table_name=os.environ["P10_DYNAMODB_TABLE_NAME"],
-        role_arn=os.environ["P10_DYNAMODB_ROLE_ARN"],
-        identity_token_audience=os.environ["P10_AWS_OIDC_AUDIENCE"],
+        region=os.environ.get("CLOUD_PERSISTENCE_DYNAMODB_REGION", "us-east-1"),
+        table_name=os.environ["CLOUD_PERSISTENCE_DYNAMODB_TABLE_NAME"],
+        role_arn=os.environ["CLOUD_PERSISTENCE_DYNAMODB_ROLE_ARN"],
+        identity_token_audience=os.environ["CLOUD_PERSISTENCE_IDENTITY_TOKEN_AUDIENCE"],
         role_session_name="personal-ai-smoke",
     ))
     try:
         with database.connection() as connection:
             connection.execute(
-                "CREATE TEMP TABLE p10_vector_smoke (embedding vector(3)) ON COMMIT DROP"
+                "CREATE TEMP TABLE cloud_persistence_vector_smoke (embedding vector(3)) ON COMMIT DROP"
             )
             connection.execute(
-                "INSERT INTO p10_vector_smoke VALUES ('[1,0,0]'::vector)"
+                "INSERT INTO cloud_persistence_vector_smoke VALUES ('[1,0,0]'::vector)"
             )
             distance = connection.execute(
-                "SELECT embedding <=> '[1,0,0]'::vector FROM p10_vector_smoke"
+                "SELECT embedding <=> '[1,0,0]'::vector FROM cloud_persistence_vector_smoke"
             ).fetchone()[0]
             assert float(distance) == 0
 
-        partition = f"P10SMOKE#{uuid4()}"
+        partition = f"CLOUDSMOKE#{uuid4()}"
         key = {"PK": partition, "SK": "SMOKE#control"}
         nonce = str(uuid4())
         item = {
             **key,
-            "kind": "p10-cloud-smoke",
+            "kind": "cloud-persistence-smoke",
             "smoke_nonce": nonce,
-            "PUBPK": f"P10SMOKE#{nonce}",
+            "PUBPK": f"CLOUDSMOKE#{nonce}",
             "PUBSK": f"JOB#{nonce}",
         }
         try:

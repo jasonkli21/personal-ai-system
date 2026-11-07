@@ -122,7 +122,7 @@ class PostgresProviderUsageAccounting:
     def assert_request_budget_in_transaction(
         self, connection, invocation, *, max_reserved_tokens, quota_limits
     ):
-        """Read canonical P19 reservations under the existing request lock.
+        """Read canonical quota reservations under the existing request lock.
 
         Count conservative original reservations, including failed/settled sends;
         quota reset never refunds the root operation's cumulative budget.
@@ -434,10 +434,10 @@ class PostgresProviderUsageAccounting:
         now,
         check_capacity=True,
     ):
-        """Project candidate runtime state after acquiring a global P19 lock order.
+        """Project candidate runtime state after acquiring a global quota lock order.
 
         Every canonical quota window is seeded/read once in bucket-ID order.
-        Endpoint health locks follow in profile-ID/version order, matching P19
+        Endpoint health locks follow in profile-ID/version order, matching quota
         reservation and settlement ordering. Candidate-specific reservation
         amounts are returned separately from shared mutable bucket state.
         """
@@ -578,7 +578,7 @@ class PostgresProviderUsageAccounting:
                     "WHERE endpoint_profile_id=%s AND endpoint_profile_version=%s FOR SHARE"
                 )
             else:
-                # The following P19 reservation owns the locked health check;
+                # The following quota reservation owns the locked health check;
                 # this advisory read must not invert bucket-before-health order.
                 query = (
                     "SELECT health_status,cooldown_until,failure_streak FROM provider_endpoint_health "
@@ -626,7 +626,7 @@ class PostgresProviderUsageAccounting:
     def runtime_rejections(
         self, connection, profile, requirements, *, now, check_capacity=True, operation=None
     ):
-        """Current runtime hard-admission reasons, projected from the P19 ledger."""
+        """Current runtime hard-admission reasons, projected from the quota ledger."""
         return self.routing_snapshot(
             connection,
             profile,
@@ -876,7 +876,7 @@ class PostgresProviderUsageAccounting:
             )
 
     def request_observation(self, *, owner_id, scope, request_id, run_id, limit=256):
-        """Read P19's entire retained request lineage for evaluation, with a bound."""
+        """Read quota's entire retained request lineage for evaluation, with a bound."""
         from personal_ai.persistence.postgres.owner_lifecycle import assert_owner_unfenced
         from personal_ai.usage.observations import pipeline_metrics
 
@@ -908,7 +908,7 @@ class PostgresProviderUsageAccounting:
                 attempt["reservations"] = tuple((bucket, units) for identity, bucket, units
                                                 in reservation_rows if identity == attempt["attempt_id"])
             metrics = pipeline_metrics(attempts, complete=len(rows) <= limit)
-            # Retention can remove P19 records before a retained P21 decision.
+            # Retention can remove quota records before a retained dispatch lifecycle decision.
             # Empty observations are explicitly missing, not a zero-cost label.
             if not attempts:
                 metrics["complete"] = metrics["settled"] = False

@@ -2,7 +2,7 @@
   "schema_version": "decision-fixtures-v1",
   "synthetic": true,
   "baseline": {
-    "phase_5_behavior": "sourced_summary",
+    "behavior_category": "sourced_summary",
     "canonical_recommendation": false
   },
   "policy_versions": {

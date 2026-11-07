@@ -145,7 +145,7 @@ class BraveSearchAdapter:
             if usage_call is not None:
                 await usage_call.reserve()
             # Owning use case supplies source/client checks; repeat after rate wait
-            # and P19 reservation immediately before the physical request.
+            # and quota reservation immediately before the physical request.
             from personal_ai.llm.disclosure import revalidate_disclosure
 
             revalidate_disclosure()
@@ -220,7 +220,7 @@ class BraveSearchAdapter:
             } else "rejected"
             raise SearchError(
                 "search_quota" if outcome == "rate_limited" else "search_unavailable",
-                # A P19 admission denial has no trustworthy reset horizon here;
+                # A quota admission denial has no trustworthy reset horizon here;
                 # repeated logical attempts would just recreate a denied call.
                 retryable=False,
                 usage_invocation_id=(usage_call.invocation.invocation_id if usage_call else None),

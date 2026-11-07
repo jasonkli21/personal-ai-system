@@ -140,7 +140,7 @@ class RoutingPreferences(_FrozenModel):
 class CascadePolicy(_FrozenModel):
     """Trusted weaker-to-stronger order, not inferred from provider names.
 
-    P21 owns depth/attempt/auxiliary/time bounds; P19 owns cumulative reservations.
+    dispatch lifecycle owns depth/attempt/auxiliary/time bounds; quota owns cumulative reservations.
     Empty quota limits are forbidden: every applicable bucket must be covered.
     """
 
@@ -475,7 +475,7 @@ class StrategyCandidate(_FrozenModel):
 
 
 class QuotaBucketDecisionFact(_FrozenModel):
-    """Bounded immutable view of one P19 quota window used by a decision."""
+    """Bounded immutable view of one quota window used by a decision."""
 
     bucket_id: str
     unit: str

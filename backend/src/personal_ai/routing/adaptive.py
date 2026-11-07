@@ -152,7 +152,7 @@ class ShadowRoutingStrategy:
     def __init__(self, adaptive):
         self.baseline = QuotaAwareDeterministicStrategy()
         self.adaptive = adaptive
-        # Replay and P19 producer identity describe the visible baseline, not shadow.
+        # Replay and quota producer identity describe the visible baseline, not shadow.
         self.ref = self.baseline.ref
         self.tie_break_version = self.baseline.tie_break_version
         self.dependencies = self.baseline.dependencies

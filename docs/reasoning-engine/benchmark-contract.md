@@ -9,7 +9,8 @@ the version-specific seal loader. Record its source commit/tree externally to
 avoid a hash cycle. The trusted checkout and seal loader are the integrity
 anchor. Hashes detect drift and supply no authentication against replacing
 that anchor. Changes to frozen sources or fixtures require an additive version.
-Historical PI-6, real-task, planning and memory files retain their identities.
+Historical offline information-handling, real-task, planning and memory artifacts
+retain their original identities.
 
 ## Arms and scoring
 

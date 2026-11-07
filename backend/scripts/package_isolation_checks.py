@@ -112,7 +112,7 @@ uv = shutil.which("uv")
 if uv is None:
     raise RuntimeError("uv is required for offline wheel installation")
 uv = str(Path(uv).resolve())
-temporary_workspace = tempfile.TemporaryDirectory(prefix="pi1-installed-")
+temporary_workspace = tempfile.TemporaryDirectory(prefix="core-installation-")
 atexit.register(temporary_workspace.cleanup)
 workspace = Path(temporary_workspace.name)
 venv_dir = workspace / "venv"
@@ -144,7 +144,7 @@ env = {
     "UV_CACHE_DIR": str(workspace / "uv-cache"),
     "UV_OFFLINE": "true",
     "AI_PROVIDER": "fake",
-    "AI_MODEL": "pi1-artifact",
+    "AI_MODEL": "test-artifact-model",
     "PYTHONDONTWRITEBYTECODE": "1",
 }
 wheel = next(artifact for artifact in core_artifacts if artifact.suffix == ".whl")

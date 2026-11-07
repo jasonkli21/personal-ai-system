@@ -221,7 +221,7 @@ def execution_options(
     context: Annotated[ApplicationContextRequest, Depends(get_application_context)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ExecutionOptionsResponse:
-    """Project only explicitly selectable, current P18 profiles and app policy modes."""
+    """Project only explicitly selectable, current routing profiles and app policy modes."""
     sidecar = context.definition.context_policy.sidecar
     if not settings.external_turn_acceptance_enabled:
         return ExecutionOptionsResponse(modes=("automatic",), explicit_profiles=(), sidecar=sidecar)

@@ -25,7 +25,7 @@ class PlanningMeasurements(BaseModel):
     irrelevant_rate: float = Field(ge=0, le=1)
     supported_answer_rate: float | None = Field(default=None, ge=0, le=1)
     coverage_key: PlanningCoverageKey | None = None
-    measurement_origin: Literal["synthetic_offline", "phase22_observed"] | None = None
+    measurement_origin: Literal["synthetic_offline", "observed_planning_quality"] | None = None
     measurement_version: str | None = Field(default=None, max_length=100)
     evidence_identity: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     total_tokens: int | None = Field(default=None, ge=0)

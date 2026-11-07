@@ -1,13 +1,13 @@
 # ADR 0018: Personal authentication and owner authorization
 
-- **Status:** accepted for Phase 9 implementation
+- **Status:** accepted for OIDC implementation
 - **Date:** 2026-10-03
 - **Decision owner:** project owner
 
 ## Context
 
 The application serves one personal account, currently maps every request to
-the unauthenticated `local` owner, and deploys its API publicly. Phase 9 must
+the unauthenticated `local` owner, and deploys its API publicly. The deployment must
 replace that trust assumption across the API, repository owner parameters,
 streams, proxies, workers, export, deletion, and scheduled work. The project
 uses Google Cloud Run and already depends on Google Cloud libraries. No identity

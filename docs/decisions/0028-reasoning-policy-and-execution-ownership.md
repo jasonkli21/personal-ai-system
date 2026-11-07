@@ -12,7 +12,7 @@ sufficiency and strategy promotion. A strategy describes a bounded policy.
 The workflow lifecycle owns execution of PAS runs and the durable ordering of
 their steps, attempts and receipts. A future reasoning host submits versioned
 specifications to that lifecycle and delegates physical inference to existing
-chat continuation and P19 attempt authority. The current workflow spec admits
+chat continuation and usage-accounting attempt authority. The current workflow spec admits
 local retrieval steps. A future inference step needs an explicit versioned
 contract and current authorization at the canonical adapter.
 

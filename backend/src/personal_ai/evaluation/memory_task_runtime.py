@@ -121,7 +121,7 @@ class Environment:
             ai_model="fake-chat",
             memory_enabled=True,
             memory_experiment_variant="fixed",
-            memory_embedding_model="mem0-fake-v1",
+            memory_embedding_model="fake-memory-model-v1",
             memory_embedding_dimensions=3,
             memory_max_context_tokens=case.history_tokens,
             max_context_tokens=case.maximum_context_tokens + 64,
@@ -140,7 +140,7 @@ class Environment:
         self.embedder = FakeEmbedder(
             {case.task.instruction: (1.0, 0.0, 0.0)},
             provider="google_genai",
-            model="mem0-fake-v1",
+            model="fake-memory-model-v1",
         )
         self.memory_validator = MemoryPermissionRevalidator(
             self.settings,
@@ -179,7 +179,7 @@ class Environment:
         self.assembler = ContextAssembler(self.settings, self.counter, permission_revalidator=self)
 
     def uid(self, key):
-        return uuid5(NAMESPACE_URL, "mem0:" + self.case.case_id + ":" + key)
+        return uuid5(NAMESPACE_URL, "memory-task:" + self.case.case_id + ":" + key)
 
     @contextmanager
     def request(self, scope=None):
@@ -189,7 +189,7 @@ class Environment:
                 owner_id=scope.owner_id,
                 application_id=scope.application_id,
                 workspace_id=scope.workspace_id,
-                request_id="mem0-synthetic",
+                request_id="memory-task-synthetic",
             )
         )
         try:
@@ -254,7 +254,7 @@ class Environment:
                 effective_at=source.observed_at,
                 created_at=source.observed_at,
                 embedding=(source.similarity, math.sqrt(1 - source.similarity**2), 0.0),
-                embedding_model="mem0-fake-v1",
+                embedding_model="fake-memory-model-v1",
                 embedding_dimensions=3,
             )
             record, _ = self.memories.create(record)
@@ -316,7 +316,7 @@ class Environment:
 
     def dependency(self, key):
         return ContextPermissionDependency(
-            permission_id="mem0_synthetic_source",
+            permission_id="memory-task-synthetic-source",
             version=self.version(key),
             purpose="synthetic benchmark source reuse",
             owner_id=self.case.scope.owner_id,
@@ -327,7 +327,7 @@ class Environment:
         return sha256((source.model_dump_json() + str(self.epochs[key])).encode()).hexdigest()
 
     def is_current(self, dependency):
-        if dependency.permission_id == "mem0_synthetic_source":
+        if dependency.permission_id == "memory-task-synthetic-source":
             return any(
                 self.eligible(key) and self.version(key) == dependency.version
                 for key in self.sources
@@ -358,8 +358,8 @@ class Environment:
                         owner_id=record.owner_id,
                         memory_id=record.id,
                         event_type="forgotten",
-                        reason_code="mem0_synthetic_source_transition",
-                        policy_version="mem0-v1",
+                        reason_code="memory-task-synthetic-source-transition",
+                        policy_version="memory-task-v1",
                         idempotency_key=f"{key}:{stage}:{change.kind}",
                         expected_state_version=state.state_version,
                         occurred_at=self.case.clock_utc,

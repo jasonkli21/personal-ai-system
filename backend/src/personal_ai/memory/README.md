@@ -57,8 +57,8 @@ verification. Memory-derived artifact writes remain prohibited.
 
 Run `make memory-knowledge-eval` and the focused `test_memory_knowledge*.py` tests.
 Native contracts live in `tests/persistence/test_verified_knowledge_postgres.py`.
-See the [ADR](../../../../docs/memory/mem-1-contract-adr.md) and
-[implementation report](../../../../docs/memory/mem-1-implementation-report.md).
+See [ADR 0009](../../../../docs/decisions/0009-simple-attributable-memory.md)
+for the accepted durable-memory boundary.
 
 ## Entry points and boundaries
 
@@ -151,10 +151,9 @@ consume that quota. All operation keys remain durable and are never pruned, so s
 growth and a safe compaction epoch remain operational concerns. Owner inventory/export
 includes both tables; `PostgresControlRepository.erase_owner` requires the existing
 owner fence for operator erasure. Cloud/backup physical deletion remains unverified.
-See the [control ADR](../../../../docs/memory/mem-2-control-adr.md),
-[report](../../../../docs/memory/mem-2-implementation-report.md),
-[review remediation](../../../../docs/memory/mem-2-review-remediation-2026-10-30.md) and
-[independent review handoff](../../../../docs/memory/mem-2-independent-review-handoff.md).
+See [ADR 0010](../../../../docs/decisions/0010-experimental-memory-lifecycle.md)
+for the accepted lifecycle and control boundaries. Historical evaluation records
+remain under `docs/memory/`.
 Run `make memory-control-eval`, `test_memory_control*.py` and opt-in native
 `tests/persistence/test_memory_control_postgres.py`. Synthetic checks do not close
 issuer/identity, physical-send, backup deletion, operation-ledger growth or live-model gates.

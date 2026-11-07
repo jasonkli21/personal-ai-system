@@ -44,7 +44,10 @@ def test_shared_evaluation_is_repeatable_and_proves_cross_conversation_baseline(
     first = evaluate()
     assert first == evaluate()
     assert all(r["result"] == "passed" for r in first)
-    assert all(not r["phase_2"]["required_cross_conversation_fact_available"] for r in first)
+    assert all(
+        not r["cross_conversation_baseline"]["required_cross_conversation_fact_available"]
+        for r in first
+    )
     assert (
         next(r for r in first if r["fixture"] == "edited-branch")["excluded"][0]["reason"]
         == "branch_mismatch"
@@ -408,7 +411,7 @@ def test_retrieval_failure_disabled_and_sensitive_query_fallback(monkeypatch):
     assert retriever.retrieve("local", pending.content, []).diagnostics == ("retrieval_failed",)
 
 
-def test_injection_preserves_phase_2_request_and_whole_record_budget():
+def test_injection_preserves_current_request_and_whole_record_budget():
     settings, _, messages, repo, _, _, pending, embedder = seeded("explicit-correction")
     retrieval = MemoryRetriever(settings, repo, messages, embedder).retrieve(
         "local", pending.content, []

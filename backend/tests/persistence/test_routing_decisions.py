@@ -127,7 +127,7 @@ def test_quota_snapshot_is_frozen_and_capacity_loss_reselects_without_dispatch(d
             source="provider_contract",
             confidence="verified",
             reservation_units_per_request=1,
-            evidence_reference="quota:phase23-test",
+            evidence_reference="quota:task-test",
             limit=100,
         )
         profiles.append(
@@ -148,7 +148,7 @@ def test_quota_snapshot_is_frozen_and_capacity_loss_reselects_without_dispatch(d
     )
     routing_task = RoutingTaskProfile(
         task_id="chat",
-        profile_id="task:phase23-quota",
+        profile_id="task:quota-window",
         profile_version=1,
         task_type="chat",
         required_capabilities=frozenset({"bounded_generation"}),
@@ -984,7 +984,7 @@ def test_staged_migration_preserves_legacy_audit_and_transfers_quota(database):
 
 
 def test_shadow_roundtrip_retention_scope_and_idempotency(database):
-    """P35 nested metadata remains in the canonical transactional decision JSON."""
+    """adaptive admission nested metadata remains in the canonical transactional decision JSON."""
     from personal_ai.routing.adaptive import (
         AdaptiveArtifact,
         BoundedCapacityStrategy,
@@ -1028,7 +1028,7 @@ def test_shadow_roundtrip_retention_scope_and_idempotency(database):
 
 
 def test_resource_projection_uses_claims_and_preserves_unknown(database):
-    """Real P19 read projection; reservations never masquerade as sends/usage."""
+    """Real quota read projection; reservations never masquerade as sends/usage."""
     owner, service, decision, prep, _repo, usage, _auth = setup(database)
     query = {"owner_id": owner, "scope": SCOPE, "request_id": decision.request.request_id,
              "run_id": decision.request.run_id}

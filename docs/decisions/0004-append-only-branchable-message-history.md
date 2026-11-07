@@ -5,7 +5,7 @@
 
 ## Context
 
-Phase 1 supports regenerate and edit-and-retry flows. Replacing an earlier message in place would discard the audit trail and make it impossible to represent alternate continuations of one conversation.
+The initial chat flow supports regenerate and edit-and-retry. Replacing an earlier message in place would discard the audit trail and make it impossible to represent alternate continuations of one conversation.
 
 ## Decision
 
@@ -14,5 +14,5 @@ Store messages append-only with parent and supersession relationships. Select th
 ## Consequences
 
 - Regeneration and edit-and-retry create new records rather than mutating message content or deleting prior output.
-- APIs and UI can show the active path without requiring a Phase 1 branch browser.
+- APIs and UI can show the active path without requiring a branch browser.
 - Repository and service logic must validate parent/supersession relationships and consistently derive the active path.

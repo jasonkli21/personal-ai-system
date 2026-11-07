@@ -2,14 +2,14 @@
 
 **Status:** accepted for local integration after independent coordinator review
 **Date:** 2026-10-03  
-**Scope:** upstream prerequisite for travel Phase 5 generation
+**Scope:** upstream prerequisite for travel itinerary generation
 
 ## Context
 
 The travel application has an internal strict proposal operation DTO and a
 deterministic preview validator, but the inspected upstream revision
 `0c397dcd92d8503581c0727a6da9a0fbadfe3e6f` does not expose an itinerary
-proposal capability. Travel Phase 5 requires a typed upstream result with
+proposal capability. Travel itinerary generation requires a typed upstream result with
 explicit support provenance and verified citations for research-backed
 operations before it can implement its proposal lifecycle. This ADR and
 [the proposed contract](../itinerary-proposal-contract.md) define an upstream

@@ -1,4 +1,4 @@
--- Default-off MEM-2: untrusted pending content and bounded, content-free receipts.
+-- Default-off untrusted pending content and bounded, content-free receipts.
 -- No new accepted knowledge state or in-place revision of schema 3.
 CREATE TABLE memory_control_proposals (
     scope_id text NOT NULL REFERENCES scope_namespaces(scope_id),

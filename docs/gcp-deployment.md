@@ -23,17 +23,17 @@ records. Cloud Run, Pub/Sub, Google end-user authentication, and Secret Manager
 remain on GCP. The application has no Firestore runtime path or migration
 command.
 
-P10.6 runtime wiring and Firestore dependency removal are implemented locally.
+Current local runtime wiring uses Postgres and DynamoDB without a Firestore dependency.
 The user reports that Firestore was never deployed and no source data exists;
 no cloud-account inventory independently verified that report, and no data
-migration occurred. See the [P10.6 evidence](personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md)
-for code checks, skipped target-engine/cloud checks, and remaining release gaps.
+migration occurred. See the [local persistence guide](local-persistence.md) for code
+checks, skipped target-engine/cloud checks, and remaining release gaps.
 
 ## Static preflight
 
 Run `make cloud-plan-check` for the checked-in synthetic manifest. Use a local
 proposal and approved baseline for a redacted review of policy and drift.
-The [deployment runbook](platform-independence/pi-7-operations-runbook.md#static-cloud-plan)
+The [platform-independence guide](platform-independence/README.md)
 describes the profile, identity, ingress, IAM, storage and cost requirements.
 
 The current `deploy.sh` entrypoint runs the static planner. It refuses
@@ -65,9 +65,9 @@ This starts local Postgres/pgvector and DynamoDB Local. Run `make persistence-te
 and `make persistence-test` for the isolated integration stack when Docker is
 available. `make persistence-clean` is destructive to local persistence volumes.
 
-After a deployment, use the [identity controls release checklist](phase-9-release-checklist.md)
+After a deployment, use the [security contract](../SECURITY.md)
 for authentication, safeguards, and account workflows, and the
-[persistence boundary migration/cutover verification plan](personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md)
+[local persistence guide](local-persistence.md)
 for target-store persistence, recovery, IAM, and release evidence. The conversation API
 deployment checklist is a historical Firestore procedure and must not be used
 for current deployments. A successful `/api/health` response confirms only

@@ -1,4 +1,4 @@
-"""Closed PI-6 v2 inputs and content-free observations."""
+"""Closed offline information handling v2 inputs and content-free observations."""
 
 from __future__ import annotations
 
@@ -7,24 +7,25 @@ import importlib.metadata
 import importlib.resources
 import importlib.util
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from personal_ai.evaluation.source_contracts import (
+    OFFLINE_BENCHMARK_MANIFEST_FILENAME,
+    OFFLINE_BENCHMARK_PROTOCOL_FILES,
+    OFFLINE_BENCHMARK_SOURCE_CONTRACT,
+    source_file_differences,
+)
+
 PACKAGE = importlib.resources.files("personal_ai.evaluation")
 FAMILIES = ("one_app", "profile", "memory", "branch", "research", "retrieval", "provider", "replay")
 SOURCE_BYTE_LIMIT = 8192
 MEMORY_COMMANDS = ("make backend-lint", "make backend-test-offline", "make memory-eval")
-V2_PROTOCOL_FILES = {
-    "scoring": "pi6_scoring.py",
-    "contracts": "pi6_contracts.py",
-    "driver": "pi6_driver.py",
-    "runner": "pi6.py",
-    "http": "pi6_http.py",
-    "audit": "pi6_audit.py",
-}
-PROTOCOL_MANIFEST = "manifest-v2-source-9.json"
+V2_PROTOCOL_FILES = OFFLINE_BENCHMARK_PROTOCOL_FILES
+PROTOCOL_MANIFEST = OFFLINE_BENCHMARK_MANIFEST_FILENAME
 OPTIONAL_PACKAGES = {
     "reading_logbook_client": ("reading_logbook", "reading-logbook-client"),
     "reading_logbook_host": ("reading_logbook_host", "reading-logbook-host"),
@@ -75,7 +76,7 @@ class Oracle(Closed):
 
 
 class Case(Closed):
-    case_id: str = Field(pattern=r"^P6(?:V2)?-[A-H][1-4]$")
+    case_id: str = Field(pattern=r"^[A-Z0-9]{2,8}-[A-H][1-4]$")
     lineage: str = Field(pattern=r"^[a-z]{4,30}$")
     source_configuration: str = Field(pattern=r"^[a-z]{4,30}$")
     split: Literal["calibration", "heldout"]
@@ -87,8 +88,8 @@ class Case(Closed):
 
 
 class Corpus(Closed):
-    suite: Literal["pi6-offline-v1", "pi6-offline-v2"]
-    rubric: Literal["pi6-rubric-v1", "pi6-rubric-v2"]
+    suite: str
+    rubric: str
     seed: Literal[61, 62]
     input_cap: Literal[32768]
     output_cap: Literal[256]
@@ -115,10 +116,8 @@ class Corpus(Closed):
                 "transition",
             }:
                 raise ValueError("family_variants")
-        expected = "pi6-offline-v2" if self.seed == 62 else "pi6-offline-v1"
-        expected_rubric = "pi6-rubric-v2" if self.seed == 62 else "pi6-rubric-v1"
-        if self.suite != expected or self.rubric != expected_rubric:
-            raise ValueError("suite_version_mismatch")
+        if not self.suite or not self.rubric:
+            raise ValueError("suite_identity_missing")
         if any(
             c.provenance
             != ("authored_synthetic_v2" if self.seed == 62 else "authored_synthetic_v1")
@@ -155,27 +154,63 @@ def _package_tree_digest(package_name: str, *, exclude: tuple[str, ...] = ()) ->
             and path.suffix in {".py", ".json"}
             and "__pycache__" not in path.parts
             and relative not in exclude
+            and not (
+                package_name == "personal_ai"
+                and relative.startswith("evaluation/fixtures/offline_information_handling/")
+                and (
+                    re.fullmatch(
+                        r"evaluation/fixtures/offline_information_handling/manifest-v[12]\.json",
+                        relative,
+                    )
+                    or re.fullmatch(
+                        r"evaluation/fixtures/offline_information_handling/source-manifest-v2-generation-\d+\.json",
+                        relative,
+                    )
+                )
+            )
         ):
             entries.append((relative, sha(path.read_bytes())))
     return sha(canonical(entries).encode())
+
+
+def _package_tree_entries(package_name: str) -> dict[str, str] | None:
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    root = Path(next(iter(spec.submodule_search_locations))).resolve()
+    entries = {}
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if (
+            not path.is_file()
+            or path.suffix not in {".py", ".json"}
+            or "__pycache__" in path.parts
+        ):
+            continue
+        if (
+            package_name == "personal_ai"
+            and relative.startswith("evaluation/fixtures/offline_information_handling/")
+            and (
+                re.fullmatch(
+                    r"evaluation/fixtures/offline_information_handling/manifest-v[12]\.json",
+                    relative,
+                )
+                or re.fullmatch(
+                    r"evaluation/fixtures/offline_information_handling/source-manifest-v2-generation-\d+\.json",
+                    relative,
+                )
+            )
+        ):
+            continue
+        entries[relative] = sha(path.read_bytes())
+    return entries
 
 
 def current_protocol_hashes() -> tuple[dict[str, str], tuple[str, ...]]:
     hashes = {}
     for key, name in V2_PROTOCOL_FILES.items():
         hashes[key] = sha(PACKAGE.joinpath(name).read_bytes())
-    hashes["core_runtime"] = _package_tree_digest(
-        "personal_ai", exclude=(
-            "evaluation/fixtures/pi6/manifest-v2.json",
-            "evaluation/fixtures/pi6/manifest-v2-source-3.json",
-            "evaluation/fixtures/pi6/manifest-v2-source-4.json",
-            "evaluation/fixtures/pi6/manifest-v2-source-5.json",
-            "evaluation/fixtures/pi6/manifest-v2-source-6.json",
-            "evaluation/fixtures/pi6/manifest-v2-source-7.json",
-            "evaluation/fixtures/pi6/manifest-v2-source-8.json",
-            f"evaluation/fixtures/pi6/{PROTOCOL_MANIFEST}",
-        ),
-    )
+    hashes["core_runtime"] = _package_tree_digest("personal_ai")
     missing = []
     for key, (module, distribution) in OPTIONAL_PACKAGES.items():
         digest = _package_tree_digest(module)
@@ -187,36 +222,86 @@ def current_protocol_hashes() -> tuple[dict[str, str], tuple[str, ...]]:
 
 
 def _read_manifest(name: str) -> dict:
-    value = json.loads(PACKAGE.joinpath("fixtures", "pi6", name).read_bytes())
-    expected = {"suite", "hashes", "preregistration", "frozen_before_measurement"}
-    if set(value) != expected or value["frozen_before_measurement"] is not True:
+    value = json.loads(PACKAGE.joinpath("fixtures", "offline_information_handling", name).read_bytes())
+    legacy = {"suite", "hashes", "preregistration", "frozen_before_measurement"}
+    versioned = legacy | {
+        "schema_version",
+        "source_contract_version",
+        "source_generation",
+        "supersedes",
+        "source_revision",
+        "source_revision_binding",
+        "changed_protocols",
+        "source_files",
+        "legacy_corpus_identity",
+    }
+    if value.get("schema_version") == 3:
+        valid_shape = set(value) == versioned
+        valid_contract = (
+            value.get("source_contract_version") == OFFLINE_BENCHMARK_SOURCE_CONTRACT
+            and type(value.get("source_generation")) is int
+            and value.get("source_generation") >= 10
+            and value.get("supersedes")
+            == f"source-manifest-v2-generation-{value.get('source_generation') - 1}"
+            and isinstance(value.get("source_revision"), str)
+            and bool(value.get("source_revision_binding"))
+            and isinstance(value.get("changed_protocols"), list)
+            and isinstance(value.get("source_files"), dict)
+            and isinstance(value.get("legacy_corpus_identity"), dict)
+            and value.get("suite") == "offline-information-handling-v2"
+        )
+    else:
+        valid_shape = set(value) == legacy
+        valid_contract = True
+    if not valid_shape or not valid_contract or value["frozen_before_measurement"] is not True:
         raise ValueError("manifest_invalid")
     return value
 
 
 def load_historical_v1() -> tuple[Corpus, dict]:
     """Read preserved v1 cases; do not treat the v1 manifest as a current protocol."""
-    raw = PACKAGE.joinpath("fixtures", "pi6", "cases-v1.json").read_bytes()
+    raw = PACKAGE.joinpath("fixtures", "offline_information_handling", "cases-v1.json").read_bytes()
     manifest = _read_manifest("manifest-v1.json")
-    if manifest["suite"] != "pi6-offline-v1" or manifest["hashes"].get("cases") != sha(raw):
+    corpus = Corpus.model_validate_json(raw)
+    if corpus.suite != manifest["suite"] or manifest["hashes"].get("cases") != sha(raw):
         raise ValueError("historical_v1_fixture_identity_mismatch")
-    return Corpus.model_validate_json(raw), manifest
+    return corpus, manifest
 
 
 def load_corpus() -> tuple[Corpus, dict]:
     """Load v2 and bind all locally available protocol and consumer sources."""
-    raw = PACKAGE.joinpath("fixtures", "pi6", "cases-v2.json").read_bytes()
+    raw = PACKAGE.joinpath("fixtures", "offline_information_handling", "cases-v2.json").read_bytes()
     manifest = _read_manifest(PROTOCOL_MANIFEST)
     current, missing = current_protocol_hashes()
-    if manifest["suite"] != "pi6-offline-v2" or manifest["hashes"].get("cases") != sha(raw):
+    corpus = Corpus.model_validate_json(raw)
+    if (
+        manifest.get("suite") != "offline-information-handling-v2"
+        or manifest.get("legacy_corpus_identity")
+        != {"suite": corpus.suite, "rubric": corpus.rubric}
+        or manifest["hashes"].get("cases") != sha(raw)
+    ):
         raise ValueError("frozen_identity_mismatch")
     if any(manifest["hashes"].get(key) != value for key, value in current.items()):
         raise ValueError("frozen_protocol_mismatch")
     required = {"cases"} | set(V2_PROTOCOL_FILES) | set(OPTIONAL_PACKAGES) | {"core_runtime"}
     if set(manifest["hashes"]) != required:
         raise ValueError("frozen_manifest_shape_mismatch")
-    corpus = Corpus.model_validate_json(raw)
-    if corpus.suite != manifest["suite"] or not manifest["preregistration"]:
+    if manifest.get("schema_version") == 3:
+        for key, module in {
+            "core_runtime": "personal_ai",
+            "reading_logbook_client": "reading_logbook",
+            "reading_logbook_host": "reading_logbook_host",
+        }.items():
+            actual = _package_tree_entries(module)
+            if actual is None:
+                continue
+            expected = manifest["source_files"].get(key)
+            if not isinstance(expected, dict):
+                raise ValueError(f"frozen_source_files_missing:{key}")  # noqa: TRY004
+            differences = source_file_differences(expected, actual, limit=1)
+            if differences:
+                raise ValueError(f"frozen_source_file_mismatch:{key}:{differences[0]}")
+    if not manifest["preregistration"]:
         raise ValueError("frozen_identity_mismatch")
     return corpus, {**manifest, "missing_dependencies": list(missing)}
 

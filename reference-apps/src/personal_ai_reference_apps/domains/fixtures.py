@@ -61,7 +61,7 @@ class DomainFixtureCase:
 
 
 def _id(value: str) -> UUID:
-    return uuid5(NAMESPACE_URL, f"phase7-fixture:{value}")
+    return uuid5(NAMESPACE_URL, f"domain-demo-fixture:{value}")
 
 
 def _literal(value: TypedValue) -> str:

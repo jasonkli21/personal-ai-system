@@ -1,4 +1,4 @@
-"""Isolated PI-6 offline evaluator with fail-closed coverage and native fencing."""
+"""Isolated offline information handling offline evaluator with fail-closed coverage and native fencing."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ import sys
 from hashlib import sha256
 from time import perf_counter, process_time
 
-from personal_ai.evaluation.pi6_audit import (
+from personal_ai.evaluation.evaluation_effect_audit import (
     BoundedTextSink,
     EffectAudit,
     install_python_network_fence,
 )
-from personal_ai.evaluation.pi6_contracts import (
+from personal_ai.evaluation.offline_information_contracts import (
     OPTIONAL_PACKAGES,
     Observation,
     Task,
@@ -27,7 +27,7 @@ from personal_ai.evaluation.pi6_contracts import (
     canonical,
     load_corpus,
 )
-from personal_ai.evaluation.pi6_scoring import aggregate, score
+from personal_ai.evaluation.offline_information_scoring import aggregate, score
 
 OPERATION_DEADLINE_SECONDS = 5
 SUITE_DEADLINE_SECONDS = 300
@@ -62,8 +62,8 @@ def _worker(task_data, arm, connection, driver, require_native):
     # This process is the isolation boundary. Keep its streams redirected through
     # os._exit so late worker-thread output cannot reach the parent process.
     sys.stdout, sys.stderr = stdout, stderr
-    from personal_ai.evaluation.pi6_audit import bind_audit
-    from personal_ai.evaluation.pi6_driver import dispatch
+    from personal_ai.evaluation.evaluation_effect_audit import bind_audit
+    from personal_ai.evaluation.offline_task_driver import dispatch
 
     started_cpu = process_time()
     native_fence = "unverified"
@@ -142,7 +142,7 @@ def _worker(task_data, arm, connection, driver, require_native):
         try:
             connection.send_bytes(b"{}")
         except Exception:  # noqa: BLE001 - parent observes the closed/crashed worker.
-            logging.getLogger(__name__).debug("pi6_worker_result_unavailable")
+            logging.getLogger(__name__).debug("offline_information_handling_worker_result_unavailable")
     finally:
         connection.close()
     # Terminate daemon threads that might outlive their owning task.
@@ -372,7 +372,7 @@ def evaluate(*, emit=None, require_native=True):
             if emit:
                 safe_copy = json.loads(canonical(row))
                 if len(canonical(safe_copy).encode()) > MAX_RESULT_BYTES:
-                    raise ValueError("pi6_row_output_cap_exceeded")
+                    raise ValueError("offline_information_handling_row_output_cap_exceeded")
                 emit(safe_copy)
     analysis = aggregate(rows, corpus)
     all_native = require_native and all(
@@ -447,11 +447,11 @@ def evaluate(*, emit=None, require_native=True):
                 "reason": "task_has_no_durable_memory",
             },
         ],
-        "pi5_completion": "blocked_unverified",
-        "pi6_offline_evaluation": "complete_local"
+        "completion_status": "blocked_unverified",
+        "offline_evaluation": "complete_local"
         if analysis["evaluation_complete"]
         else "changes_required",
-        "pi6_production_promotion": "no_go",
+        "offline_information_handling_production_promotion": "no_go",
     }
 
 
@@ -462,7 +462,7 @@ def main():
     result = evaluate(require_native=True)
     payload = canonical(result) + "\n"
     if len(payload.encode()) > 10_000_000:
-        raise SystemExit("PI6 result exceeds fixed output limit")
+        raise SystemExit("OFFLINE_BENCHMARK result exceeds fixed output limit")
     from pathlib import Path
 
     output = Path(args.output)

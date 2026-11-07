@@ -1,7 +1,7 @@
-# PI-4 profile consent API and operations
+# Profile consent API and operations
 
 2026-10-30. Local implementation candidate, pending separate independent review.
-The PI-2 consumer OpenAPI/version is unchanged. These are owner management routes,
+The consumer OpenAPI/version is unchanged. These are owner management routes,
 not additional external-app capabilities. Browser controls are not delivered;
 grant management is through the documented API using the existing authenticated
 gateway. The separate [owner memory panel](../memory/owner-portability.md)
@@ -15,7 +15,7 @@ an affirmative grant for one expressly user-set `preferred_units`, `locale`,
 `response_style` or `answer_length`. No inferred records, arbitrary notes, Health,
 Finance or app-private memory are shareable. The exact-record memory view reports
 `available: false`, `original_source_authority_unavailable`; it performs no reads,
-provider calls or embeddings. MEM-3+ remains frozen.
+provider calls or embeddings. Future memory lifecycle capabilities remain frozen.
 
 Management requires a verified Google owner with recent upstream authentication,
 the builtin UI OAuth audience/authorized party, `personal_ai`, null workspace and
@@ -23,7 +23,7 @@ the exact issuer|subject actor. Development identity and external app clients
 cannot manage grants. Do not expose this endpoint as a model tool. Recipient
 registration, exact workspace membership, operation/field/sensitivity policy and
 current owner/client rights are checked separately. Provider privacy, approved
-counter, strict-free admission and reservations remain PI-3's independent gates.
+counter, strict-free admission and reservations remain separate independent gates.
 A grant does not authorize a provider or make shared data eligible for extraction.
 
 ## Owner workflow
@@ -166,4 +166,4 @@ After restoring a backup, leave sharing **disabled** until all post-backup
 revocations, owner deletion fences and original-key receipts have been reconciled.
 Restoring a stale database is not proof of non-resurrection. Production restore,
 physical erasure, real identity/membership/provider behavior, Linux/Python 3.12,
-browser UX and independent PI-0–4 acceptance remain open gates.
+browser UX and independent platform acceptance remain open gates.

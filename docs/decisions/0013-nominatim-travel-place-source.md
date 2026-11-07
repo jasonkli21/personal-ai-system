@@ -2,13 +2,13 @@
 
 Date: 2026-10-02
 
-Status: Accepted for the Phase 7 adapter; disabled by default
+Status: Accepted for the Nominatim adapter; disabled by default
 
 ## Decision
 
 Use OpenStreetMap Nominatim only for an explicit, user-submitted place or area
 lookup. Travel keeps source records, typed location claims, constraints, and
-ranking inside the Phase 5–6 platform. Nominatim supplies place identity,
+ranking inside the research and decision-support capabilities. Nominatim supplies place identity,
 coordinates, place type, and a public OpenStreetMap source link. It does not
 supply lodging rates, current availability, reservations, or travel-time
 guarantees.

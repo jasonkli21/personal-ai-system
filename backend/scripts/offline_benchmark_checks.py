@@ -1,4 +1,4 @@
-"""Native loopback-only PI-6 runner and adversarial checks; no remote transport."""
+"""Native loopback-only offline information handling runner and adversarial checks; no remote transport."""
 
 import errno
 import os
@@ -16,7 +16,7 @@ PROFILE = """(version 1)(allow default)(deny network*)
 def main():
     if "--fenced" not in sys.argv:
         if sys.platform != "darwin":
-            raise SystemExit("PI6 requires reviewed equivalent native fence on this OS")
+            raise SystemExit("OFFLINE_BENCHMARK requires reviewed equivalent native fence on this OS")
         env = {
             "PATH": os.environ["PATH"],
             "TMPDIR": "/tmp",
@@ -56,9 +56,9 @@ def main():
                 probe.connect(address)
             except OSError as error:
                 if error.errno not in {errno.EPERM, errno.EACCES}:
-                    raise RuntimeError("pi6_native_fence_not_proven") from None
+                    raise RuntimeError("offline_information_handling_native_fence_not_proven") from None
             else:
-                raise RuntimeError("pi6_native_fence_absent")
+                raise RuntimeError("offline_information_handling_native_fence_absent")
     attempts = []
 
     def fence(event, args):
@@ -70,11 +70,11 @@ def main():
             denied = not isinstance(address, tuple) or address[0] not in {"127.0.0.1", "::1"}
         if denied:
             attempts.append(event)
-            raise PermissionError("pi6_network_denied")
+            raise PermissionError("offline_information_handling_network_denied")
 
     sys.addaudithook(fence)
     try:
-        socket.getaddrinfo("pi6-egress.invalid", 443)
+        socket.getaddrinfo("offline_information_handling-egress.invalid", 443)
     except PermissionError:
         pass
     assert attempts == ["socket.getaddrinfo"]
@@ -83,18 +83,18 @@ def main():
     import pytest
 
     result = pytest.main(
-        ["-p", "anyio.pytest_plugin", "-q", "--tb=short", "backend/tests/test_pi6.py"]
+        ["-p", "anyio.pytest_plugin", "-q", "--tb=short", "backend/tests/test_offline_information_handling.py"]
     )
     test_only = "--test-only" in sys.argv
     if not result and not test_only:
-        from personal_ai.evaluation.pi6 import main as benchmark
+        from personal_ai.evaluation.offline_information_handling import main as benchmark
 
-        output = ROOT / "artifacts/pi6/benchmark.json"
+        output = ROOT / "artifacts/offline_information_handling/benchmark.json"
         sys.argv = [sys.argv[0], "--output", str(output)]
         result = benchmark()
     print(
-        f"PI6_NATIVE_REMOTE_DENIAL=passed PI6_SAME_PROCESS_PYTHON_DENIAL=passed "
-        f"PI6_FORBIDDEN_PYTHON_ATTEMPTS={len(attempts)}"
+        f"OFFLINE_BENCHMARK_NATIVE_REMOTE_DENIAL=passed OFFLINE_BENCHMARK_SAME_PROCESS_PYTHON_DENIAL=passed "
+        f"OFFLINE_BENCHMARK_FORBIDDEN_PYTHON_ATTEMPTS={len(attempts)}"
     )
     return 3 if attempts else result
 

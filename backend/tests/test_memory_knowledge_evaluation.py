@@ -44,12 +44,12 @@ def test_two_semantic_replays_have_distinct_target_outcomes_and_honest_legacy():
     assert all(not row["invariant_violations"] for row in first)
     metrics = evaluation.aggregate(first)
     assert metrics["fixed"]["denominator"] == 0 and metrics["fixed"]["unsupported"] == 20
-    assert metrics["none"]["denominator"] == metrics["mem1_verified_knowledge"]["denominator"] == 20
-    assert metrics["mem1_verified_knowledge"]["task_passed"] == 20
-    assert metrics["mem1_verified_knowledge"]["admission_false_positive"] == 0
-    assert metrics["mem1_verified_knowledge"]["admission_false_negative"] == 0
+    assert metrics["none"]["denominator"] == metrics["verified_knowledge"]["denominator"] == 20
+    assert metrics["verified_knowledge"]["task_passed"] == 20
+    assert metrics["verified_knowledge"]["admission_false_positive"] == 0
+    assert metrics["verified_knowledge"]["admission_false_negative"] == 0
     assert (
-        metrics["mem1_verified_knowledge"]["repeated_discovery"]
+        metrics["verified_knowledge"]["repeated_discovery"]
         < metrics["none"]["repeated_discovery"]
     )
     for row in first:
@@ -78,9 +78,9 @@ def test_two_semantic_replays_have_distinct_target_outcomes_and_honest_legacy():
 )
 def test_single_fault_negative_positive_twins_change_consumption(fault):
     case = next(c for c in evaluation.load_corpus().cases if c.fault == fault)
-    negative = evaluation.run_case(case, "mem1_verified_knowledge")
+    negative = evaluation.run_case(case, "verified_knowledge")
     positive = evaluation.run_case(
-        case.model_copy(update={"fault": "none"}), "mem1_verified_knowledge"
+        case.model_copy(update={"fault": "none"}), "verified_knowledge"
     )
     assert not negative["used"]
     assert positive["used"]
@@ -125,7 +125,7 @@ def test_counterfactual_trace_mutations_fail_execution(fault, monkeypatch):
         return outcome
 
     monkeypatch.setattr(evaluation, "run_driver", mutate)
-    row = evaluation.run_case(case, "mem1_verified_knowledge")
+    row = evaluation.run_case(case, "verified_knowledge")
     assert row["execution_status"] == "failed"
     assert row["invariant_violations"]
     assert not row["task_passed"]
@@ -161,5 +161,5 @@ def test_gold_and_review_metadata_are_not_driver_input(monkeypatch):
             update={"review_rationale": "RUBRIC_CANARY_must_not_reach_driver", "split": "holdout"}
         )
     )
-    assert evaluation.run_case(case, "mem1_verified_knowledge")["task_passed"]
+    assert evaluation.run_case(case, "verified_knowledge")["task_passed"]
     assert "RUBRIC_CANARY" not in " ".join(captured)

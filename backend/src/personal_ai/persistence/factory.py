@@ -268,7 +268,7 @@ class PostgresDynamoPersistenceFactory:
         self, settings, *, authorization, evaluation_quality_authority=None,
         adaptive_strategy_registry=None,
     ):
-        """Canonical internal P21 runtime; no permissive default authorization."""
+        """Canonical internal dispatch lifecycle runtime; no permissive default authorization."""
         from personal_ai.routing.adaptive import configured_routing_strategy
         from personal_ai.routing.service import RoutingDecisionService
 
@@ -342,7 +342,7 @@ _FACTORIES: dict[tuple[str, ...], PostgresDynamoPersistenceFactory] = {}
 def _factory_key(settings) -> tuple[str, ...]:
     cloud = settings.app_environment in {"staging", "production"}
     postgres_dsn = (
-        settings.p10_neon_runtime_dsn.get_secret_value()
+        settings.deployed_neon_runtime_dsn.get_secret_value()
         if cloud
         else settings.persistence_local_postgres_dsn.get_secret_value()
     )
@@ -353,20 +353,20 @@ def _factory_key(settings) -> tuple[str, ...]:
         str(cloud),
         postgres_key,
         endpoint,
-        settings.p10_dynamodb_region,
-        settings.p10_dynamodb_table_name,
-        settings.p10_dynamodb_role_arn,
-        settings.p10_dynamodb_identity_token_audience,
-        str(settings.p10_neon_pool_max_size),
+        settings.deployed_dynamodb_region,
+        settings.deployed_dynamodb_table_name,
+        settings.deployed_dynamodb_role_arn,
+        settings.deployed_dynamodb_identity_token_audience,
+        str(settings.deployed_neon_pool_max_size),
     )
 
 
 def persistence_factory(settings) -> PersistenceFactory:
     """Return the configured runtime factory without cloud/local fallback."""
     cloud = settings.app_environment in {"staging", "production"}
-    if cloud and not settings.p10_cloud_adapters_configured:
+    if cloud and not settings.deployed_persistence_enabled:
         raise RuntimeError("deployed_polyglot_persistence_required")
-    if not cloud and settings.p10_cloud_adapters_configured:
+    if not cloud and settings.deployed_persistence_enabled:
         raise RuntimeError("cloud_persistence_requires_deployed_environment")
 
     key = _factory_key(settings)
@@ -382,16 +382,16 @@ def persistence_factory(settings) -> PersistenceFactory:
             from personal_ai.persistence.postgres.neon import NeonRuntimeDatabase
 
             database = NeonRuntimeDatabase(
-                settings.p10_neon_runtime_dsn.get_secret_value(),
+                settings.deployed_neon_runtime_dsn.get_secret_value(),
                 environment=settings.app_environment,
-                max_size=settings.p10_neon_pool_max_size,
+                max_size=settings.deployed_neon_pool_max_size,
             )
             table = FederatedDynamoDBRuntimeTable(
                 FederatedDynamoDBConfig(
-                    region=settings.p10_dynamodb_region,
-                    table_name=settings.p10_dynamodb_table_name,
-                    role_arn=settings.p10_dynamodb_role_arn,
-                    identity_token_audience=settings.p10_dynamodb_identity_token_audience,
+                    region=settings.deployed_dynamodb_region,
+                    table_name=settings.deployed_dynamodb_table_name,
+                    role_arn=settings.deployed_dynamodb_role_arn,
+                    identity_token_audience=settings.deployed_dynamodb_identity_token_audience,
                 )
             )
         else:
@@ -404,8 +404,8 @@ def persistence_factory(settings) -> PersistenceFactory:
             )
             table = DynamoDBRuntimeTable(
                 settings.persistence_local_dynamodb_endpoint,
-                table_name=settings.p10_dynamodb_table_name,
-                region=settings.p10_dynamodb_region,
+                table_name=settings.deployed_dynamodb_table_name,
+                region=settings.deployed_dynamodb_region,
             )
         factory = PostgresDynamoPersistenceFactory(database, table)
         _FACTORIES[key] = factory

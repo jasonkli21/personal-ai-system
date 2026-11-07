@@ -63,7 +63,7 @@ test suite was split; the hotspot priorities above remain unchanged.
 
 ## Large generated/frozen artifacts
 
-PAI's adaptive observations, Phase36 receipts/matrix and held-out context fixtures
+PAI's adaptive observations, verification receipts/matrix and held-out context fixtures
 remain frozen semantic evidence. Finance/Health/Shopping generated public API
 contracts and dependency locks remain outputs of owning generators. The inventory
 is generated diagnostic metadata, not runtime input. Do not compact or refresh

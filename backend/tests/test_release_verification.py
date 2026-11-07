@@ -50,7 +50,7 @@ def external_receipt(row, *, receipt_id="receipt-1", **updates):
         "source_configuration_sha256": "c" * 64,
         "environment_configuration_sha256": "d" * 64,
         "profile_identities": {"environment": "reviewed-fixture-v1"},
-        "artifact_ref": "evidence://reviewed/phase36",
+        "artifact_ref": "evidence://reviewed/verification",
         "artifact_sha256": "e" * 64,
         "recorded_at": now,
         "expires_at": now + timedelta(days=1),
@@ -128,7 +128,7 @@ def test_teardown_failure_skips_and_incomplete_collection_remain_visible(monkeyp
     collector = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(collector)
     output = tmp_path / "receipt.json"
-    monkeypatch.setenv("PHASE36_RECEIPTS", str(output))
+    monkeypatch.setenv("VERIFICATION_RECEIPTS", str(output))
     collector.pytest_collection_finish(
         SimpleNamespace(
             items=[
@@ -224,7 +224,7 @@ def test_source_identity_binds_new_and_dirty_code_but_not_generated_evidence(tmp
     template.write_text("changed infrastructure input")
     assert source_identity(tmp_path) != unchanged
     unchanged = source_identity(tmp_path)
-    generated = tmp_path / "docs/personal-ai-chapter-2/phase-36/receipts.json"
+    generated = tmp_path / "docs/personal-ai-chapter-2/verification/receipts.json"
     generated.parent.mkdir(parents=True, exist_ok=True)
     generated.write_text("generated")
     assert source_identity(tmp_path) == unchanged
@@ -402,7 +402,7 @@ def test_external_receipt_manifest_is_merged_into_the_generated_report(monkeypat
     def execute(command, **kwargs):
         if command[0] == "git":
             return SimpleNamespace(stdout="a" * 40 + "\n")
-        Path(kwargs["env"]["PHASE36_RECEIPTS"]).write_text(
+        Path(kwargs["env"]["VERIFICATION_RECEIPTS"]).write_text(
             json.dumps({"exit_code": 0, "cases": []})
         )
         return SimpleNamespace(returncode=0)
@@ -439,7 +439,7 @@ def test_runner_never_executes_external_refs_and_reports_incomplete_batch(monkey
         commands.append(command)
         if command[0] == "git":
             return SimpleNamespace(stdout="fixture-head\n")
-        Path(kwargs["env"]["PHASE36_RECEIPTS"]).write_text(
+        Path(kwargs["env"]["VERIFICATION_RECEIPTS"]).write_text(
             json.dumps(
                 {
                     "exit_code": 2,

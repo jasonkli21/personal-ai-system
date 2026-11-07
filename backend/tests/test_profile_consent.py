@@ -58,7 +58,7 @@ def runtime():
     now = datetime.now(UTC)
     clock = [now]
     principal = AuthenticatedPrincipal(
-        issuer="https://accounts.google.com", subject="synthetic-owner", owner_id="usr_pi4",
+        issuer="https://accounts.google.com", subject="synthetic-owner", owner_id="usr_profile_test",
         email="synthetic@gmail.com", issued_at=int(time.time()), authenticated=True,
         authenticated_at=int(time.time()), audience="builtin-ui", authorized_party="builtin-ui",
         expires_at=int(time.time()) + 3600,
@@ -77,7 +77,7 @@ def runtime():
         ),), workspace_authorizers={"unrelated_reader": Membership()},
     ))
     settings = Settings(
-        _env_file=None, ai_provider="fake", ai_model="pi4-fake", profile_sharing_enabled=True,
+        _env_file=None, ai_provider="fake", ai_model="test-profile-model", profile_sharing_enabled=True,
         app_environment="test", auth_mode="google_oidc", auth_required=True,
         auth_audience="builtin-ui", auth_allowed_emails=("synthetic@gmail.com",),
     )
@@ -88,7 +88,7 @@ def runtime():
     )))
     scope = RequestScope(
         owner_id=principal.owner_id, acting_user_id=actor, application_id="unrelated_reader",
-        workspace_id="shelf", request_id="pi4-synthetic",
+        workspace_id="shelf", request_id="profile-consent-test",
     )
     registration = registry.registration(scope.application_id)
     context = ApplicationContextRequest(
@@ -211,7 +211,7 @@ def test_reuse_snapshot_and_assistant_history_denied(change):
             "id": uuid4(), "role": MessageRole.ASSISTANT, "parent_message_id": user.id,
             "content": "Old metric answer", "attribution": TurnAttribution(
                 fact_source="server_observed", execution_origin="automatic_managed", recorded_at=r.now,
-                provider_id="synthetic", model_id="pi4",
+                provider_id="synthetic", model_id="test-profile-model",
                 source_snapshots=(snapshot,),
             ),
         })
@@ -443,7 +443,7 @@ def chat_runtime(r, model=None):
     conversations = InMemoryConversationRepository()
     messages = InMemoryMessageRepository(conversations)
     conversation = Conversation(
-        id=uuid4(), owner_id=r.scope.owner_id, title="Synthetic PI4",
+        id=uuid4(), owner_id=r.scope.owner_id, title="Synthetic profile consent",
         application_id=r.scope.application_id, workspace_id=r.scope.workspace_id, scope_version=2,
         created_at=r.now, updated_at=r.now,
     )
@@ -550,7 +550,7 @@ def inherited_history(r, snapshot):
             "content": "metric " + "historical " * 35,
             "attribution": TurnAttribution(
                 fact_source="server_observed", execution_origin="automatic_managed",
-                provider_id="synthetic", model_id="pi4", recorded_at=r.now,
+                provider_id="synthetic", model_id="test-profile-model", recorded_at=r.now,
                 source_snapshots=(snapshot,),
             ),
         })

@@ -1,4 +1,4 @@
--- Phase 34: reconstruct narrow lifecycle validity epochs for historical projections.
+-- memory validity: reconstruct narrow lifecycle validity epochs for historical projections.
 -- Hermetic SQL: no runtime imports or mutable policy definitions.
 UPDATE memory_lifecycle_states AS state
 SET payload = state.payload || jsonb_build_object(

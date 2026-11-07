@@ -12,14 +12,15 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/platform_dependency_inve
 SPEC = importlib.util.spec_from_file_location("pi_inventory", SCRIPT)
 guard = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(guard)
+WAIVER_POLICY = "platform-independence"
 
 
 def waiver(importer="personal_ai.main", target="personal_ai.context.travel"):
     return {
         "from": importer,
         "to": target,
-        "rationale": "Retain legacy composition until PI-1",
-        "phase": "PI-1",
+        "rationale": "Retain legacy composition until the imports are migrated.",
+        "policy": WAIVER_POLICY,
         "review_status": "implementation-reviewed; independent-pending",
     }
 
@@ -28,8 +29,8 @@ def facade_waiver(importer="personal_ai.main", target="personal_ai.api.domains")
     return {
         "from": importer,
         "to": target,
-        "rationale": "Retain legacy example-facing composition until PI-1",
-        "phase": "PI-1",
+        "rationale": "Retain legacy example-facing composition until the imports are migrated.",
+        "policy": WAIVER_POLICY,
         "review_status": "implementation-reviewed; independent-pending",
     }
 
@@ -171,7 +172,7 @@ class InventoryTests(unittest.TestCase):
             dict(waiver(), to="personal_ai.*"),
             dict(waiver(), review_status="pending"),
             dict(waiver(), rationale=""),
-            dict(waiver(), phase="PI-9"),
+            dict(waiver(), policy="unsupported"),
         ]
         for item in invalid:
             with self.subTest(item=item), self.assertRaises(ValueError):
@@ -184,8 +185,8 @@ class InventoryTests(unittest.TestCase):
             dict(waiver(), rationale="  "),
             dict(waiver(), rationale=123),
             dict(waiver(), rationale=["placeholder"]),
-            {key: value for key, value in waiver().items() if key != "phase"},
-            dict(waiver(), phase=1),
+            {key: value for key, value in waiver().items() if key != "policy"},
+            dict(waiver(), policy=1),
         ]
         for item in invalid:
             with self.subTest(item=item), self.assertRaises(ValueError):
@@ -215,7 +216,7 @@ class InventoryTests(unittest.TestCase):
     def test_repository_existing_edge_and_baseline_are_tracked(self):
         current = guard.inventory(guard.ROOT / "backend/src")
         baseline = json.loads(
-            (guard.ROOT / "docs/platform-independence/pi-0-import-waivers.json").read_text()
+            (guard.ROOT / "docs/platform-independence/import-waivers.json").read_text()
         )
         self.assertEqual(guard.check(current, baseline), [])
         self.assertEqual(current["edges"], [])

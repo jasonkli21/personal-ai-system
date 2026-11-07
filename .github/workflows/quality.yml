@@ -26,7 +26,25 @@ jobs:
         working-directory: backend
       - run: uv sync --locked --extra dev --group build --no-build-isolation
         working-directory: backend
-      - run: make naming-policy-check consumer-contract-check
+      - run: make source-contract-check sdk-check naming-policy-check consumer-contract-check release-profile-check
+
+  hermetic-capabilities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.13"
+      - run: uv sync --locked --only-group build --no-install-project
+        working-directory: backend
+      - run: uv sync --locked --extra dev --group build --no-build-isolation
+        working-directory: backend
+      - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+        working-directory: backend
+      - run: make hermetic-capability-check
 
   backend:
     runs-on: ubuntu-latest
@@ -65,13 +83,19 @@ jobs:
       - run: cd ../reference-apps && uv build --no-build-isolation --python ../backend/.venv/bin/python
       - run: uv pip install --python .venv/bin/python --no-deps --no-index ../reference-apps/dist/personal_ai_reference_apps-0.1.0-py3-none-any.whl
       - run: python -m ruff check .
-      - run: python -m pytest
+      - run: make backend-test-offline
+        working-directory: ..
+        env:
+          PYTHONPATH: ../sdk/python/src:../examples/project-checklist/client/src:../examples/project-checklist/host/src
       - run: python -m pytest -m persistence_integration tests/persistence/test_provider_usage_accounting.py tests/persistence/test_artifact_tier.py tests/persistence/test_routing_decisions.py
+        env:
+          PERSISTENCE_TEST_POSTGRES_DSN: postgresql://personal_ai:personal_ai_test_only@127.0.0.1:5432/personal_ai_test
+      - run: make workflow-postgres-check memory-episode-postgres-check memory-consolidation-postgres-check memory-navigation-postgres-check
+        working-directory: ..
         env:
           PERSISTENCE_TEST_POSTGRES_DSN: postgresql://personal_ai:personal_ai_test_only@127.0.0.1:5432/personal_ai_test
       - run: python -m personal_ai.evaluation.context
       - run: python -m personal_ai.evaluation.context_planner
-      - run: python -m personal_ai.evaluation.planning
       - run: python -m personal_ai.evaluation.memory
       - run: python -m personal_ai.evaluation.memory_lifecycle
       - run: python -m personal_ai.evaluation.research
@@ -83,6 +107,22 @@ jobs:
       - run: python -m personal_ai_reference_apps.evaluation.itinerary_proposals
         env:
           APPLICATION_CONTRIBUTIONS: '["travel","shopping","finance","health"]'
+
+  native-installed-consumers:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.13"
+      - run: uv sync --locked --only-group build --no-install-project
+        working-directory: backend
+      - run: uv sync --locked --extra dev --group build --no-build-isolation
+        working-directory: backend
+      - run: make source-contract-check offline-benchmark-check sdk-install-check synthetic-reasoning-install-check
 
   frontend:
     runs-on: ubuntu-latest

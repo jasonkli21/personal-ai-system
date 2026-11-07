@@ -219,7 +219,7 @@ def run_probe(probe: Probe) -> Observation:
 def load_corpus():
     raw = (
         files("personal_ai.evaluation")
-        .joinpath("fixtures/memory/mem2-control-v1.json")
+        .joinpath("fixtures/memory/memory-control-v1.json")
         .read_bytes()
     )
     return Corpus.model_validate_json(raw), sha256(raw).hexdigest()

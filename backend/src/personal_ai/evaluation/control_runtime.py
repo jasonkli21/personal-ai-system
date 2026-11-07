@@ -26,7 +26,7 @@ class ControlRuntime:
             owner_id="synthetic-owner",
             acting_user_id="test-issuer|actor-a",
             workspace_id="repo-alpha",
-            request_id="mem2-run",
+            request_id="memory-control-run",
         )
         self.settings = Settings(
             _env_file=None,

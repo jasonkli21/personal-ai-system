@@ -41,7 +41,7 @@ class FrozenContextAssembler:
 
     Local estimates fit source blocks; the runtime separately admits one exact
     endpoint count. Base history never shrinks. Optional source omissions require
-    the P21 source-narrowing policy and receive a different prepared-input digest.
+    the dispatch lifecycle source-narrowing policy and receive a different prepared-input digest.
     No summaries, retrieval, or other hidden auxiliary calls occur here.
     """
 

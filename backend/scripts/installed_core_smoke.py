@@ -17,7 +17,7 @@ import venv
 import zipfile
 from pathlib import Path
 
-from pi6_checks import PROFILE
+from offline_benchmark_checks import PROFILE
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -35,7 +35,7 @@ for family, target in [(socket.AF_INET, ('192.0.2.1', 9)),
                     sock.settimeout(2)
                     sock.connect(target)
                 else:
-                    sock.sendto(b'pi7-fence-probe', target)
+                    sock.sendto(b'native-fence-probe', target)
             except OSError as error:
                 assert error.errno in (errno.EPERM, errno.EACCES)
             else:
@@ -158,7 +158,7 @@ def smoke(workspace, uv, *, consumer, allow_degraded):
         "UV_OFFLINE": "1",
         "UV_PYTHON_DOWNLOADS": "never",
         "AI_PROVIDER": "fake",
-        "AI_MODEL": "pi7-synthetic",
+        "AI_MODEL": "test-synthetic-model",
         "APP_ENVIRONMENT": "test",
         "LITELLM_LOCAL_MODEL_COST_MAP": "True",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
@@ -380,7 +380,7 @@ def main():
         parser.exit(2, "Installed-core checks require uv and the prepared backend virtualenv. See the runbook.\n")
     signal.signal(signal.SIGTERM, interrupt)
     try:
-        with tempfile.TemporaryDirectory(prefix="pi7-local-") as directory:
+        with tempfile.TemporaryDirectory(prefix="installed-local-store-") as directory:
             smoke(Path(directory), uv, consumer=args.consumer, allow_degraded=args.allow_degraded)
     except (SmokeError, ModuleNotFoundError, OSError, subprocess.TimeoutExpired) as error:
         reason = error if isinstance(error, SmokeError) else type(error).__name__

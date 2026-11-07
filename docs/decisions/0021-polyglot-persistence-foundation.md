@@ -1,15 +1,14 @@
 # ADR 0021: Polyglot persistence foundation
 
-- Status: accepted; P10.6 runtime code cutover implemented locally; external acceptance remains open (status updated 2026-10-07)
+- Status: accepted; local runtime code cutover implemented; external acceptance remains open (status updated 2026-10-07)
 - Date: 2026-10-06
 - Reviewed repository revision: `e17ebd76afd1feb90fe47d959c43ab23eb553499`
-- Supersedes: [ADR 0002](0002-firestore-native-persistence.md) for future target architecture after Phase 10 cutover
+- Supersedes: [ADR 0002](0002-firestore-native-persistence.md) for the target architecture after local storage cutover
 
 ## Context
 
-The [Phase 10 plan](../personal-ai-chapter-2/personal-ai-next-scope-detailed-implementation-plans/plans/phase-10-implementation-plan.md)
-is authoritative. Completed next-scope Phases 1–2 and the original phase history
-remain intact. This decision changes persistence beneath existing contracts;
+The [local persistence guide](../local-persistence.md) is authoritative.
+Adjacent completed work and prior design history remain intact. This decision changes persistence beneath existing contracts;
 it does not deliver new product behavior or establish cloud readiness.
 
 At the time this decision was reviewed, the repository named 34 Firestore
@@ -23,12 +22,12 @@ owner/application/workspace isolation.
 1. DynamoDB owns conversations, branchable messages, working summaries,
    memory-lifecycle execution jobs and owner-wide fixed-window request counters.
    It also owns retained operational timeline families explicitly assigned by
-   the [ownership/access-pattern contract](../personal-ai-chapter-2/phase-10-storage-ownership-and-access-patterns.md).
+   the [storage module README](../../backend/src/personal_ai/storage/README.md).
 2. Postgres owns knowledge, memory embeddings/provenance/lifecycle effects,
    research, decisions, proposals, extraction results, account/control metadata
    and compact usage state. Research runs/sessions/replay keys stay together;
    knowledge lifecycle events/state/applied-operation receipts stay together.
-3. GCS artifact bodies remain Phase 20 scope; compact artifact metadata belongs
+3. GCS artifact bodies remain part of private-artifact handling; compact artifact metadata belongs
    in Postgres. Authoritative domain application state stays external.
 4. Use one initial DynamoDB runtime table, no LSI, transactional base-table
    recent-conversation/catalog entries and one sparse job-publication GSI.
@@ -45,7 +44,7 @@ owner/application/workspace isolation.
    representation and cast to pgvector for exact search. Do not persist a second
    vector projection by default. This preserves stored-value compatibility while
    reducing storage relative to the earlier review's two-copy proposal. Query
-   CPU and numerical boundary behavior must be measured in P10.2. ANN/index
+   CPU and numerical boundary behavior must be measured before vector search. ANN/index
    acceleration requires explicit evaluation, not implicit migration changes.
 8. Migrate through idempotent backfill, logical reconciliation, a bounded freeze
    of every writer and deletion-aware final delta. No permanent dual writes.
@@ -77,7 +76,7 @@ owner/application/workspace isolation.
   Optional memory retains its existing advisory failure behavior for chat.
 - Export consistency and deletion inventory span stores; this decision does not
   complete existing physical deletion, owner migration or deletion-aware restore.
-- The P10.6 local runtime no longer uses Firestore. If a Firestore dataset is
+- The local runtime no longer uses Firestore. If a Firestore dataset is
   later identified, treat it as a potential legacy source and follow the
   conditional inventory/cutover contract; no real data migration is claimed.
   Historical ADRs/evidence retain their original meaning.
@@ -85,19 +84,19 @@ owner/application/workspace isolation.
 ## Implementation and verification references
 
 Detailed keys, schema tradeoffs and the minimal recovery protocol belong in the
-[Phase 10 storage contract](../personal-ai-chapter-2/phase-10-storage-ownership-and-access-patterns.md).
+[storage module README](../../backend/src/personal_ai/storage/README.md).
 Migration, local/cloud checks, rollback and retirement belong in the
-[Phase 10 verification plan](../personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md).
+[local persistence guide](../local-persistence.md).
 At decision acceptance, these were planned requirements; no database, provider,
-emulator or cloud checks were claimed by accepting the ADR, and P10.1+ had not
+emulator or cloud checks were claimed by accepting the ADR, and later migration work had not
 started. That is historical acceptance context; see the dated implementation
 status below. The root README now reflects the locally implemented runtime.
 
 ## Implementation status update — 2026-10-07
 
-P10.6 switched normal local API/worker wiring to Postgres/DynamoDB and removed
+The local database cutover switched normal API/worker wiring to Postgres/DynamoDB and removed
 Firestore runtime and migration dependencies. This updates implementation
 status only; it does not revise this decision's original acceptance date or
 claim real data migration, live cloud cutover, target-engine verification, or
 strict-$0 eligibility. See [current state](../current-state.md) and
-[P10.6 evidence](../personal-ai-chapter-2/phase-10-p10.6-implementation-evidence.md).
+[local persistence guide](../local-persistence.md).

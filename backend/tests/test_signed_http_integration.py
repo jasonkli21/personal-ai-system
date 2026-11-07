@@ -123,7 +123,7 @@ def http_platform(tmp_path, monkeypatch, request):
     settings = Settings(
         _env_file=None,
         ai_provider="fake",
-        ai_model="pi2-model",
+        ai_model="test-consumer-model",
         app_environment="test",
         auth_mode="google_oidc",
         auth_required=True,
@@ -148,7 +148,7 @@ def http_platform(tmp_path, monkeypatch, request):
         def request(url, **kwargs):
             assert url == "https://www.googleapis.com/oauth2/v1/certs"
             key_requests.append(url)
-            return SimpleNamespace(status=200, data=json.dumps({"pi2-test": public}).encode())
+            return SimpleNamespace(status=200, data=json.dumps({"consumer-test-key": public}).encode())
 
         yield request
 
@@ -168,7 +168,7 @@ def http_platform(tmp_path, monkeypatch, request):
             "jti": str(uuid4()),
         }
         claims.update(changes)
-        return jwt.encode(claims, private, algorithm="RS256", headers={"kid": "pi2-test"})
+        return jwt.encode(claims, private, algorithm="RS256", headers={"kid": "consumer-test-key"})
 
     if os.environ.get("CLIENT_INSTALL_PROBE"):
         assert importlib.util.find_spec("personal_ai_reference_apps") is None
@@ -1035,7 +1035,7 @@ def test_signed_http_profile_consent_installed_consumer(
     }
     assert h.raw.post("/v1/profile/shares", headers={**h.headers, "If-Match": '"0"'}, json=body).status_code == 403
     assert h.raw.post("/v1/profile/shares", headers={**ui, "If-Match": '"0"'}, json=body).status_code == 200
-    cid = h.client.start("PI4 independent reader", uuid4())["id"]
+    cid = h.client.start("Independent reader", uuid4())["id"]
     h.llm.deltas = ("Your preferred units are metric.",)
     request = turn("What units do I prefer?")
     h.client.ask(cid, request)

@@ -16,7 +16,7 @@ def pytest_runtest_logreport(report):
     elif report.when == "call" and report.passed and case["status"] != "failed":
         case["status"] = "passed"
     for name, value in report.user_properties:
-        if name == "phase36_metrics":
+        if name == "verification_metrics":
             case["metrics"] = json.loads(value)
 
 
@@ -26,7 +26,7 @@ def pytest_collection_finish(session):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    Path(os.environ["PHASE36_RECEIPTS"]).write_text(
+    Path(os.environ["VERIFICATION_RECEIPTS"]).write_text(
         json.dumps(
             {
                 "exit_code": int(exitstatus),

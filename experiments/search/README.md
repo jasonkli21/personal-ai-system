@@ -2,7 +2,7 @@
 
 Use this area for query planning, source selection, extraction, deduplication, reranking, entity resolution, and freshness-policy experiments.
 
-Phase 33's executable paired runner is `make retrieval-eval`. It uses the actual
+The executable paired runner is `make retrieval-eval`. It uses the actual
 research API composition with an installed synthetic adapter, the shared context
 builder, and strict literal synthesis/citation validation. The 18 public synthetic
 cases and the pre-change source/metric freeze live in
@@ -19,8 +19,8 @@ quality, no extra search calls/quota, and at most 20% latency overhead. Syntheti
 evidence and insufficient independent coverage always deny promotion.
 
 Optional `python -m personal_ai.evaluation.retrieval --persist-owner <canonical-owner>`
-uses the factory's Postgres experiment repository (migration 026) and optional P20
+uses the factory's Postgres experiment repository (migration 026) and optional private
 artifact service. Compact summaries contain identifiers/numeric measurements;
-bulky paired metric batches use P20. Raw queries, source bodies and private model
+bulky paired metric batches use that service. Raw queries, source bodies and private model
 outputs are not retained by this runner. Optional artifact failure preserves the
 compact non-promoted results; it does not enable another storage backend.

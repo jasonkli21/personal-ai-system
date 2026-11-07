@@ -236,7 +236,7 @@ async def test_partial_plan_keeps_completed_observations_without_answer_or_repla
 
 
 @pytest.mark.anyio
-async def test_every_expanded_search_uses_p19_reservation_before_http_and_quota_stops():
+async def test_every_expanded_search_uses_quota_reservation_before_http_and_quota_stops():
     http_calls = []
     reserved = []
     settled = []

@@ -139,7 +139,7 @@ class StrictFreeEligibilityAttestation(_FrozenContract):
 
 
 class QuotaBucket(_FrozenContract):
-    """Static quota topology and optional configured ceiling; runtime state belongs to P19."""
+    """Static quota topology and optional configured ceiling; runtime state belongs to quota."""
 
     bucket_id: str = Field(min_length=1, max_length=200)
     authority_scope_id: str = Field(min_length=1, max_length=200)

@@ -211,6 +211,6 @@ data remain NO_GO. No peer work is needed to close the core preview gates.
 
 The [loopback operator guide](../reasoning-engine/synthetic-preview.md)
 covers the separate development process, one-command admission disablement
-and original-epoch reconciliation. Its [evidence and blockers](../reasoning-engine/2026-11-05-re-5-verification.md)
+and original-epoch reconciliation. Its [evidence and blockers](../current-state.md)
 are scoped to fixture HTTP and the internal native workflow. All deployed
 release and adaptive promotion gates keep their existing dispositions.

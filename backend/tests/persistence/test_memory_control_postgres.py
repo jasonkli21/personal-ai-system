@@ -417,4 +417,4 @@ def test_native_resource_envelope(native):
                 report[table] = connection.execute(
                     f"SELECT count(*),sum(octet_length(payload::text)),sum(pg_column_size(payload)) FROM {table}"
                 ).fetchone()
-    print("MEM2_RESOURCE=" + json.dumps(report, default=str))
+    print("MEMORY_CONTROL_RESOURCE=" + json.dumps(report, default=str))

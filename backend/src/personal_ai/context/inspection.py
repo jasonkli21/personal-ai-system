@@ -9,7 +9,17 @@ from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.context.traces import ContextTraceManifest
 from personal_ai.entities import Message
 from personal_ai.llm.client import ChatMessage
+from personal_ai.memory.contracts import (
+    LEGACY_VERIFIED_KNOWLEDGE_WIRE_VALUE,
+    VERIFIED_KNOWLEDGE_VARIANT,
+)
 from personal_ai.settings import Settings
+
+
+def _wire_variant(value: str | None) -> str | None:
+    if value == VERIFIED_KNOWLEDGE_VARIANT:
+        return LEGACY_VERIFIED_KNOWLEDGE_WIRE_VALUE
+    return value
 
 
 class ContextInspector:
@@ -118,8 +128,8 @@ class ContextInspector:
                 if retrieval.trace
                 else None,
                 "diagnostics": retrieval.diagnostics,
-                "requested_variant": retrieval.requested_variant,
-                "applied_variant": retrieval.applied_variant,
+                "requested_variant": _wire_variant(retrieval.requested_variant),
+                "applied_variant": _wire_variant(retrieval.applied_variant),
                 "policy_version": retrieval.policy_version,
                 "policy_identity": retrieval.policy_identity,
                 "lifecycle_event_ids": [str(item) for item in retrieval.lifecycle_event_ids],

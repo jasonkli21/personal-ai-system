@@ -37,16 +37,16 @@ model's supported context/output sizes and running the opt-in synthetic check.
 
 ## Consequences
 
-The Phase 1 message-count gate is removed. Impossible mandatory content returns
+The message-count gate is removed. Impossible mandatory content returns
 `context_message_too_large` before an assistant placeholder/LLM stream, while the
 persisted user remains editable. Invalid operator budgets return
-`context_budget_invalid`. Provider counting adds latency and requests; this phase
+`context_budget_invalid`. Provider counting adds latency and requests; this decision
 does not introduce billing analytics or automatic provider fallback.
 
 ## Next-scope extension boundary — 2026-10-05
 
-This accepted decision still governs current Gemini preparation. The [reconciled inference design](../personal-ai-chapter-2/03-free-tier-inference-and-routing.md) assigns provider-aware counting/serialization and the direct memory-extraction preparation gap to next-scope Phase 8. Counting is an external disclosure subject to provider eligibility. Non-Gemini counters must document their own guarantees and any conservative bounds before enablement; estimates must not claim Gemini/provider-authoritative equivalence. No runtime behavior or accepted counting guarantee changes in Phase 0.
+This accepted decision still governs current Gemini preparation. The [reconciled inference design](../personal-ai-chapter-2/03-free-tier-inference-and-routing.md) assigns provider-aware counting/serialization and the direct memory-extraction preparation gap to future work. Counting is an external disclosure subject to provider eligibility. Non-Gemini counters must document their own guarantees and any conservative bounds before enablement; estimates must not claim Gemini/provider-authoritative equivalence. No runtime behavior or accepted counting guarantee changes with this amendment.
 
 ## Chapter 2 numbering/storage amendment — 2026-10-06
 
-The current forward-looking plan is [Personal AI Chapter 2](../personal-ai-chapter-2/README.md). The 2026-10-05 extension paragraph above is historical; its former next-scope Phase 8 is now Chapter 2 Phase 16. Phase 10 first migrates durable persistence to DynamoDB + Neon Postgres/pgvector. The accepted token-budget/counting guarantee itself is unchanged by this renumbering/storage amendment.
+The current forward-looking plan is [Personal AI Chapter 2](../personal-ai-chapter-2/README.md). The 2026-10-05 extension paragraph above is historical. Future provider-aware preparation and persistence migration are tracked there. The accepted token-budget/counting guarantee itself is unchanged by later planning.

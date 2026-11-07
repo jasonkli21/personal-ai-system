@@ -2,7 +2,7 @@
 
 2026-10-31 local candidate; independent acceptance pending. The external consumer
 OpenAPI is v1.1.0; the additive payload version is `retrieval-v1`. Existing
-research-v1, conversations, PI-3 inference, PI-4 consent and memory defaults retain
+research-v1, conversations, provider-neutral inference, profile consent and memory defaults retain
 their contracts. This interface does not attach evidence to chat or run a model.
 
 Two exact authenticated operations are available when `RETRIEVAL_ENABLED=true`:
@@ -102,7 +102,7 @@ lookups are request-bound. Old snapshots/backups must not be republished.
 Create a new synthetic corpus, supplying the exact server-mapped owner and actor:
 
 ```sh
-backend/.venv/bin/python backend/scripts/pi5_install_demo.py /private/tmp/pi5-demo/corpus.json \
+backend/.venv/bin/python backend/scripts/retrieval_install_smoke.py /private/tmp/retrieval-demo/corpus.json \
   --owner synthetic-owner --actor synthetic-actor --application personal_ai
 ```
 
@@ -124,16 +124,16 @@ explicitly permits disclosing the submitted query to the selected operator searc
 adapter. Source selection reuses `RESEARCH_SEARCH_ADAPTER` and the existing search
 registration factory. There is no client-selected import or provider. Source
 rights and credential/policy identity are checked before dispatch and at final
-output; Brave also checks the owning disclosure guard after rate wait/P19 reserve,
+output; Brave also checks the owning disclosure guard after rate wait/usage accounting reserve,
 immediately before its fixed-endpoint request. Returned URLs are not followed.
 
-A non-synthetic adapter requires canonical P19 accounting and canonical invocation/
+A non-synthetic adapter requires canonical usage accounting accounting and canonical invocation/
 physical-attempt IDs. Brave retains existing rights/prepaid/account/quota/privacy
 requirements. Its current strict-free profile is **closed**. This change does not
-approve it, turn on billing, replace P19 policy or supply secrets. Missing credentials
+approve it, turn on billing, replace usage accounting policy or supply secrets. Missing credentials
 or eligibility returns unavailable without a network call; no paid fallback exists.
 The configured fake adapter is explicitly `origin=synthetic`. Hermetic Brave tests
-use mock HTTP and fake P19 storage and do not prove live eligibility or billing.
+use mock HTTP and fake usage accounting storage and do not prove live eligibility or billing.
 New operator-installed factories can be supplied to the existing registration
 mapping; core does not load Python named in client requests or corpus JSON.
 
@@ -148,7 +148,7 @@ source body or credentials. Reservation commits before external dispatch. No
 receipt pruning, key reuse or automatic retries exist. One scope reaching its cap
 does not consume another scope's allowance. Aggregate journal growth across distinct
 scopes is unbounded; local/test operation therefore remains operator-controlled and
-is not a production storage design. Native P19 storage, multi-host coordination,
+is not a production storage design. Native usage accounting storage, multi-host coordination,
 restore anti-rollback and production deployment are separate gates.
 
 Retain the original UUID and full body. Local-only calls recompute under current
@@ -159,7 +159,7 @@ on retry, with no cached external bodies; local results may be freshly recompute
 Lost acknowledgement or failed attempt remains `external_outcome_unknown` and must
 not be rekeyed automatically. This narrow protocol does not promise successful
 body replay or exactly-once provider charging. A new key requires explicit new
-user intent. Canonical P19 accounting remains the cost authority.
+user intent. Canonical usage accounting accounting remains the cost authority.
 
 ## Rollout, rollback and limitations
 
@@ -177,11 +177,10 @@ can explicitly send text in a conversation, but this is fresh user-supplied inpu
 not governed server-side evidence integration. Source provenance cannot be
 retrofitted to that text. Mandatory general context/count/send and derived-history
 acceptance is **incomplete**, not a pass by absence. Remote source deletion,
-anti-rollback/restore, automatic physical erasure, real identity/IAM/P19/Brave and
+anti-rollback/restore, automatic physical erasure, real identity/IAM/usage accounting/Brave and
 cloud/security acceptance remain unproven. Past transmissions cannot be recalled;
 checks do not make revocation atomic with a network send. See the
-[implementation report](pi-5-implementation-report.md) and
-[scenario evidence](pi-5-verification.json).
+[current state](../current-state.md).
 
 ## Explicit local model context (completion candidate, 2026-10-31)
 
@@ -202,7 +201,7 @@ at an appropriate sensitivity, and an operator installation with separate
 `model_context_access` plus document `model_context_allowed: true`. Both additions
 are default-deny; old installations keep standalone retrieval only. Model grants
 bind exact owner/actor/application/workspace and purpose
-`assist_response_with_local_excerpt`. Interactive quote rights and PI-4 profile
+`assist_response_with_local_excerpt`. Interactive quote rights and profile
 consent cannot grant model disclosure. The Reading Logbook host independently
 opts in with `READING_LOGBOOK_RETRIEVAL_CONTEXT_ENABLED=true`; its separate HTTP
 client passes the optional field in its already-journaled original body.
@@ -250,4 +249,4 @@ trusted registrations require their own reviewed typed route. There is no generi
 public executor, dynamic import, client-defined handler or model-selected loop.
 This is a trusted code contract, not a sandbox for arbitrary third-party code;
 operators must review a handler's rights, cost and side effects before installing.
-The existing retrieval handler preserves P19 admission and one-attempt fences.
+The existing retrieval handler preserves usage accounting admission and one-attempt fences.

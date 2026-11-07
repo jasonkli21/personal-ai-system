@@ -1,4 +1,4 @@
-# ADR 0015: Keep Phase 7 domain modules thin
+# ADR 0015: Keep domain modules thin
 
 Date: 2026-10-02
 
@@ -10,7 +10,7 @@ Travel and shopping are internal `DomainModule` implementations, not an
 external plugin system. Each module registers a versioned field schema,
 supported entity types, constraints, explainable feature policy, source policy,
 privacy notice, and retention policy. It maps provider records to the shared
-Phase 5 evidence contracts and Phase 6 candidates and claims. The shared
+source-evidence contracts and decision candidates and claims. The shared
 decision service remains responsible for identity resolution, evidence
 verification, freshness, hard constraints, and final ranking.
 
@@ -22,7 +22,7 @@ uses bounded point reads and transactions; it adds no composite index.
 
 ## Source rights and safety
 
-Phase 5 research citations may be reused by a domain only through their stored
+Research citations may be reused by a domain only through their stored
 source references. Brave-origin results remain blocked unless the operator has
 explicit storage and AI-use rights. The current
 [Brave Search API terms](https://api-dashboard.search.brave.com/documentation/resources/terms-of-service)

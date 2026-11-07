@@ -21,11 +21,11 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | Governed local workflows | [Workflow runtime](../backend/src/personal_ai/workflow/README.md), [execution authority](decisions/0025-workflow-lifecycle-authority.md) |
 | Retrieval and tools | [Retrieval README](../backend/src/personal_ai/retrieval/README.md), [retrieval contract](platform-independence/retrieval-v1.md) |
 | Research | [Research guide](research-agent.md), `backend/src/personal_ai/agents/research/` |
-| Authentication and security | [Threat model](phase-9-threat-model.md), `backend/src/personal_ai/auth/`, [security policy](../SECURITY.md) |
+| Authentication and security | [Security policy](../SECURITY.md), `backend/src/personal_ai/auth/` |
 | Persistence and recovery | [Persistence README](../backend/src/personal_ai/persistence/README.md), [operations](../stabilization/OPERATIONS.md) |
 | Frontend and sidecar | [chat feature README](../frontend/src/features/chat/README.md), [API contract](api-contract.md) |
 | Reasoning policy and offline benchmark | [Reasoning engine](reasoning-engine/README.md), [adaptive fixture selection](reasoning-engine/adaptive-selection.md), [execution authority](decisions/0028-reasoning-policy-and-execution-ownership.md) |
-| Synthetic reasoning preview and SDK | [Preview protocol and operator controls](reasoning-engine/synthetic-preview.md), [verification and blockers](reasoning-engine/2026-11-05-re-5-verification.md) |
+| Synthetic reasoning preview and SDK | [Preview protocol and operator controls](reasoning-engine/synthetic-preview.md), [current state](current-state.md) |
 | Evaluation and experiments | `backend/src/personal_ai/evaluation/`, fixture/lock and focused tests; [current status](current-state.md) |
 | Operations and release gates | [Release profiles and operator guide](harness-excellence/release-operator-guide.md), [Current verification](../stabilization/VERIFICATION.md), [operations](../stabilization/OPERATIONS.md), [current state](current-state.md) |
 | Compatibility and independent acceptance | [Platform independence](platform-independence/README.md), then the relevant contract and dated evidence |

@@ -1,6 +1,6 @@
-# Phase 10 local persistence
+# Local persistence
 
-The Phase 10 cutover is implemented locally. Local and test application
+The deployed persistence cutover is implemented locally. Local and test application
 configurations use explicit Postgres/pgvector and DynamoDB Local endpoints;
 staging and production use Neon/Postgres and DynamoDB through the configured
 runtime adapters. Firestore runtime adapters and fallback configuration have
@@ -65,4 +65,4 @@ introduced by these local commands.
 
 The local commands do not configure Neon, cloud IAM, or model providers. Cloud
 provisioning and the remaining target-store acceptance checks are documented in
-the [GCP deployment guide](gcp-deployment.md) and [Phase 10 verification plan](personal-ai-chapter-2/phase-10-migration-cutover-and-verification-plan.md).
+the [GCP deployment guide](gcp-deployment.md) and the [storage module README](../backend/src/personal_ai/storage/README.md).

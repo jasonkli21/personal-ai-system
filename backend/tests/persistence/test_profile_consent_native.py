@@ -27,7 +27,7 @@ def database(isolated_postgres_dsn):
 
 def test_native_profile_consent_cas_replay_rollback_and_owner_fence(database):
     repository = PostgresGlobalProfileRepository(database)
-    owner = f"pi4-native-{uuid4()}"
+    owner = f"native-owner-test-{uuid4()}"
     actor = "https://accounts.google.com|synthetic"
     repository.update(owner, GlobalProfileUpdate(fields=(GlobalProfileFieldUpdate(
         field="preferred_units", value="metric",
@@ -82,7 +82,7 @@ def test_native_profile_consent_cas_replay_rollback_and_owner_fence(database):
 
 def test_native_legacy_writer_cannot_resurrect_allowlist(database):
     repository = PostgresGlobalProfileRepository(database)
-    owner = f"pi4-legacy-{uuid4()}"
+    owner = f"legacy-owner-test-{uuid4()}"
     profile = repository.update(owner, GlobalProfileUpdate(fields=(GlobalProfileFieldUpdate(field="locale", value="en-GB"),)))
     payload = profile.model_dump(mode="json")
     payload["fields"][0]["shared_with_applications"] = ["unrelated_reader"]
@@ -98,7 +98,7 @@ def test_native_migration_archives_legacy_without_authorizing_it(isolated_postgr
     original_files = migrations.files
     root = original_files("personal_ai.persistence")
     resources = tuple(root.joinpath("migrations").iterdir())
-    class PrePI4:
+    class PreProfileConsentMigrations:
         def joinpath(self, name):
             if name == "migrations":
                 class Directory:
@@ -106,10 +106,10 @@ def test_native_migration_archives_legacy_without_authorizing_it(isolated_postgr
                         return (p for p in resources if not p.name.startswith("032_"))
                 return Directory()
             return root.joinpath(name)
-    monkeypatch.setattr(migrations, "files", lambda _: PrePI4())
+    monkeypatch.setattr(migrations, "files", lambda _: PreProfileConsentMigrations())
     db.migrate()
     repository = PostgresGlobalProfileRepository(db)
-    owner = "pi4-legacy-migration"
+    owner = "legacy-owner-test-migration"
     profile = repository.update(owner, GlobalProfileUpdate(fields=(GlobalProfileFieldUpdate(field="locale", value="en-GB"),)))
     payload = profile.model_dump(mode="json")
     payload["fields"][0]["shared_with_applications"] = ["unrelated_reader"]
@@ -129,7 +129,7 @@ def test_native_lost_ack_same_key_reconciles_one_commit(database):
     from contextlib import contextmanager
 
     repository = PostgresGlobalProfileRepository(database)
-    owner, actor = "pi4-native-ack", "verified-synthetic"
+    owner, actor = "native-owner-test-ack", "verified-synthetic"
     repository.update(owner, GlobalProfileUpdate(fields=(GlobalProfileFieldUpdate(field="locale", value="en-GB"),)))
     intent = ProfileShareIntent(
         operation_id=uuid4(), operation="grant", grant_id=uuid4(), field="locale",
@@ -155,7 +155,7 @@ def test_native_failure_before_commit_rolls_back_grant_and_receipt(database):
     from contextlib import contextmanager
 
     repository = PostgresGlobalProfileRepository(database)
-    owner, actor = "pi4-native-rollback", "verified-synthetic"
+    owner, actor = "native-owner-test-rollback", "verified-synthetic"
     repository.update(owner, GlobalProfileUpdate(fields=(GlobalProfileFieldUpdate(field="locale", value="en-GB"),)))
     intent = ProfileShareIntent(
         operation_id=uuid4(), operation="grant", grant_id=uuid4(), field="locale",

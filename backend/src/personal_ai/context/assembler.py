@@ -525,7 +525,7 @@ class ContextAssembler:
             policy = policy.model_copy(update={"source_max_tokens": limits})
         if (
             retrieval is not None
-            and retrieval.applied_variant == "mem1_verified_knowledge"
+            and retrieval.applied_variant == "verified_knowledge"
             and retrieval.trace is not None
         ):
             limits = dict(policy.source_max_tokens)

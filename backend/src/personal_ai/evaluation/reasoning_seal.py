@@ -9,7 +9,8 @@ from .reasoning_contracts import Corpus
 
 HERE = Path(__file__).resolve().parent
 FIXTURES = HERE / "fixtures/reasoning"
-MANIFEST_SHA256 = "2749b02f37b32571e913bbd2240942cfbe3e1032f424823e3f950219f6a888a9"
+HISTORICAL_MANIFEST_SHA256 = "2749b02f37b32571e913bbd2240942cfbe3e1032f424823e3f950219f6a888a9"
+MANIFEST_SHA256 = "b6035de07e36f8470feb28c800395ba6a220ded8b5fa8f6e4e84806982a16e4c"
 
 
 def bounded_read(path: Path, limit: int) -> bytes:
@@ -21,10 +22,18 @@ def bounded_read(path: Path, limit: int) -> bytes:
 
 
 def load() -> tuple[Corpus, dict]:
-    raw = bounded_read(FIXTURES / "manifest-v1.json", 16_384)
+    historical = bounded_read(FIXTURES / "manifest-v1.json", 16_384)
+    if sha256(historical).hexdigest() != HISTORICAL_MANIFEST_SHA256:
+        raise ValueError("historical_manifest_identity_mismatch")
+    raw = bounded_read(FIXTURES / "manifest-v2.json", 16_384)
     if sha256(raw).hexdigest() != MANIFEST_SHA256:
         raise ValueError("manifest_identity_mismatch")
     manifest = json.loads(raw)
+    if (
+        manifest.get("version") != "reasoning-offline-source-identity-v2"
+        or manifest.get("supersedes_sha256") != HISTORICAL_MANIFEST_SHA256
+    ):
+        raise ValueError("manifest_migration_invalid")
     for relative, expected in manifest["files"].items():
         if sha256(bounded_read(HERE / relative, 131_072)).hexdigest() != expected:
             raise ValueError("source_identity_mismatch")

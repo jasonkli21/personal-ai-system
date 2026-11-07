@@ -1,4 +1,4 @@
-"""Real local-engine contract coverage for P10.2 and P10.3."""
+"""Real local-engine contract coverage for local persistence migration and receipt migration."""
 
 from __future__ import annotations
 
@@ -1647,7 +1647,7 @@ def test_pgvector_lossless_baseline_eligibility_and_resource_measurement(postgre
     """Opt-in native-store baseline. No ANN claim is inferred from offline fakes."""
     from time import perf_counter
 
-    owner_id = f"phase34-baseline-{uuid4()}"
+    owner_id = f"lifecycle-baseline-{uuid4()}"
     repository = PostgresMemoryRepository(postgres_database, _SourceGuard(owner_id))
     values = (3.141592653589793, 1.0000000000000002) + (1e-12,) * 2046
     records = [_memory(values, owner_id, f"repeated-{i}") for i in range(8)]
@@ -1702,7 +1702,7 @@ def test_duplicate_new_attempt_preserves_first_original(postgres_database):
             token = super().acquire(record, timeout=timeout)
             return replace(token, attempt_id=token.fingerprint)
 
-    owner_id = f"phase34-replay-{uuid4()}"
+    owner_id = f"lifecycle-replay-{uuid4()}"
     repository = PostgresMemoryRepository(postgres_database, Guard(owner_id))
     record = _memory((.5, .5, .5), owner_id)
     saved, created = repository.create(record)

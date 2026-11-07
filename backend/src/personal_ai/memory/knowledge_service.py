@@ -10,6 +10,7 @@ from personal_ai.contracts.context_references import (
     ContextPermissionDependency,
 )
 from personal_ai.memory.contracts import (
+    VERIFIED_KNOWLEDGE_VARIANT,
     MemoryCandidateTrace,
     MemoryRetrievalTrace,
     RetrievalResult,
@@ -328,8 +329,8 @@ class KnowledgeService:
                 candidates=tuple(ScoredMemory(r, 1.0) for r in records),
                 selected=tuple(selected),
                 excluded=tuple(excluded),
-                requested_variant="mem1_verified_knowledge",
-                applied_variant="mem1_verified_knowledge",
+                requested_variant=VERIFIED_KNOWLEDGE_VARIANT,
+                applied_variant=VERIFIED_KNOWLEDGE_VARIANT,
                 policy_version="verified-knowledge-v1",
                 inspection_metadata=tuple(metadata),
                 permission_dependencies=tuple(dependencies),

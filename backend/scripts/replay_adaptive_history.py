@@ -11,15 +11,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 REVISION = "992118dd43cf7225541b1eb9866374a79fa6ec58"
 
-CONFORMANCE_SEAL = "dc525f49295aade18e58c243ec60519b1a371c6d9b7ed89640a1a81f612ad0f1"
-CONFORMANCE_MANIFEST = ROOT / "backend/evaluation/adaptive-development-conformance-v1.json"
+HISTORICAL_CONFORMANCE_SEAL = "dc525f49295aade18e58c243ec60519b1a371c6d9b7ed89640a1a81f612ad0f1"
+CONFORMANCE_SEAL = "103e2973aefc05d59df78acb3b779cdd602ad86c9eead963c12e141841c10bf5"
+HISTORICAL_CONFORMANCE_MANIFEST = (
+    ROOT / "backend/evaluation/adaptive-development-conformance-v1.json"
+)
+CONFORMANCE_MANIFEST = ROOT / "backend/evaluation/adaptive-development-conformance-v2.json"
 
 
 def conformance():
+    historical = HISTORICAL_CONFORMANCE_MANIFEST.read_bytes()
+    if sha256(historical).hexdigest() != HISTORICAL_CONFORMANCE_SEAL:
+        raise ValueError("adaptive_historical_conformance_manifest_changed")
     raw = CONFORMANCE_MANIFEST.read_bytes()
     if sha256(raw).hexdigest() != CONFORMANCE_SEAL:
         raise ValueError("adaptive_conformance_manifest_changed")
     manifest = json.loads(raw)
+    if (
+        manifest.get("version") != "adaptive-development-source-identity-v2"
+        or manifest.get("supersedes_sha256") != HISTORICAL_CONFORMANCE_SEAL
+    ):
+        raise ValueError("adaptive_conformance_migration_invalid")
     if any(
         sha256((ROOT / path).read_bytes()).hexdigest() != expected
         for path, expected in manifest["sources"].items()

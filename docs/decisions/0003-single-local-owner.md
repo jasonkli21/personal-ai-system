@@ -1,15 +1,15 @@
-# ADR 0003: Model Phase 1 as a single unauthenticated local owner
+# ADR 0003: Model local development as a single unauthenticated owner
 
 - Status: accepted
 - Date: 2026-08-19
 
 ## Context
 
-The initial vertical slice is for one logical personal user, but Phase 1 does not implement authentication or authorization. Storage needs an identity seam so that a future real identity system does not require a data-model redesign.
+The initial vertical slice is for one logical personal user, but local development does not implement authentication or authorization. Storage needs an identity seam so that a future real identity system does not require a data-model redesign.
 
 ## Decision
 
-Assign each persisted Phase 1 record `owner_id = "local"`. Every repository method accepts an `owner_id` parameter. The application must not claim that this is authenticated identity.
+Assign each persisted local-development record `owner_id = "local"`. Every repository method accepts an `owner_id` parameter. The application must not claim that this is authenticated identity.
 
 ## Consequences
 

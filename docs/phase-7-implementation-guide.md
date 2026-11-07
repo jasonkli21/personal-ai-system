@@ -108,7 +108,7 @@ Each source observation retains the original URL and selected evidence IDs.
 Brave-origin evidence is rejected unless `RESEARCH_ENABLED` is true and the
 operator separately asserts `RESEARCH_PROVIDER_STORAGE_APPROVED`; the
 provider-rights review remains open. See
-[ADR 0015](decisions/0015-phase-7-domain-module-contract.md) and the current
+[ADR 0015](decisions/0015-domain-module-contract.md) and the current
 [Brave API terms](https://api-dashboard.search.brave.com/documentation/resources/terms-of-service).
 
 ## Configuration

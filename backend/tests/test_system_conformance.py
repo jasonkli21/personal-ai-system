@@ -854,7 +854,7 @@ async def test_combined_heldout_pipeline_measurements_and_deterministic_rollback
         for v in ("baseline", "combined", "rollback")
     }
     record_property(
-        "phase36_metrics",
+        "verification_metrics",
         json.dumps(
             {
                 "kind": "combined-implemented-paths-v1",
@@ -1096,7 +1096,7 @@ async def test_bounded_accumulation_revocation_and_artifact_cleanup(monkeypatch,
         is None
     )
     record_property(
-        "phase36_metrics",
+        "verification_metrics",
         json.dumps(
             {
                 "kind": "bounded-soak-v1",

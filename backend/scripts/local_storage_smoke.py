@@ -375,9 +375,9 @@ def main():
             if service in approved_digests:
                 raise Refused("duplicate_approved_image_digest")
             approved_digests[service] = digest
-        with tempfile.TemporaryDirectory(prefix="pi7-docker-") as config:
+        with tempfile.TemporaryDirectory(prefix="local-storage-") as config:
             LocalStores(
-                "pi7-" + args.session, args.socket, config, approved, approved_digests
+                "local-storage-" + args.session, args.socket, config, approved, approved_digests
             ).perform(args.action)
     except (Refused, OSError, subprocess.SubprocessError, ValueError, KeyError) as error:
         reason = error if isinstance(error, Refused) else type(error).__name__

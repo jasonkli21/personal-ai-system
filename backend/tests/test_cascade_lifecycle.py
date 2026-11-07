@@ -819,7 +819,7 @@ def _litellm_routing_fixture(system, *, generation_status="success", nested_acco
 
 
 @pytest.mark.parametrize("generation_status", ["success", "unknown"])
-def test_p24_real_litellm_gateway_uses_exactly_one_outer_p19_attempt_per_send(
+def test_real_litellm_gateway_uses_exactly_one_accounted_attempt_per_send(
     system, monkeypatch, generation_status
 ):
     from personal_ai.llm.litellm import gateway
@@ -861,7 +861,7 @@ def test_p24_real_litellm_gateway_uses_exactly_one_outer_p19_attempt_per_send(
     if generation_status == "unknown":
         original_attempt_id = by_operation["bounded_generation"][0].attempt_id
         # A later run with the same request id encounters the original unresolved
-        # P19 attempt before the callback can make another HTTP request.
+        # quota attempt before the callback can make another HTTP request.
         with pytest.raises(CascadeRejected, match="operation_already_started"):
             coordinator.execute(
                 owner_id="owner", scope=SCOPE, task=cascade, request=req, prepare=prepare
@@ -876,7 +876,7 @@ def test_p24_real_litellm_gateway_uses_exactly_one_outer_p19_attempt_per_send(
         )
 
 
-def test_p24_rejects_real_litellm_gateway_with_nested_accounting_before_send(system):
+def test_real_litellm_gateway_rejects_nested_accounting_before_send(system):
     service, repo, requests, prepare, cascade, req = _litellm_routing_fixture(
         system, nested_accounting=object()
     )

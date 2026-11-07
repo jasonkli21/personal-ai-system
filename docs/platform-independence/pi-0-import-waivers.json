@@ -1,8 +1,0 @@
-{
-  "review_date": "2026-10-30",
-  "review_scope": "PI-1 extraction; implementation-reviewed; independent-pending",
-  "schema_version": 1,
-  "source_revision": "623327da171d4acd3d48d96a4c50bd40394c1925 + PI-1 candidate",
-  "waivers": [],
-  "facade_waivers": []
-}

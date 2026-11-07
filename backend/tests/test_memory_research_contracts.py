@@ -13,6 +13,11 @@ from personal_ai.evaluation.memory_longitudinal.dataset import (
     parse_sources,
     source_bytes,
 )
+from personal_ai.evaluation.memory_longitudinal.study import (
+    PREVIOUS_SOURCE_LOCK_SHA256,
+    ROOT,
+    source_lock,
+)
 from personal_ai.memory.research.experiments.artifacts import (
     PACKAGE_MEMBERS,
     checked_json,
@@ -174,6 +179,18 @@ def test_source_schema_and_hidden_gold_injection_are_rejected_even_with_fresh_ha
     payload = canonical(data)
     with pytest.raises(ValidationError):
         parse_sources(payload, sha256(payload).hexdigest())
+
+
+def test_source_identity_migration_adds_v5_without_rewriting_historical_locks():
+    folder = ROOT / "backend/src/personal_ai/evaluation/memory_longitudinal"
+    v5_path = folder / "source-lock-v5.json"
+    v4_path = folder / "source-lock-v4.json"
+    assert sha256(v4_path.read_bytes()).hexdigest() == PREVIOUS_SOURCE_LOCK_SHA256
+    v5 = json.loads(v5_path.read_bytes())
+    assert v5["version"] == "memory-longitudinal-source-lock-v3"
+    assert v5["supersedes_sha256"] == PREVIOUS_SOURCE_LOCK_SHA256
+    assert source_lock()
+    assert all((folder / f"source-lock-v{generation}.json").is_file() for generation in range(1, 5))
 
 
 def test_all_cases_have_separate_sessions_and_immutable_task_manifests():

@@ -36,7 +36,7 @@ def test_scorer_measures_only_sources_injected_by_planned_context():
         "model_id": "synthetic.model",
         "evaluation_evidence_identity": "evaluation-run:synthetic:case-1",
         "tested_revision": "abcdef0123456789",
-        "counter_identity": "phase13-envelope-byte-estimate-v1",
+        "counter_identity": "planning-envelope-byte-estimate-v1",
     }
 
     complete = measure_planning_answer(
@@ -65,7 +65,7 @@ def test_quality_evidence_binds_provider_model_and_evaluation_identity():
         "model_id": "synthetic.model",
         "evaluation_evidence_identity": "evaluation-run:synthetic:case-1",
         "tested_revision": "abcdef0123456789",
-        "counter_identity": "phase13-envelope-byte-estimate-v1",
+        "counter_identity": "planning-envelope-byte-estimate-v1",
     }
     assembled = _assembled(fixture, fixture.source_ids)
     output = json.dumps(fixture.reference_output)

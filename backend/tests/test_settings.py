@@ -26,6 +26,54 @@ def test_settings_load_from_example_file() -> None:
     assert settings.allowed_web_origins == ["http://localhost:3000"]
 
 
+def test_deployed_persistence_uses_capability_names_and_reads_legacy_environment(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "fake")
+    monkeypatch.setenv("AI_MODEL", "test-synthetic-model")
+    monkeypatch.setenv("APP_ENVIRONMENT", "staging")
+    monkeypatch.setenv("AUTH_MODE", "google_oidc")
+    monkeypatch.setenv("AUTH_REQUIRED", "true")
+    monkeypatch.setenv("AUTH_AUDIENCE", "test-client")
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", '["owner@gmail.com"]')
+    monkeypatch.setenv("ALLOWED_ORIGINS", '["https://example.test"]')
+    monkeypatch.setenv(
+        "DEPLOYED_NEON_RUNTIME_DSN",
+        "postgresql://new-pooler.example.neon.tech/db?sslmode=verify-full",
+    )
+    monkeypatch.setenv("DEPLOYED_DYNAMODB_ROLE_ARN", "arn:aws:iam::123456789012:role/PasTest")
+    monkeypatch.setenv("DEPLOYED_DYNAMODB_IDENTITY_TOKEN_AUDIENCE", "https://example.test/identity")
+    monkeypatch.setenv("P10_NEON_RUNTIME_DSN", "postgresql://legacy.example/db")
+    monkeypatch.setenv("DEPLOYED_PERSISTENCE_ENABLED", "true")
+    settings = Settings(_env_file=None)
+
+    assert settings.deployed_persistence_enabled is True
+    assert settings.deployed_neon_runtime_dsn.get_secret_value() == (
+        "postgresql://new-pooler.example.neon.tech/db?sslmode=verify-full"
+    )
+
+
+def test_deployed_persistence_reads_legacy_environment_aliases(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "fake")
+    monkeypatch.setenv("AI_MODEL", "test-synthetic-model")
+    monkeypatch.setenv("APP_ENVIRONMENT", "staging")
+    monkeypatch.setenv("AUTH_MODE", "google_oidc")
+    monkeypatch.setenv("AUTH_REQUIRED", "true")
+    monkeypatch.setenv("AUTH_AUDIENCE", "test-client")
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", '["owner@gmail.com"]')
+    monkeypatch.setenv("ALLOWED_ORIGINS", '["https://example.test"]')
+    monkeypatch.setenv("P10_CLOUD_ADAPTERS_CONFIGURED", "true")
+    monkeypatch.setenv(
+        "P10_NEON_RUNTIME_DSN",
+        "postgresql://legacy-pooler.example.neon.tech/db?sslmode=verify-full",
+    )
+    monkeypatch.setenv("P10_DYNAMODB_ROLE_ARN", "arn:aws:iam::123456789012:role/PasTest")
+    monkeypatch.setenv("P10_DYNAMODB_IDENTITY_TOKEN_AUDIENCE", "https://example.test/identity")
+    monkeypatch.setenv("P10_NEON_POOL_MAX_SIZE", "3")
+    settings = Settings(_env_file=None)
+
+    assert settings.deployed_persistence_enabled is True
+    assert settings.deployed_neon_pool_max_size == 3
+
+
 def test_provider_usage_stale_threshold_exceeds_longest_provider_timeout():
     settings = Settings(
         _env_file=None,

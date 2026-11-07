@@ -6,7 +6,7 @@
 
 ## Context
 
-Phase 5 retains bounded, owner-scoped source observations and expiring evidence.
+The research capability retains bounded, owner-scoped source observations and expiring evidence.
 Reusable decisions need stable candidate identity, hard-constraint outcomes,
 and ranking details without converting an observation into permanent entity
 truth or writing an external application's authoritative state.
@@ -17,7 +17,7 @@ truth or writing an external application's authoritative state.
   claims. Claims keep typed and original values, source references, observation
   time, expiry, and a verification status.
 - Snapshot the complete source attribution, observation, expiry, policy, and
-  content-fingerprint metadata used by a decision. A Phase 5 session may supply
+  content-fingerprint metadata used by a decision. A research session may supply
   that snapshot, but a caller may also provide explicitly attributed and
   validated evidence without a research session.
 - Require evidence ownership to match the decision owner. Session evidence must
@@ -71,7 +71,7 @@ truth or writing an external application's authoritative state.
 - Treating the latest claim as true would hide source conflicts and make old
   decisions impossible to reconstruct.
 - Matching on a similar title alone would silently merge distinct candidates.
-- Requiring every decision to originate in a Phase 5 session would prevent
+- Requiring every decision to originate in a research session would prevent
   reusable decisions over other explicitly supplied evidence sources.
 - Asking a model to decide hard-constraint pass/fail would make deterministic
   requirements non-reproducible.

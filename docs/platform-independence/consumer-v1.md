@@ -1,8 +1,8 @@
 # External consumer HTTP contract v1.2.0
 
-PI-2 local implementation candidate, 2026-10-30. Independent review and deployed
+Local implementation candidate, 2026-10-30. Independent review and deployed
 identity/provider/storage acceptance remain open. The [generated OpenAPI subset](consumer-v1.openapi.json)
-is derived from executable routes/models by `backend/scripts/pi2_contract.py`.
+is derived from executable routes/models by `backend/scripts/consumer_contract_check.py`.
 The server's full `/openapi.json` includes additional first-party and gated APIs;
 those are not part of this external consumer contract.
 
@@ -152,7 +152,7 @@ notes and an operator-announced support window before removal; no removal date
 is scheduled. The pinned JSON and conformance fixtures must change together.
 
 
-## PI-5 additive standalone retrieval
+## Additive standalone retrieval
 
 The exact POST routes `/v1/retrieval/query` and
 `/v1/tools/retrieval.query.v1/invoke` are default-off additions in v1.1.0. See the
@@ -165,7 +165,7 @@ requires both installed read-only capability metadata and a closed executable
 binding. These additions expose no raw research, memory controls or generic tool
 dispatch. The Reading Logbook client can make explicit retrieval calls; its local
 records are never automatically uploaded. The historical conversation operations,
-SSE/idempotency and PI-4 history restrictions above remain unchanged.
+SSE/idempotency and branch-scoped history restrictions above remain unchanged.
 
 
 ## Separate synthetic reasoning preview

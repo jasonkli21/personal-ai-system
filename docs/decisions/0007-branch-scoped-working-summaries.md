@@ -5,7 +5,7 @@ Status: Accepted (2026-10-01)
 ## Decision
 
 A conversation summary is lossy working context, not a user fact, external
-evidence, or Phase 3 memory. A usable summary records the ordered complete source turns and their SHA-256
+evidence, or durable user memory. A usable summary records the ordered complete source turns and their SHA-256
 fingerprint of IDs, roles, and content. Coverage IDs separately record the contiguous
 raw branch prefix through the last source turn, including skipped incomplete turns,
 with a fingerprint of IDs, roles, content, status, and parent links. A branch rewrite or content mismatch makes it ineligible. Records remain
@@ -38,7 +38,7 @@ release a newer reservation. Regenerate operates on its post-supersession prefix
 
 A preparation failure can leave a durable user without an assistant, including
 after edit/retry or regenerate. The browser refreshes that path and preserves the
-safe error so the user can edit/retry. This deliberately extends Phase 1's atomic
+safe error so the user can edit/retry. This deliberately extends the initial chat flow's atomic
 whole-turn behavior: each persistence stage is atomic, but preparation happens
 between stages. Summaries are auditable, lossy, and cannot promise perfect recall.
 Permanent summary retention/export/deletion policies remain future work.

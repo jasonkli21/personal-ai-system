@@ -10,8 +10,12 @@ from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
-from personal_ai.evaluation.pi6_audit import current_audit
-from personal_ai.evaluation.pi6_contracts import SOURCE_BYTE_LIMIT, Observation, memory_command
+from personal_ai.evaluation.evaluation_effect_audit import current_audit
+from personal_ai.evaluation.offline_information_contracts import (
+    SOURCE_BYTE_LIMIT,
+    Observation,
+    memory_command,
+)
 
 
 def render_prompt(task):
@@ -27,10 +31,14 @@ def render_prompt(task):
 def http_task(task, arm):
     from reading_logbook.client import APIError, UncertainTurn
 
-    from personal_ai.evaluation.pi6_http import environment, install_source, profile_grant
+    from personal_ai.evaluation.loopback_synthetic_host import (
+        environment,
+        install_source,
+        profile_grant,
+    )
 
     with (
-        tempfile.TemporaryDirectory(prefix="pi6-") as directory,
+        tempfile.TemporaryDirectory(prefix="offline_information_handling-") as directory,
         environment(
             Path(directory).resolve(),
             builtin=task.family == "branch",
@@ -59,7 +67,7 @@ def http_task(task, arm):
         elif task.family == "branch":
             # Use the public edit API to preserve branch/supersedes semantics.
             seed = {
-                "content": f"PI6 fact: {task.subject}={task.distractor}.",
+                "content": f"OFFLINE_BENCHMARK fact: {task.subject}={task.distractor}.",
                 "idempotency_key": str(uuid4()),
                 "choice": {"mode": "automatic"},
             }
@@ -70,14 +78,14 @@ def http_task(task, arm):
                 edited = h.raw.post(
                     f"/v1/conversations/{cid}/messages/{user['id']}/edit-and-retry",
                     headers=h.headers,
-                    json={"content": f"PI6 fact: {task.subject}={task.value}."},
+                    json={"content": f"OFFLINE_BENCHMARK fact: {task.subject}={task.value}."},
                 )
                 if edited.status_code not in {200, 201}:
-                    raise RuntimeError("pi6_branch_edit_failed")
+                    raise RuntimeError("offline_information_handling_branch_edit_failed")
             else:
                 seed["idempotency_key"] = str(uuid4())
                 seed["content"] = ("Irrelevant filler. " * 220) if task.variant == "long" else ""
-                seed["content"] += f"PI6 fact: {task.subject}={task.value}."
+                seed["content"] += f"OFFLINE_BENCHMARK fact: {task.subject}={task.value}."
                 h.client.ask(cid, seed)
             del initial
         elif task.family == "provider":
@@ -102,7 +110,7 @@ def http_task(task, arm):
                     )
                 return Observation(outcome="failed", hard_valid=False, factual=False)
             else:
-                body["content"] += f" PI6 fact: {task.subject}={task.value}."
+                body["content"] += f" OFFLINE_BENCHMARK fact: {task.subject}={task.value}."
 
         if arm == "standalone":
             result = h.client.retrieve(body["content"], uuid4())
@@ -120,7 +128,7 @@ def http_task(task, arm):
             )
             exact = exact and tool["retrieval"]["items"] == items
             evidence_type = "no_evidence" if not items else "retrieval_provenance"
-            expected_fact = f"PI6 fact: {task.subject}={task.value}."
+            expected_fact = f"OFFLINE_BENCHMARK fact: {task.subject}={task.value}."
             supported = bool(items) and all(expected_fact in item["quote"] for item in items)
             evidence_material = [expected_fact] if supported else []
             return Observation(
@@ -191,7 +199,7 @@ def http_task(task, arm):
             from personal_ai.retrieval.contracts import RetrievalQuery
             from personal_ai.retrieval.installation import LexicalIndex, load_snapshot
 
-            scope = RequestScope(**source["access"][0], request_id="pi6")
+            scope = RequestScope(**source["access"][0], request_id="offline_information_handling")
             snapshot = load_snapshot(str(h.directory / "sources.json"))
             items, _ = LexicalIndex(
                 snapshot.installation.documents, issuer_id=snapshot.installation.issuer_id
@@ -397,11 +405,11 @@ def research_task(task, arm):
     if task.variant == "conflict":
         facts.append(f"The synthetic {task.subject} is {task.distractor}.")
     case = {
-        "name": "conflicting-sources" if task.variant == "conflict" else "pi6-independent",
+        "name": "conflicting-sources" if task.variant == "conflict" else "offline_information_handling-independent",
         "question": render_prompt(task),
         "expected": "completed",
         "sources": [
-            {"url": f"https://example.org/pi6/{task.subject}/{i}", "text": fact}
+            {"url": f"https://example.org/offline_information_handling/{task.subject}/{i}", "text": fact}
             for i, fact in enumerate(facts)
         ],
     }

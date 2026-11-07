@@ -346,7 +346,7 @@ class RoutingDecisionService:
                 if request.operation in bucket.operations
             }
             if len(applicable_bucket_ids) > 128:
-                # Bound P19 lock work as well as the persisted replay record.
+                # Bound quota lock work as well as the persisted replay record.
                 quota_snapshot_overflow = True
 
             runtime_by_profile = {}
@@ -800,7 +800,7 @@ class RoutingDecisionService:
                 raise RoutingFinalizationError("routing_decision_not_finalizable")
             try:
                 # Authorization consumes one event and the next required terminal
-                # transition consumes another. Check both before reserving P19.
+                # transition consumes another. Check both before reserving quota.
                 record.ensure_append_capacity(
                     event_count=2,
                     event_bytes=(MAX_ROUTING_OUTCOME_BYTES + MAX_ROUTING_TERMINAL_EVENT_BYTES),
@@ -1049,7 +1049,7 @@ class RoutingDecisionService:
         """One explicitly admitted auxiliary physical send, under root bounds.
 
         The auxiliary event is the single-use identity; incomplete or unknown
-        outcomes fence the same P19 request. No nested SDK accounting/retry.
+        outcomes fence the same quota request. No nested SDK accounting/retry.
         """
         from dataclasses import replace
 

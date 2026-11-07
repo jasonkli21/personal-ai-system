@@ -1,6 +1,6 @@
 # ADR 0023 — External consumer and execution authority
 
-Accepted for HXE-0 development on 2026-11-03. Production enablement requires the
+Accepted for the external consumer boundary on 2026-11-03. Production enablement requires the
 evidence in the [gate registry](../platform-independence/pi-cross-phase-gate-registry.md).
 
 ## Identity and compatibility
@@ -17,7 +17,7 @@ The generated [consumer OpenAPI subset](../platform-independence/consumer-v1.ope
 and [consumer rules](../platform-independence/consumer-v1.md) define the
 provisional HTTP boundary. The full FastAPI schema describes internal routes too.
 The separately versioned `personal_ai.extensions.v1` contract is for selected,
-operator-trusted host code. HXE-0 uses the published API version and an operator
+operator-trusted host code. The external consumer uses the published API version and an operator
 capability configuration. These describe compatibility and availability.
 Authorization is evaluated afresh for each operation. Unsupported operations
 fail closed and remain outside the public surface.
@@ -30,7 +30,7 @@ new major contract, an explicit migration guide and an announced support window.
 
 ## Sources, model operations and retained outputs
 
-PI-4 and PI-5 owners bind source dependencies to verified owner and actor,
+Profile consent and retrieval owners bind source dependencies to verified owner and actor,
 destination app and workspace, purpose, source revision, issuer/grant and
 expiry. Context resolves authorized sources, accounts for their token cost and
 preserves dependency metadata through provider handoff. Source text remains
@@ -40,23 +40,23 @@ history, replay, summaries, caches and exports must recheck dependencies on
 disclosure and quarantine unknown or stale provenance. Already disclosed bytes
 require downstream retention and withdrawal controls.
 
-PI-3 owns provider selection and admission through neutral ports. Generation,
+LLM routing owns provider selection and admission through neutral ports. Generation,
 structured generation, summary, token count, embedding, extraction and search
 have distinct capability and disclosure requirements. Strict-free eligibility
 fails closed without current exact-account, operation, counter and policy
-evidence. P19 owns physical attempt reservation and accounting. Ancillary
+evidence. Usage accounting owns physical attempt reservation and settlement. Ancillary
 requests and retries each require their own admitted reservation before a
 physical send. An SDK operation key identifies a logical intent and cannot
 authorize an additional provider attempt.
 
 Memory owns governed, attributable durable knowledge and authorized forget.
-External evidence keeps its own freshness and rights. HXE-0 keeps memory
-controls outside the external HTTP subset and exercises the existing MEM-1/2
+External evidence keeps its own freshness and rights. The external consumer keeps memory
+controls outside its HTTP subset and exercises existing memory knowledge/control
 boundaries with synthetic data.
 
 ## Canonical future execution
 
-RE-2 strategies and HXE-3 orchestration should share one run, step, immutable
+Reasoning strategies and workflow orchestration should share one run, step, immutable
 intent and physical attempt lifecycle. Persist the scoped intent and its key
 before admitting or reserving an attempt. Record ordered attempt events for
 reservation, dispatch and canonical completion, failure or uncertainty. Bind
@@ -65,7 +65,7 @@ body conflict. Cancellation prevents new work at the next authorized boundary.
 A disconnect, canceled caller or lost acknowledgement can leave a remote
 effect unknown. Reconcile unknown outcomes against durable and downstream
 receipts before authorizing a retry. Replaying terminal results requires current
-rights. HXE-0 uses the existing canonical continuation path and introduces no
+rights. The external consumer uses the existing canonical continuation path and introduces no
 general execution runtime.
 
 Before live source enablement, an issuer-bound exact-attempt permit must

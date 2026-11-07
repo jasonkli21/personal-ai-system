@@ -1,4 +1,4 @@
-"""Bounded task-by-endpoint evaluation through routing and P19 dispatch authority."""
+"""Bounded task-by-endpoint evaluation through routing and quota dispatch authority."""
 
 from __future__ import annotations
 
@@ -159,8 +159,8 @@ class SyntheticEvaluationOutputRetention:
 class LiteLLMProfileExecutor:
     """Prepare the existing neutral generation adapter for the exact registry profile.
 
-    The SDK remains behind the normal inference gateway. P19 accounting is disabled
-    in the gateway instance because the Phase21 dispatch receipt owns this one send.
+    The SDK remains behind the normal inference gateway. quota accounting is disabled
+    in the gateway instance because the dispatch receipt owns this one send.
     """
 
     evidence_source: Literal["live"] = "live"
@@ -365,7 +365,7 @@ class InMemoryEvaluationRunRepository:
 
 
 class ProviderMatrixRunner:
-    """Iterate fixture/profile pairs through Phase21 and settle every send via Phase19."""
+    """Iterate fixture/profile pairs and settle every dispatch through quota accounting."""
 
     def __init__(
         self,
@@ -922,7 +922,7 @@ class ProviderMatrixRunner:
                             operation=operation,
                             send=send,
                         )
-                    except Exception as error:  # noqa: BLE001 - P21 already settled the send outcome
+                    except Exception as error:  # noqa: BLE001 - dispatch lifecycle already settled the send outcome
                         attempt = attempt_results[-1] if attempt_results else None
                         physical_send_started = bool(send_state)
                         case = case_for(
@@ -1088,7 +1088,7 @@ class ProviderMatrixRunner:
             artifact_publications,
         )
         # Persisted case summaries intentionally do not duplicate artifact references;
-        # Phase20 metadata is queried by its canonical evaluation_run_id link.
+        # evaluation run metadata is queried by its canonical evaluation_run_id link.
         if not summaries:
             raise EvaluationRunConflict("evaluation_matrix_produced_no_cases")
         measured = sum(case.status == "measured" for case in summaries)

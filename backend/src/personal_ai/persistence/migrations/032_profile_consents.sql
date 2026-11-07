@@ -1,4 +1,4 @@
--- PI-4 dormant owner consent aggregate. Old v1 allowlists are archived, never grants.
+-- Old v1 allowlists are archived, never grants.
 CREATE TABLE profile_consents (
     scope_id text NOT NULL REFERENCES scope_namespaces(scope_id),
     record_id text NOT NULL CHECK (record_id='owner-profile-consents-v1'),

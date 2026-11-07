@@ -1,0 +1,8 @@
+{
+  "review_date": "2026-10-30",
+  "review_scope": "core-to-example import boundary; implementation-reviewed; independent-pending",
+  "schema_version": 1,
+  "source_revision": "623327da171d4acd3d48d96a4c50bd40394c1925 + reviewed working tree",
+  "waivers": [],
+  "facade_waivers": []
+}

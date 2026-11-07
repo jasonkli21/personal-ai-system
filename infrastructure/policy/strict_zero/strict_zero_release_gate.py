@@ -1,4 +1,4 @@
-"""Fail closed on stale, incomplete, or nonzero Phase 10 cost evidence."""
+"""Fail closed on stale, incomplete, or nonzero cloud cost evidence."""
 
 from __future__ import annotations
 

@@ -20,15 +20,15 @@ def clear_shared_factories():
 def _settings(**updates):
     defaults = {
         "app_environment": "test",
-        "p10_cloud_adapters_configured": False,
+        "deployed_persistence_enabled": False,
         "persistence_local_postgres_dsn": SecretStr("postgresql://local/db"),
         "persistence_local_dynamodb_endpoint": "http://127.0.0.1:8000",
-        "p10_neon_runtime_dsn": SecretStr(""),
-        "p10_neon_pool_max_size": 4,
-        "p10_dynamodb_region": "us-east-1",
-        "p10_dynamodb_table_name": "personal-ai-runtime-v1",
-        "p10_dynamodb_role_arn": "arn:aws:iam::123456789012:role/personal-ai-runtime",
-        "p10_dynamodb_identity_token_audience": "https://example.test/aws-role",
+        "deployed_neon_runtime_dsn": SecretStr(""),
+        "deployed_neon_pool_max_size": 4,
+        "deployed_dynamodb_region": "us-east-1",
+        "deployed_dynamodb_table_name": "personal-ai-runtime-v1",
+        "deployed_dynamodb_role_arn": "arn:aws:iam::123456789012:role/personal-ai-runtime",
+        "deployed_dynamodb_identity_token_audience": "https://example.test/aws-role",
     }
     defaults.update(updates)
     return SimpleNamespace(**defaults)
@@ -90,11 +90,11 @@ def test_deployed_factory_uses_neon_and_federated_dynamodb(monkeypatch):
     )
     settings = _settings(
         app_environment="production",
-        p10_cloud_adapters_configured=True,
-        p10_neon_runtime_dsn=SecretStr(
+        deployed_persistence_enabled=True,
+        deployed_neon_runtime_dsn=SecretStr(
             "postgresql://runtime:secret@ep-example-pooler.us-east-1.aws.neon.tech/db"
         ),
-        p10_neon_pool_max_size=3,
+        deployed_neon_pool_max_size=3,
     )
 
     factory = persistence_factory(settings)
@@ -139,6 +139,6 @@ def test_factory_rejects_missing_or_misplaced_cloud_configuration(
         persistence_factory(
             _settings(
                 app_environment=environment,
-                p10_cloud_adapters_configured=configured,
+                deployed_persistence_enabled=configured,
             )
         )

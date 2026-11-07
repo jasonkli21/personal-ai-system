@@ -464,7 +464,7 @@ def _simulate(scenario: QuotaDemandScenario, strategy):
             and (reservation_units is None or fact.remaining_units < reservation_units)
             for fact, reservation_units in selected_facts
         ):
-            # The P19 reservation is all-or-nothing across every applicable bucket.
+            # The quota reservation is all-or-nothing across every applicable bucket.
             unavailable += 1
             continue
         if selected.quality_score + _QUALITY_TOLERANCE < scenario.quality_floor:

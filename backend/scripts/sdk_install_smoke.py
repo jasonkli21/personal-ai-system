@@ -90,7 +90,7 @@ def main() -> None:
                 ]
             )
             run([str(python), "-I", "-c", PROBE], cwd=work)
-            print(f"HXE0_CLIENT_INSTALL={mode}:PASS", flush=True)
+            print(f"SDK_CLIENT_INSTALL={mode}:PASS", flush=True)
 
 
 if __name__ == "__main__":

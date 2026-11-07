@@ -187,7 +187,7 @@ def test_migration_retains_v1_definition_moves_runtime_observation_and_upgrades_
     assert c.quota_windows
 
 
-def test_migration_semantics_ignore_mutable_phase18_and_phase19_runtime_helpers(monkeypatch):
+def test_migration_semantics_ignore_mutable_runtime_helpers(monkeypatch):
     from personal_ai.persistence.postgres.usage import accounting
 
     original = old_snapshot()

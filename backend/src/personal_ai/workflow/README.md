@@ -78,11 +78,11 @@ observations, cursor gaps and terminal stop reasons. The original request
 recovers the same run ID. An interrupted reserved attempt can be abandoned
 and resumed under the stable child key. A dispatched attempt without a
 committed result remains uncertain. See the
-[reasoning workflow guide](../../../../docs/reasoning-engine/re-2-implementation.md).
+[reasoning architecture](../../../../docs/reasoning-engine/architecture.md).
 
 ## Grounded fixture profile
 
-Use the [grounded host guide](../../../../docs/reasoning-engine/re-3-implementation.md)
+Use the [synthetic preview guide](../../../../docs/reasoning-engine/synthetic-preview.md)
 to opt in with a separate `GroundedHost` and public synthetic v2 source
 installation. The existing foreground lifecycle owns the run and replay.
 The live response contains only verified slots with citations. Source bodies

@@ -1,4 +1,4 @@
--- Preserve the source relation envelope and timestamp during P10.4 migration.
+-- Preserve the source relation envelope and timestamp during cloud persistence migration migration.
 ALTER TABLE derived_memory_sources
     ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE derived_memory_sources

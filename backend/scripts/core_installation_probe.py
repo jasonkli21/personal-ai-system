@@ -99,7 +99,7 @@ assert all(
     for name, module in sys.modules.items()
     if name.startswith("personal_ai.") and getattr(module, "__file__", None)
 )
-settings = Settings(_env_file=None, ai_provider="fake", ai_model="pi1-fake", app_environment="test")
+settings = Settings(_env_file=None, ai_provider="fake", ai_model="test-fake-model", app_environment="test")
 required = []
 
 

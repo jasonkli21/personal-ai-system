@@ -1,4 +1,4 @@
-"""provider usage observations extend static topology; live state never enters P18."""
+"""provider usage observations extend static topology; live state never enters routing."""
 
 from __future__ import annotations
 

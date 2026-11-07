@@ -56,7 +56,7 @@ publication, not cloud deployment or live-provider/personal-data operations.
 ## D009 — Publication correction freeze (2026-10-14)
 
 The first hosted CI runs revealed environment-dependent test/configuration gaps
-and the condensed status omitted a required Phase36 offline-evidence phrase.
+and the condensed status omitted a required offline-evidence phrase.
 Corrections preserve production behavior and assertions. The final handoff must
 record the corrected domain publications. PAI’s follow-up therefore advances to
 a new v13 lock anchored at 4413b0a, rather than altering v12 or relaxing revision

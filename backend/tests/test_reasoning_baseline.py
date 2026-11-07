@@ -104,7 +104,7 @@ def test_candidate_contract_rejects_metadata_and_proofs(field):
 @pytest.mark.parametrize(
     "target, expected",
     [
-        ("fixtures/reasoning/manifest-v1.json", "manifest_identity_mismatch"),
+        ("fixtures/reasoning/manifest-v2.json", "manifest_identity_mismatch"),
         ("fixtures/reasoning/cases-v1.json", "source_identity_mismatch"),
         ("reasoning_scoring.py", "source_identity_mismatch"),
         ("reasoning_driver.py", "source_identity_mismatch"),
@@ -259,12 +259,42 @@ def test_stored_report_is_content_free(tmp_path):
 
 def test_predecessor_fixture_bytes():
     evaluation = ROOT / "backend/src/personal_ai/evaluation"
-    paths = sorted(
-        [
-            *(evaluation / "fixtures/pi6").glob("*.json"),
+    offline = evaluation / "fixtures/offline_information_handling"
+    longitudinal = evaluation / "memory_longitudinal"
+    paths = [
+            *(
+                path
+                for path in offline.glob("*.json")
+                if path.name != "source-manifest-v2-generation-10.json"
+            ),
             *(evaluation / "fixtures/real_tasks").glob("*.json"),
-            *(evaluation / "memory_longitudinal").glob("source-lock-*.json"),
+            *(
+                path
+                for path in longitudinal.glob("source-lock-*.json")
+                if path.name != "source-lock-v5.json"
+            ),
         ]
-    )
+
+    def historical_path(path):
+        relative = path.relative_to(evaluation).as_posix()
+        relative = relative.replace(
+            "fixtures/offline_information_handling/", "fixtures/frozen/"
+        )
+        relative = relative.replace(
+            "source-manifest-v2-generation-", "manifest-v2-source-"
+        )
+        return relative
+
+    paths.sort(key=historical_path)
     pinned = sha256(b"".join(path.read_bytes() for path in paths)).hexdigest()
     assert pinned == "1631aa298683914bd91e53e34f86aa769d35a119d41ee0bf05e438be48ece73e"
+
+
+def test_source_identity_migration_preserves_predecessor_manifest():
+    historical = reasoning_seal.FIXTURES / "manifest-v1.json"
+    current = reasoning_seal.FIXTURES / "manifest-v2.json"
+    assert sha256(historical.read_bytes()).hexdigest() == reasoning_seal.HISTORICAL_MANIFEST_SHA256
+    manifest = json.loads(current.read_bytes())
+    assert manifest["version"] == "reasoning-offline-source-identity-v2"
+    assert manifest["supersedes_sha256"] == reasoning_seal.HISTORICAL_MANIFEST_SHA256
+    assert reasoning_seal.load()[1] == manifest

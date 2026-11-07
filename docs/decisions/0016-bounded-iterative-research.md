@@ -5,23 +5,23 @@
 
 ## Context
 
-Phase 5 persists one request-owned pass. Iteration needs a durable owner of
+Single-pass research persists one request-owned pass. Iteration needs a durable owner of
 state, leases, idempotency, immutable policy snapshots, safe progress, and
 recovery without changing the single-pass route. Search results, extracted
-evidence, citations, and decisions must continue to use the Phase 5–6
-contracts.
+evidence, citations, and decisions must continue to use the existing research
+and verification contracts.
 
 ## Decision
 
-An opt-in Phase 8 run is a separate `iterative-research-v1` aggregate in
+An opt-in iterative research run is a separate `iterative-research-v1` aggregate in
 `iterative_research_runs`; its idempotency mapping is stored in
-`iterative_research_request_keys`. The run links to one Phase 5
+`iterative_research_request_keys`. The run links to one bounded
 `ResearchSession`, whose existing bounded owner-scoped aggregate remains the
 source of query, attempt, source, evidence, selection, and citation
 provenance. The run aggregate stores a frozen policy/budget snapshot, a
 monotonic event stream, iteration/gap records, and append-only per-dimension
 budget ledger entries. Each backing session also carries an immutable
-`iterative_run_id`; ordinary Phase 5 claim/save paths reject iterative-owned
+`iterative_run_id`; ordinary claim/save paths reject iterative-owned
 sessions. Bounded arrays remain in one Firestore document so a
 state change and its public event are one transaction; no event query or
 composite index is needed. Requests and evidence remain in the existing
@@ -30,7 +30,7 @@ index exemptions.
 
 Only `IterativeResearchService` may advance the finite state machine. It
 persists the next state and safe event before starting an adapter or model
-call. Search and synthesis output is committed to the Phase 5 session before
+call. Search and synthesis output is committed to the research session before
 the run records the completed side effect. A started adapter attempt without
 a committed terminal result is uncertain after lease loss and is never
 replayed. The run settles the reserved maximum cost and stops incomplete.
@@ -57,7 +57,7 @@ research remains the default and retains its existing endpoint and SSE events.
 Optional decision intents contain candidate identities and user constraints,
 not model-supplied facts. Conservative, exact-subject typed-claim proposals
 may be extracted from eligible evidence with exact evidence IDs, then must
-pass the shared Phase 6 verifier against an ephemeral view of the Phase 5
+pass the shared evidence verifier against an ephemeral view of the research
 session. Unsupported, negated, conflicting, stale, variant-mismatched and
 out-of-scope facts produce no verified claim. Unknown required facts,
 conflicts, stale evidence, and ambiguous identity remain gaps. The
@@ -70,9 +70,9 @@ result.
 
 - A crash after provider dispatch but before result commit can lose a result;
   recovery does not pay for a duplicate request or pretend the result exists.
-- Firestore transactions update the run and associated Phase 5 session in one
+- Firestore transactions update the run and associated research session in one
   fenced commit where a result could otherwise race with cancellation.
-- The Phase 5 aggregate caps remain authoritative. Iterative settings cannot
+- The single-pass research aggregate caps remain authoritative. Iterative settings cannot
   exceed three total queries or twelve sources in this version. Contract
   bounds cap candidate/constraint combinations, assessments, immutable gap
   history, events and decision snapshots to the finite loop.
@@ -87,7 +87,7 @@ result.
   results, so uncertain calls stop the run.
 - Treating SSE as run state would lose progress on disconnect and permit
   reconnect to repeat work.
-- Replacing the Phase 5 session or calling search providers from the new
+- Replacing the research session or calling search providers from the new
   orchestrator would fork provenance and URL/content policy.
-- Model-proposed facts or changed constraints would bypass Phase 6's
+- Model-proposed facts or changed constraints would bypass the verifier's
   deterministic evidence verification and hard-constraint ordering.

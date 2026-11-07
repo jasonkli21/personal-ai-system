@@ -24,7 +24,7 @@ from personal_ai.memory.services import MemoryRetriever
 @contextmanager
 def request(owner="local", app="personal_ai", workspace=None):
     scope = RequestScope(
-        owner_id=owner, application_id=app, workspace_id=workspace, request_id="p34"
+        owner_id=owner, application_id=app, workspace_id=workspace, request_id="memory-revalidation"
     )
     token = bind_request_scope(scope)
     try:
@@ -55,7 +55,7 @@ def change(env, record, kind):
         owner_id="local",
         memory_id=record.id,
         event_type=kind,
-        reason_code="phase34_fixture",
+        reason_code="lifecycle_fixture",
         policy_version="score-v1",
         idempotency_key=f"{kind}:{state.state_version}",
         expected_state_version=state.state_version,
@@ -431,7 +431,7 @@ def test_production_composition_installs_shared_memory_dependency_authority(monk
 
 def test_stable_episodic_and_volatile_source_freshness_are_not_universal_decay():
     fixture = {
-        "name": "p34-freshness",
+        "name": "freshness-revalidation",
         "records": [
             {
                 "label": "stable",

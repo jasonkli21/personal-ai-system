@@ -2,12 +2,12 @@
 
 - Status: accepted
 - Date: 2026-10-02
-- Scope: Phase 4 lifecycle, scoring, consolidation, and worker behavior
+- Scope: memory lifecycle, scoring, consolidation, and worker behavior
 
 ## Context
 
-Phase 3 stores immutable version 1 memories grounded in one completed
-conversation turn and up to two exact user-message excerpts. Phase 4 needs
+Simple memory stores immutable version 1 memories grounded in one completed
+conversation turn and up to two exact user-message excerpts. The lifecycle capability needs
 auditable scoring and lifecycle actions without changing that identity or
 provenance contract. The public API is currently unauthenticated, so mutation
 jobs must have a separate private worker entry point protected by Cloud Run IAM.
@@ -61,14 +61,14 @@ jobs must have a separate private worker entry point protected by Cloud Run IAM.
    Cloud Run IAM with a dedicated invoker identity; the worker runs as a
    different identity with only its runtime permissions. This protects the task
    transport and does not add end-user authentication.
-9. All Phase 4 gates default off on API and worker. The shared Phase 2 context
-   assembler remains the only prompt path; fitting Phase 2 context keeps its
+9. All lifecycle gates default off on API and worker. The shared context
+   assembler remains the only prompt path; fitting context keeps its
    allocation priority. Inspection uses supplied stored IDs, makes no provider
    calls or writes, and reports null relevance when similarity is unavailable.
 
 ## Consequences
 
-Phase 3 documents remain readable without migration, but derived records require
+Simple-memory records remain readable without migration, but derived records require
 their own collection-group vector index. Lifecycle state can be reconstructed
 from events. The experiment measures ranking and conservative policy outcomes;
 it does not establish truth or guarantee recall. Forgetting affects ordinary

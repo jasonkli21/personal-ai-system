@@ -5,11 +5,11 @@
 
 ## Context
 
-The browser must receive incremental assistant output during chat completion. Phase 1 needs a simple, one-way server-to-browser transport that fits ordinary HTTP infrastructure.
+The browser must receive incremental assistant output during chat completion. The initial browser workflow needs a simple, one-way server-to-browser transport that fits ordinary HTTP infrastructure.
 
 ## Decision
 
-Use Server-Sent Events (SSE) for browser-facing assistant output. Do not use WebSockets in Phase 1.
+Use Server-Sent Events (SSE) for browser-facing assistant output. Do not use WebSockets in the initial browser workflow.
 
 ## Consequences
 

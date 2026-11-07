@@ -1,4 +1,4 @@
-"""Static P10.5 IAM/capacity guard for versioned cloud configuration."""
+"""Static IAM and capacity guard for versioned cloud persistence configuration."""
 
 from __future__ import annotations
 
@@ -98,9 +98,9 @@ def validate() -> list[str]:
 def main() -> int:
     failures = validate()
     if failures:
-        print("P10.5 configuration check failed: " + ", ".join(failures))
+        print("CLOUD_PERSISTENCE_CONFIGURATION=FAIL " + ", ".join(failures))
         return 2
-    print("P10.5 static IAM and capacity checks passed")
+    print("CLOUD_PERSISTENCE_CONFIGURATION=PASS")
     return 0
 
 

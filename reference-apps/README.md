@@ -80,6 +80,6 @@ historical resolver. Restoring the compatible package, selection and fingerprint
 recovers the original operation keys. Never delete/rekey rows or resend uncertain
 effects as a rollback. Back up and preserve canonical state under existing policy.
 
-PI-1 is a candidate pending independent review. Provider portability (PI-3),
-MEM-0/1/2, native-store, physical-send/deletion, cloud identity and Phase36 gates
-remain separate; no production readiness is asserted.
+Independent acceptance remains pending. Provider portability, synthetic memory
+evaluations, native-store, physical-send/deletion, cloud identity, and serialized
+verification gates remain separate; no production readiness is asserted.

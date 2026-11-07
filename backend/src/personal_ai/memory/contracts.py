@@ -30,6 +30,8 @@ LifecycleEventType = Literal[
     "consolidated", "superseded", "forgotten", "reactivated", "retrieved", "review_required"
 ]
 _SCOPE_UNSET = object()
+VERIFIED_KNOWLEDGE_VARIANT = "verified_knowledge"
+LEGACY_VERIFIED_KNOWLEDGE_WIRE_VALUE = "mem1_verified_knowledge"
 
 
 def normalize(content: str) -> str:

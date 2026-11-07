@@ -674,7 +674,7 @@ def test_domain_gate_and_unregistered_preferences_fail_closed():
         TravelModule().prepare_decision(request)
 
 
-def test_phase_five_research_citations_carry_through_the_domain_comparison():
+def test_research_citations_carry_through_the_domain_comparison():
     fixture = {
         "name": "domain-source-handoff",
         "question": "Example Hotel total price?",

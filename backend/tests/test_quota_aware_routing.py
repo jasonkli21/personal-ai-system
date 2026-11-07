@@ -388,7 +388,7 @@ def test_reservation_race_reselects_as_a_linked_decision_without_a_send():
     ) == legacy_decision.ranking
 
     # Another request consumes the last shared capacity after selection but
-    # before P21 finalization reaches P19's atomic reservation.
+    # before dispatch lifecycle finalization reaches quota's atomic reservation.
     usage.capacities[first.endpoint_profile_id] = 0
     with pytest.raises(RoutingFinalizationError, match="provider_quota_exhausted"):
         service.finalize(
@@ -509,7 +509,7 @@ def test_oversized_quota_snapshot_persists_bounded_no_route_outcome():
         replay_deterministic_decision(decision, QuotaAwareDeterministicStrategy())
 
 
-def test_quota_bucket_overflow_is_rejected_before_p19_batch_snapshot():
+def test_quota_bucket_overflow_is_rejected_before_batch_snapshot():
     repository = MemoryRepository()
     profiles = []
     for endpoint_index in range(5):
@@ -528,7 +528,7 @@ def test_quota_bucket_overflow_is_rejected_before_p19_batch_snapshot():
 
     class ForbiddenSnapshotUsage(Usage):
         def routing_snapshots(self, *args, **kwargs):
-            raise AssertionError("P19 snapshot called after known quota overflow")
+            raise AssertionError("quota snapshot called after known quota overflow")
 
     service = RoutingDecisionService(
         EndpointRegistry(tuple(profiles)),

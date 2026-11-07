@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Personal AI P10 runtime timeline table. Provisioned Standard capacity is explicit.
+Description: Personal AI runtime timeline table. Provisioned Standard capacity is explicit.
 Parameters:
   TableName:
     Type: String

@@ -27,8 +27,8 @@ from personal_ai.evaluation.memory_task_runtime import Environment, visible_sour
 from personal_ai.memory.services import MemoryRetriever
 
 ROOT = Path(__file__).resolve().parents[4]
-FIXTURES = Path(__file__).parent / "fixtures/memory/mem0-cases-v2.json"
-OUTPUT = ROOT / "artifacts/mem0"
+FIXTURES = Path(__file__).parent / "fixtures/memory/memory-task-cases-v2.json"
+OUTPUT = ROOT / "artifacts/memory-task"
 UNVERIFIED = (
     "real_model_task_quality",
     "native_postgres_resources",
@@ -434,7 +434,7 @@ def run_case(case: Case, arm):
             entries = [
                 ContextBuildItem(
                     source_class="domain_history",
-                    provider_id="mem0.diagnostic",
+                    provider_id="memory-task.diagnostic",
                     source_id=key,
                     item_id=key,
                     content=visible_source(env.sources[key]).model_dump_json(),
@@ -663,7 +663,7 @@ def evaluate(corpus):
 def write_run(fixtures=FIXTURES, output=OUTPUT):
     output = output.resolve()
     if not output.is_relative_to(OUTPUT.resolve()):
-        raise ValueError("output_must_be_under_artifacts_mem0")
+        raise ValueError("output_must_be_under_artifacts_memory_task")
     before = sha256(fixtures.read_bytes()).hexdigest()
     corpus = load_corpus(fixtures)
     identity_before = source_identity()
@@ -683,7 +683,7 @@ def write_run(fixtures=FIXTURES, output=OUTPUT):
         "fixture_sha256": before,
         "schema_sha256": digest(Corpus.model_json_schema()),
         "runner_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
-        "policy_versions": ["memory-read-v1", "mem0-scripted-policy-v2", "mem0-rubric-v2"],
+        "policy_versions": ["memory-read-v1", "memory-task-scripted-policy-v2", "memory-task-rubric-v2"],
         "profile": "synthetic-offline-no-provider-dispatch",
         "seed": 0,
         "arms": ARMS,

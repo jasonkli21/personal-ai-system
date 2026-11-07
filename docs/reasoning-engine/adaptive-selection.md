@@ -102,6 +102,5 @@ survive rollback. Live or distributed rollback and recovery from a
 filesystem snapshot are unverified.
 
 See the [experiment protocol](adaptive-experiment.md), the
-[grounded release gates](re-3-blockers.md) and
-[verification record](re-4-verification.md), and the
-[2026-11-05 review remediation](2026-11-05-re-4-review-remediation.md).
+[threat model](threat-model.md), and the
+[current verification status](../current-state.md).
