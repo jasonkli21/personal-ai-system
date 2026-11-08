@@ -12,6 +12,7 @@ from time import monotonic
 
 from personal_ai.auth.scope import RequestScope
 from personal_ai.context.builder import SOURCE_CLASSES, ContextBuildPolicy
+from personal_ai.evaluation.replay_clock import frozen_monotonic
 from personal_ai.llm.client import EmbeddingSpace
 from personal_ai.memory.contracts import MemoryQuery
 from personal_ai.memory.research.contracts import ResearchQuery, ResearchResult, digest
@@ -143,41 +144,45 @@ def run_study():
     inputs = source_identities()
     manifest, corpus = study(), fixture()
     rows = []
-    for case in corpus["cases"]:
-        # Rubric fields are not passed to the engine or consumer.
-        task = {k: v for k, v in case.items() if not k.startswith("expected")}
-        for arm in manifest["arms"]:
-            source = FixtureAuthority()
-            engine = MemoryNavigationResearch(source, enabled=True)
-            query = query_for(task, arm)
+    # Sealed replay uses one frozen monotonic policy so host scheduling cannot
+    # turn a slow step into a different timeout/partial semantic row. The
+    # independent real-deadline test in test_memory_navigation.py stays real.
+    with frozen_monotonic():
+        for case in corpus["cases"]:
+            # Rubric fields are not passed to the engine or consumer.
+            task = {k: v for k, v in case.items() if not k.startswith("expected")}
+            for arm in manifest["arms"]:
+                source = FixtureAuthority()
+                engine = MemoryNavigationResearch(source, enabled=True)
+                query = query_for(task, arm)
 
-            def hook(stage, task=task, source=source):
-                mutation = task.get("mutation")
-                if mutation and mutation["stage"] == stage:
-                    source.transition(mutation["action"], mutation["id"])
+                def hook(stage, task=task, source=source):
+                    mutation = task.get("mutation")
+                    if mutation and mutation["stage"] == stage:
+                        source.transition(mutation["action"], mutation["id"])
 
-            failure_kind = None
-            try:
-                result = engine.run(
-                    query,
-                    policy(),
-                    cancelled=lambda task=task: task.get("cancel", False),
-                    hook=hook,
+                failure_kind = None
+                try:
+                    result = engine.run(
+                        query,
+                        policy(),
+                        cancelled=lambda task=task: task.get("cancel", False),
+                        hook=hook,
+                    )
+                except Exception as exc:  # noqa: BLE001 - retain every failed attempt, then fail the run
+                    failure_kind = type(exc).__name__
+                    result = ResearchResult(status="unavailable", reason="evaluation_failure")
+                metrics = score(case, result, source, query)
+                rows.append(
+                    {
+                        "case": case["id"],
+                        "family": case["family"],
+                        "arm": arm,
+                        "result": result.model_dump(mode="json"),
+                        "failure_kind": failure_kind,
+                        **metrics,
+                    }
                 )
-            except Exception as exc:  # noqa: BLE001 - retain every failed attempt, then fail the run
-                failure_kind = type(exc).__name__
-                result = ResearchResult(status="unavailable", reason="evaluation_failure")
-            metrics = score(case, result, source, query)
-            rows.append(
-                {
-                    "case": case["id"],
-                    "family": case["family"],
-                    "arm": arm,
-                    "result": result.model_dump(mode="json"),
-                    "failure_kind": failure_kind,
-                    **metrics,
-                }
-            )
     aggregates, paired = {}, {}
     for arm in manifest["arms"]:
         attempted = [r for r in rows if r["arm"] == arm]

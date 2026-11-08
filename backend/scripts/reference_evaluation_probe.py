@@ -5,17 +5,26 @@ from __future__ import annotations
 import asyncio
 import importlib.abc
 import json
+import socket
 import sys
 from importlib.machinery import PathFinder
 from importlib.metadata import distribution
 from pathlib import Path
 
 network_attempts = []
+NETWORK_FAMILIES = {socket.AF_INET, socket.AF_INET6}
+
+try:
+    import urllib3.util.connection as _urllib3_connection
+
+    _ = _urllib3_connection.HAS_IPV6
+except ImportError:
+    pass
 
 
 def offline_fence(event, args):
     if event in {"socket.connect", "socket.getaddrinfo", "socket.sendto", "socket.sendmsg"} or (
-        event == "socket.__new__" and len(args) > 1 and args[1] in (2, 10)
+        event == "socket.__new__" and len(args) > 1 and args[1] in NETWORK_FAMILIES
     ):
         network_attempts.append(event)
         raise PermissionError("reference evaluation offline fence")

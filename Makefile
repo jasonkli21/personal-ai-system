@@ -267,7 +267,7 @@ mcp-adapter-check:
 
 .PHONY: workflow-check workflow-postgres-check
 workflow-check:
-	cd backend && python -m pytest -q tests/test_workflow_contract.py tests/test_mutations.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_workflow_contract.py backend/tests/test_mutations.py
 
 workflow-postgres-check:
 	test -n "$$PERSISTENCE_TEST_POSTGRES_DSN"
@@ -296,7 +296,7 @@ memory-episode-candidate-check:
 
 .PHONY: memory-episode-check memory-episode-postgres-check
 memory-episode-check:
-	cd backend && python -m pytest -q tests/test_episode_candidates.py tests/test_episode_service.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_episode_candidates.py backend/tests/test_episode_service.py
 
 memory-episode-postgres-check:
 	test -n "$(PERSISTENCE_TEST_POSTGRES_DSN)"
@@ -304,7 +304,7 @@ memory-episode-postgres-check:
 
 .PHONY: memory-consolidation-check memory-consolidation-eval
 memory-consolidation-check:
-	cd backend && python -m pytest -q tests/test_offline_consolidation.py tests/test_consolidation_adversarial.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_offline_consolidation.py backend/tests/test_consolidation_adversarial.py
 
 memory-consolidation-eval:
 	cd backend && python -m personal_ai.evaluation.consolidation
@@ -317,7 +317,7 @@ memory-consolidation-postgres-check:
 
 .PHONY: memory-navigation-check memory-navigation-eval memory-navigation-postgres-check
 memory-navigation-check:
-	cd backend && python -m pytest -q tests/test_memory_navigation.py tests/test_memory_navigation_evaluation.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_memory_navigation.py backend/tests/test_memory_navigation_evaluation.py
 
 memory-navigation-eval:
 	cd backend && python -m personal_ai.evaluation.memory_navigation
@@ -329,7 +329,7 @@ memory-navigation-postgres-check:
 
 .PHONY: memory-research-check memory-research-eval memory-research-replay
 memory-research-check:
-	cd backend && python -m pytest -q tests/test_memory_research_contracts.py tests/test_memory_research_study.py tests/test_memory_research_governance.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_memory_research_contracts.py backend/tests/test_memory_research_study.py backend/tests/test_memory_research_governance.py
 
 memory-research-eval:
 	cd backend && python -m personal_ai.evaluation.memory_longitudinal
@@ -340,7 +340,7 @@ memory-research-replay:
 
 .PHONY: memory-governance-check memory-governance-eval
 memory-governance-check:
-	cd backend && python -m pytest -q tests/test_memory_governance.py
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_memory_governance.py
 
 memory-governance-eval:
 	cd backend && python -m personal_ai.evaluation.memory_governance $(GOVERNANCE_FLAGS)
@@ -386,8 +386,11 @@ synthetic-reasoning-check:
 synthetic-reasoning-install-check:
 	$(PLATFORM_PYTHON) -B backend/scripts/synthetic_reasoning_install.py "$(UV)"
 
-.PHONY: hermetic-capability-check
-hermetic-capability-check: reasoning-check reasoning-orchestrator-check reasoning-grounded-check \
+.PHONY: hermetic-fence-check hermetic-capability-check
+hermetic-fence-check:
+	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/scripts/test_offline_test_runner.py
+
+hermetic-capability-check: hermetic-fence-check reasoning-check reasoning-orchestrator-check reasoning-grounded-check \
 	reasoning-adaptive-check reasoning-adaptive-conformance synthetic-reasoning-check \
 	memory-episode-check memory-consolidation-check memory-navigation-check memory-research-check \
 	memory-governance-check workflow-check

@@ -34,7 +34,8 @@ ROOT = Path(__file__).resolve().parents[5]
 LEGACY_SOURCE_LOCK_SHA256 = "4a19369b4eb997b3dbda7a37f1febd9a2e8e5165a1cc53c6a2584b1ada92d95f"
 OLDEST_SOURCE_LOCK_SHA256 = "9f3f3777af3716b1fb40a1b5af365233250f6197fa81e965b5b77403212812cc"
 HISTORICAL_V3_SOURCE_LOCK_SHA256 = "10b46a3a08ef8123e882673b710e44e8d65580ab4bb1739ba8e4de9f3a99cfb0"
-PREVIOUS_SOURCE_LOCK_SHA256 = "5a9169b9a71209f20533f9ddcb25d702c85eaf6da9045ef06fa84cc222de989d"
+HISTORICAL_V4_SOURCE_LOCK_SHA256 = "5a9169b9a71209f20533f9ddcb25d702c85eaf6da9045ef06fa84cc222de989d"
+PREVIOUS_SOURCE_LOCK_SHA256 = "80c75c3e727a4f5439e11becfb4d278d7e0721882669865d34b93d5a1efc0641"
 
 
 def protocol():
@@ -81,20 +82,35 @@ def current_source_hashes():
 def source_lock():
     from .seal import LOCK_SHA256
 
-    path = Path(__file__).parent / "source-lock-v5.json"
+    path = Path(__file__).parent / "source-lock-v6.json"
     payload = path.read_bytes()
     if len(payload) > 65536 or sha256(payload).hexdigest() != LOCK_SHA256:
         raise ValueError("study_lock_identity_changed")
     data = parse_json(payload, limit=65536)
     if (
-        set(data) != {"version", "sources", "protocol_sha256", "supersedes_sha256"}
-        or data["version"] != "memory-longitudinal-source-lock-v3"
+        set(data)
+        != {
+            "version",
+            "sources",
+            "protocol_sha256",
+            "supersedes_sha256",
+            "frozen_at",
+            "source_change_summary",
+            "measurement_status",
+        }
+        or data["version"] != "memory-longitudinal-source-lock-v4"
+        or data["frozen_at"] != "2026-11-08"
+        or data["source_change_summary"]
+        != "Bound deterministic offline memory-navigation replay; corpus, protocol, scoring, and measurements are unchanged."
+        or data["measurement_status"] != "no_new_measurements"
     ):
         raise ValueError("study_lock_schema")
-    previous = path.with_name("source-lock-v4.json")
+    previous = path.with_name("source-lock-v5.json")
     if (
         data["supersedes_sha256"] != PREVIOUS_SOURCE_LOCK_SHA256
         or sha256(previous.read_bytes()).hexdigest() != PREVIOUS_SOURCE_LOCK_SHA256
+        or sha256(path.with_name("source-lock-v4.json").read_bytes()).hexdigest()
+        != HISTORICAL_V4_SOURCE_LOCK_SHA256
         or sha256(path.with_name("source-lock-v3.json").read_bytes()).hexdigest()
         != HISTORICAL_V3_SOURCE_LOCK_SHA256
         or sha256(path.with_name("source-lock-v2.json").read_bytes()).hexdigest()
@@ -146,8 +162,9 @@ def make_run():
     source_hashes = source_lock()
     # The anchor is outside its own hash recursion, but is included in each run.
     anchor = Path(__file__).parent / "seal.py"
-    lock = Path(__file__).parent / "source-lock-v5.json"
-    predecessor = Path(__file__).parent / "source-lock-v4.json"
+    lock = Path(__file__).parent / "source-lock-v6.json"
+    predecessor = Path(__file__).parent / "source-lock-v5.json"
+    historical_v4 = Path(__file__).parent / "source-lock-v4.json"
     historical_v3 = Path(__file__).parent / "source-lock-v3.json"
     source_hashes += (
         SourceHash(
@@ -155,6 +172,9 @@ def make_run():
         ),
         SourceHash(path=str(lock.relative_to(ROOT)), sha256=sha256(lock.read_bytes()).hexdigest()),
         SourceHash(path=str(predecessor.relative_to(ROOT)), sha256=PREVIOUS_SOURCE_LOCK_SHA256),
+        SourceHash(
+            path=str(historical_v4.relative_to(ROOT)), sha256=HISTORICAL_V4_SOURCE_LOCK_SHA256
+        ),
         SourceHash(
             path=str(historical_v3.relative_to(ROOT)), sha256=HISTORICAL_V3_SOURCE_LOCK_SHA256
         ),

@@ -32,11 +32,14 @@ jobs:
 
   hermetic-capabilities:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.13"
@@ -46,7 +49,14 @@ jobs:
         working-directory: backend
       - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
         working-directory: backend
-      - run: make hermetic-capability-check
+      - name: Run hermetic aggregate without load
+        run: make hermetic-capability-check
+      - name: Repeat hermetic aggregate under bounded CPU load
+        run: |
+          python -c 'while True: sum(i * i for i in range(20000))' &
+          load_pid=$!
+          trap 'kill "$load_pid" 2>/dev/null || true' EXIT
+          make hermetic-capability-check
 
   backend:
     runs-on: ubuntu-latest

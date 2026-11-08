@@ -26,9 +26,21 @@ def test_planning_source_closure_is_sorted_broad_and_excludes_only_versioned_loc
     assert not any(
         path.endswith(f"/source-manifest-v2-generation-{generation}.json")
         for path in paths
-        for generation in range(2, 12)
+        for generation in range(2, 14)
     )
     assert f"backend/src/personal_ai/evaluation/fixtures/offline_information_handling/{PROTOCOL_MANIFEST}" not in paths
+
+
+def test_planning_lock_exclusion_matches_only_versioned_json_paths():
+    assert source_contracts._planning_excluded(
+        "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v39.json"
+    )
+    assert not source_contracts._planning_excluded(
+        "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-notes.json"
+    )
+    assert not source_contracts._planning_excluded(
+        "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v38.txt"
+    )
 
 
 def test_package_closure_reports_mutated_scorer_corpus_and_missing_source(tmp_path):
@@ -105,12 +117,12 @@ def test_planning_v35_and_offline_information_handling_generation_nine_are_immut
 
 def test_additive_current_identities_bind_the_final_source_and_preserve_history():
     planning_lock = json.loads(planning.FREEZE_PATH.read_bytes())
-    planning_v36 = json.loads(
-        (ROOT / "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v36.json").read_bytes()
+    planning_v38 = json.loads(
+        (ROOT / "backend/src/personal_ai/evaluation/fixtures/context/planning-baseline-v38.json").read_bytes()
     )
     planning_entries = source_contracts.planning_source_entries(ROOT)
-    assert planning_lock["baseline_lock_version"] == "planning-baseline-lock-v37"
-    assert planning_lock["supersedes"] == planning_v36["baseline_lock_version"]
+    assert planning_lock["baseline_lock_version"] == "planning-baseline-lock-v39"
+    assert planning_lock["supersedes"] == planning_v38["baseline_lock_version"]
     assert planning_lock["source_contract_version"] == "planning-source-closure-v1"
     assert planning_lock["source_identity_files"] == planning_entries
     assert planning_lock["source_identity_digest"] == source_contracts.planning_source_digest(
@@ -125,11 +137,11 @@ def test_additive_current_identities_bind_the_final_source_and_preserve_history(
     )
     manifest = json.loads(manifest_path.read_bytes())
     previous = json.loads(
-        (manifest_path.parent / "source-manifest-v2-generation-10.json").read_bytes()
+        (manifest_path.parent / "source-manifest-v2-generation-12.json").read_bytes()
     )
     hashes, files = source_contracts.offline_benchmark_source_identity(ROOT)
-    assert manifest["source_generation"] == 11
-    assert manifest["supersedes"] == "source-manifest-v2-generation-10"
+    assert manifest["source_generation"] == 13
+    assert manifest["supersedes"] == "source-manifest-v2-generation-12"
     assert manifest["source_files"] == files
     assert manifest["hashes"] == hashes
     assert manifest["legacy_corpus_identity"] == {
@@ -158,7 +170,7 @@ def test_additive_current_identities_bind_the_final_source_and_preserve_history(
         ("planning", "evidence_kind", "provider_validated", "evidence_kind"),
         ("planning", "preserved_corpus", "changed cases", "preserved_corpus"),
         ("planning", "runtime_profile", "all providers", "runtime_profile"),
-        ("planning", "frozen_at", "2026-11-07", "frozen_at"),
+        ("planning", "frozen_at", "2026-11-06", "frozen_at"),
         ("planning", "evaluator_version", "forged-evaluator", "evaluator_version"),
         ("planning", "runtime_identity_scope", "portable replay only", "runtime_identity_scope"),
         ("planning", "source_revision_binding", "no ancestry check", "source_revision_binding"),
@@ -187,8 +199,8 @@ def test_source_contract_rejects_current_metadata_tampering(
 
     def injected_read(path, label):
         value = original_read(path, label)
-        is_planning = path.name == "planning-baseline-v37.json"
-        is_offline = path.name == "source-manifest-v2-generation-11.json"
+        is_planning = path.name == "planning-baseline-v39.json"
+        is_offline = path.name == "source-manifest-v2-generation-13.json"
         if (surface == "planning" and is_planning) or (surface == "offline" and is_offline):
             value = json.loads(json.dumps(value))
             if field == "source_identity_files":
@@ -205,8 +217,8 @@ def test_source_contract_rejects_current_metadata_tampering(
         def inject_both_anchors(path, label):
             value = original_read(path, label)
             if path.name in {
-                "planning-baseline-v37.json",
-                "source-manifest-v2-generation-11.json",
+                "planning-baseline-v39.json",
+                "source-manifest-v2-generation-13.json",
             }:
                 value = json.loads(json.dumps(value))
                 value["source_revision"] = "f" * 40
@@ -225,22 +237,7 @@ def test_source_contract_rejects_current_metadata_tampering(
 
 
 def test_source_contract_rejects_mutated_pinned_predecessor_bytes(tmp_path):
-    pins = {
-        f"{source_contract_check.PLANNING_DIRECTORY}/planning-baseline-v36.json": source_contract_check.PLANNING_V36_SHA256,
-        f"{source_contract_check.OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-10.json": source_contract_check.OFFLINE_GENERATION_10_SHA256,
-        f"{source_contract_check.OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-9.json": source_contract_check.OFFLINE_GENERATION_9_SHA256,
-    }
-    pins.update(
-        {
-            f"{source_contract_check.OFFLINE_BENCHMARK_DIRECTORY}/{name}": digest
-            for name, digest in source_contract_check.FROZEN_CASE_SHA256.items()
-        }
-    )
-    pins.update(source_contract_check.FROZEN_FIXTURE_SHA256)
-    pins.update(source_contract_check.VERSIONED_MIGRATION_SHA256)
-    pins[f"{source_contract_check.PLANNING_DIRECTORY}/planning-baseline-v35.json"] = (
-        source_contract_check.PLANNING_V35_SHA256
-    )
+    pins = dict(source_contract_check._HISTORICAL)
     for index, target in enumerate(pins):
         fixture_root = tmp_path / f"case-{index}"
         for relative in pins:
@@ -261,3 +258,82 @@ def test_portable_source_contract_ignores_host_runtime_fingerprint(monkeypatch):
     monkeypatch.setattr(source_contract_check, "_verify_clean_identity_files", lambda *args: None)
 
     assert source_contract_check.check(ROOT) == []
+
+
+def test_propose_planning_requires_explicit_reviewed_provenance(tmp_path, capsys):
+    target = tmp_path / "planning-proposal.json"
+    with pytest.raises(source_contract_check.VerificationError, match="explicit reviewer"):
+        source_contract_check.propose_planning(ROOT, target)
+
+    with pytest.raises(source_contract_check.VerificationError, match="stale"):
+        source_contract_check.propose_planning(
+            ROOT,
+            target,
+            source_change_summary=source_contract_check.LEGACY_PLANNING_SOURCE_CHANGE_SUMMARY,
+            frozen_at="2026-11-08",
+        )
+
+    with pytest.raises(source_contract_check.VerificationError, match="must advance beyond the previous or legacy W0 freeze date"):
+        source_contract_check.propose_planning(
+            ROOT,
+            target,
+            source_change_summary="New valid change summary",
+            frozen_at=source_contract_check.LEGACY_PLANNING_FROZEN_AT,
+        )
+
+    with pytest.raises(source_contract_check.VerificationError, match="must advance beyond the previous or legacy W0 freeze date"):
+        source_contract_check.propose_planning(
+            ROOT,
+            target,
+            source_change_summary="New valid change summary",
+            frozen_at="2020-01-01",
+        )
+
+    with pytest.raises(source_contract_check.VerificationError, match="YYYY-MM-DD"):
+        source_contract_check.propose_planning(
+            ROOT,
+            target,
+            source_change_summary="New valid change summary",
+            frozen_at="not-a-date",
+        )
+
+    source_contract_check.propose_planning(
+        ROOT,
+        None,
+        source_change_summary="Reviewed deterministic verification changes",
+        frozen_at="2026-11-09",
+    )
+    output = capsys.readouterr().out
+    assert "Reviewed deterministic verification changes" in output
+    assert '"frozen_at": "2026-11-09"' in output
+
+
+def test_propose_offline_benchmark_requires_explicit_reviewed_preregistration(tmp_path, capsys):
+    target = tmp_path / "offline-proposal.json"
+    with pytest.raises(source_contract_check.VerificationError, match="explicit reviewer"):
+        source_contract_check.propose_offline_benchmark(ROOT, target)
+
+    with pytest.raises(source_contract_check.VerificationError, match="stale or recycles the W0"):
+        source_contract_check.propose_offline_benchmark(
+            ROOT,
+            target,
+            preregistration=source_contract_check.LEGACY_OFFLINE_PREREGISTRATION,
+        )
+
+    source_contract_check.propose_offline_benchmark(
+        ROOT,
+        None,
+        preregistration="Source generation 14 binds reviewed verification changes; no new measurements are claimed.",
+    )
+    assert "Source generation 14 binds reviewed verification changes" in capsys.readouterr().out
+
+
+def test_readonly_proposals_emit_unresolved_placeholders(capsys):
+    source_contract_check.propose_planning(ROOT, None)
+    out = capsys.readouterr().out
+    assert source_contract_check.UNRESOLVED_SOURCE_CHANGE_SUMMARY in out
+    assert source_contract_check.UNRESOLVED_FROZEN_AT in out
+
+    source_contract_check.propose_offline_benchmark(ROOT, None)
+    out = capsys.readouterr().out
+    assert source_contract_check.UNRESOLVED_PREREGISTRATION in out

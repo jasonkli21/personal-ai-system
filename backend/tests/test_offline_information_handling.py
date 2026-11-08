@@ -113,7 +113,7 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     assert sha(historical_v2) == "ad69387bca873df3e9b3522ff15d222122d49ed572d8a113423cae5fd0af336c"
     old_hashes = json.loads(historical_v2)["hashes"]
     changed_in_source_rename = {"core_runtime", "contracts", "driver", "http"}
-    if manifest["source_generation"] == 11:
+    if manifest["source_generation"] in (11, 12, 13):
         changed_in_source_rename |= {"audit", "runner", "scoring"}
     for name in old_hashes.keys() - changed_in_source_rename:
         assert manifest["hashes"][name] == old_hashes[name]
@@ -133,12 +133,12 @@ def test_v1_history_is_byte_preserved_and_v2_has_new_agent_authored_cases():
     }
 
 
-@pytest.mark.parametrize("generation", [7, 8, 9, 10, 11])
+@pytest.mark.parametrize("generation", [7, 8, 9, 10, 11, 12, 13])
 def test_source_identity_preserves_prior_protocol_generations(generation):
     current = json.loads((FIXTURES / f"source-manifest-v2-generation-{generation}.json").read_bytes())
     previous = json.loads((FIXTURES / f"source-manifest-v2-generation-{generation - 1}.json").read_bytes())
     assert current["frozen_before_measurement"] is True
-    assert f"source generation {generation}" in current["preregistration"]
+    assert f"source generation {generation}" in current["preregistration"].lower()
     assert current["hashes"]["cases"] == previous["hashes"]["cases"]
     changed_protocols = {"core_runtime", "contracts"}
     if generation == 9:
@@ -158,6 +158,20 @@ def test_source_identity_preserves_prior_protocol_generations(generation):
         assert current["source_contract_version"] == "offline-benchmark-source-closure-v1"
         assert current["source_generation"] == 11
         assert current["source_revision"] == "3b92dfbbd27ee1735e8957d2acc65d084230c100"
+        assert current["source_files"]["core_runtime"]
+        changed_protocols = set(current["changed_protocols"])
+    if generation == 12:
+        assert current["schema_version"] == 3
+        assert current["source_contract_version"] == "offline-benchmark-source-closure-v1"
+        assert current["source_generation"] == 12
+        assert current["source_revision"] == "31813dd394e9adeed29f9dae608fb9bdae863aeb"
+        assert current["source_files"]["core_runtime"]
+        changed_protocols = set(current["changed_protocols"])
+    if generation == 13:
+        assert current["schema_version"] == 3
+        assert current["source_contract_version"] == "offline-benchmark-source-closure-v1"
+        assert current["source_generation"] == 13
+        assert current["source_revision"] == "31813dd394e9adeed29f9dae608fb9bdae863aeb"
         assert current["source_files"]["core_runtime"]
         changed_protocols = set(current["changed_protocols"])
     for name in previous["hashes"].keys() - changed_protocols:

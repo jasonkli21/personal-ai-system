@@ -71,6 +71,8 @@ HISTORICAL_V33_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-
 HISTORICAL_V34_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v34.json"
 HISTORICAL_V35_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v35.json"
 HISTORICAL_V36_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v36.json"
+HISTORICAL_V37_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v37.json"
+HISTORICAL_V38_FREEZE_PATH = Path(__file__).parent / "fixtures/context/planning-baseline-v38.json"
 FREEZE_PATH = Path(__file__).parent / f"fixtures/context/{PLANNING_LOCK_FILENAME}"
 PLANNING_MEASUREMENT_VERSION = "planning-measurements-v2"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -288,24 +290,33 @@ def _retain_control(request):
     }
 
 
-def evaluate(
+# Portable conformance compares the current source and frozen inputs only. The
+# runtime fingerprint and Git anchor belong to the explicit strict replay.
+PORTABLE_PLANNING_IDENTITY_FIELDS = (
+    "baseline_lock_version",
+    "baseline_version",
+    "configuration_digest",
+    "corpus_digest",
+    "evaluator_version",
+    "fixture_dependency_digest",
+    "source_contract_version",
+    "source_identity_digest",
+    "source_identity_files",
+)
+
+
+def _load_active_identity():
+    return json.loads(FREEZE_PATH.read_text()), freeze_identity()
+
+
+def _evaluate_cases(
     *,
-    quality_observations: Mapping[str, PlanningAnswerQualityEvidence] | None = None,
-    validation_traces: Mapping[str, PlanningTrace] | None = None,
+    frozen,
+    identity,
+    head,
+    quality_observations,
+    validation_traces,
 ):
-    frozen = json.loads(FREEZE_PATH.read_text())
-    identity = freeze_identity()
-    # The active lock retains the measurement's original counter label as
-    # provenance. Runtime identity now uses the descriptive capability name.
-    if any(
-        frozen[key] != value
-        for key, value in identity.items()
-        if key != "counter_identity"
-    ):
-        raise ValueError("planning_baseline_changed_requires_new_version")
-    head, parent = _git_revision_pair()
-    if head != frozen["source_revision"] and parent != frozen["source_revision"]:
-        raise ValueError("planning_baseline_source_revision_mismatch_requires_new_version")
     planner = baseline_planner()
     originals = {item["name"]: item for item in json.loads(FIXTURE_PATH.read_text())["fixtures"]}
     cases = json.loads(CORPUS_PATH.read_text())["cases"]
@@ -710,6 +721,70 @@ def evaluate(
         "decision": "non_promotion",
         "reason": "No measured model-answer/quota benefit; selection misses alone do not justify inference.",
     }
+
+
+def evaluate(
+    *,
+    quality_observations: Mapping[str, PlanningAnswerQualityEvidence] | None = None,
+    validation_traces: Mapping[str, PlanningTrace] | None = None,
+):
+    frozen, identity = _load_active_identity()
+    # The active lock retains the measurement's original counter label as
+    # provenance. Runtime identity now uses the descriptive capability name.
+    if any(
+        frozen[key] != value
+        for key, value in identity.items()
+        if key != "counter_identity"
+    ):
+        raise ValueError("planning_baseline_changed_requires_new_version")
+    head, parent = _git_revision_pair()
+    if head != frozen["source_revision"] and parent != frozen["source_revision"]:
+        raise ValueError("planning_baseline_source_revision_mismatch_requires_new_version")
+    return _evaluate_cases(
+        frozen=frozen,
+        identity=identity,
+        head=head,
+        quality_observations=quality_observations,
+        validation_traces=validation_traces,
+    )
+
+
+def evaluate_portable(
+    *,
+    quality_observations: Mapping[str, PlanningAnswerQualityEvidence] | None = None,
+    validation_traces: Mapping[str, PlanningTrace] | None = None,
+):
+    """Run the real cases under the portable current-source contract.
+
+    Cross-platform consumer and platform probes must not pretend to reproduce
+    the macOS/Python runtime fingerprint or the historical Git anchor. Those
+    checks stay in :func:`evaluate` and remain opt-in on the supported host.
+    """
+    frozen, identity = _load_active_identity()
+    changed = sorted(
+        key
+        for key in PORTABLE_PLANNING_IDENTITY_FIELDS
+        if frozen.get(key) != identity[key]
+    )
+    if changed:
+        raise ValueError(
+            "planning_portable_baseline_changed_requires_new_version:"
+            + ",".join(changed)
+        )
+    head, _parent = _git_revision_pair()
+    result = _evaluate_cases(
+        frozen=frozen,
+        identity=identity,
+        head=head,
+        quality_observations=quality_observations,
+        validation_traces=validation_traces,
+    )
+    result["conformance"] = {
+        "mode": "portable_current_source",
+        "strict_runtime_and_revision_replay": "not_run",
+        "compared_identity_fields": list(PORTABLE_PLANNING_IDENTITY_FIELDS),
+    }
+    return result
 
 
 def main():

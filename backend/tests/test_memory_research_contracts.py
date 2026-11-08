@@ -14,6 +14,7 @@ from personal_ai.evaluation.memory_longitudinal.dataset import (
     source_bytes,
 )
 from personal_ai.evaluation.memory_longitudinal.study import (
+    HISTORICAL_V4_SOURCE_LOCK_SHA256,
     PREVIOUS_SOURCE_LOCK_SHA256,
     ROOT,
     source_lock,
@@ -181,16 +182,22 @@ def test_source_schema_and_hidden_gold_injection_are_rejected_even_with_fresh_ha
         parse_sources(payload, sha256(payload).hexdigest())
 
 
-def test_source_identity_migration_adds_v5_without_rewriting_historical_locks():
+def test_source_identity_migration_adds_v6_without_rewriting_historical_locks():
     folder = ROOT / "backend/src/personal_ai/evaluation/memory_longitudinal"
+    v6_path = folder / "source-lock-v6.json"
     v5_path = folder / "source-lock-v5.json"
     v4_path = folder / "source-lock-v4.json"
-    assert sha256(v4_path.read_bytes()).hexdigest() == PREVIOUS_SOURCE_LOCK_SHA256
+    assert sha256(v5_path.read_bytes()).hexdigest() == PREVIOUS_SOURCE_LOCK_SHA256
+    assert sha256(v4_path.read_bytes()).hexdigest() == HISTORICAL_V4_SOURCE_LOCK_SHA256
     v5 = json.loads(v5_path.read_bytes())
     assert v5["version"] == "memory-longitudinal-source-lock-v3"
-    assert v5["supersedes_sha256"] == PREVIOUS_SOURCE_LOCK_SHA256
+    v6 = json.loads(v6_path.read_bytes())
+    assert v6["version"] == "memory-longitudinal-source-lock-v4"
+    assert v6["supersedes_sha256"] == PREVIOUS_SOURCE_LOCK_SHA256
+    assert v6["frozen_at"] == "2026-11-08"
+    assert v6["measurement_status"] == "no_new_measurements"
     assert source_lock()
-    assert all((folder / f"source-lock-v{generation}.json").is_file() for generation in range(1, 5))
+    assert all((folder / f"source-lock-v{generation}.json").is_file() for generation in range(1, 7))
 
 
 def test_all_cases_have_separate_sessions_and_immutable_task_manifests():

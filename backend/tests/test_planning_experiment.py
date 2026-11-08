@@ -661,6 +661,47 @@ def test_strict_replay_rejects_incompatible_runtime_source_and_version(
         planning.evaluate()
 
 
+def test_evaluate_portable_conformance_mode():
+    result = planning.evaluate_portable()
+    assert result["conformance"]["mode"] == "portable_current_source"
+    assert result["conformance"]["strict_runtime_and_revision_replay"] == "not_run"
+    assert result["conformance"]["compared_identity_fields"] == list(
+        planning.PORTABLE_PLANNING_IDENTITY_FIELDS
+    )
+    assert len(result["rows"]) == 30
+    assert result["decision"] == "non_promotion"
+
+
+def test_evaluate_portable_rejects_changed_portable_identity_field(tmp_path, monkeypatch):
+    frozen = json.loads(planning.FREEZE_PATH.read_text())
+    tampered = {**frozen, "source_identity_digest": "0" * 64}
+    path = tmp_path / "tampered-baseline.json"
+    path.write_text(json.dumps(tampered))
+    monkeypatch.setattr(planning, "FREEZE_PATH", path)
+    with pytest.raises(
+        ValueError,
+        match="planning_portable_baseline_changed_requires_new_version:source_identity_digest",
+    ):
+        planning.evaluate_portable()
+
+
+def test_evaluate_portable_allows_different_runtime_and_git_revision(tmp_path, monkeypatch):
+    frozen = json.loads(planning.FREEZE_PATH.read_text())
+    different_runtime = {
+        **frozen,
+        "python_runtime": "3.12.14",
+        "platform_runtime": "Linux-x86_64",
+        "source_revision": "0" * 40,
+    }
+    path = tmp_path / "different-runtime-baseline.json"
+    path.write_text(json.dumps(different_runtime))
+    monkeypatch.setattr(planning, "FREEZE_PATH", path)
+    monkeypatch.setattr(planning, "_git_revision_pair", lambda: ("1" * 40, "2" * 40))
+    result = planning.evaluate_portable()
+    assert result["conformance"]["mode"] == "portable_current_source"
+    assert len(result["rows"]) == 30
+
+
 def test_required_selections_cannot_be_removed_or_reduced(broker_case):
     f = broker_case
     selection = f["selection"].model_copy(update={"max_tokens": 256, "required": True})
@@ -1051,10 +1092,10 @@ def test_v30_is_preserved_and_v31_binds_review_remediation_source():
 
 def test_current_planning_lock_binds_portable_source_contract_without_promoting():
     current = json.loads(planning.FREEZE_PATH.read_text())
-    previous = json.loads(planning.HISTORICAL_V36_FREEZE_PATH.read_text())
+    previous = json.loads(planning.HISTORICAL_V38_FREEZE_PATH.read_text())
     assert current["supersedes"] == previous["baseline_lock_version"]
-    assert current["baseline_lock_version"] == "planning-baseline-lock-v37"
-    assert current["source_revision"] == "3b92dfbbd27ee1735e8957d2acc65d084230c100"
+    assert current["baseline_lock_version"] == "planning-baseline-lock-v39"
+    assert current["source_revision"] == "31813dd394e9adeed29f9dae608fb9bdae863aeb"
     assert current["source_contract_version"] == "planning-source-closure-v1"
     assert current["runtime_identity_scope"].startswith("strict planning replay only;")
     assert current["source_identity_files"] == planning.freeze_identity()["source_identity_files"]

@@ -13,8 +13,8 @@ from pathlib import Path
 
 PLANNING_SOURCE_CONTRACT = "planning-source-closure-v1"
 OFFLINE_BENCHMARK_SOURCE_CONTRACT = "offline-benchmark-source-closure-v1"
-PLANNING_LOCK_GENERATION = 37
-OFFLINE_BENCHMARK_SOURCE_GENERATION = 11
+PLANNING_LOCK_GENERATION = 39
+OFFLINE_BENCHMARK_SOURCE_GENERATION = 13
 PLANNING_LOCK_FILENAME = f"planning-baseline-v{PLANNING_LOCK_GENERATION}.json"
 OFFLINE_BENCHMARK_MANIFEST_FILENAME = (
     f"source-manifest-v2-generation-{OFFLINE_BENCHMARK_SOURCE_GENERATION}.json"
@@ -85,7 +85,12 @@ def _planning_excluded(relative: str) -> bool:
     path = Path(relative)
     if "__pycache__" in path.parts or path.suffix == ".pyc" or path.name == ".DS_Store":
         return True
-    if path.name.startswith("planning-baseline-"):
+    # Only the actual versioned planning locks are recursive-loop hazards.
+    # Near-miss names in the same directory must stay in the source closure.
+    if (
+        path.parent.as_posix().endswith("evaluation/fixtures/context")
+        and re.fullmatch(r"planning-baseline-v\d+\.json", path.name)
+    ):
         return True
     if "evaluation/fixtures/offline_information_handling" in relative.replace("\\", "/"):
         return bool(

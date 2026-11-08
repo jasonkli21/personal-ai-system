@@ -13,14 +13,59 @@ from importlib.metadata import distribution
 from pathlib import Path
 
 network_attempts = []
+NETWORK_FAMILIES = {socket.AF_INET, socket.AF_INET6}
+
+# urllib3 probes IPv6 support by creating and binding a loopback socket when it
+# is first imported. Prime that local capability check before the audit fence so
+# an import-time probe is not mistaken for artifact egress; the fence remains
+# active for every later import and operation.
+try:
+    import urllib3.util.connection as _urllib3_connection
+
+    _ = _urllib3_connection.HAS_IPV6
+except ImportError:
+    pass
+
+
+def _caller_module():
+    # Skip this helper and the audit hook itself. The next Python frame is the
+    # module that requested the socket operation (including import-time probes).
+    frame = sys._getframe(2)
+    while frame is not None:
+        name = frame.f_globals.get("__name__")
+        if name and name not in {"socket", "urllib3.util.connection", "_frozen_importlib"} and not name.startswith(
+            "importlib."
+        ):
+            return name
+        frame = frame.f_back
+    return None
+
+
+def _address_family(event, args):
+    if event == "socket.__new__" and len(args) > 1:
+        return args[1]
+    if event in {"socket.connect", "socket.sendto", "socket.sendmsg"} and args:
+        return getattr(args[0], "family", None)
+    if event == "socket.getaddrinfo" and len(args) > 2:
+        return args[2]
+    return None
 
 
 def network_fence(event, args):
+    family = _address_family(event, args)
     if event in {"socket.connect", "socket.getaddrinfo", "socket.sendto", "socket.sendmsg"} or (
-        event == "socket.__new__" and len(args) > 1 and args[1] in (2, 10)
+        family in NETWORK_FAMILIES
     ):
-        network_attempts.append(event)
-        raise PermissionError("offline core artifact probe")
+        attempt = {
+            "event": event,
+            "address_family": family,
+            "module": _caller_module(),
+        }
+        network_attempts.append(attempt)
+        raise PermissionError(
+            "offline core artifact probe: "
+            f"event={event} address_family={family!r} module={attempt['module']!r}"
+        )
 
 
 sys.addaudithook(network_fence)
@@ -28,7 +73,7 @@ try:
     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 except PermissionError:
     pass
-assert network_attempts == ["socket.__new__"]
+assert len(network_attempts) == 1 and network_attempts[0]["event"] == "socket.__new__"
 network_attempts.clear()
 EXAMPLES = (
     "personal_ai_reference_apps",
@@ -232,7 +277,30 @@ except MutationRuntimeCompatibilityError:
 assert required == [("shopping", "project.set_budget", 1, "c" * 64)]
 import personal_ai.worker
 
-assert not import_attempts and not network_attempts
+if import_attempts:
+    print(
+        json.dumps(
+            {
+                "probe_failure": "forbidden_example_import",
+                "attempted_import_modules": import_attempts,
+            },
+            indent=2,
+        ),
+        file=sys.stderr,
+    )
+    raise AssertionError(f"core attempted example imports: {import_attempts}")
+if network_attempts:
+    print(
+        json.dumps(
+            {
+                "probe_failure": "forbidden_network_attempt",
+                "attempted_network_events": network_attempts,
+            },
+            indent=2,
+        ),
+        file=sys.stderr,
+    )
+    raise AssertionError(f"core attempted network operations: {network_attempts}")
 print(
     json.dumps(
         {

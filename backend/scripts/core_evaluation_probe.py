@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.abc
 import json
+import socket
 import sys
 from pathlib import Path
 
@@ -11,11 +12,19 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend/src"))
 network_attempts = []
 reference_import_attempts = []
+NETWORK_FAMILIES = {socket.AF_INET, socket.AF_INET6}
+
+try:
+    import urllib3.util.connection as _urllib3_connection
+
+    _ = _urllib3_connection.HAS_IPV6
+except ImportError:
+    pass
 
 
 def offline_fence(event, args):
     if event in {"socket.connect", "socket.getaddrinfo", "socket.sendto", "socket.sendmsg"} or (
-        event == "socket.__new__" and len(args) > 1 and args[1] in (2, 10)
+        event == "socket.__new__" and len(args) > 1 and args[1] in NETWORK_FAMILIES
     ):
         network_attempts.append(event)
         raise PermissionError("core evaluation offline fence")
@@ -52,7 +61,11 @@ expected_context_ids = {
 assert {row["fixture"] for row in context_rows} == expected_context_ids
 assert len(context_rows) == 9 and all(row["result"] == "passed" for row in context_rows)
 
-planning_result = planning.evaluate()
+# Portable conformance runs the real frozen cases against the current source
+# and frozen inputs. It deliberately does not claim the macOS/Python strict
+# historical replay, which remains an explicit opt-in profile.
+planning_result = planning.evaluate_portable()
+assert planning_result["conformance"]["mode"] == "portable_current_source"
 assert len(planning_result["rows"]) == 30
 assert planning_result["decision"] == "non_promotion"
 assert planning_result["planner_calls"] == planning_result["planner_tokens"] == 0
@@ -67,6 +80,8 @@ print(
             "context_fixture_failures": sum(row["result"] != "passed" for row in context_rows),
             "planning_case_count": len(planning_result["rows"]),
             "planning_decision": planning_result["decision"],
+            "planning_conformance": planning_result["conformance"]["mode"],
+            "strict_historical_replay": "NOT_RUN",
             "planner_calls": planning_result["planner_calls"],
             "planner_tokens": planning_result["planner_tokens"],
             "reference_import_attempts": reference_import_attempts,

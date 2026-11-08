@@ -65,9 +65,17 @@ def main(*, files=None, runner=None):
             libc.close(fd)
     print("NATIVE_IPV4_IPV6_UNIX_DENIAL=passed", flush=True)
     attempts = []
+    network_families = {socket.AF_INET, socket.AF_INET6}
+    try:
+        import urllib3.util.connection as urllib3_connection
+
+        _ = urllib3_connection.HAS_IPV6
+    except ImportError:
+        pass
+
     def fence(event, args):
         if event in {"socket.connect", "socket.getaddrinfo", "socket.sendto", "socket.sendmsg"} or (
-            event == "socket.__new__" and len(args) > 1 and args[1] in (2, 10)
+            event == "socket.__new__" and len(args) > 1 and args[1] in network_families
         ):
             attempts.append((event, os.environ.get("PYTEST_CURRENT_TEST")))
             raise PermissionError("provider isolation Python network fence")

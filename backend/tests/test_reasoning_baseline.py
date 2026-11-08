@@ -265,13 +265,13 @@ def test_predecessor_fixture_bytes():
             *(
                 path
                 for path in offline.glob("*.json")
-                if path.name != "source-manifest-v2-generation-11.json"
+                if path.name != "source-manifest-v2-generation-13.json"
             ),
             *(evaluation / "fixtures/real_tasks").glob("*.json"),
             *(
                 path
                 for path in longitudinal.glob("source-lock-*.json")
-                if path.name != "source-lock-v5.json"
+                if path.name != "source-lock-v6.json"
             ),
         ]
 
@@ -287,7 +287,7 @@ def test_predecessor_fixture_bytes():
 
     paths.sort(key=historical_path)
     pinned = sha256(b"".join(path.read_bytes() for path in paths)).hexdigest()
-    assert pinned == "32b42d12dd269af425112677fe1e5d3ada3e1acef45866cd4adfa200c5ab4475"
+    assert pinned == "882a25572f235c1fa840ac38039c1b426498522d998ae34c689c6dc8ea341f7b"
 
 
 def test_source_identity_migration_preserves_predecessor_manifest():

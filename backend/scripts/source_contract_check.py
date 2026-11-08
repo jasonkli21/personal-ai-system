@@ -9,10 +9,21 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS_DIRECTORY = Path(__file__).resolve().parent
+if str(SCRIPTS_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIRECTORY))
 sys.path.insert(0, str(ROOT / "backend/src"))
+
+from historical_pins import (
+    HISTORICAL_FIXTURES,
+    HISTORICAL_FROZEN_CASES,
+    HISTORICAL_MIGRATIONS,
+    immutable_history,
+)
 
 from personal_ai.evaluation.source_contracts import (
     OFFLINE_BENCHMARK_MANIFEST_FILENAME,
@@ -67,36 +78,52 @@ PLANNING_LOCK_FIELDS = {
     "source_identity_files",
     "runtime_identity_scope",
 }
-PLANNING_V35_SHA256 = "d344dbbe8c7a8dc5d53b8b61c12212a034451bd68cc2cc64f02b26c3f1104fe9"
-PLANNING_V36_SHA256 = "d6e0c9a6abc936eb2d9e64564ccf4f6009876b10901129d5067423fff0fc8fdc"
-OFFLINE_GENERATION_9_SHA256 = "a00a8faf9f8a8f7dc17efbc81e07a8053c80415a7735eae362ed43ad95bc6a3e"
-OFFLINE_GENERATION_10_SHA256 = "de316118c1eaa556a9110b9807a9c288dfc992bbb3215978b5ece8b4852e56c7"
+# Every historical byte is attested from the shared immutable-history registry
+# so standalone ``source-contract-check`` notices mutations to any pinned
+# predecessor, not only the two locks it validates in detail.
+_HISTORICAL = immutable_history()
+PLANNING_V35_SHA256 = _HISTORICAL[
+    f"{PLANNING_DIRECTORY}/planning-baseline-v35.json"
+]
+PLANNING_V36_SHA256 = _HISTORICAL[
+    f"{PLANNING_DIRECTORY}/planning-baseline-v36.json"
+]
+OFFLINE_GENERATION_9_SHA256 = _HISTORICAL[
+    f"{OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-9.json"
+]
+OFFLINE_GENERATION_10_SHA256 = _HISTORICAL[
+    f"{OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-10.json"
+]
 FROZEN_CASE_SHA256 = {
-    "cases-v1.json": "84c0e5a1e990ac5b282a24348e4319406d3ec4188d179099777ab5aa4b5651bf",
-    "cases-v2.json": "25df654eda27040c3b52695fd6ec695b53238a7cf76b82e1ed4e5d442b55205d",
+    Path(path).name: digest for path, digest in HISTORICAL_FROZEN_CASES.items()
 }
-FROZEN_FIXTURE_SHA256 = {
-    "backend/src/personal_ai/evaluation/fixtures/decisions/decision-fixtures.json": "221e9a3b42945b33363720b67a6d50e8204b3e01cae582fc81f24d1f2c870cb2",
-    "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures.json": "6db4b06c7d371c2a54fec37886c4b9df4ff555b671689a1c96cf9c4935ff4ef1",
-    "backend/src/personal_ai/evaluation/fixtures/iterative_research/iterative-research-fixtures-v2.json": "b65ee153b020ae44dbefab33fb21ff268585ca08b0a490af98d0aa5d87ecc129",
-}
-VERSIONED_MIGRATION_SHA256 = {
-    "backend/src/personal_ai/persistence/migrations/008_storage_migration_control.sql": "85b2431c757e14c830fa1debdbb2edb367d0a6e32d420b33543ad49300bf0fad",
-    "backend/src/personal_ai/persistence/migrations/009_derived_source_migration_metadata.sql": "3048dbe3fb767e3c26240456014bbdb9f8664de4890db379d5de91efd1a9bffd",
-    "backend/src/personal_ai/persistence/migrations/011_effect_receipt_migration_payload.sql": "96c8809151a86eaf63dc0f7e962b564f01681ef5ab41b444261a6aba0c98ff7e",
-    "backend/src/personal_ai/persistence/migrations/012_provider_rate_limit_source_payload.sql": "4cf0223fd84b1235695c5b63cec176cbab4798f46a9fb8133522f76ef77f4299",
-    "backend/src/personal_ai/persistence/migrations/027_memory_dependency_epochs.sql": "3591c9d2ea669d66f994e3fb5492484fd7c5ea9c8321b66fea0fda1014543009",
-    "backend/src/personal_ai/persistence/migrations/028_verified_memory_knowledge.sql": "652c92c1251ede51ae0697d72a74e1bcc61ebbdf9b101d3cbf00ac312ced067c",
-    "backend/src/personal_ai/persistence/migrations/030_memory_control.sql": "0690004c83086e1dce8539f9311fb24a1d0f1afba6666e6b5077d0618d56a058",
-    "backend/src/personal_ai/persistence/migrations/032_profile_consents.sql": "18551d07e8ac2f494d9da8bdae7f15dfdef41040e65611740b0bed0ddbbd1f0b",
-    "backend/src/personal_ai/persistence/migrations_py/022_routing_authorities.py": "003787e63cf27e4552f2505a9de189d738e8fafce6b94ab7edf1c46252f19b35",
-}
+FROZEN_FIXTURE_SHA256 = dict(HISTORICAL_FIXTURES)
+VERSIONED_MIGRATION_SHA256 = dict(HISTORICAL_MIGRATIONS)
 PLANNING_SOURCE_CHANGE_SUMMARY = (
+    "Hardened portable planning conformance, sealed replay determinism, hermetic network fencing, "
+    "installed artifact diagnostics, immutable history pins, and longitudinal source identity; "
+    "no evaluation evidence was promoted."
+)
+PLANNING_FROZEN_AT = "2026-11-08"
+# Deliberately retained so future additive proposals cannot recycle the obsolete
+# W0 restoration narrative or freeze date.
+LEGACY_PLANNING_SOURCE_CHANGE_SUMMARY = (
     "Restored immutable migration and fixture bytes and hardened source-contract metadata "
     "validation; planning configuration, corpus, fixture dependencies, runtime provenance "
     "and non-promotion are unchanged."
 )
-PLANNING_FROZEN_AT = "2026-11-06"
+LEGACY_PLANNING_FROZEN_AT = "2026-11-06"
+# The W0 restoration preregistration must not be recycled for a later source
+# generation that binds different changes.
+LEGACY_OFFLINE_PREREGISTRATION = (
+    "Frozen case bytes and scoring rules remain unchanged. The source generation 11 binds "
+    "restored immutable migration and fixture bytes and hardened source-contract metadata; "
+    "earlier measurements do not validate this generation; no new measurements are claimed; "
+    "synthetic E1 only; non-promotion."
+)
+UNRESOLVED_SOURCE_CHANGE_SUMMARY = "<REVIEWER_SOURCE_CHANGE_SUMMARY>"
+UNRESOLVED_FROZEN_AT = "<REVIEWER_FROZEN_AT>"
+UNRESOLVED_PREREGISTRATION = "<REVIEWER_PREREGISTRATION>"
 PLANNING_SOURCE_REVISION_BINDING = (
     "Per-file source SHA-256 values and aggregate digest identify current bytes; source_revision "
     "must resolve to a Git ancestor and records the reviewed source-tree anchor."
@@ -112,19 +139,7 @@ def _sha256(path: Path) -> str:
 
 
 def _verify_historical_bytes(root: Path):
-    historical = {
-        f"{PLANNING_DIRECTORY}/planning-baseline-v35.json": PLANNING_V35_SHA256,
-        f"{PLANNING_DIRECTORY}/planning-baseline-v36.json": PLANNING_V36_SHA256,
-        f"{OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-9.json": OFFLINE_GENERATION_9_SHA256,
-        f"{OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-10.json": OFFLINE_GENERATION_10_SHA256,
-        **FROZEN_FIXTURE_SHA256,
-        **VERSIONED_MIGRATION_SHA256,
-        **{
-            f"{OFFLINE_BENCHMARK_DIRECTORY}/{name}": digest
-            for name, digest in FROZEN_CASE_SHA256.items()
-        },
-    }
-    for relative, expected in historical.items():
+    for relative, expected in _HISTORICAL.items():
         path = root / relative
         try:
             actual = _sha256(path)
@@ -234,10 +249,13 @@ def _verify_clean_identity_files(root: Path, planning_files: dict[str, str], ben
 def _validate_planning(root: Path) -> tuple[dict, dict[str, str], list[str]]:
     path = root / PLANNING_RELATIVE
     lock = _read_json(path, "planning lock")
+    previous_relative = (
+        f"{PLANNING_DIRECTORY}/planning-baseline-v{PLANNING_LOCK_GENERATION - 1}.json"
+    )
     previous = _read_pinned_json(
         root,
-        f"{PLANNING_DIRECTORY}/planning-baseline-v36.json",
-        PLANNING_V36_SHA256,
+        previous_relative,
+        _HISTORICAL[previous_relative],
         "previous planning lock",
     )
     if set(lock) != PLANNING_LOCK_FIELDS:
@@ -376,10 +394,13 @@ def _validate_offline_benchmark(root: Path) -> tuple[dict, dict[str, dict[str, s
                 f"offline benchmark manifest {key}: expected={expected!r} current={manifest.get(key)!r}"
             )
     expected_preregistration = (
-        "Frozen case bytes and scoring rules remain unchanged. The "
-        f"source generation {OFFLINE_BENCHMARK_SOURCE_GENERATION} binds restored immutable migration "
-        "and fixture bytes and hardened source-contract metadata; earlier measurements do not "
-        "validate this generation; no new measurements are claimed; synthetic E1 only; non-promotion."
+        "Frozen case bytes and scoring rules remain unchanged. "
+        f"Source generation {OFFLINE_BENCHMARK_SOURCE_GENERATION} binds portable current-source "
+        "planning conformance, deterministic sealed-replay clocks, complete hermetic entrypoint "
+        "fencing, centralized historical pins, clearer installed-artifact diagnostics, and an "
+        "additive longitudinal source identity; earlier "
+        "measurements do not validate this generation; no new measurements are claimed; synthetic "
+        "E1 only; non-promotion."
     )
     if manifest.get("preregistration") != expected_preregistration:
         raise VerificationError(
@@ -411,10 +432,14 @@ def _validate_offline_benchmark(root: Path) -> tuple[dict, dict[str, dict[str, s
             f"offline information handling {package} {item}"
             for item in source_file_differences(before, after, limit=12)
         )
+    previous_relative = (
+        f"{OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-"
+        f"{OFFLINE_BENCHMARK_SOURCE_GENERATION - 1}.json"
+    )
     previous = _read_pinned_json(
         root,
-        f"{OFFLINE_BENCHMARK_DIRECTORY}/source-manifest-v2-generation-10.json",
-        OFFLINE_GENERATION_10_SHA256,
+        previous_relative,
+        _HISTORICAL[previous_relative],
         "previous offline information handling manifest",
     )
     cases = _read_json(
@@ -491,12 +516,44 @@ def _write_proposal(previous_path: Path, target_path: Path, candidate: dict, out
     print(diff, end="")
 
 
-def propose_planning(root: Path, output: Path | None = None):
+def propose_planning(
+    root: Path,
+    output: Path | None = None,
+    *,
+    source_change_summary: str | None = None,
+    frozen_at: str | None = None,
+):
     generation, target = _next_free_path(
         root, PLANNING_DIRECTORY, "planning-baseline-v", PLANNING_LOCK_GENERATION
     )
     previous = root / PLANNING_DIRECTORY / f"planning-baseline-v{generation - 1}.json"
     base = _read_json(previous, "previous planning lock")
+    if output is not None and (not source_change_summary or not frozen_at):
+        raise VerificationError(
+            "writing a planning proposal requires explicit reviewer --source-change-summary "
+            "and --frozen-at values"
+        )
+    if source_change_summary is not None and not source_change_summary.strip():
+        raise VerificationError("planning proposal source_change_summary must not be blank")
+    if source_change_summary is not None and (
+        source_change_summary in {base.get("source_change_summary"), LEGACY_PLANNING_SOURCE_CHANGE_SUMMARY}
+    ):
+        raise VerificationError(
+            "planning proposal source_change_summary is stale; describe the actual reviewed change"
+        )
+    if frozen_at is not None:
+        try:
+            proposed_date = date.fromisoformat(frozen_at)
+            previous_date = date.fromisoformat(base["frozen_at"])
+            legacy_date = date.fromisoformat(LEGACY_PLANNING_FROZEN_AT)
+        except (TypeError, ValueError, KeyError):
+            raise VerificationError("planning proposal frozen_at must be a valid YYYY-MM-DD date") from None
+        if proposed_date.isoformat() != frozen_at:
+            raise VerificationError("planning proposal frozen_at must use YYYY-MM-DD format")
+        if proposed_date <= max(previous_date, legacy_date):
+            raise VerificationError(
+                "planning proposal frozen_at must advance beyond the previous or legacy W0 freeze date"
+            )
     files = planning_source_entries(root)
     revision = _git_revision(root)
     candidate = {
@@ -507,10 +564,10 @@ def propose_planning(root: Path, output: Path | None = None):
         "source_identity_digest": planning_source_digest(files, PLANNING_EVALUATOR_VERSION),
         "source_revision": revision,
         "source_revision_binding": PLANNING_SOURCE_REVISION_BINDING,
-        "source_change_summary": PLANNING_SOURCE_CHANGE_SUMMARY,
+        "source_change_summary": source_change_summary or UNRESOLVED_SOURCE_CHANGE_SUMMARY,
         "runtime_identity_scope": RUNTIME_SCOPE,
         "supersedes": base["baseline_lock_version"],
-        "frozen_at": PLANNING_FROZEN_AT,
+        "frozen_at": frozen_at or UNRESOLVED_FROZEN_AT,
     }
     if output is None:
         _write_proposal(previous, target, candidate, None)
@@ -518,12 +575,32 @@ def propose_planning(root: Path, output: Path | None = None):
         _write_proposal(previous, target, candidate, output)
 
 
-def propose_offline_benchmark(root: Path, output: Path | None = None):
+def propose_offline_benchmark(
+    root: Path,
+    output: Path | None = None,
+    *,
+    preregistration: str | None = None,
+):
     generation, target = _next_free_path(
         root, OFFLINE_BENCHMARK_DIRECTORY, "source-manifest-v2-generation-", OFFLINE_BENCHMARK_SOURCE_GENERATION
     )
     previous_path = root / OFFLINE_BENCHMARK_DIRECTORY / f"source-manifest-v2-generation-{generation - 1}.json"
     previous = _read_json(previous_path, "previous offline information handling manifest")
+    if output is not None and not preregistration:
+        raise VerificationError(
+            "writing an offline benchmark proposal requires an explicit reviewer "
+            "--preregistration value"
+        )
+    if preregistration is not None and not preregistration.strip():
+        raise VerificationError("offline benchmark proposal preregistration must not be blank")
+    if preregistration is not None and preregistration in {
+        previous.get("preregistration"),
+        LEGACY_OFFLINE_PREREGISTRATION,
+    }:
+        raise VerificationError(
+            "offline benchmark proposal preregistration is stale or recycles the W0 "
+            "restoration narrative; state the reviewed change for this generation"
+        )
     hashes, files = offline_benchmark_source_identity(root)
     changed = sorted(
         key for key in hashes if previous.get("hashes", {}).get(key) != hashes[key]
@@ -531,12 +608,7 @@ def propose_offline_benchmark(root: Path, output: Path | None = None):
     candidate = {
         "frozen_before_measurement": True,
         "hashes": hashes,
-        "preregistration": (
-            "Frozen case bytes and scoring rules remain unchanged. The "
-            f"source generation {generation} binds restored immutable migration and fixture bytes "
-            "and hardened source-contract metadata; earlier measurements do not validate this "
-            "generation; no new measurements are claimed; synthetic E1 only; non-promotion."
-        ),
+        "preregistration": preregistration or UNRESOLVED_PREREGISTRATION,
         "schema_version": 3,
         "source_contract_version": OFFLINE_BENCHMARK_SOURCE_CONTRACT,
         "source_generation": generation,
@@ -568,15 +640,36 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--propose-planning", action="store_true", help="propose the next planning lock")
     mode.add_argument("--propose-offline-benchmark", action="store_true", help="propose the next offline benchmark source manifest")
     parser.add_argument("--output", type=Path, help="write a new versioned proposal; refuses overwrite")
+    parser.add_argument(
+        "--source-change-summary",
+        help="reviewer-provided planning change summary; required when writing",
+    )
+    parser.add_argument(
+        "--frozen-at",
+        help="reviewer-provided planning freeze date; required when writing",
+    )
+    parser.add_argument(
+        "--preregistration",
+        help="reviewer-provided offline benchmark preregistration; required when writing",
+    )
     args = parser.parse_args(argv)
     if args.output and not (args.propose_planning or args.propose_offline_benchmark):
         parser.error("--output is valid only with an explicit proposal command")
+    if args.propose_planning and args.preregistration:
+        parser.error("--preregistration is valid only with --propose-offline-benchmark")
+    if args.propose_offline_benchmark and (args.source_change_summary or args.frozen_at):
+        parser.error("--source-change-summary/--frozen-at are valid only with --propose-planning")
     try:
         if args.propose_planning:
-            propose_planning(ROOT, args.output)
+            propose_planning(
+                ROOT,
+                args.output,
+                source_change_summary=args.source_change_summary,
+                frozen_at=args.frozen_at,
+            )
             return 0
         if args.propose_offline_benchmark:
-            propose_offline_benchmark(ROOT, args.output)
+            propose_offline_benchmark(ROOT, args.output, preregistration=args.preregistration)
             return 0
         if not args.check:
             parser.error("choose --check, --propose-planning, or --propose-offline-benchmark")
