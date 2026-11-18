@@ -6,6 +6,8 @@
 
 The [synthetic read-only adapter](../../adapters/mcp_context/README.md) serves stateless Streamable HTTP revision `2026-07-28`. Its custom tool profile omits `url` in both schemas. Search returns at most ten `{id, title}` objects. Fetch returns `id`, `title`, `text`, `source`, `revision`, `observed_at`, and `fresh_until`. The resource validates an exact issuer, audience, client and `context:read` scope. Access also requires a separate `chatgpt-mcp` grant. It returns both structured and text content under one serialized result limit. Independent E1 acceptance is pending. [Synthetic verification](evidence/2026-11-18-synthetic-context-mcp.md)
 
+Direct plain-HTTP requests are rejected by the synthetic ASGI edge. Any future TLS-terminating ingress must be a trusted, documented boundary that blocks direct HTTP access; arbitrary forwarded headers do not establish HTTPS. The fixture's bounded worker shim prevents timed-out synchronous reads from blocking the event loop or publishing late results, but does not physically cancel a running source operation.
+
 Installed ChatGPT remains `BLOCKED_UNVERIFIED`. A real authorization server must publish issuer metadata and verify the exact redirect URI, client registration, authorization code with PKCE S256 and resource binding at authorization and exchange. The resource publishes protected-resource metadata and requires current access-token and connection state. Deep research and company knowledge additionally require the documented citation profile and an authenticated, user-openable canonical item URL. [OpenAI search and fetch format](https://developers.openai.com/api/docs/mcp) · [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 
 ### Draft citation profile

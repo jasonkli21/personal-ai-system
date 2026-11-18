@@ -4,9 +4,8 @@
 `BLOCKED_UNVERIFIED`. Production E3 is `NO_GO`.
 
 The base was `c1500ce9be41a789131ef1fca323e9d97bdf11fe` on `main`, which
-matched GitHub. The candidate is the commit that adds this record.
-`git log -1 --diff-filter=A --format=%H -- docs/context-inference-integration/evidence/2026-11-18-synthetic-context-mcp.md`
-identifies its revision. The worktree had unrelated planning files and a
+matched GitHub. The historical candidate was
+`50bff63ec8f28b45b6196b2a824944b01c21b380`. The worktree had unrelated planning files and a
 reasoning PRD relocation. Those changes were excluded from the candidate.
 
 ## Entry decision and scope

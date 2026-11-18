@@ -116,7 +116,9 @@ class AuthorizedSourceReader(Protocol):
     never searches records. Read issues at most one delegated source request,
     charges it and its results to budget, and never retries. Revalidation uses
     the same deadline and examines current dependencies without awaiting.
-    Async calls must support cancellation. Credentials are confined to the verifier.
+    Async calls must stop producing results on cancellation. If an implementation
+    detaches synchronous work that cannot be physically cancelled, it must bound
+    outstanding work and prevent late publication. Credentials stay in the verifier.
     """
 
     async def resolve(self, identity: Identity, operation: Operation) -> SourceBinding | None: ...

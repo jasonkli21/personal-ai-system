@@ -23,7 +23,17 @@ Each invocation gets one deadline and one budget, with at most one delegated
 source request and zero retries. Source and permission revalidation precedes
 the result. The adapter uses short-lived, capacity-limited selectors that become
 unusable on eviction or restart. Call rate is capped at 30 per issuer and
-subject per fixed one-minute window. At most eight requests can be in flight.
+subject per fixed one-minute window after the PAS connection is resolved; valid
+but unlinked OAuth subjects do not consume linked-subject buckets. At most eight
+requests can be in flight. Direct plain-HTTP requests are rejected. Any future
+TLS-terminating proxy must be an explicitly trusted ingress that prevents direct
+HTTP access; forwarded headers alone are not trusted.
+
+The synthetic fixture adapts its legacy synchronous source client through at
+most eight worker slots. A timed-out call cannot publish its late result, but
+Python cannot forcibly stop an already running synchronous operation. The slot
+remains occupied until that operation exits. This fixture shim does not establish
+physical cancellation for E1 or a production source transport.
 
 | Tool | Arguments | Successful structured result |
 | --- | --- | --- |

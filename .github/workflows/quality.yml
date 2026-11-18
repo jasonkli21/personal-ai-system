@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  outbound-mcp-context:
+    runs-on: macos-14-xlarge
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.13"
+      - run: uv sync --locked --extra dev --group build --no-build-isolation
+        working-directory: backend
+      - run: uv pip install --python backend/.venv/bin/python --require-hashes -r adapters/mcp_source/requirements-macos-arm64-py312.txt
+      - run: backend/.venv/bin/python -m ruff check adapters/mcp_context
+      - run: make mcp-context-check MCP_ADAPTER_PYTHON=backend/.venv/bin/python
+      - run: uv build --no-build-isolation --python backend/.venv/bin/python --wheel --out-dir /tmp/pas-mcp-context-wheels adapters/mcp_context
+      - run: uv pip install --python backend/.venv/bin/python --no-deps /tmp/pas-mcp-context-wheels/personal_ai_mcp_context-0.1.0-py3-none-any.whl
+      - run: make mcp-context-check MCP_ADAPTER_PYTHON=backend/.venv/bin/python MCP_CONTEXT_IMPORT_PATH=backend/src:backend/tests
+
   backend-artifact-profiles:
     runs-on: ubuntu-latest
     strategy:

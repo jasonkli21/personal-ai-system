@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import timedelta
@@ -283,6 +284,43 @@ def test_protocol_and_origin_denials_are_prelookup(host, caplog):
     assert reads(host) == 0 and lookups(host) == [] and host.budgets == []
 
 
+def test_duplicate_control_headers_are_rejected_before_source_lookup(host):
+    async def run():
+        async with http(host, host.token()) as client:
+            body = frame("tools/call", params={"name": "search", "arguments": {"query": "Demo"}})
+            for header, duplicate_values in [
+                ("MCP-Protocol-Version", (REVISION, "2030-12-01")),
+                ("Mcp-Method", ("tools/call", "tools/list")),
+                ("Mcp-Name", ("search", "fetch")),
+                ("Content-Type", ("application/json", "text/plain")),
+            ]:
+                base = list(headers("tools/call", name="search").items())
+                for duplicate in duplicate_values:
+                    wire = httpx2.Headers(base + [(header, duplicate)])
+                    response = await client.post(RESOURCE, headers=wire, json=body)
+                    assert response.status_code == 400, (header, duplicate)
+
+    asyncio.run(run())
+    assert reads(host) == 0 and lookups(host) == []
+
+
+def test_direct_http_is_rejected(host):
+    async def run():
+        app = host.app()
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app), base_url="http://context.example.invalid",
+            headers={"Authorization": f"Bearer {host.token()}"}, trust_env=False,
+        ) as client:
+            response = await client.post(
+                "/mcp", headers=headers("tools/call", name="search"),
+                json=frame("tools/call", params={"name": "search", "arguments": {"query": "Demo"}}),
+            )
+            assert response.status_code == 400
+
+    asyncio.run(run())
+    assert reads(host) == 0 and lookups(host) == []
+
+
 @pytest.mark.parametrize("mode,status", [
     ("absent", 401), ("malformed", 401), ("wrong-signature", 401), ("issuer", 401),
     ("resource", 401), ("expired", 401), ("not-before", 401), ("unapproved-client", 401),
@@ -332,7 +370,7 @@ def test_oauth_rejected_before_frame_or_source_lookup(host, mode, status):
 
 def test_rfc_resource_metadata_and_synthetic_issuer_discovery(host):
     async def run():
-        async with http(host) as client:
+        async with http(host, host.token()) as client:
             response = await client.get(METADATA_URL)
             assert response.status_code == 200
             assert response.json() == {
@@ -732,6 +770,22 @@ def test_per_principal_rate_includes_failures_and_survives_client_change(host, m
     assert reads(host) == 2
 
 
+def test_unlinked_subject_churn_does_not_consume_linked_rate_buckets(host, monkeypatch):
+    monkeypatch.setattr(server, "MAX_RATE_KEYS", 2)
+
+    async def run():
+        async with http(host, host.token()) as client:
+            for index in range(1024):
+                response = await rpc(
+                    client, "server/discover", Authorization=f"Bearer {host.token(f'ghost-{index}')}",
+                )
+                assert response.status_code == 200
+            assert await handle(client)
+
+    asyncio.run(run())
+    assert reads(host) == 1 and len(lookups(host)) == 1
+
+
 def test_source_timeout_denies_and_releases_the_invocation(host, monkeypatch):
     monkeypatch.setattr(server, "DEADLINE_SECONDS", 0.25)
     monkeypatch.setattr(server, "MAX_IN_FLIGHT", 1)
@@ -754,6 +808,60 @@ def test_source_timeout_denies_and_releases_the_invocation(host, monkeypatch):
     asyncio.run(run())
     assert reads(host) == 2
     assert [dict(budget.calls) for budget in host.budgets] == [{"search": 1}, {"search": 1}]
+
+
+def test_blocked_source_exchange_is_detached_with_bounded_worker_and_no_late_result(host, monkeypatch):
+    monkeypatch.setattr(server, "DEADLINE_SECONDS", 0.25)
+    sources = list(host.pas.sources.values())
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    generated_handles = []
+    original_handle = server.token_urlsafe
+    monkeypatch.setattr(server, "token_urlsafe", lambda size: generated_handles.append(original_handle(size)) or generated_handles[-1])
+    calls = 0
+    calls_lock = threading.Lock()
+
+    for source in sources:
+        original = source.exchange
+
+        def blocked_exchange(raw, delegation, original=original):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+                block_this = calls == 1
+            if block_this:
+                entered.set()
+                release.wait(timeout=3)
+            try:
+                return original(raw, delegation)
+            finally:
+                if block_this:
+                    finished.set()
+
+        monkeypatch.setattr(source, "exchange", blocked_exchange)
+
+    async def run():
+        async with http(host, host.token()) as client:
+            async def first():
+                return await rpc(
+                    client, "tools/call", {"name": "search", "arguments": {"query": "Demo"}},
+                )
+
+            request = asyncio.create_task(first())
+            assert await asyncio.to_thread(entered.wait, 1)
+            timed_out = await asyncio.wait_for(request, timeout=1)
+            assert timed_out.status_code == 200
+            assert_denied(timed_out.json()["result"])
+            assert generated_handles == []
+            # The event loop remains responsive while the old sync exchange is held.
+            next_result = await asyncio.wait_for(handle(client, "Demo"), timeout=1)
+            assert next_result
+            assert len(generated_handles) == 1
+            release.set()
+            assert await asyncio.to_thread(finished.wait, 1)
+            assert len(generated_handles) == 1
+
+    asyncio.run(run())
+    assert calls == 2
 
 
 def test_concurrent_request_limit_and_disconnect_cancel_source_work(host, monkeypatch):

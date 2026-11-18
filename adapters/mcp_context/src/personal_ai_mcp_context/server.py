@@ -394,6 +394,8 @@ def context_mcp_app(
                 response = Response(status_code=421)
             elif request.headers.getlist("origin") not in ([], [resource_origin]):
                 response = Response(status_code=403)
+            elif scope.get("scheme") != "https":
+                response = Response(status_code=400)
             elif scope["path"] == metadata_path:
                 await self.app(scope, receive, send)
                 return
@@ -436,10 +438,12 @@ def context_mcp_app(
 
             if request.method != "POST":
                 return Response(status_code=405, headers={"Allow": "POST"})
-            if not state.admit_call(access.identity):
-                return Response(status_code=429)
             if headers.get("content-type", "").partition(";")[0].strip().lower() != "application/json":
                 return Response(status_code=400)
+            for field_name in ("content-type", "mcp-protocol-version", "mcp-method", "mcp-name"):
+                values = headers.getlist(field_name)
+                if len(values) > 1 or any("," in value for value in values):
+                    return Response(status_code=400)
             try:
                 with anyio.fail_after(max(0, deadline - monotonic())):
                     raw, body = await _frame(request)
@@ -465,6 +469,25 @@ def context_mcp_app(
                         data={"requested": version, "supported": [REVISION]},
                     )
                 return _rpc_error(verdict.code, verdict.message, body=body, data=verdict.data)
+
+            if isinstance(body, dict) and body.get("method") == "tools/call":
+                params = body.get("params")
+                name = params.get("name") if isinstance(params, dict) else None
+                arguments = params.get("arguments") if isinstance(params, dict) else None
+                argument = next(iter(arguments.values())) if isinstance(arguments, dict) and len(arguments) == 1 else None
+                within_bytes = isinstance(argument, str) and len(argument.encode("utf-8")) <= (
+                    256 if name == "search" else 200
+                )
+                if (
+                    name in _INPUT and _INPUT_VALIDATORS[name].is_valid(arguments) and within_bytes
+                    and (name != "fetch" or re.fullmatch(r"[A-Za-z0-9_-]+", argument))
+                ):
+                    try:
+                        linked = await reader.resolve(access.identity, name)
+                    except Exception:  # noqa: BLE001 - unlinked traffic has no subject bucket
+                        linked = None
+                    if linked is not None and not state.admit_call(access.identity):
+                        return Response(status_code=429)
 
             state_values = {**scope.get("state", {}), "context_mcp": _Request(access, token, raw, deadline)}
 

@@ -1,6 +1,8 @@
 """Test-only host for the frozen PAS source fixture and a signed synthetic issuer."""
 
+import asyncio
 import json
+import threading
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -42,6 +44,7 @@ FITNESS_CLIENT = "chatgpt-fitness"
 ALT_CLIENT = "chatgpt-alternate"
 CLIENTS = frozenset({TRAVEL_CLIENT, FITNESS_CLIENT, ALT_CLIENT})
 FIXTURE_SIGNING_KEY = b"fixture-only-outbound-mcp-signing-key"
+_SOURCE_WORKER_SLOTS = threading.BoundedSemaphore(8)
 
 
 @dataclass(frozen=True)
@@ -188,7 +191,20 @@ class SyntheticHost:
                 "record_ref": selection.record_ref, "source_revision": selection.revision,
             }
         )
-        read = self.pas.client.read(operation, principal, scope, intent, budget, caller=caller, **parameters)
+        if not _SOURCE_WORKER_SLOTS.acquire(blocking=False):
+            raise ProtocolError("unavailable")
+
+        def source_read():
+            try:
+                return self.pas.client.read(
+                    operation, principal, scope, intent, budget, caller=caller, **parameters,
+                )
+            finally:
+                # A timed-out caller cannot stop arbitrary synchronous fixture
+                # code. Keep the slot until that physical operation completes.
+                _SOURCE_WORKER_SLOTS.release()
+
+        read = await asyncio.to_thread(source_read)
         value = read.value
 
         if isinstance(value, Page):
