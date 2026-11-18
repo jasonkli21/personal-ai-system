@@ -9,6 +9,7 @@ from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.dispatch_grants import DispatchGrantSigner
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services.chat.service import ChatTurnService
+from personal_ai.services.external_turns.authority import LocalChatDispatch
 from personal_ai.services.external_turns.contracts import (
     ContextPackage,
     ContextPackageExclusionSummary,
@@ -34,12 +35,14 @@ class ExternalTurnService(
         registry: EndpointRegistry,
         authority: ExternalTurnAuthority,
         signer: DispatchGrantSigner | None = None,
+        local_chat: LocalChatDispatch | None = None,
         context_assembler=None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ):
         chat.require_context(context)
         self.chat, self.context, self.registry = chat, context, registry
         self.authority, self.signer, self.clock = authority, signer, clock
+        self.local_chat = local_chat
         self.context_assembler = context_assembler
 
 

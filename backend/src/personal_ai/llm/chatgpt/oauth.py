@@ -63,6 +63,10 @@ class OpenAIOAuth:
     def __init__(self, *, transport: httpx.BaseTransport | None = None):
         self.transport = transport
 
+    @property
+    def has_fixture_transport(self) -> bool:
+        return isinstance(self.transport, httpx.MockTransport)
+
     def _json(self, method, url, *, form=None, authorization=None, rotating=False):
         try:
             with httpx.Client(
@@ -163,6 +167,8 @@ class OpenAIOAuth:
         return self._validate(data, client_id=client_id, nonce=nonce)
 
     def refresh(self, *, client_id, refresh_token, previous_id_token, subject, scopes):
+        if not self.has_fixture_transport:
+            raise OAuthFailure("bridge_compatibility_unverified")
         data = self._json(
             "POST",
             ISSUER + "/api/accounts/oauth/token",
@@ -276,6 +282,7 @@ class OpenAIOAuth:
             if subject is not None and identity["sub"] != subject:
                 raise ValueError()
             access = self._claims(data["access_token"], audience=RESOURCE, keys=keys)
+            # Opaque access subjects have no accepted cross-token mapping for live execution.
             if access.get("client_id") != client_id or access["sub"] != identity["sub"]:
                 raise ValueError()
             scopes = data["scope"].split()

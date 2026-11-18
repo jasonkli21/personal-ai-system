@@ -333,11 +333,8 @@ class ProtectedLocalStore:
             and receipt.proof_expires_at <= now
             and receipt.updated_at + retained_seconds <= now
         ]
-        for identity in expired_unknown:
+        for identity in (*expired, *expired_unknown):
             self._persist_send_fence(identity, state.receipts[identity])
-        for identity in expired:
-            del state.receipts[identity]
-        for identity in expired_unknown:
             del state.receipts[identity]
         return len(expired) + len(expired_unknown)
 
@@ -351,6 +348,11 @@ class ProtectedLocalStore:
             except FileExistsError:
                 pass
             self._check(directory, directory=True)
+            directory_fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         return directory
 
     @staticmethod
@@ -396,10 +398,15 @@ class ProtectedLocalStore:
                 or not re.fullmatch(r"[a-f0-9]{64}", value["fingerprint"])
                 or not isinstance(value["origin_digest"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", value["origin_digest"])
-                or not isinstance(value["connection_id"], str)
-                or not re.fullmatch(r"[a-f0-9-]{36}", value["connection_id"])
-                or type(value["connection_revision"]) is not int
-                or value["connection_revision"] < 0
+                or (
+                    (value["connection_id"], value["connection_revision"]) != (None, None)
+                    and (
+                        not isinstance(value["connection_id"], str)
+                        or not re.fullmatch(r"[a-f0-9-]{36}", value["connection_id"])
+                        or type(value["connection_revision"]) is not int
+                        or value["connection_revision"] < 0
+                    )
+                )
             ):
                 raise ValueError()
             return value
@@ -528,6 +535,7 @@ class ProtectedLocalStore:
         *,
         expires_at: int,
         now: int,
+        authorize=None,
     ):
         with self._claim_fds_lock:
             descriptor = self._claim_fds.get(claim_token)
@@ -548,8 +556,6 @@ class ProtectedLocalStore:
                 if current != tx.state.clock_high_water:
                     tx.state.clock_high_water = current
                     tx.save()
-                if current >= expires_at:
-                    raise LocalStoreError("dispatch_authority_expired")
                 if (
                     registration is None
                     or registration.revision != revision
@@ -557,6 +563,16 @@ class ProtectedLocalStore:
                     or registration.refresh_pending
                 ):
                     raise LocalStoreError("connection_changed")
+                try:
+                    if authorize is not None:
+                        authorize(tx.state, registration)
+                    if current >= expires_at:
+                        raise LocalStoreError("dispatch_authority_expired")
+                except Exception:
+                    # Authorization failed before any send-start write was attempted.
+                    del tx.state.receipts[identity]
+                    tx.save()
+                    raise
                 receipt.status = "send_started"
                 receipt.updated_at = current
                 receipt.claim_token = None

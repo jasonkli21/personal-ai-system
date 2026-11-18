@@ -19,6 +19,22 @@ from pydantic import BaseModel, ConfigDict, Field
 from personal_ai.llm.external import PreparedExecution
 
 
+class LocalChatScope(BaseModel):
+    """Issuer assertion for a foreground, source-free turn in the standalone PAS app."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    application_id: Literal["personal_ai"] = "personal_ai"
+    operation: Literal["foreground_source_free_chat"] = "foreground_source_free_chat"
+    owner_id: str = Field(min_length=1, max_length=200)
+    actor_id: str = Field(min_length=1, max_length=512)
+    workspace_id: str | None
+
+    def matches_package(self, package: PreparedExecution) -> bool:
+        return (self.application_id, self.owner_id, self.workspace_id) == (
+            package.application_id, package.owner_id, package.workspace_id,
+        )
+
+
 class DispatchGrant(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     schema_version: Literal[1] = 1
@@ -35,6 +51,7 @@ class DispatchGrant(BaseModel):
     effective_sensitivity: Literal["public", "personal", "sensitive", "restricted"]
     issued_at: int = Field(strict=True, ge=0)
     expires_at: int = Field(strict=True, ge=0)
+    local_chat: LocalChatScope | None = Field(default=None, exclude_if=lambda value: value is None)
 
     def canonical(self) -> bytes:
         return (
@@ -118,6 +135,7 @@ class DispatchGrantSigner:
         audience: UUID,
         now: datetime,
         expires_at: datetime,
+        local_chat: LocalChatScope | None = None,
     ) -> SignedDispatchGrant:
         if (
             now.tzinfo is None
@@ -139,6 +157,7 @@ class DispatchGrantSigner:
             effective_sensitivity=package.effective_sensitivity,
             issued_at=int(now.timestamp()),
             expires_at=int(expires_at.timestamp()),
+            local_chat=local_chat,
         )
         return SignedDispatchGrant(
             claims=claims,

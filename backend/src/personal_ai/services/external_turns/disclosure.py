@@ -17,7 +17,9 @@ from personal_ai.contracts.execution import (
     ContinuationRequest,
     ExecutionChoice,
 )
+from personal_ai.llm.external import CHATGPT_PLAN_PROFILE
 from personal_ai.routing.registry import EndpointRegistryError
+from personal_ai.services.external_turns.authority import PrincipalBoundExternalTurnAuthority
 from personal_ai.services.external_turns.contracts import (
     digest,
 )
@@ -33,7 +35,7 @@ class ExternalTurnDisclosure:
         self._validate_launch_context(request, conversation_id)
         disclosure = self._disclosure_policy(choice.mode)
         self._snapshot(conversation_id, choice, ())
-        excluded = self._excluded_for_disclosure(request.excluded_source_classes, disclosure)
+        excluded, _ = self._request_sources(request, disclosure)
         self.chat.validate_manual_import_candidates(conversation_id, request.candidate_message_ids)
         candidate_message_ids = () if "conversation" in excluded else request.candidate_message_ids
         plan, direct_count = self.chat.preview_external_context(
@@ -123,13 +125,35 @@ class ExternalTurnDisclosure:
             raise ConversationConflictError("explicit_endpoint_unavailable")
         return profile
 
-    def _snapshot(self, conversation_id, choice, sources, snapshots=()):
+    def _local_chat_scope(self, choice, profile):
+        if profile.serializer_id != CHATGPT_PLAN_PROFILE.serializer_id:
+            return None
+        if self.local_chat is None or not isinstance(self.authority, PrincipalBoundExternalTurnAuthority):
+            raise ConversationConflictError("local_chat_execution_unavailable")
+        self.local_chat.require(self.context, self.authority.principal, choice)
+        return self.local_chat.scope
+
+    def _request_sources(self, request, disclosure):
+        excluded = self._excluded_for_disclosure(request.excluded_source_classes, disclosure)
+        if request.choice.mode != "connected_provider":
+            return excluded, False
+        profile = self._profile(request.choice, authorize_base_disclosure(self.context))
+        if self._local_chat_scope(request.choice, profile) is None:
+            return excluded, False
+        if request.explicit_context_selections or request.launch_context or request.reasoning:
+            raise ConversationConflictError("local_chat_source_context_denied")
+        return excluded | (set(CONTEXT_SOURCE_CLASSES) - {"conversation"}), True
+
+    def _snapshot(self, conversation_id, choice, sources, snapshots=(), *, source_free=False):
         self.chat.require_context(self.context)
         disclosure = self._disclosure_policy(choice.mode)
         base_sensitivity = authorize_base_disclosure(self.context)
         if SENSITIVITY_RANK[base_sensitivity] > SENSITIVITY_RANK[disclosure.maximum_sensitivity]:
             raise ConversationConflictError("execution_sensitivity_denied")
-        value = self.authority.snapshot(self.context, conversation_id, choice, sources, snapshots)
+        options = {"source_free": True} if source_free else {}
+        value = self.authority.snapshot(
+            self.context, conversation_id, choice, sources, snapshots, **options
+        )
         if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
             raise ConversationConflictError("authority_snapshot_invalid")
         return digest(

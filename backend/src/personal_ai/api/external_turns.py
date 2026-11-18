@@ -29,7 +29,7 @@ from personal_ai.context.authorization import authorize_base_disclosure
 from personal_ai.context.runtime import ContextRuntimeRegistry
 from personal_ai.contracts.execution import ContinuationRequestPayload, ExternalFailureCode
 from personal_ai.entities import Message
-from personal_ai.llm.external import PreparedExecution
+from personal_ai.llm.external import CHATGPT_PLAN_PROFILE, PreparedExecution
 from personal_ai.routing.contracts import EndpointRef
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services.chat import ChatTurnService
@@ -258,6 +258,7 @@ def execution_options(
                 required_capabilities=frozenset({"streaming"}),
             )
             if profile.context_limit_tokens is not None
+            and profile.serializer_id != CHATGPT_PLAN_PROFILE.serializer_id
         )
     modes = ["automatic"]
     if (

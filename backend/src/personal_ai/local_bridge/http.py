@@ -52,7 +52,6 @@ def create_loopback_app(
     bridge: LocalChatGPTBridge,
     *,
     port: int,
-    private_network_verified=False,
 ) -> FastAPI:
     if not 1024 <= port <= 65535:
         raise ValueError("bridge_port_invalid")
@@ -76,6 +75,8 @@ def create_loopback_app(
             or any(key.startswith(("forwarded", "x-forwarded")) for key in request.headers)
         ):
             return JSONResponse({"error": "bridge_request_denied"}, status_code=403)
+        if "access-control-request-private-network" in request.headers:
+            return JSONResponse({"error": "bridge_transport_unverified"}, status_code=403)
         origin = request.headers["origin"]
         cors = {
             "Access-Control-Allow-Origin": origin,
@@ -97,10 +98,6 @@ def create_loopback_app(
                 }
             ):
                 return JSONResponse({"error": "bridge_request_denied"}, status_code=403)
-            if request.headers.get("access-control-request-private-network") == "true":
-                if not private_network_verified:
-                    return JSONResponse({"error": "bridge_transport_unverified"}, status_code=403)
-                cors["Access-Control-Allow-Private-Network"] = "true"
             cors.update(
                 {
                     "Access-Control-Allow-Methods": "GET, POST",
@@ -128,7 +125,7 @@ def create_loopback_app(
     async def connection(request: Request):
         try:
             result = await bridge.connection(**caller(request))
-            return asdict(result)
+            return result.public_payload()
         except BridgeDenied as error:
             return JSONResponse({"error": error.code}, status_code=409)
         except (OAuthFailure, LocalStoreError):

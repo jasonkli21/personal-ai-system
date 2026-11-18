@@ -8,7 +8,7 @@ import re
 import secrets
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from urllib.parse import urlencode, urlsplit
 from uuid import UUID, uuid4
 
@@ -36,6 +36,12 @@ class SafeConnection:
     usage: CoarseUsage | None = None
     recovery: RecoveryHooks = field(default_factory=RecoveryHooks)
 
+    def public_payload(self):
+        payload = asdict(self)
+        payload["usage"] = self.usage.model_dump(mode="json") if self.usage else None
+        payload["recovery"] = self.recovery.model_dump(mode="json")
+        return payload
+
 
 @dataclass(frozen=True, slots=True, repr=False)
 class SignInAttempt:
@@ -49,6 +55,7 @@ class SignInAttempt:
     client_id: str | None
     revision: int
     enable_plan_usage: bool = False
+    identity_only: bool = False
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -112,6 +119,7 @@ class CredentialLifecycle:
         *,
         connection_id: str | None = None,
         enable_plan_usage: bool = False,
+        identity_only: bool = False,
     ):
         """Local controller only; the authorization URL must never be an IPC response."""
         parsed = urlsplit(redirect_uri)
@@ -126,6 +134,12 @@ class CredentialLifecycle:
             or not parsed.port
         ):
             raise OAuthFailure("oauth_callback_invalid")
+        if isinstance(self.oauth, OpenAIOAuth) and not self.oauth.has_fixture_transport:
+            if enable_plan_usage:
+                raise OAuthFailure("bridge_compatibility_unverified")
+            identity_only = True
+        if identity_only and enable_plan_usage:
+            raise OAuthFailure("oauth_permission_enable_not_required")
         self.oauth.discovery()
         with self.store.transaction() as tx:
             selected = tx.state.registrations.get(connection_id) if connection_id else None
@@ -153,13 +167,14 @@ class CredentialLifecycle:
                 client_id,
                 selected.revision if selected else 0,
                 enable_plan_usage,
+                identity_only,
             )
             query = {
                 "client_id": client_id or "dynamic_agent_client",
                 "ext_agent_host_id": tx.state.host_id,
                 "response_type": "code",
                 "redirect_uri": redirect_uri,
-                "scope": " ".join(sorted(SCOPES)),
+                "scope": " ".join(sorted(SCOPES - REQUIRED_USAGE_SCOPES if identity_only else SCOPES)),
                 "resource": RESOURCE,
                 "state": attempt.state,
                 "nonce": attempt.nonce,
@@ -244,15 +259,28 @@ class CredentialLifecycle:
                 for r in tx.state.registrations.values()
             ):
                 raise OAuthFailure("oauth_registration_duplicate")
+            if attempt.identity_only and REQUIRED_USAGE_SCOPES.intersection(tokens.scopes):
+                raise OAuthFailure("oauth_identity_invalid")
             registration.issuer, registration.subject = tokens.issuer, tokens.subject
-            registration.account_name = tokens.account_name
-            registration.account_email = tokens.account_email
             self._replace(registration, tokens)
             tx.save()
             return self._safe(registration)
 
     @staticmethod
     def _replace(registration, tokens, *, new_session=True):
+        previous = registration.credentials
+        protected = (
+            registration.client_id, registration.subject, tokens.access_token,
+            tokens.refresh_token, tokens.id_token,
+            previous.access_token if previous else None,
+            previous.refresh_token if previous else None,
+            previous.id_token if previous else None,
+        )
+        for label_field in ("account_name", "account_email"):
+            value = getattr(tokens, label_field) or getattr(registration, label_field)
+            if value and any(secret and secret in value for secret in protected):
+                value = None
+            setattr(registration, label_field, value)
         registration.credentials = Credentials(
             access_token=tokens.access_token,
             refresh_token=tokens.refresh_token,
@@ -261,8 +289,6 @@ class CredentialLifecycle:
             expires_at=tokens.expires_at,
             earliest_refresh_at=tokens.earliest_refresh_at,
         )
-        registration.account_name = tokens.account_name or registration.account_name
-        registration.account_email = tokens.account_email or registration.account_email
         registration.refresh_pending = False
         if new_session:
             registration.usage = CoarseUsage()
@@ -275,13 +301,15 @@ class CredentialLifecycle:
         )
 
     def snapshot(
-        self, connection_id: str, minimum_validity_seconds: int = 30
+        self, connection_id: str, minimum_validity_seconds: int = 30, *, authorize=None
     ) -> CredentialSnapshot:
         if type(minimum_validity_seconds) is not int or not 1 <= minimum_validity_seconds <= 150:
             raise OAuthFailure("bridge_request_invalid")
         UUID(connection_id)
         with self.store.transaction() as tx:
             registration = tx.state.registrations.get(connection_id)
+            if authorize is not None:
+                authorize(tx.state, registration)
             if registration is None or registration.credentials is None:
                 raise OAuthFailure("bridge_auth_required")
             if registration.state in {"disconnected", "reauth"}:
@@ -395,7 +423,10 @@ class CredentialLifecycle:
                 if registration.credentials is not None
                 else None
             )
-            tx.save()  # Stop requests even if revoke hangs/crashes.
+            registration.credentials = None
+            registration.refresh_pending = False
+            registration.remote_revocation = "unconfirmed"
+            tx.save()  # Stop requests and clear local credentials before remote revocation.
         confirmed = False
         if refresh_token:
             for attempt in range(3):
@@ -419,8 +450,6 @@ class CredentialLifecycle:
                 registration.revision == disconnect_revision
                 and registration.state == "disconnected"
             ):
-                registration.credentials = None
-                registration.refresh_pending = False
                 registration.remote_revocation = "confirmed" if confirmed else "unconfirmed"
                 tx.save()
             return self._safe(registration)

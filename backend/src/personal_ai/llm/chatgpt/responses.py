@@ -91,7 +91,12 @@ def classify_error(data, status=None, *, request_id=None):
 
 
 def serialize(messages: Sequence[ChatMessage], model: str) -> bytes:
-    if not messages or len(messages) > 256:
+    if (
+        not messages
+        or len(messages) > 256
+        or not isinstance(model, str)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", model)
+    ):
         raise LLMInvalidRequestError("bridge_request_invalid")
     items = []
     for message in messages:
@@ -104,11 +109,14 @@ def serialize(messages: Sequence[ChatMessage], model: str) -> bytes:
             {"role": "developer" if role == "system" else role, "content": message.content}
         )
     # No arbitrary body fields, tools, API key, prior response ID or output-token parameter.
-    body = json.dumps(
-        {"model": model, "input": items, "store": False, "stream": True},
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode()
+    try:
+        body = json.dumps(
+            {"model": model, "input": items, "store": False, "stream": True},
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    except UnicodeError:
+        raise LLMInvalidRequestError("bridge_request_invalid") from None
     if len(body) > 262144:
         raise LLMInvalidRequestError("bridge_request_too_large")
     return body
@@ -191,7 +199,13 @@ class ChatGPTResponses:
     def supports_profile(self, profile: ExecutionProfileIdentity) -> bool:
         return profile in self.supported_profiles
 
+    @property
+    def has_fixture_transport(self) -> bool:
+        return isinstance(self.transport, httpx.MockTransport)
+
     def _client(self):
+        if not self.has_fixture_transport:
+            raise BridgeProviderFailure("bridge_compatibility_unverified")
         return httpx.AsyncClient(
             transport=self.transport,
             timeout=10,
@@ -224,24 +238,24 @@ class ChatGPTResponses:
             for model in models:
                 if not isinstance(model, dict):
                     raise TypeError()
-                if model.get("visibility") != "list":
-                    continue
-                slug, name = model["slug"], model["display_name"]
+                slug = model["slug"]
                 if (
                     not isinstance(slug, str)
-                    or not 1 <= len(slug) <= 200
-                    or any(
-                        c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                        "0123456789._:/-"
-                        for c in slug
-                    )
-                    or not isinstance(name, str)
-                    or not 1 <= len(name) <= 200
-                    or any(ord(c) < 32 for c in name)
+                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", slug)
                     or slug in seen
                 ):
                     raise ValueError()
                 seen.add(slug)
+                if model.get("visibility") != "list":
+                    continue
+                name = model["display_name"]
+                if (
+                    not isinstance(name, str)
+                    or not 1 <= len(name) <= 200
+                    or any(ord(c) < 32 for c in name)
+                ):
+                    raise ValueError()
+                name.encode()
                 result.append(VisibleModel(slug, name))
             return tuple(result)
         except (ValueError, KeyError, TypeError, LLMInvalidResponseError):
@@ -289,7 +303,7 @@ class ChatGPTResponses:
         response_id = None
         text_parts = []
         refusal_parts = []
-        refusal_final_seen = False
+        final_refusal = None
         try:
             async with (
                 asyncio.timeout(timeout_seconds),
@@ -342,6 +356,7 @@ class ChatGPTResponses:
                             or response_id is not None
                             or not isinstance(created.get("id"), str)
                             or not 1 <= len(created["id"]) <= 200
+                            or created.get("model", model) != model
                         ):
                             raise LLMInvalidResponseError("bridge_response_invalid")
                         response_id = created["id"]
@@ -358,7 +373,11 @@ class ChatGPTResponses:
                         yield GenerationEvent.text_delta(delta)
                     elif kind in {"response.completed", "response.incomplete", "response.failed"}:
                         result = data.get("response")
-                        if not isinstance(result, dict) or result.get("id") != response_id:
+                        if (
+                            response_id is None
+                            or not isinstance(result, dict)
+                            or result.get("id") != response_id
+                        ):
                             raise LLMInvalidResponseError("bridge_response_invalid")
                         if result.get("model") != model:
                             raise LLMInvalidResponseError("bridge_model_mismatch")
@@ -369,6 +388,7 @@ class ChatGPTResponses:
                             if not isinstance(output, list) or len(output) > 256:
                                 raise LLMInvalidResponseError("bridge_completion_invalid")
                             final_text = []
+                            final_refusals = []
                             for item in output:
                                 if not isinstance(item, dict):
                                     raise LLMInvalidResponseError("bridge_completion_invalid")
@@ -396,6 +416,7 @@ class ChatGPTResponses:
                                                 "bridge_completion_invalid"
                                             )
                                         final_text.append(value)
+                                        final_refusals.append(value)
                                     elif part.get("type") == "reasoning_text":
                                         # Validate but never disclose reasoning content.
                                         if not isinstance(part.get("text"), str):
@@ -404,8 +425,10 @@ class ChatGPTResponses:
                                             )
                                     else:
                                         raise LLMInvalidResponseError("bridge_output_unsupported")
-                            if refusal_parts and not refusal_final_seen:
-                                raise LLMInvalidResponseError("bridge_refusal_incomplete")
+                            if (refusal_parts or final_refusals or final_refusal is not None) and (
+                                final_refusal is None or final_refusals != [final_refusal]
+                            ):
+                                raise LLMInvalidResponseError("bridge_refusal_mismatch")
                             if "".join(final_text) != "".join(text_parts):
                                 raise LLMInvalidResponseError("bridge_terminal_text_mismatch")
                             usage = result.get("usage")
@@ -459,7 +482,7 @@ class ChatGPTResponses:
                             raise LLMInvalidResponseError("bridge_output_unsupported")
                     elif kind == "response.refusal.delta":
                         delta = data.get("delta")
-                        if not isinstance(delta, str):
+                        if response_id is None or final_refusal is not None or not isinstance(delta, str):
                             raise LLMInvalidResponseError("bridge_refusal_invalid")
                         emitted_bytes += len(delta.encode())
                         emitted_chars += len(delta)
@@ -471,7 +494,7 @@ class ChatGPTResponses:
                             yield GenerationEvent.text_delta(delta)
                     elif kind == "response.refusal.done":
                         refusal = data.get("refusal")
-                        if not isinstance(refusal, str):
+                        if response_id is None or final_refusal is not None or not isinstance(refusal, str):
                             raise LLMInvalidResponseError("bridge_refusal_invalid")
                         if refusal_parts and "".join(refusal_parts) != refusal:
                             raise LLMInvalidResponseError("bridge_refusal_mismatch")
@@ -483,7 +506,7 @@ class ChatGPTResponses:
                             else:
                                 text_parts.append(refusal)
                                 yield GenerationEvent.text_delta(refusal)
-                        refusal_final_seen = True
+                        final_refusal = refusal
                     elif kind in {
                         "response.in_progress",
                         "response.output_text.done",

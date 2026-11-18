@@ -16,12 +16,18 @@ from uuid import UUID, uuid4
 import anyio
 from pydantic import BaseModel, ConfigDict, Field
 
-from personal_ai.auth.dispatch_grants import DispatchGrantVerifier, SignedDispatchGrant
+from personal_ai.auth.dispatch_grants import (
+    DispatchGrantVerifier,
+    LocalChatScope,
+    SignedDispatchGrant,
+)
+from personal_ai.llm.chatgpt.oauth import REQUIRED_USAGE_SCOPES, OpenAIOAuth
 from personal_ai.llm.chatgpt.responses import (
     PROVIDER,
     SERIALIZER,
     BridgeProviderFailure,
     ChatGPTResponses,
+    serialize,
 )
 from personal_ai.llm.client import (
     ExecutionProvenance,
@@ -33,7 +39,6 @@ from personal_ai.llm.client import (
 from personal_ai.llm.external import ExecutionProfileIdentity, PreparedExecution
 from personal_ai.local_bridge.disclosure import CredentialEcho, LocalOutputGuard
 from personal_ai.local_bridge.lifecycle import CredentialLifecycle
-from personal_ai.local_bridge.store import LocalStoreError
 from personal_ai.routing.contracts import DataUsePolicy
 
 
@@ -44,7 +49,7 @@ class BridgeDenied(RuntimeError):
 
 
 class CompatibilityGate(BaseModel):
-    """Local preflight evidence, not browser declarations or inferred eligibility."""
+    """Injected fixture facts for an exact synthetic profile and registration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     connection_id: UUID
@@ -77,21 +82,13 @@ class CompatibilityGate(BaseModel):
             or self.model_id != package.model_id
             or not self.verified_at <= now < self.valid_until
             or self.valid_until - self.verified_at > 7 * 86400
-            or (
-                self.distribution == "hosted_web_installed_bridge"
-                and not self.distribution_approval
-            )
+            or self.distribution != "local_personal"
             or self.data_use.status != "approved"
         ):
             raise BridgeDenied("bridge_compatibility_unverified")
         rank = {"public": 0, "personal": 1, "sensitive": 2, "restricted": 3}
         if rank[package.effective_sensitivity] > rank[self.data_use.max_sensitivity]:
             raise BridgeDenied("bridge_disclosure_denied")
-
-    def require(self, package, snapshot, *, now):
-        self.require_package(package, now=now)
-        if self.client_id != snapshot.client_id:
-            raise BridgeDenied("bridge_compatibility_unverified")
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -110,8 +107,49 @@ class ReceiptStatus:
     output_available: bool = False
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class LocalChatInstallation:
+    """Trusted fixture pairing policy, supplied outside browser IPC."""
+
+    scope: LocalChatScope
+    origin: str
+    host_id: str
+    runtime_id: UUID
+    signer_key_id: str
+    connection_id: UUID
+    connection_revision: int
+    client_id: str
+    account_issuer: str
+    account_subject: str
+
+    def require_registration(self, state, registration):
+        if (
+            state.host_id != self.host_id
+            or state.runtime_id != str(self.runtime_id)
+            or registration is None
+            or (
+                registration.connection_id,
+                registration.revision,
+                registration.client_id,
+                registration.issuer,
+                registration.subject,
+            ) != (
+                str(self.connection_id),
+                self.connection_revision,
+                self.client_id,
+                self.account_issuer,
+                self.account_subject,
+            )
+            or registration.state != "connected"
+            or registration.refresh_pending
+            or registration.credentials is None
+            or not REQUIRED_USAGE_SCOPES.issubset(registration.credentials.scopes)
+        ):
+            raise BridgeDenied("bridge_connection_changed")
+
+
 class ChatGPTPlanBridge(Protocol):
-    """Consume a prepared signed package, return only normalized local events normalized events."""
+    """Consume a prepared signed package and return normalized local events."""
 
     def execute(
         self,
@@ -124,20 +162,13 @@ class ChatGPTPlanBridge(Protocol):
 
 
 def exact_origin(origin: str):
-    parsed = urlsplit(origin)
-    if (
-        parsed.scheme not in {"https", "http"}
-        or not parsed.netloc
-        or parsed.path
-        or parsed.query
-        or parsed.fragment
-        or parsed.username
-        or parsed.password
-        or (parsed.scheme == "http" and parsed.hostname != "127.0.0.1")
-        or origin != f"{parsed.scheme}://{parsed.netloc}"
-    ):
-        raise BridgeDenied("bridge_origin_invalid")
-    return origin
+    try:
+        port = urlsplit(origin).port
+        if port and origin == f"http://127.0.0.1:{port}":
+            return origin
+    except ValueError:
+        pass
+    raise BridgeDenied("bridge_origin_invalid")
 
 
 class LocalChatGPTBridge:
@@ -147,12 +178,18 @@ class LocalChatGPTBridge:
         provider: ChatGPTResponses,
         verifier: DispatchGrantVerifier,
         *,
-        origins: tuple[str, ...],
+        installation: LocalChatInstallation,
         gates: tuple[CompatibilityGate, ...] = (),
         clock=time.time,
     ):
         self.lifecycle, self.provider, self.verifier = lifecycle, provider, verifier
-        self.origins = frozenset(exact_origin(origin) for origin in origins)
+        self.installation = installation
+        self.origins = frozenset({exact_origin(installation.origin)})
+        if (
+            verifier.audience != installation.runtime_id
+            or installation.signer_key_id not in verifier.keys
+        ):
+            raise BridgeDenied("bridge_admission_denied")
         self.gates = {gate.key: gate for gate in gates}
         if len(self.gates) != len(gates):
             raise BridgeDenied("bridge_gate_ambiguous")
@@ -160,20 +197,28 @@ class LocalChatGPTBridge:
         self._sessions = {}
         self._session_lock = threading.Lock()
 
+    def _require_offline_transport(self):
+        oauth = self.lifecycle.oauth
+        if not self.provider.has_fixture_transport or (
+            isinstance(oauth, OpenAIOAuth) and not oauth.has_fixture_transport
+        ):
+            raise BridgeDenied("bridge_compatibility_unverified")
+
     def approve_pairing(self, origin: str, connection_id: str) -> CallerSession:
         """Local operator call only. HTTP has no unapproved pairing endpoint."""
+        self._require_offline_transport()
         if origin not in self.origins:
             raise BridgeDenied("bridge_origin_denied")
-        connection = next(
-            (c for c in self.lifecycle.connections() if c.connection_id == connection_id), None
-        )
-        if connection is None or connection.state != "connected" or not connection.plan_permission:
+        if connection_id != str(self.installation.connection_id):
             raise BridgeDenied("bridge_auth_required")
+        with self.lifecycle.store.transaction() as tx:
+            registration = tx.state.registrations.get(connection_id)
+            self.installation.require_registration(tx.state, registration)
         session = CallerSession(
             uuid4(),
             origin,
             UUID(connection_id),
-            connection.revision,
+            self.installation.connection_revision,
             secrets.token_urlsafe(32),
             int(self.clock()) + 300,
         )
@@ -208,9 +253,14 @@ class LocalChatGPTBridge:
         return connection
 
     async def models(self, *, origin, authorization):
+        self._require_offline_transport()
         session = self.authorize(origin, authorization)
         snapshot = await anyio.to_thread.run_sync(
-            self.lifecycle.snapshot, str(session.connection_id)
+            partial(
+                self.lifecycle.snapshot,
+                str(session.connection_id),
+                authorize=self.installation.require_registration,
+            )
         )
         if snapshot.revision != session.connection_revision:
             raise BridgeDenied("bridge_connection_changed")
@@ -225,7 +275,8 @@ class LocalChatGPTBridge:
             raise BridgeDenied("bridge_connection_changed")
         return models
 
-    async def execute(self, package, proof, *, origin, authorization):
+    def _require_dispatch(self, package, proof, *, origin, authorization):
+        self._require_offline_transport()
         session = self.authorize(origin, authorization)
         if (
             package.provider_id != PROVIDER
@@ -233,7 +284,14 @@ class LocalChatGPTBridge:
             or package.connection_revision != session.connection_revision
         ):
             raise BridgeDenied("bridge_admission_denied")
-        self.verifier.verify(proof, package, caller_id=session.caller_id, now=int(self.clock()))
+        now = int(self.clock())
+        claims = self.verifier.verify(proof, package, caller_id=session.caller_id, now=now)
+        if (
+            claims.local_chat != self.installation.scope
+            or not self.installation.scope.matches_package(package)
+            or claims.key_id != self.installation.signer_key_id
+        ):
+            raise BridgeDenied("bridge_disclosure_denied")
         gate = self.gates.get(
             (
                 str(package.connection_id),
@@ -242,16 +300,19 @@ class LocalChatGPTBridge:
                 package.model_id,
             )
         )
-        if gate is None:
+        if gate is None or gate.client_id != self.installation.client_id:
             raise BridgeDenied("bridge_compatibility_unverified")
         # Local policy denial must precede even a rotating credential refresh.
-        gate.require_package(package, now=int(self.clock()))
+        gate.require_package(package, now=now)
         if not self.provider.supports_profile(package.execution_profile):
             raise BridgeDenied("bridge_execution_profile_unsupported")
-        # Validate the narrow serializer before touching credentials or recording a send.
-        from personal_ai.llm.chatgpt.responses import serialize
+        return session
 
-        serialize(package.chat_messages(), package.model_id)
+    async def execute(self, package, proof, *, origin, authorization):
+        session = self._require_dispatch(package, proof, origin=origin, authorization=authorization)
+        messages = package.chat_messages()
+        serialize(messages, package.model_id)
+        send_started = False
         try:
             duration = min(
                 package.timeout_seconds,
@@ -260,11 +321,13 @@ class LocalChatGPTBridge:
             )
             async with asyncio.timeout(duration):
                 snapshot = await anyio.to_thread.run_sync(
-                    self.lifecycle.snapshot,
-                    str(package.connection_id),
-                    package.timeout_seconds + 30,
+                    partial(
+                        self.lifecycle.snapshot,
+                        str(package.connection_id),
+                        package.timeout_seconds + 30,
+                        authorize=self.installation.require_registration,
+                    )
                 )
-                gate.require(package, snapshot, now=int(self.clock()))
                 if snapshot.revision != package.connection_revision:
                     raise BridgeDenied("bridge_connection_changed")
                 models = await self.provider.discover(snapshot.access_token)
@@ -275,57 +338,51 @@ class LocalChatGPTBridge:
                 if package.model_id not in {m.slug for m in models}:
                     raise BridgeDenied("bridge_model_unavailable")
                 # Expiry and caller authority are rechecked before the durable pre-send claim.
-                self.authorize(origin, authorization)
-                self.verifier.verify(
-                    proof, package, caller_id=session.caller_id, now=int(self.clock())
-                )
-                gate.require(package, snapshot, now=int(self.clock()))
-                if not await anyio.to_thread.run_sync(
-                    self.lifecycle.current, snapshot.connection_id, snapshot.revision
-                ):
-                    raise BridgeDenied("bridge_connection_changed")
-                claim_token = await anyio.to_thread.run_sync(
-                    partial(
-                        self.lifecycle.store.claim,
-                        package.dispatch_identity,
-                        package.fingerprint,
+                self._require_dispatch(package, proof, origin=origin, authorization=authorization)
+
+                def authorize_send(state, registration):
+                    self._require_dispatch(
+                        package, proof, origin=origin, authorization=authorization
+                    )
+                    self.installation.require_registration(state, registration)
+                    if (
+                        registration.credentials.access_token != snapshot.access_token
+                        or registration.credentials.expires_at <= self.clock()
+                    ):
+                        raise BridgeDenied("bridge_connection_changed")
+
+                def fence_send():
+                    # Own the claim and its cleanup in one worker even if the reader is cancelled.
+                    store = self.lifecycle.store
+                    identity, fingerprint = package.dispatch_identity, package.fingerprint
+                    claim = store.claim(
+                        identity,
+                        fingerprint,
                         snapshot.connection_id,
                         snapshot.revision,
                         proof.claims.expires_at,
                         origin=session.origin,
                         now=int(self.clock()),
                     )
-                )
-                try:
-                    # These last checks still occur before the send-start fence, so a
-                    # known no-send releases the claim instead of poisoning the turn.
-                    self.authorize(origin, authorization)
-                    self.verifier.verify(
-                        proof, package, caller_id=session.caller_id, now=int(self.clock())
-                    )
-                    gate.require(package, snapshot, now=int(self.clock()))
-                    await anyio.to_thread.run_sync(
-                        partial(
-                            self.lifecycle.store.mark_send_started,
-                            package.dispatch_identity,
-                            package.fingerprint,
+                    try:
+                        store.mark_send_started(
+                            identity,
+                            fingerprint,
                             snapshot.connection_id,
                             snapshot.revision,
-                            claim_token,
+                            claim,
                             expires_at=min(proof.claims.expires_at, session.expires_at),
                             now=int(self.clock()),
+                            authorize=authorize_send,
                         )
-                    )
-                except BaseException:
-                    await anyio.to_thread.run_sync(
-                        self.lifecycle.store.release_pre_send,
-                        package.dispatch_identity,
-                        package.fingerprint,
-                        claim_token,
-                    )
-                    raise
+                    except BaseException:
+                        store.release_pre_send(identity, fingerprint, claim)
+                        raise
+
+                await anyio.to_thread.run_sync(fence_send)
+                send_started = True
                 stream = self.provider.stream(
-                    package.chat_messages(),
+                    messages,
                     model=package.model_id,
                     access_token=snapshot.access_token,
                     connection_id=snapshot.connection_id,
@@ -355,8 +412,11 @@ class LocalChatGPTBridge:
                             metadata = _sanitize_provider_error(event.metadata, guard)
                             event = GenerationEvent.terminal(metadata)
                             await anyio.to_thread.run_sync(
-                                self.lifecycle.observe_usage, snapshot.connection_id,
-                                snapshot.revision, metadata.error_code, metadata.status == "success",
+                                self.lifecycle.observe_usage,
+                                snapshot.connection_id,
+                                snapshot.revision,
+                                metadata.error_code,
+                                metadata.status == "success",
                             )
                             if metadata.error_code not in {
                                 "bridge_timeout_unknown",
@@ -376,12 +436,16 @@ class LocalChatGPTBridge:
         except CredentialEcho:
             raise BridgeDenied("bridge_credential_echo") from None
         except BridgeProviderFailure as error:
-            await anyio.to_thread.run_sync(self.lifecycle.observe_usage,
-                str(package.connection_id), package.connection_revision, error.code)
+            await anyio.to_thread.run_sync(
+                self.lifecycle.observe_usage,
+                str(package.connection_id),
+                package.connection_revision,
+                error.code,
+            )
             raise
-        except (TimeoutError, BridgeDenied, LocalStoreError):
-            # Caller handles safe denial; an already claimed receipt remains fenced.
-            raise
+        except TimeoutError:
+            code = "bridge_timeout_unknown" if send_started else "bridge_unavailable"
+            raise BridgeDenied(code) from None
 
     async def reconcile(self, identity, fingerprint, *, origin, authorization):
         session = self.authorize(origin, authorization)

@@ -635,12 +635,12 @@ def test_external_same_key_resumes_after_post_append_preparation_failure(
     original = service._snapshot
     calls = 0
 
-    def fail_during_bound_context(conversation_id, selected, sources, snapshots=()):
+    def fail_during_bound_context(conversation_id, selected, sources, snapshots=(), **options):
         nonlocal calls
         calls += 1
         if calls == failure_call:
             raise ConversationConflictError("synthetic preparation authority failure")
-        return original(conversation_id, selected, sources, snapshots)
+        return original(conversation_id, selected, sources, snapshots, **options)
 
     monkeypatch.setattr(service, "_snapshot", fail_during_bound_context)
     with pytest.raises(ConversationConflictError, match="authority failure"):
@@ -679,12 +679,12 @@ def test_new_external_key_terminalizes_abandoned_partial_user(setup, monkeypatch
     original = service._snapshot
     calls = 0
 
-    def fail_once(conversation_id, selected, sources, snapshots=()):
+    def fail_once(conversation_id, selected, sources, snapshots=(), **options):
         nonlocal calls
         calls += 1
         if calls == 3:
             raise ConversationConflictError("synthetic preparation failure")
-        return original(conversation_id, selected, sources, snapshots)
+        return original(conversation_id, selected, sources, snapshots, **options)
 
     monkeypatch.setattr(service, "_snapshot", fail_once)
     with pytest.raises(ConversationConflictError):
@@ -1545,14 +1545,19 @@ def test_external_authority_revalidates_repeated_permission_once_per_snapshot(se
 def test_execution_options_follow_application_policy_and_current_explicit_profiles(setup, monkeypatch):
     from personal_ai.api.external_turns import execution_options
     from personal_ai.applications.contracts import ExternalDisclosurePolicy
+    from personal_ai.llm.external import CHATGPT_PLAN_PROFILE
     from personal_ai.settings import Settings
 
     service, *_ = setup
     settings = Settings(
         ai_provider="fake", ai_model="fixture", external_turn_acceptance_enabled=True
     )
+    disabled_wire = profile("configured_siwc").model_copy(
+        update={"serializer_id": CHATGPT_PLAN_PROFILE.serializer_id}
+    )
+    registry = EndpointRegistry([profile(), profile("another_provider"), disabled_wire])
     monkeypatch.setattr(
-        "personal_ai.api.external_turns.get_endpoint_registry", lambda _settings: service.registry
+        "personal_ai.api.external_turns.get_endpoint_registry", lambda _settings: registry
     )
     monkeypatch.setattr(
         "personal_ai.api.external_turns.get_external_dispatch_signer", lambda _settings: service.signer

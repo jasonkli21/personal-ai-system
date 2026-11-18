@@ -2,34 +2,48 @@
 
 import asyncio
 import json
+import multiprocessing
 import time
 from dataclasses import asdict
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 
-from personal_ai.auth.dispatch_grants import DispatchGrantVerifier, InvalidDispatchGrant
+from personal_ai.auth.dispatch_grants import (
+    DispatchGrantVerifier,
+    InvalidDispatchGrant,
+    LocalChatScope,
+)
 from personal_ai.llm.chatgpt.responses import (
+    BridgeProviderFailure,
     ChatGPTResponses,
     serialize,
 )
 from personal_ai.llm.client import ChatMessage, ExternalCompletion
-from personal_ai.llm.external import CHATGPT_PLAN_PROFILE, ExecutionProfileIdentity
+from personal_ai.llm.errors import LLMInvalidRequestError
+from personal_ai.llm.external import (
+    CHATGPT_PLAN_PROFILE,
+    ExecutionProfileIdentity,
+    PreparedExecution,
+)
 from personal_ai.local_bridge.disclosure import CredentialEcho, LocalOutputGuard
 from personal_ai.local_bridge.http import create_loopback_app
+from personal_ai.local_bridge.lifecycle import CredentialLifecycle
 from personal_ai.local_bridge.runtime import (
     BridgeDenied,
     CompatibilityGate,
     FakeChatGPTPlanBridge,
     LocalChatGPTBridge,
+    LocalChatInstallation,
 )
 from personal_ai.local_bridge.status import usage_observation
-from personal_ai.local_bridge.store import LocalStoreError
+from personal_ai.local_bridge.store import LocalStoreError, ProtectedLocalStore
 from personal_ai.routing.contracts import EndpointRef
-from tests.test_chatgpt_local_lifecycle import connected_lifecycle
+from tests.test_chatgpt_local_lifecycle import FakeOAuth, connected_lifecycle
 from tests.test_external_execution_contracts import execution_package, signed_grant
 
 
@@ -134,6 +148,21 @@ def bridge_fixture(tmp_path, *, gated=True):
     private = Ed25519PrivateKey.generate()
     with lifecycle.store.transaction() as tx:
         audience = UUID(tx.state.runtime_id)
+        registration = tx.state.registrations[connection.connection_id]
+        installation = LocalChatInstallation(
+            scope=LocalChatScope(
+                owner_id="synthetic-owner", actor_id="https://pas-identity.test|owner", workspace_id=None
+            ),
+            origin="http://127.0.0.1:3000",
+            host_id=tx.state.host_id,
+            runtime_id=audience,
+            signer_key_id="key-v1",
+            connection_id=UUID(connection.connection_id),
+            connection_revision=connection.revision,
+            client_id=registration.client_id,
+            account_issuer=registration.issuer,
+            account_subject=registration.subject,
+        )
     verifier = DispatchGrantVerifier(
         issuer="synthetic-authorized-issuer",
         keys={"key-v1": private.public_key()},
@@ -161,15 +190,23 @@ def bridge_fixture(tmp_path, *, gated=True):
         lifecycle,
         provider.provider,
         verifier,
-        origins=("https://approved.example",),
+        installation=installation,
         gates=(gate,) if gated else (),
     )
-    session = bridge.approve_pairing("https://approved.example", connection.connection_id)
+    session = bridge.approve_pairing(installation.origin, connection.connection_id)
     package = execution_package(
         connection_id=session.connection_id, connection_revision=session.connection_revision
     )
-    proof = signed_grant(package, private, caller_id=session.caller_id, audience=audience, now=now)
+    proof = sign_for_bridge(bridge, session, package, private, now=now)
     return bridge, provider, session, package, proof, private
+
+
+def sign_for_bridge(bridge, session, package, private, **claims):
+    claims.setdefault("caller_id", session.caller_id)
+    claims.setdefault("audience", bridge.verifier.audience)
+    claims.setdefault("now", int(time.time()))
+    claims.setdefault("local_chat", bridge.installation.scope)
+    return signed_grant(package, private, **claims)
 
 
 def run_bridge(bridge, session, package, proof):
@@ -214,6 +251,14 @@ def test_account_catalog_preserves_display_order_and_omits_hidden_models():
     assert all("synthetic-access" not in str(request.url) for request in fixture.requests)
 
 
+@pytest.mark.parametrize("visibility", ["hidden", "list"])
+def test_catalog_rejects_ambiguous_slug_even_if_one_entry_is_hidden(visibility):
+    fixture = ProviderFixture()
+    fixture.catalog.append({**fixture.catalog[0], "visibility": visibility})
+    with pytest.raises(BridgeProviderFailure, match="bridge_catalog_invalid"):
+        asyncio.run(fixture.provider.discover("synthetic-access"))
+
+
 def test_stream_reports_explicit_completion_usage_and_observed_provenance():
     fixture = ProviderFixture()
     events = transport_events(fixture)
@@ -233,6 +278,16 @@ def test_stream_reports_explicit_completion_usage_and_observed_provenance():
         ([created(), completed()], "bridge_protocol_invalid"),
         ([delta(), completed()], "bridge_protocol_invalid"),
         ([created(), delta(), completed(id="foreign-response")], "bridge_protocol_invalid"),
+        (
+            [{"type": "response.failed", "response": {
+                "status": "failed", "model": "account-visible-model",
+            }}],
+            "bridge_protocol_invalid",
+        ),
+        (
+            [{"type": "response.created", "response": {}}, completed(id=None)],
+            "bridge_protocol_invalid",
+        ),
         (
             [
                 created(),
@@ -287,6 +342,14 @@ def test_refusal_content_is_streamed_as_completed_assistant_output():
     result = transport_events(fixture)
     assert result[-1].metadata.status == "success"
     assert "".join(event.delta for event in result if event.kind == "delta") == refusal
+
+
+def test_refusal_cannot_be_relabelled_as_output_text_at_completion():
+    fixture = ProviderFixture()
+    fixture.events = [
+        created(), {"type": "response.refusal.done", "refusal": "A streamed answer"}, completed(),
+    ]
+    assert transport_events(fixture)[-1].metadata.error_code == "bridge_protocol_invalid"
 
 
 def test_reasoning_content_is_validated_but_never_disclosed():
@@ -634,7 +697,7 @@ def test_compressed_provider_stream_is_rejected_before_decompression():
         {"valid_until": 1},
         {"client_id": "oaiapp_other"},
         {"model_id": "other-model"},
-        {"distribution": "hosted_web_installed_bridge", "distribution_approval": None},
+        {"distribution": "hosted_web_installed_bridge", "distribution_approval": "synthetic-reference"},
         {"data_use": {"status": "unknown"}},
     ],
 )
@@ -673,6 +736,165 @@ def test_local_policy_denial_precedes_any_credential_refresh(tmp_path, denial):
     assert not provider.requests
     with bridge.lifecycle.store.transaction() as tx:
         assert not tx.state.receipts
+
+
+@pytest.mark.parametrize("field,value", [
+    ("application_id", "travel"),
+    ("owner_id", "another-owner"),
+    ("workspace_id", "another-workspace"),
+    ("actor_id", "https://pas-identity.test|delegate"),
+    ("local_chat", None),
+    ("audience", uuid4()),
+    ("caller_id", uuid4()),
+])
+def test_valid_signatures_cannot_expand_local_pairing_scope(tmp_path, field, value):
+    bridge, provider, session, package, proof, private = bridge_fixture(tmp_path)
+    if field == "actor_id":
+        options = {"local_chat": bridge.installation.scope.model_copy(update={field: value})}
+    elif field in {"local_chat", "audience", "caller_id"}:
+        options = {field: value}
+    else:
+        package = package.model_copy(update={field: value})
+        options = {}
+    foreign = sign_for_bridge(bridge, session, package, private, **options)
+    # Verify the independently signed document under its declared caller and audience.
+    DispatchGrantVerifier(
+        issuer=bridge.verifier.issuer,
+        keys=bridge.verifier.keys,
+        audience=foreign.claims.audience,
+    ).verify(foreign, package, caller_id=foreign.claims.caller_id, now=foreign.claims.issued_at)
+    with bridge.lifecycle.store.transaction() as tx:
+        tx.state.registrations[str(session.connection_id)].credentials.expires_at = 1
+        tx.save()
+    prior = list(bridge.lifecycle.oauth.calls)
+    with pytest.raises((BridgeDenied, InvalidDispatchGrant)):
+        run_bridge(bridge, session, package, foreign)
+    assert bridge.lifecycle.oauth.calls == prior and not provider.requests
+    assert proof.claims.local_chat == bridge.installation.scope
+
+
+def test_valid_signature_from_a_second_key_cannot_reuse_pairing(tmp_path):
+    bridge, provider, session, package, _, _ = bridge_fixture(tmp_path)
+    other = Ed25519PrivateKey.generate()
+    bridge.verifier.keys["other-key"] = other.public_key()
+    proof = sign_for_bridge(bridge, session, package, other, key_id="other-key")
+    bridge.verifier.verify(proof, package, caller_id=session.caller_id, now=proof.claims.issued_at)
+    with pytest.raises(BridgeDenied, match="bridge_disclosure_denied"):
+        run_bridge(bridge, session, package, proof)
+    assert not provider.requests
+
+
+@pytest.mark.parametrize("field,value", [
+    ("client_id", "oaiapp_different"),
+    ("subject", "different-provider-account"),
+    ("revision", 2),
+    ("host_id", f"urn:uuid:{uuid4()}"),
+    ("runtime_id", str(uuid4())),
+])
+def test_changed_local_registration_denies_before_refresh(tmp_path, field, value):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    with bridge.lifecycle.store.transaction() as tx:
+        registration = tx.state.registrations[str(session.connection_id)]
+        target = tx.state if field in {"host_id", "runtime_id"} else registration
+        setattr(target, field, value)
+        registration.credentials.expires_at = 1
+        tx.save()
+    prior = list(bridge.lifecycle.oauth.calls)
+    with pytest.raises(BridgeDenied, match="bridge_connection_changed"):
+        run_bridge(bridge, session, package, proof)
+    assert bridge.lifecycle.oauth.calls == prior and not provider.requests
+
+
+@pytest.mark.parametrize("messages", [
+    [ChatMessage("tool", "unsupported")],
+    [ChatMessage("user", "\ud800")],
+    [ChatMessage("user", "界" * 100_000)],
+])
+def test_wire_serializer_rejects_unusable_input(messages):
+    with pytest.raises(LLMInvalidRequestError):
+        serialize(messages, "account-visible-model")
+
+
+@pytest.mark.parametrize("configured_transport", [False, True])
+def test_loopback_with_real_responses_adapter_denies_valid_execution_and_models(
+    tmp_path, configured_transport,
+):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+
+    class UnapprovedTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            raise AssertionError("unapproved transport received a request")
+
+    bridge.provider = ChatGPTResponses(
+        transport=UnapprovedTransport() if configured_transport else None,
+    )
+    prior = list(bridge.lifecycle.oauth.calls)
+    app = create_loopback_app(bridge, port=8765)
+    headers = {"Origin": session.origin, "X-Bridge-Authorization": session.authorization}
+    with TestClient(app, base_url="http://127.0.0.1:8765", client=("127.0.0.1", 1234)) as client:
+        assert client.get("/models", headers=headers).status_code == 409
+        response = client.post("/execute", headers=headers, json={
+            "package": package.model_dump(mode="json"),
+            "proof": proof.model_dump(mode="json"),
+        })
+        assert '"error": "bridge_compatibility_unverified"' in response.text
+    assert bridge.lifecycle.oauth.calls == prior and not provider.requests
+
+
+def test_rotated_access_token_during_catalog_cannot_reach_post(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    discover = provider.provider.discover
+
+    async def rotate_after_catalog(access_token):
+        models = await discover(access_token)
+        with bridge.lifecycle.store.transaction() as tx:
+            tx.state.registrations[str(session.connection_id)].credentials.access_token = "rotated"
+            tx.save()
+        return models
+
+    provider.provider.discover = rotate_after_catalog
+    with pytest.raises(BridgeDenied, match="bridge_connection_changed"):
+        run_bridge(bridge, session, package, proof)
+    assert [request.method for request in provider.requests] == ["GET"]
+    with bridge.lifecycle.store.transaction() as tx:
+        assert not tx.state.receipts
+
+
+def test_disconnect_after_send_commit_fences_attempt_and_withholds_terminal(tmp_path):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+    mark = bridge.lifecycle.store.mark_send_started
+
+    def mark_then_disconnect(*args, **kwargs):
+        mark(*args, **kwargs)
+        bridge.lifecycle.disconnect(str(session.connection_id))
+
+    bridge.lifecycle.store.mark_send_started = mark_then_disconnect
+    with pytest.raises(BridgeDenied, match="bridge_connection_changed"):
+        run_bridge(bridge, session, package, proof)
+    assert len(provider.sends()) == 1
+    with bridge.lifecycle.store.transaction() as tx:
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
+
+
+def test_terminal_persistence_failure_withholds_success_and_fences_send(tmp_path, monkeypatch):
+    bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
+
+    def fail_to_settle(*args, **kwargs):
+        raise LocalStoreError()
+
+    monkeypatch.setattr(bridge.lifecycle.store, "settle", fail_to_settle)
+
+    async def read():
+        async for event in bridge.execute(
+            package, proof, origin=session.origin, authorization=session.authorization,
+        ):
+            assert event.kind == "delta"
+
+    with pytest.raises(LocalStoreError):
+        asyncio.run(read())
+    assert len(provider.sends()) == 1
+    with bridge.lifecycle.store.transaction() as tx:
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
 
 
 def test_expiry_during_catalog_refresh_aborts_without_claim_or_send(tmp_path):
@@ -774,13 +996,7 @@ def test_signed_execution_profile_must_match_registered_local_transport(tmp_path
         runtime_id=CHATGPT_PLAN_PROFILE.runtime_id,
     )
     package = package.model_copy(update={"execution_profile": alternate})
-    proof = signed_grant(
-        package,
-        private,
-        caller_id=session.caller_id,
-        audience=bridge.verifier.audience,
-        now=int(time.time()),
-    )
+    proof = sign_for_bridge(bridge, session, package, private)
     previous = next(iter(bridge.gates.values()))
     configured = CompatibilityGate.model_validate(
         {**previous.model_dump(), "execution_profile": alternate}
@@ -805,13 +1021,7 @@ def test_signed_execution_profile_must_match_registered_local_transport(tmp_path
 def test_local_output_cutoff_is_not_a_known_provider_terminal(tmp_path):
     bridge, _, session, package, _, private = bridge_fixture(tmp_path)
     package = package.model_copy(update={"max_output_bytes": 1})
-    proof = signed_grant(
-        package,
-        private,
-        caller_id=session.caller_id,
-        audience=bridge.verifier.audience,
-        now=int(time.time()),
-    )
+    proof = sign_for_bridge(bridge, session, package, private)
     result = run_bridge(bridge, session, package, proof)
     assert result[-1].metadata.error_code == "bridge_output_bound"
     with bridge.lifecycle.store.transaction() as tx:
@@ -881,7 +1091,7 @@ def test_terminal_receipt_reconciles_after_runtime_restart_and_repair(tmp_path):
         bridge.lifecycle,
         bridge.provider,
         bridge.verifier,
-        origins=(session.origin, "https://other-approved.example"),
+        installation=bridge.installation,
         gates=tuple(bridge.gates.values()),
         clock=bridge.clock,
     )
@@ -898,18 +1108,8 @@ def test_terminal_receipt_reconciles_after_runtime_restart_and_repair(tmp_path):
     assert reconciled.status == "success"
     assert reconciled.output_available is False
 
-    foreign_session = restarted.approve_pairing(
-        "https://other-approved.example", str(session.connection_id)
-    )
-    with pytest.raises(LocalStoreError, match="dispatch_receipt_not_found"):
-        asyncio.run(
-            restarted.reconcile(
-                package.dispatch_identity,
-                package.fingerprint,
-                origin=foreign_session.origin,
-                authorization=foreign_session.authorization,
-            )
-        )
+    with pytest.raises(BridgeDenied, match="bridge_origin_denied"):
+        restarted.approve_pairing("http://127.0.0.1:3001", str(session.connection_id))
     with pytest.raises(BridgeDenied, match="bridge_caller_denied"):
         asyncio.run(
             restarted.reconcile(
@@ -965,13 +1165,7 @@ def test_unknown_send_outcome_remains_fenced_across_runtime_restart_and_resigned
     assert events[-1].metadata.error_code == "bridge_terminal_missing"
     with bridge.lifecycle.store.transaction() as tx:
         assert tx.state.receipts[package.dispatch_identity].status == "send_started"
-    second_proof = signed_grant(
-        package,
-        private,
-        caller_id=session.caller_id,
-        audience=bridge.verifier.audience,
-        now=int(time.time()),
-    )
+    second_proof = sign_for_bridge(bridge, session, package, private)
     with pytest.raises(LocalStoreError):
         run_bridge(bridge, session, package, second_proof)
     assert len(provider.sends()) == 1
@@ -996,6 +1190,65 @@ def test_simultaneous_dispatch_has_one_provider_effect(tmp_path):
     results = asyncio.run(race())
     assert len(provider.sends()) == 1
     assert len([r for r in results if r == "dispatch_already_claimed"]) == 1
+
+
+def run_bridge_process(directory, installation, gate, key_bytes, package_json, barrier, results):
+    private = Ed25519PrivateKey.from_private_bytes(key_bytes)
+    lifecycle = CredentialLifecycle(ProtectedLocalStore(Path(directory)), FakeOAuth())
+    provider = ProviderFixture()
+    bridge = LocalChatGPTBridge(
+        lifecycle, provider.provider,
+        DispatchGrantVerifier(
+            issuer="synthetic-authorized-issuer", keys={"key-v1": private.public_key()},
+            audience=installation.runtime_id,
+        ),
+        installation=installation, gates=(gate,),
+    )
+    session = bridge.approve_pairing(installation.origin, str(installation.connection_id))
+    package = PreparedExecution.model_validate_json(package_json)
+    proof = sign_for_bridge(bridge, session, package, private)
+    barrier.wait(timeout=15)
+    try:
+        result = run_bridge(bridge, session, package, proof)
+        status = result[-1].metadata.status
+    except LocalStoreError as error:
+        status = error.code
+    results.put((status, len(provider.sends())))
+
+
+def test_repaired_processes_and_restart_share_one_physical_post(tmp_path):
+    bridge, provider, session, package, _, private = bridge_fixture(tmp_path)
+    context = multiprocessing.get_context("spawn")
+    barrier, results = context.Barrier(2), context.Queue()
+    args = (
+        str(bridge.lifecycle.store.directory), bridge.installation,
+        next(iter(bridge.gates.values())), private.private_bytes_raw(), package.model_dump_json(),
+        barrier, results,
+    )
+    processes = [context.Process(target=run_bridge_process, args=args) for _ in range(2)]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=20)
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=5)
+        assert process.exitcode == 0
+    assert sorted(results.get(timeout=2) for _ in processes) == [
+        ("dispatch_already_claimed", 0), ("success", 1),
+    ]
+    # Observe both the original receipt and its compact fence using a new store.
+    bridge.lifecycle.store = ProtectedLocalStore(bridge.lifecycle.store.directory)
+    kwargs = {"origin": session.origin, "authorization": session.authorization}
+    identity, fingerprint = package.dispatch_identity, package.fingerprint
+    assert asyncio.run(bridge.reconcile(identity, fingerprint, **kwargs)).status == "success"
+    asyncio.run(bridge.acknowledge(identity, fingerprint, **kwargs))
+    bridge.lifecycle.store.maintain(now=int(time.time()) + 61)
+    bridge.clock = lambda: time.time() + 62
+    resigned = sign_for_bridge(bridge, session, package, private, now=int(bridge.clock()))
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        run_bridge(bridge, session, package, resigned)
+    assert not provider.sends()
 
 
 def test_credential_echo_across_delta_boundaries_cannot_escape_local_guard(tmp_path):
@@ -1170,8 +1423,11 @@ def test_bridge_never_joins_managed_composition_or_automatic_provider_factory():
     from personal_ai.llm.providers import build_generation_adapter
     from personal_ai.settings import Settings
 
+    settings = Settings(ai_provider="gemini", ai_model="synthetic-model")
+    assert settings.inference_profile == "offline_fake"
+    assert not settings.external_turn_acceptance_enabled
     with pytest.raises(LLMInvalidConfigurationError):
         build_generation_adapter(
-            Settings(ai_provider="gemini", ai_model="synthetic-model"),
+            settings,
             provider="openai_chatgpt_plan",
         )

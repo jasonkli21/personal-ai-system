@@ -43,13 +43,19 @@ class ExternalTurnDispatch:
             or choice.connection_revision != reservation.connection_revision
         ):
             raise ConversationConflictError("dispatch_binding_invalid")
-        self._recheck(conversation_id, reservation, choice)
         profile = self._profile(choice, reservation.effective_sensitivity)
         if (
             profile.ref != prepared.connected_package.execution_profile.endpoint
             or digest(profile.model_dump(mode="json")) != reservation.profile_digest
         ):
             raise ConversationConflictError("endpoint_changed")
+        local_chat = self._local_chat_scope(choice, profile)
+        if local_chat is not None and (
+            not local_chat.matches_package(prepared.connected_package)
+            or reservation.selected_memory_ids
+        ):
+            raise ConversationConflictError("local_chat_source_context_denied")
+        self._recheck(conversation_id, reservation, choice, source_free=local_chat is not None)
         if self.signer is None:
             raise ConversationConflictError("dispatch_signer_unavailable")
         # Sign before CAS but return only after durable dispatch fencing. Failed writes never expose a grant.
@@ -60,6 +66,7 @@ class ExternalTurnDispatch:
             audience=reservation.audience,
             now=grant_now,
             expires_at=min(reservation.expires_at, grant_now + timedelta(seconds=120)),
+            local_chat=local_chat,
         )
         self.chat.transition(
             message,

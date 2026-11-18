@@ -5,6 +5,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
@@ -415,7 +416,8 @@ def test_stale_unknown_receipts_compact_to_durable_non_resend_fences(tmp_path):
     assert lifecycle.store.maintain(now=now) == 4096
     with lifecycle.store.transaction() as tx:
         assert not tx.state.receipts
-    assert len(list((lifecycle.store.directory / "send-fences").iterdir())) == 2
+    fences = {path.name for path in (lifecycle.store.directory / "send-fences").iterdir()}
+    assert len(fences) == 4096 and uncertain <= fences
 
     new_identity, new_fingerprint = "f" * 64, "e" * 64
     token = lifecycle.store.claim(
@@ -471,6 +473,58 @@ def test_disconnect_retries_transient_revocation_without_allowing_inference(tmp_
     assert len([call for call in oauth.calls if call[0] == "revoke"]) == 3
     with pytest.raises(OAuthFailure):
         lifecycle.snapshot(safe.connection_id)
+
+
+def test_disconnect_crash_before_remote_revocation_leaves_no_local_credentials(tmp_path):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+
+    def interrupted(**kwargs):
+        raise KeyboardInterrupt()
+
+    oauth.revoke = interrupted
+    with pytest.raises(KeyboardInterrupt):
+        lifecycle.disconnect(safe.connection_id)
+    restarted = CredentialLifecycle(ProtectedLocalStore(lifecycle.store.directory), oauth)
+    state, = restarted.connections()
+    assert state.state == "disconnected" and state.remote_revocation == "unconfirmed"
+    with restarted.store.transaction() as tx:
+        assert tx.state.registrations[safe.connection_id].credentials is None
+    with pytest.raises(OAuthFailure):
+        restarted.snapshot(safe.connection_id)
+
+
+def test_disconnect_revokes_the_rotated_credential_and_fences_the_old_snapshot(tmp_path):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+    with lifecycle.store.transaction() as tx:
+        tx.state.registrations[safe.connection_id].credentials.expires_at = 1
+        tx.save()
+    refresh_started, finish_refresh, disconnect_started = (threading.Event() for _ in range(3))
+    refresh = oauth.refresh
+
+    def rotate(**kwargs):
+        refresh_started.set()
+        assert finish_refresh.wait(timeout=5)
+        return refresh(**kwargs)
+
+    def disconnect():
+        disconnect_started.set()
+        return lifecycle.disconnect(safe.connection_id)
+
+    oauth.refresh = rotate
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        refreshing = executor.submit(lifecycle.snapshot, safe.connection_id)
+        assert refresh_started.wait(timeout=5)
+        disconnecting = executor.submit(disconnect)
+        try:
+            assert disconnect_started.wait(timeout=5)
+        finally:
+            finish_refresh.set()
+        snapshot = refreshing.result(timeout=5)
+        disconnected = disconnecting.result(timeout=5)
+    assert disconnected.state == "disconnected"
+    assert not lifecycle.current(snapshot.connection_id, snapshot.revision)
+    assert oauth.calls[-1][0] == "revoke"
+    assert oauth.calls[-1][1]["refresh_token"] == "synthetic-new-refresh"
 
 
 def test_identity_only_registration_cannot_get_inference_credential(tmp_path):
@@ -530,6 +584,28 @@ def test_identical_email_registrations_have_distinct_safe_labels():
         CredentialLifecycle._safe(first).account_label
         != CredentialLifecycle._safe(second).account_label
     )
+
+
+def test_same_email_cannot_relink_distinct_registered_subjects(tmp_path):
+    lifecycle, oauth, first = connected_lifecycle(tmp_path)
+    oauth.subject = "different-subject"
+    attempt, url = lifecycle.begin("http://127.0.0.1:54321/auth/callback")
+    second = lifecycle.complete(attempt, {
+        "state": parse_qs(urlsplit(url).query)["state"][0],
+        "code": "synthetic-code",
+        "client_id": "oaiapp_different",
+    })
+    assert first.account_label != second.account_label
+    assert first.account_label.split(" · ")[0] == second.account_label.split(" · ")[0]
+    attempt, url = lifecycle.begin(
+        "http://127.0.0.1:54321/auth/callback", connection_id=first.connection_id,
+    )
+    with pytest.raises(OAuthFailure, match="oauth_account_mismatch"):
+        lifecycle.complete(attempt, {
+            "state": parse_qs(urlsplit(url).query)["state"][0], "code": "synthetic-code",
+        })
+    assert lifecycle.snapshot(first.connection_id).subject == "synthetic-subject"
+    assert lifecycle.snapshot(second.connection_id).subject == "different-subject"
 
 
 def test_invalid_client_enters_nonretrying_configuration_error(tmp_path):
@@ -732,3 +808,38 @@ def test_physical_send_claim_is_single_use_across_real_processes_and_restart(tmp
         )
     with restarted.transaction() as tx:
         assert tx.state.receipts["a" * 64].status == "send_started"
+
+
+def refresh_in_process(path, connection_id, barrier, result):
+    oauth = FakeOAuth()
+    lifecycle = CredentialLifecycle(ProtectedLocalStore(Path(path)), oauth)
+    barrier.wait(timeout=15)
+    snapshot = lifecycle.snapshot(connection_id)
+    result.put((snapshot.access_token == "synthetic-access", len(oauth.calls)))
+
+
+def test_refresh_rotation_is_serialized_across_processes(tmp_path):
+    lifecycle, _, safe = connected_lifecycle(tmp_path)
+    with lifecycle.store.transaction() as tx:
+        tx.state.registrations[safe.connection_id].credentials.expires_at = 1
+        tx.save()
+    context = multiprocessing.get_context("spawn")
+    barrier, result = context.Barrier(2), context.Queue()
+    processes = [
+        context.Process(
+            target=refresh_in_process,
+            args=(str(lifecycle.store.directory), safe.connection_id, barrier, result),
+        )
+        for _ in range(2)
+    ]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=20)
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=5)
+        assert process.exitcode == 0
+    assert sorted(result.get(timeout=2) for _ in processes) == [(True, 0), (True, 1)]
+    with lifecycle.store.transaction() as tx:
+        assert tx.state.registrations[safe.connection_id].credentials.refresh_token == "synthetic-new-refresh"

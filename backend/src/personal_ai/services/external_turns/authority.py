@@ -4,21 +4,51 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.contracts import AuthenticatedPrincipal
+from personal_ai.auth.dispatch_grants import LocalChatScope
 from personal_ai.auth.scope import WorkspaceAuthorizer
 from personal_ai.context.authority import (
     permission_dependencies_current,
     source_snapshot_authority_complete,
 )
+from personal_ai.context.history import source_snapshots_for_message
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.contracts.execution import ExecutionChoice
-from personal_ai.entities import MessageStatus
+from personal_ai.entities import MessageRole, MessageStatus
 from personal_ai.entities.turn_execution import TurnAttribution
 from personal_ai.storage.errors import ConversationConflictError
+
+
+@dataclass(frozen=True, slots=True)
+class LocalChatDispatch:
+    """Trusted foreground composition for one independently approved pairing."""
+
+    scope: LocalChatScope
+    caller_id: UUID
+    audience: UUID
+    connection_id: UUID
+    connection_revision: int
+
+    def require(self, context, principal, choice):
+        scope = context.scope
+        if (
+            not principal.authenticated
+            or scope.owner_id != principal.owner_id
+            or scope.acting_user_id != f"{principal.issuer}|{principal.subject}"
+            or (scope.application_id, scope.owner_id, scope.acting_user_id, scope.workspace_id)
+            != (
+                self.scope.application_id, self.scope.owner_id, self.scope.actor_id,
+                self.scope.workspace_id,
+            )
+            or (choice.caller_id, choice.audience, choice.connection_id, choice.connection_revision)
+            != (self.caller_id, self.audience, self.connection_id, self.connection_revision)
+        ):
+            raise ConversationConflictError("local_chat_scope_denied")
 
 
 def _authority_model_dump(value):
@@ -70,6 +100,8 @@ class PrincipalBoundExternalTurnAuthority:
         choice: ExecutionChoice,
         source_message_ids: tuple[UUID, ...],
         source_snapshots: tuple[ContextSourceSnapshot, ...],
+        *,
+        source_free: bool = False,
     ) -> str:
         scope = context.scope
         if scope.owner_id != self.principal.owner_id:
@@ -118,6 +150,11 @@ class PrincipalBoundExternalTurnAuthority:
                 or message.workspace_id != scope.workspace_id
             ):
                 raise ConversationConflictError("external_history_source_unavailable")
+            if source_free and (
+                source_snapshots_for_message(message)
+                or (message.execution and message.execution.selected_memory_ids)
+            ):
+                raise ConversationConflictError("local_chat_source_context_denied")
             selected.append(
                 {
                     "id": str(message.id),
@@ -130,6 +167,8 @@ class PrincipalBoundExternalTurnAuthority:
                 }
             )
 
+        if source_free and source_snapshots:
+            raise ConversationConflictError("local_chat_source_context_denied")
         now = self.clock()
         for snapshot in source_snapshots:
             if (
@@ -168,3 +207,26 @@ class PrincipalBoundExternalTurnAuthority:
                 canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False
             ).encode()
         ).hexdigest()
+
+    def require_new_local_turn(self, context, conversation_id, content):
+        active = self.messages.list_active(
+            owner_id=context.scope.owner_id, conversation_id=conversation_id
+        )
+        self.require_distinct_local_turn(active, content)
+
+    @staticmethod
+    def require_distinct_local_turn(active, content):
+        # An unfinished preparation can leave one trailing user message behind.
+        if active and active[-1].role == MessageRole.USER:
+            active = active[:-1]
+        if len(active) < 2:
+            return
+        user, assistant = active[-2:]
+        if (
+            user.role == MessageRole.USER
+            and user.content == content
+            and assistant.parent_message_id == user.id
+            and assistant.execution is not None
+            and assistant.execution.state in {"dispatched", "unknown"}
+        ):
+            raise ConversationConflictError("local_chat_previous_dispatch_uncertain")

@@ -45,9 +45,7 @@ class ExternalTurnPreparation:
             f"{self.context.scope.owner_id}:{self.context.scope.application_id}:{self.context.scope.workspace_id}:{request.idempotency_key}",
         )
         request_hash = request.intent_digest
-        excluded_source_classes = self._excluded_for_disclosure(
-            request.excluded_source_classes, disclosure
-        )
+        excluded_source_classes, source_free = self._request_sources(request, disclosure)
         try:
             existing = self.chat.get_message(conversation_id, identity)
         except ResourceNotFoundError:
@@ -57,6 +55,8 @@ class ExternalTurnPreparation:
                 raise ConversationConflictError("idempotency_input_changed")
             # Prompt bodies are transient. Existing sends cannot be recreated/re-dispatched.
             raise ConversationConflictError("reservation_exists_inspect_or_finalize")
+        if source_free:
+            self.authority.require_new_local_turn(self.context, conversation_id, request.content)
         result = []
 
         def bind(assistant, assembled, inference, active):
@@ -76,15 +76,22 @@ class ExternalTurnPreparation:
                 )
             )
             injected = {
-                (item.source_id, item.item_id) for item in assembled.manifest.items if item.injected
+                (item.provider_id, item.source_id, item.item_id)
+                for item in assembled.manifest.items if item.injected
             }
             items = [
                 item
                 for item in assembled.source_items
-                if (item.source_id, item.item_id) in injected
+                if (item.provider_id, item.source_id, item.item_id) in injected
             ]
             snapshots = tuple(item.authority_snapshot() for item in items)
-            authority = self._snapshot(conversation_id, choice, selected, snapshots)
+            if source_free and (assembled.summary or assembled.selected_memory_ids):
+                raise ConversationConflictError("local_chat_source_context_denied")
+            if source_free:
+                self.authority.require_distinct_local_turn(active, request.content)
+            authority = self._snapshot(
+                conversation_id, choice, selected, snapshots, source_free=source_free
+            )
             branch = fingerprint(active, include_state=True)
             messages = tuple(
                 PreparedMessage(role=m.role, content=m.content) for m in assembled.messages
@@ -271,7 +278,7 @@ class ExternalTurnPreparation:
             raise ConversationConflictError("reservation_superseded")
         return message, reservation
 
-    def _recheck(self, conversation_id, reservation, choice):
+    def _recheck(self, conversation_id, reservation, choice, *, source_free=False):
         authorize_effective_sensitivity(self.context, reservation.effective_sensitivity)
         if any(
             s.expires_at is not None and self.clock() >= s.expires_at
@@ -285,6 +292,7 @@ class ExternalTurnPreparation:
                 choice,
                 reservation.source_message_ids,
                 reservation.source_snapshots,
+                source_free=source_free,
             )
             != reservation.authority_digest
         ):
