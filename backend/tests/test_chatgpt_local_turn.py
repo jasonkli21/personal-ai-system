@@ -352,3 +352,113 @@ def test_issuer_rechecks_inherited_application_provenance_before_signing(local_t
         service.dispatch_package(cid, prepared.message_id, prepared.connected_package)
     assert service.chat.get_message(cid, prepared.message_id).execution.state == "prepared"
     assert not provider.requests
+
+
+@pytest.mark.parametrize("missing", [None, "consent", "program", "account", "included_only"])
+def test_policy_offer_fences_before_publication_and_stays_local(local_turn, missing):
+    from contextlib import ExitStack
+
+    from personal_ai.auth.scope import (
+        bind_request_scope,
+        bind_verified_principal,
+        reset_request_scope,
+        reset_verified_principal,
+    )
+    from personal_ai.routing import RoutingDecisionService
+    from personal_ai.routing.isolated import (
+        IsolatedInferenceRouting,
+        PlanOfferEvidence,
+        SyntheticOffer,
+    )
+    from personal_ai.routing.owner_policy import OwnerInferenceSettings, PolicyDenied
+    from tests.test_isolated_inference import Authority, MemorySettings, binding, policy
+    from tests.test_routing_decision_lifecycle import MemoryRepository, task
+    from tests.test_routing_decision_lifecycle import request as route_request
+
+    issuer, cid, continuation, bridge, provider, session, fallback = local_turn
+    registered = issuer.registry.profiles[0].model_copy(
+        update={
+            "model_id": continuation.choice.model_id,
+            "credential_scope_id": "fixture-local-revision",
+            "account_scope_id": "fixture-local-account",
+        }
+    )
+    issuer.registry = EndpointRegistry([registered])
+    exact = binding(registered, "subscription")
+    prepared = issuer.prepare(cid, continuation)
+    document = continuation.model_dump(mode="json")
+    for key in ("federation_context", "launch_context", "retrieval_context"):
+        document.pop(key)
+    payload = json.dumps(
+        document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    store = MemorySettings()
+
+    class LocalAuthority(Authority):
+        def plan_offer(self, connection, admission, package, choice, now):
+            return PlanOfferEvidence(
+                exact,
+                prepared.connected_package.fingerprint,
+                continuation.choice.audience,
+                continuation.choice.connection_id,
+                continuation.choice.connection_revision,
+                now + timedelta(minutes=1),
+                missing != "consent",
+                missing != "program",
+                missing != "account",
+                missing != "included_only",
+            )
+
+    coordinator = IsolatedInferenceRouting(
+        RoutingDecisionService(issuer.registry, MemoryRepository()),
+        OwnerInferenceSettings(store, issuer.registry, is_member=lambda _: False),
+        authority=LocalAuthority(
+            maximum_sensitivity=prepared.connected_package.effective_sensitivity
+        ),
+    )
+    with ExitStack() as stack:
+        stack.callback(reset_request_scope, bind_request_scope(issuer.context.scope))
+        stack.callback(
+            reset_verified_principal, bind_verified_principal(issuer.authority.principal)
+        )
+        coordinator.settings.update(
+            expected_revision=0, payload=policy(exact).model_dump_json().encode()
+        )
+        kwargs = {
+            "request": route_request().model_copy(
+                update={
+                    "requirements": route_request().requirements.model_copy(
+                        update={"sensitivity": prepared.connected_package.effective_sensitivity}
+                    ),
+                }
+            ),
+            "task": task(max_physical_attempts=1),
+            "payload": payload,
+            "ranked": (exact,),
+            "recipient": exact.recipient,
+            "prepare_candidate": lambda *_: SyntheticOffer(
+                issuer, cid, prepared, continuation.choice
+            ),
+        }
+        if missing is not None:
+            with pytest.raises(PolicyDenied):
+                coordinator.prepare(**kwargs)
+            assert not provider.requests
+            return
+        grant = coordinator.prepare(**kwargs)
+        root = next(iter(store.roots.values()))
+        assert root[4] == "fenced"
+        assert (grant.claims.routing_root, issuer.context.scope.owner_id) in store.roots
+        assert grant.claims.expires_at <= int(root[2].timestamp())
+        assert grant.claims.local_chat == bridge.installation.scope
+        with pytest.raises(PolicyDenied, match="fenced"):
+            coordinator.prepare(**kwargs)
+    assert not provider.requests
+    events = run_bridge(bridge, session, prepared.connected_package, grant)
+    assert events[-1].metadata.status == "success"
+    from personal_ai.local_bridge.store import LocalStoreError
+
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        run_bridge(bridge, session, prepared.connected_package, grant)
+    assert [req.method for req in provider.requests] == ["POST"]
+    assert not fallback

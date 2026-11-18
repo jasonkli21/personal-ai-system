@@ -42,7 +42,10 @@ def purge_expired(accounting, *, limit: int) -> int:
     with accounting.database.transaction() as connection:
         rows = connection.execute(
             "WITH expired AS (SELECT invocation_id FROM provider_invocations "
-            "WHERE retention_until<=%s ORDER BY retention_until,invocation_id "
+            "WHERE retention_until<=%s AND NOT EXISTS ("
+            "SELECT 1 FROM provider_attempts a JOIN provider_monetary_holds h USING(attempt_id) "
+            "WHERE a.invocation_id=provider_invocations.invocation_id "
+            "AND h.state IN ('reserved','claimed')) ORDER BY retention_until,invocation_id "
             "LIMIT %s FOR UPDATE SKIP LOCKED) "
             "DELETE FROM provider_invocations i USING expired e "
             "WHERE i.invocation_id=e.invocation_id RETURNING i.invocation_id",
@@ -150,7 +153,9 @@ def resolve_stale_attempts(accounting, *, limit: int) -> int:
             "i.endpoint_profile_version,"
             "a.parent_attempt_id,a.started_at FROM provider_attempts a "
             "JOIN provider_invocations i USING(invocation_id) WHERE a.status='pending' "
-            "AND a.started_at<=%s ORDER BY a.started_at,a.attempt_id LIMIT %s "
+            "AND a.started_at<=%s AND NOT EXISTS (SELECT 1 FROM provider_monetary_holds h "
+            "WHERE h.attempt_id=a.attempt_id AND h.state='reserved') "
+            "ORDER BY a.started_at,a.attempt_id LIMIT %s "
             "FOR UPDATE OF a SKIP LOCKED",
             (cutoff, limit),
         ).fetchall()

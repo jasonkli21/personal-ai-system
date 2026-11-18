@@ -152,6 +152,9 @@ class EndpointRegistry:
         through the caller's transaction so endpoint and quota ledger facts share
         one admission boundary.
         """
+        return self._candidates(requirements, now=now, connection=connection)
+
+    def _candidates(self, requirements, *, now, connection, synthetic_paid=None):
         instant = _aware_utc(now or datetime.now(UTC))
         with self._lock:
             if connection is not None and self._repository is not None:
@@ -163,7 +166,8 @@ class EndpointRegistry:
                 self._refresh_from_repository_locked()
                 snapshot = self._snapshot
             assessments = tuple(
-                _assess(profile, requirements, instant) for profile in snapshot.profiles
+                _assess(profile, requirements, instant, synthetic_paid=profile.ref == synthetic_paid)
+                for profile in snapshot.profiles
             )
             return EndpointCandidateSet(
                 registry_version=snapshot.registry_version,
@@ -182,6 +186,9 @@ class EndpointRegistry:
             raise EndpointRegistryError("historical_endpoint_profile_unavailable") from error
 
     def revalidate_selected(self, ref: EndpointRef, requirements, *, now=None, connection=None):
+        return self._revalidate_selected(ref, requirements, now=now, connection=connection)
+
+    def _revalidate_selected(self, ref, requirements, *, now, connection, synthetic_paid=None):
         if connection is not None and self._repository is not None:
             snapshot = self._repository.load_from_connection(connection, lock=True)
             if snapshot is None:
@@ -191,7 +198,10 @@ class EndpointRegistry:
         current = next((p for p in snapshot.profiles if p.ref == ref), None)
         if current is None:
             raise RegistryRevisionChangedError("endpoint_profile_version_changed")
-        assessment = _assess(current, requirements, _aware_utc(now or datetime.now(UTC)))
+        assessment = _assess(
+            current, requirements, _aware_utc(now or datetime.now(UTC)),
+            synthetic_paid=current.ref == synthetic_paid,
+        )
         if not assessment.eligible:
             raise EndpointNotAdmissibleError(assessment.rejection_reasons)
         return current
@@ -447,36 +457,51 @@ def _assess(
     profile: EndpointProfile,
     requirements: EndpointCandidateRequirements,
     now: datetime,
+    *,
+    synthetic_paid: bool = False,
 ) -> CandidateAssessment:
     reasons: list[str] = []
-    if profile.access_policy is not None and (
-        not profile.access_policy.automation_eligible
-        or profile.access_policy.selection_mode == "explicit_only"
-    ):
-        reasons.append("explicit_only_endpoint")
-    if requirements.execution_mode != "STRICT_FREE":
-        reasons.append("execution_mode_not_automatic_strict_free")
-    if not profile.enabled:
-        reasons.append("endpoint_disabled_or_unconfigured")
-    if profile.execution_mode != requirements.execution_mode:
-        reasons.append("execution_mode_mismatch")
-    if requirements.automatic and profile.execution_mode != "STRICT_FREE":
-        reasons.append("explicit_only_endpoint")
-    if profile.execution_mode != "STRICT_FREE" or profile.cost_class != "VERIFIED_FREE":
-        reasons.append("cost_not_verified_free")
-    if profile.execution_mode == "STRICT_FREE" and not profile.strict_free_enabled:
-        reasons.append("strict_free_not_enabled")
-    if not profile.tier_verified:
-        reasons.append("account_tier_not_verified")
-    attestation = profile.strict_free_attestation
-    if (
-        attestation is not None
-        and attestation.valid_until is not None
-        and attestation.valid_until <= now
-    ):
-        reasons.append("strict_free_attestation_expired")
-    if profile.billing_owner != "provider_account":
-        reasons.append("billing_owner_not_verified_provider_account")
+    if synthetic_paid:
+        if (
+            requirements.execution_mode != "EXPLICIT_BYOK"
+            or requirements.automatic
+            or profile.execution_mode != "EXPLICIT_BYOK"
+            or profile.cost_class != "USER_BILLED"
+            or profile.billing_owner != "user"
+            or profile.data_use_policy.status != "approved"
+        ):
+            reasons.append("synthetic_paid_profile_invalid")
+        if not profile.enabled:
+            reasons.append("endpoint_disabled_or_unconfigured")
+    else:
+        if profile.access_policy is not None and (
+            not profile.access_policy.automation_eligible
+            or profile.access_policy.selection_mode == "explicit_only"
+        ):
+            reasons.append("explicit_only_endpoint")
+        if requirements.execution_mode != "STRICT_FREE":
+            reasons.append("execution_mode_not_automatic_strict_free")
+        if not profile.enabled:
+            reasons.append("endpoint_disabled_or_unconfigured")
+        if profile.execution_mode != requirements.execution_mode:
+            reasons.append("execution_mode_mismatch")
+        if requirements.automatic and profile.execution_mode != "STRICT_FREE":
+            reasons.append("explicit_only_endpoint")
+        if profile.execution_mode != "STRICT_FREE" or profile.cost_class != "VERIFIED_FREE":
+            reasons.append("cost_not_verified_free")
+        if profile.execution_mode == "STRICT_FREE" and not profile.strict_free_enabled:
+            reasons.append("strict_free_not_enabled")
+        if not profile.tier_verified:
+            reasons.append("account_tier_not_verified")
+        attestation = profile.strict_free_attestation
+        if (
+            attestation is not None
+            and attestation.valid_until is not None
+            and attestation.valid_until <= now
+        ):
+            reasons.append("strict_free_attestation_expired")
+        if profile.billing_owner != "provider_account":
+            reasons.append("billing_owner_not_verified_provider_account")
     if profile.account_scope_id is None:
         reasons.append("account_scope_unknown")
     if profile.credential_scope_id is None or profile.credential_source == "none":

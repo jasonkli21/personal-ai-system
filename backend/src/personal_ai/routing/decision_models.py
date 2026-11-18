@@ -718,11 +718,20 @@ class RoutingDecision(_FrozenModel):
 
     @model_validator(mode="after")
     def coherent(self):
-        if (
-            not self.request.requirements.automatic
-            or self.request.requirements.execution_mode != "STRICT_FREE"
+        requirements = self.request.requirements
+        isolated = (self.request.run_id or "").startswith("isolated-inference:")
+        if (requirements.execution_mode, requirements.automatic) != ("STRICT_FREE", True) and (
+            not isolated or (requirements.execution_mode, requirements.automatic)
+            != ("EXPLICIT_BYOK", False)
         ):
             raise ValueError("automatic_router_requires_strict_free")
+        if isolated and (
+            self.parent_decision_id is not None
+            or self.task.cascade_policy is not None
+            or self.task.max_auxiliary_calls != 0
+            or self.task.max_physical_attempts != 1
+        ):
+            raise ValueError("isolated_inference_budget_invalid")
         if not self.task.required_capabilities.issubset(
             self.request.requirements.required_capabilities
         ):
@@ -769,8 +778,10 @@ class RoutingDecision(_FrozenModel):
         if self.parent_decision_id is None:
             if self.root_decision_id != self.routing_decision_id or self.reselection_depth:
                 raise ValueError("routing_root_identity_invalid")
-            if self.root_deadline_at != self.created_at + timedelta(
-                milliseconds=self.task.deadline_ms
+            maximum_deadline = self.created_at + timedelta(milliseconds=self.task.deadline_ms)
+            if (
+                (not isolated and self.root_deadline_at != maximum_deadline)
+                or (isolated and not self.created_at < self.root_deadline_at <= maximum_deadline)
             ):
                 raise ValueError("routing_root_deadline_invalid")
         elif (

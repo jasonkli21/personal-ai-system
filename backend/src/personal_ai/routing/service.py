@@ -108,6 +108,9 @@ class RoutingAuxiliaryFailure(RoutingFinalizationError):
         super().__init__(code)
 
 
+ISOLATED_RUN_PREFIX = "isolated-inference:"
+
+
 class RoutingDecisionService:
     def __init__(
         self,
@@ -177,7 +180,12 @@ class RoutingDecisionService:
             raise RoutingFinalizationError("routing_authorization_evidence_stale")
         return evidence
 
-    def route(
+    def route(self, *, owner_id, scope, task, request, **kwargs):
+        if "admission" in kwargs or (request.run_id or "").startswith(ISOLATED_RUN_PREFIX):
+            raise ValueError("automatic_router_requires_strict_free")
+        return self._route(owner_id=owner_id, scope=scope, task=task, request=request, **kwargs)
+
+    def _route(
         self,
         *,
         owner_id,
@@ -189,6 +197,7 @@ class RoutingDecisionService:
         evaluation_quality_gate: EvaluationQualityGate | None = None,
         parent_decision_id=None,
         dependency_expires_at=None,
+        admission=None,
     ):
         task = RoutingTaskProfile.model_validate(task.model_dump())
         request = RoutingRequestFacts.model_validate(request.model_dump())
@@ -216,10 +225,10 @@ class RoutingDecisionService:
                 or evaluation_quality_gate.policy_version != request.policy_version
             ):
                 raise ValueError("routing_evaluation_quality_gate_invalid")
-        if (
-            request.requirements.execution_mode != "STRICT_FREE"
-            or not request.requirements.automatic
-        ):
+        expected_mode = ("STRICT_FREE", True)
+        if admission is not None and admission.exposure is not None:
+            expected_mode = ("EXPLICIT_BYOK", False)
+        if (request.requirements.execution_mode, request.requirements.automatic) != expected_mode:
             raise ValueError("automatic_router_requires_strict_free")
         if not task.required_capabilities.issubset(request.requirements.required_capabilities):
             raise ValueError("routing_task_capability_requirement_mismatch")
@@ -287,10 +296,20 @@ class RoutingDecisionService:
             except LookupError:
                 existing = None
             if existing:
+                if admission is not None:
+                    admission.require(c, now)
                 if existing.decision.task != task or existing.decision.request != request:
                     raise ValueError("routing_decision_idempotency_conflict")
                 return existing.decision
-            static = self.registry.candidates(request.requirements, now=now, connection=c)
+            if admission is None:
+                static = self.registry.candidates(request.requirements, now=now, connection=c)
+            else:
+                admission.require(c, now)
+                deadline = min(deadline, admission.deadline)
+                static = self.registry._candidates(
+                    request.requirements, now=now, connection=c,
+                    synthetic_paid=admission.paid_endpoint,
+                )
             quality = _by_id(quality_evidence, QualityEvidence)
             signals = _by_id(routing_signals, RoutingSignals)
             candidates = []
@@ -298,7 +317,10 @@ class RoutingDecisionService:
             quota_snapshot_overflow = False
             assessments = tuple(
                 sorted(
-                    static.assessments,
+                    (
+                        assessment for assessment in static.assessments
+                        if admission is None or assessment.profile.ref == admission.route.profile
+                    ),
                     key=lambda item: (
                         item.profile.endpoint_profile_id,
                         item.profile.profile_version,
@@ -678,7 +700,7 @@ class RoutingDecisionService:
             )
             return decision
 
-    def _check_dispatch(self, c, owner_id, scope, record, preparation, operation):
+    def _check_dispatch(self, c, owner_id, scope, record, preparation, operation, admission=None):
         decision = record.decision
         now = self.observations.current_time(c)
         if decision.selected is None or now >= decision.root_deadline_at:
@@ -689,9 +711,21 @@ class RoutingDecisionService:
             decision, preparation.source_reference_sha256s
         ):
             raise RoutingFinalizationError("routing_preparation_identity_or_sources_changed")
-        profile = self.registry.revalidate_selected(
-            decision.selected, decision.request.requirements, now=now, connection=c
-        )
+        isolated = (decision.request.run_id or "").startswith(ISOLATED_RUN_PREFIX)
+        if isolated != (admission is not None):
+            raise RoutingFinalizationError("routing_isolated_authority_required")
+        if admission is None:
+            profile = self.registry.revalidate_selected(
+                decision.selected, decision.request.requirements, now=now, connection=c
+            )
+        else:
+            admission.require(c, now, decision=decision, preparation=preparation)
+            profile = self.registry._revalidate_selected(
+                decision.selected, decision.request.requirements, now=now, connection=c,
+                synthetic_paid=admission.paid_endpoint,
+            )
+            if not admission.route.matches(profile):
+                raise RoutingFinalizationError("routing_isolated_binding_changed")
         requirements = decision.request.requirements
         if operation not in requirements.required_capabilities or (
             decision.request.operation is not None and operation != decision.request.operation
@@ -764,6 +798,12 @@ class RoutingDecisionService:
         return profile, evidence
 
     def finalize(self, *, owner_id, scope, decision_id, preparation, operation):
+        return self._finalize(
+            owner_id=owner_id, scope=scope, decision_id=decision_id,
+            preparation=preparation, operation=operation,
+        )
+
+    def _finalize(self, *, owner_id, scope, decision_id, preparation, operation, admission=None):
         preparation = PreparationIdentity.model_validate(preparation.model_dump())
         failure = None
         permit = None
@@ -776,7 +816,7 @@ class RoutingDecisionService:
                 if event.preparation != preparation:
                     raise RoutingFinalizationError("routing_finalization_idempotency_conflict")
                 profile, evidence = self._check_dispatch(
-                    c, owner_id, scope, record, preparation, operation
+                    c, owner_id, scope, record, preparation, operation, admission
                 )
                 self.usage.reserved_attempt_in_transaction(
                     c,
@@ -789,6 +829,11 @@ class RoutingDecisionService:
                     max_attempts=record.decision.task.max_physical_attempts,
                     now=self.observations.current_time(c),
                 )
+                if admission is not None:
+                    admission.require_reservation(
+                        c, self.usage, _invocation(record.decision, profile, preparation, operation),
+                        event.permit.attempt_id, self.observations.current_time(c),
+                    )
                 if self.observations.current_time(c) >= event.permit.expires_at:
                     raise RoutingFinalizationError("routing_permit_expired")
                 return event.permit
@@ -811,11 +856,13 @@ class RoutingDecisionService:
                 # A savepoint ensures failed authorization/publication rolls back every reserve.
                 with c.transaction():
                     profile, evidence = self._check_dispatch(
-                        c, owner_id, scope, record, preparation, operation
+                        c, owner_id, scope, record, preparation, operation, admission
                     )
                     now = self.observations.current_time(c)
                     invocation = _invocation(record.decision, profile, preparation, operation)
                     attempt = self._reserve_physical_attempt(c, record, invocation, now=now)
+                    if admission is not None:
+                        admission.reserve(c, self.usage, invocation, attempt.attempt_id, now)
                     expiry = min(
                         record.decision.root_deadline_at,
                         evidence.valid_until,
@@ -868,6 +915,9 @@ class RoutingDecisionService:
 
     def claim(self, *, owner_id, scope, permit, operation):
         """Claim once. Receipt validation never substitutes for direct current checks."""
+        return self._claim(owner_id=owner_id, scope=scope, permit=permit, operation=operation)
+
+    def _claim(self, *, owner_id, scope, permit, operation, admission=None):
         permit = DispatchPermit.model_validate(permit.model_dump())
         with self.observations.transaction(owner_id=owner_id) as c:
             record = self.observations.lock_root(
@@ -877,7 +927,7 @@ class RoutingDecisionService:
                 raise RoutingFinalizationError("routing_permit_not_claimable")
             preparation = record.events[-1].preparation
             profile, evidence = self._check_dispatch(
-                c, owner_id, scope, record, preparation, operation
+                c, owner_id, scope, record, preparation, operation, admission
             )
             now = self.observations.current_time(c)
             if now >= min(permit.expires_at, evidence.valid_until):
@@ -912,6 +962,8 @@ class RoutingDecisionService:
                 max_attempts=record.decision.task.max_physical_attempts,
                 now=now,
             )
+            if admission is not None:
+                admission.require_reservation(c, self.usage, invocation, attempt.attempt_id, now, claim=True)
             self._claim_physical_attempt(c, record, invocation, attempt, now=now)
             self.observations.append_in_transaction(
                 c,
@@ -935,20 +987,28 @@ class RoutingDecisionService:
         Any exception keeps conservative unknown accounting and closes no success.
         Application workflows remain gated on membership and revocation policy; there is no HTTP route.
         """
+        return self._dispatch(
+            owner_id=owner_id, scope=scope, permit=permit, operation=operation,
+            send=send, validate=validate,
+        )
+
+    def _dispatch(self, *, owner_id, scope, permit, operation, send, validate=None, admission=None):
         with self.observations.transaction(owner_id=owner_id) as c:
             record = self.observations.get_in_transaction(
                 c, owner_id=owner_id, scope=scope, decision_id=permit.decision_id, lock=True
             )
         if record.decision.task.cascade_policy is not None and validate is None:
             raise RoutingFinalizationError("cascade_validation_required")
-        profile, invocation, attempt = self.claim(
-            owner_id=owner_id, scope=scope, permit=permit, operation=operation
+        profile, invocation, attempt = self._claim(
+            owner_id=owner_id, scope=scope, permit=permit, operation=operation, admission=admission
         )
         if self.current_time(owner_id=owner_id) >= record.decision.root_deadline_at:
             # Keep the claimed attempt fenced; no callback has run, and an
             # incomplete dispatch event must not be replayed as a terminal result.
             raise RoutingFinalizationError("routing_deadline_expired")
         try:
+            if admission is not None:
+                admission.before_send(self, record, profile)
             value, _result = self._send_and_settle(profile, invocation, attempt, send)
         except BaseException:
             self.finish(owner_id=owner_id, scope=scope, decision_id=permit.decision_id)
@@ -984,6 +1044,10 @@ class RoutingDecisionService:
             decision_id=permit.decision_id,
             validation=validation,
         )
+        if admission is not None:
+            admission.before_send(self, record, profile)
+            if _result.outcome != "success":
+                raise RoutingFinalizationError("inference_execution_unavailable")
         if validation is not None and not validation.accepted:
             return None
         return value
@@ -1064,6 +1128,9 @@ class RoutingDecisionService:
             record = self.observations.lock_root(
                 c, owner_id=owner_id, scope=scope, decision_id=decision_id
             )
+            if (record.decision.request.run_id or "").startswith(ISOLATED_RUN_PREFIX):
+                raise RoutingFinalizationError("routing_isolated_auxiliary_denied")
+
             decision = record.decision
             now = self.observations.current_time(c)
             if (

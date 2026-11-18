@@ -23,7 +23,7 @@ from personal_ai.usage.quota import (
     QuotaReservationRequirement,
 )
 
-from . import retention
+from . import monetary, retention
 from .health import _health_unavailable, _lock_endpoint_health, _update_endpoint_health
 from .ledger import (
     _aggregate_attempt,
@@ -751,6 +751,63 @@ class PostgresProviderUsageAccounting:
             is None
         ):
             raise UsageAdmissionDenied("routing_dispatch_already_claimed")
+
+    def reserve_money_in_transaction(self, connection, invocation, attempt_id, root_id, exposure, now):
+        monetary.reserve(connection, invocation, attempt_id, root_id, exposure, now)
+
+    def require_money_in_transaction(
+        self, connection, invocation, attempt_id, root_id, exposure, now, *, claim=False
+    ):
+        monetary.require_reserved(
+            connection, invocation, attempt_id, root_id, exposure, now, claim=claim
+        )
+
+    def reconcile_charge(self, receipt, *, verify):
+        """Only a trusted, independent billing authority may account a claimed send."""
+        from personal_ai.routing.price import ChargeReceipt
+
+        receipt = ChargeReceipt.model_validate(receipt.model_dump())
+        with self.database.transaction() as connection:
+            if verify(connection, receipt) is not True:
+                raise UsageAdmissionDenied("inference_charge_receipt_unverified")
+            monetary.reconcile(connection, receipt)
+
+    def cancel_unclaimed_in_transaction(self, connection, permit, *, root_id, paid, now):
+        attempt = connection.execute(
+            "UPDATE provider_attempts SET status='rejected',error_code='inference_definitive_no_send',"
+            "completed_at=%s,operational_event_status='published' WHERE attempt_id=%s "
+            "AND invocation_id=%s AND status='pending' AND dispatch_claimed_at IS NULL "
+            "RETURNING attempt_id",
+            (now, permit.attempt_id, permit.invocation_id),
+        ).fetchone()
+        if attempt is None:
+            raise UsageAdmissionDenied("inference_attempt_already_claimed")
+        reservations = connection.execute(
+            "SELECT bucket_id,window_start,reserved_units FROM provider_quota_reservations "
+            "WHERE attempt_id=%s AND state IN ('reserved','unknown') "
+            "ORDER BY bucket_id,window_start FOR UPDATE",
+            (permit.attempt_id,),
+        ).fetchall()
+        for bucket, window, reserved in reservations:
+            updated = connection.execute(
+                "UPDATE provider_quota_bucket_windows SET reserved_units=reserved_units-%s,"
+                "updated_at=%s WHERE bucket_id=%s AND window_start=%s "
+                "AND reserved_units >= %s RETURNING bucket_id",
+                (reserved, now, bucket, window, reserved),
+            ).fetchone()
+            if updated is None:
+                raise UsageAdmissionDenied("inference_reservation_changed")
+        connection.execute(
+            "UPDATE provider_quota_reservations SET state='settled',settled_units=0,updated_at=%s "
+            "WHERE attempt_id=%s AND state IN ('reserved','unknown')",
+            (now, permit.attempt_id),
+        )
+        if paid:
+            monetary.release(connection, permit.attempt_id, root_id)
+        connection.execute(
+            "UPDATE provider_invocations SET outcome='rejected',completed_at=%s WHERE invocation_id=%s",
+            (now, permit.invocation_id),
+        )
 
     def attempt_outcome_in_transaction(self, connection, invocation_id, attempt_id):
         row = connection.execute(

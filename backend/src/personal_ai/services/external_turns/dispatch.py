@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from personal_ai.auth.dispatch_grants import SignedDispatchGrant
@@ -27,7 +27,8 @@ from personal_ai.storage.errors import ConversationConflictError
 
 class ExternalTurnDispatch:
     def dispatch(
-        self, conversation_id: UUID, prepared: PreparedExternalTurn, choice: ExecutionChoice
+        self, conversation_id: UUID, prepared: PreparedExternalTurn, choice: ExecutionChoice,
+        *, offer_deadline: datetime | None = None, routing_root: UUID | None = None,
     ) -> SignedDispatchGrant:
         message, reservation = self._current(
             conversation_id, prepared.message_id, prepared.reservation.package_fingerprint
@@ -60,13 +61,19 @@ class ExternalTurnDispatch:
             raise ConversationConflictError("dispatch_signer_unavailable")
         # Sign before CAS but return only after durable dispatch fencing. Failed writes never expose a grant.
         grant_now = self.clock()
+        expires_at = min(reservation.expires_at, grant_now + timedelta(seconds=120))
+        if offer_deadline is not None:
+            if local_chat is None or offer_deadline.tzinfo is None:
+                raise ConversationConflictError("dispatch_binding_invalid")
+            expires_at = min(expires_at, offer_deadline)
         proof = self.signer.sign(
             prepared.connected_package,
             caller_id=reservation.caller_id,
             audience=reservation.audience,
             now=grant_now,
-            expires_at=min(reservation.expires_at, grant_now + timedelta(seconds=120)),
+            expires_at=expires_at,
             local_chat=local_chat,
+            routing_root=routing_root,
         )
         self.chat.transition(
             message,

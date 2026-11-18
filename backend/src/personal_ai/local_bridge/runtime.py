@@ -326,17 +326,19 @@ class LocalChatGPTBridge:
                         str(package.connection_id),
                         package.timeout_seconds + 30,
                         authorize=self.installation.require_registration,
+                        allow_refresh=proof.claims.routing_root is None,
                     )
                 )
                 if snapshot.revision != package.connection_revision:
                     raise BridgeDenied("bridge_connection_changed")
-                models = await self.provider.discover(snapshot.access_token)
                 guard = LocalOutputGuard(snapshot.protected_values)
-                for model in models:
-                    guard.check(model.slug)
-                    guard.check(model.display_name)
-                if package.model_id not in {m.slug for m in models}:
-                    raise BridgeDenied("bridge_model_unavailable")
+                if proof.claims.routing_root is None:
+                    models = await self.provider.discover(snapshot.access_token)
+                    for model in models:
+                        guard.check(model.slug)
+                        guard.check(model.display_name)
+                    if package.model_id not in {m.slug for m in models}:
+                        raise BridgeDenied("bridge_model_unavailable")
                 # Expiry and caller authority are rechecked before the durable pre-send claim.
                 self._require_dispatch(package, proof, origin=origin, authorization=authorization)
 

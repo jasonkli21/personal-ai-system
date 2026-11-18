@@ -315,7 +315,8 @@ class CredentialLifecycle:
         )
 
     def snapshot(
-        self, connection_id: str, minimum_validity_seconds: int = 30, *, authorize=None
+        self, connection_id: str, minimum_validity_seconds: int = 30, *, authorize=None,
+        allow_refresh: bool = True,
     ) -> CredentialSnapshot:
         if type(minimum_validity_seconds) is not int or not 1 <= minimum_validity_seconds <= 150:
             raise OAuthFailure("bridge_request_invalid")
@@ -339,6 +340,8 @@ class CredentialLifecycle:
             if not REQUIRED_USAGE_SCOPES.issubset(credentials.scopes):
                 raise OAuthFailure("bridge_permission_required")
             if self.clock() >= credentials.expires_at - minimum_validity_seconds:
+                if not allow_refresh:
+                    raise OAuthFailure("bridge_refresh_not_available")
                 if not credentials.refresh_token:
                     raise OAuthFailure("bridge_auth_required")
                 if self.clock() < credentials.earliest_refresh_at:

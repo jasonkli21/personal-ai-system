@@ -52,6 +52,7 @@ class DispatchGrant(BaseModel):
     issued_at: int = Field(strict=True, ge=0)
     expires_at: int = Field(strict=True, ge=0)
     local_chat: LocalChatScope | None = Field(default=None, exclude_if=lambda value: value is None)
+    routing_root: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
 
     def canonical(self) -> bytes:
         return (
@@ -136,11 +137,13 @@ class DispatchGrantSigner:
         now: datetime,
         expires_at: datetime,
         local_chat: LocalChatScope | None = None,
+        routing_root: UUID | None = None,
     ) -> SignedDispatchGrant:
         if (
             now.tzinfo is None
             or expires_at.tzinfo is None
             or not 0 < (expires_at - now).total_seconds() <= 120
+            or (routing_root is not None and local_chat is None)
         ):
             raise InvalidDispatchGrant()
         claims = DispatchGrant(
@@ -158,6 +161,7 @@ class DispatchGrantSigner:
             issued_at=int(now.timestamp()),
             expires_at=int(expires_at.timestamp()),
             local_chat=local_chat,
+            routing_root=routing_root,
         )
         return SignedDispatchGrant(
             claims=claims,
