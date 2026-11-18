@@ -1,6 +1,6 @@
 # Application context provider contract
 
-**DRAFT / NOT DEPLOYED.** This is a proposed, bounded protocol for an independent application to expose typed projections of records it owns. It defines no production route, network listener, credential issuer, or live integration. Stage 1 is limited to in-memory synthetic adapters after independent Stage 0 acceptance.
+**OFFLINE WITNESS / NOT DEPLOYED.** The in-memory test composition exercises this bounded protocol with synthetic applications. Live application integration, credential issuance, and network transport remain proposals. See the [verification record](evidence/2026-11-17-synthetic-application-context.md) for the exact scope.
 
 ## Trust boundaries and principals
 
@@ -16,11 +16,11 @@ The existing `RequestScope` owner and actor are derived from verified authentica
 
 ### Signed source delegation
 
-Each PAS-to-source read carries a signed, short-lived, single-request delegation in authenticated transport metadata (never a URL or portable snapshot). Required claims are `iss` (PAS signer), `aud` (one installed source service), `sub` (PAS-derived end-user subject), `owner_id`, `acting_user_id` (nullable), `application_id`, `workspace_id`, `source_id`, `installation_epoch`, `kind_allowlist`, `field_allowlist`, `purpose`, `recipient`, `operation`, `request_digest`, `nonce`, `grant_id`, `grant_epoch`, `iat`, `exp`, and `kid`. The digest binds the canonical request body; nonces are one-use. The source verifies issuer, audience, key, expiry, nonce, installation and its own record ownership/membership. PAS independently checks the live grant and permission state before and after retrieval. Service authentication is not the delegation, and neither replaces source-side authorization. This repair specifies the claims only; it adds no credential system or verifier.
+Each PAS-to-source read carries a signed, short-lived, single-request delegation in authenticated transport metadata (never a URL or portable snapshot). Required claims are `iss` (PAS signer), `aud` (one installed source service), `sub` (PAS-derived end-user subject), `owner_id`, `acting_user_id` (nullable), `application_id`, `workspace_id`, `source_id`, `installation_epoch`, `kind_allowlist`, `field_allowlist`, `purpose`, `recipient`, `operation`, `request_digest`, `nonce`, `grant_id`, `grant_epoch`, `iat`, `exp`, and `kid`. The digest binds the canonical request body; nonces are one-use. The source verifies issuer, audience, key, expiry, nonce, installation and its own record ownership/membership. PAS independently checks the live grant and permission state before and after retrieval. Service authentication is not the delegation, and neither replaces source-side authorization. The test composition injects a pinned fixture signer and verifier with bounded nonce custody. Those keys and identities exist only in the fixture.
 
 ## Installation control plane and owner read plane
 
-These are separate protocols and identities. Operator installation/update/disable is control-plane work. It has no owner, actor, workspace, record-read or export authority. Owner data reads are bound to a verified `RequestScope` and a signed delegation. Stage 1 may use only an in-memory synthetic installation registry.
+These are separate protocols and identities. Operator installation/update/disable is control-plane work. It has no owner, actor, workspace, record-read or export authority. Owner data reads are bound to a verified `RequestScope` and a signed delegation. The implementation uses an in-memory synthetic installation registry.
 
 | Operation | Caller / transport | Body | Result |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@ Example per-owner source request (human identity and delegation are authenticate
 
 ## v1 data shapes and bounds
 
-Reject unknown keys, unsupported schema versions, unknown classifications, malformed UTF-8, IDs that cannot round-trip through the owning PAS types, and any body over the raw serialized UTF-8 limit **before parsing**. Do not normalize IDs to make them fit. The source assigns opaque record refs and revisions; PAS assigns source IDs and installation epochs. `source_revision` changes on every material content or authorization-relevant change. `source_revision` is never inferred from a search cursor. Cursors bind owner, actor, app, workspace, source, kind, query, watermark, sort position, grant ID/epoch, and expiry. A watermark change or grant epoch change makes the cursor stale; restart with a fresh authorized search.
+Reject unknown keys, unsupported schema versions, unknown classifications, malformed UTF-8, IDs that cannot round-trip through the owning PAS types, and any body over the raw serialized UTF-8 limit **before parsing**. Do not normalize IDs to make them fit. The source assigns opaque record refs and revisions; PAS assigns source IDs and installation epochs. `source_revision` changes on every material content or authorization-relevant change. `source_revision` is never inferred from a search cursor. Cursors bind the verified subject, owner, actor, app, workspace, source, kind, literal query, limit, selected fields, purpose, recipient, installation epoch, application policy, grant ID/revision/epoch, watermark, sort position, and expiry. For a currently authorized matching request, an expired cursor or a change to the bound watermark, grant version, or policy requires a fresh search.
 
 The frozen synthetic schema is `itinerary_leg{title:string, platform:string}` and `workout{title:string, duration_minutes:integer}`. Each field has a source schema sensitivity and PAS policy sensitivity; effective sensitivity is the maximum of source, operator, and PAS classification. A source cannot lower classification. Deny unknown fields, malformed types, or values above a grant ceiling. Search titles are disclosed context and require the same current read grant as fetched fields.
 
@@ -107,18 +107,20 @@ This adapter feeds the existing provider coordinator, planner and assembler. It 
 
 | Source value | Existing PAS value | Rule |
 | --- | --- | --- |
-| Installed source + schema revision | `ContextItem.provider_id`, `source_id`, `source_version` | `provider_id` is a PAS capability ID matching `^[a-z][a-z0-9_.-]{1,80}$`; `source_id` is exact installed source; `source_version` pins the schema and source revision together without lossy conversion |
-| Kind and exact opaque ref | Typed domain payload, `item_id`, non-empty `source_refs` | Validate `item_id` against `ContextItem` bounds; `ContextSourceReference(kind="record", reference_id=...)`; preserve immutable source/ref/revision identity |
+| Installed source + schema revision | `ContextItem.provider_id`, `source_id`, `source_version` | `provider_id` is a registered PAS capability matching `^[a-z][a-z0-9_.-]{1,80}$`. The two private registrations use the installed source IDs as capability IDs. `source_id` preserves the exact installation, and `source_version` encodes the wire schema and source revision as a length-checked JSON tuple. |
+| Kind and exact opaque ref | Typed domain payload, `item_id`, non-empty `source_refs` | Encode source, app, workspace, owner, kind, ref, and revision as a reversible JSON tuple within the existing `item_id` bounds. The record source reference and entity reference carry that binding. |
 | Read/search for context | `ContextOperation="search"` and registered `ContextOperationSpec` | `fetch` is adapter implementation detail, not a new model-visible operation; if another existing operation is selected it must be declared and permitted by the app policy |
 | Domain-owned itinerary/workout fact | `ContextSourceClass="domain_current"`, `authority="authoritative"` | Only for the original owning app's authoritative source; never label it `client_context` or `external_research` |
-| Effective time and source expiry | `observed_at`, `effective_at`, `expires_at` | Require timezone-aware values; clamp expiry to the earliest source TTL, grant and installation expiry |
+| Effective time and source expiry | `observed_at`, `effective_at`, `expires_at` | Require UTC observations and valid intervals. Clamp expiry to the earliest record, source TTL, grant, or installation expiry. |
 | Source + PAS field classification | `ContextItem.sensitivity`, complete `field_sensitivity` | Use the most restrictive joined classification; enforce server-owned `ContextFieldPolicy` before constructing item |
-| Live PAS grant and source revision | `ContextPermissionDependency` | Build from trusted grant ID/version/epoch and exact owner/actor/app/workspace/purpose/revision; ignore echoed permission as authority |
-| Verified request scope | `owner_id`, `acting_user_id`, `application_id`, `workspace_id` | Derive from `RequestScope` and trusted app registration, never body values |
+| Live PAS grant and source revision | `ContextPermissionDependency` | Set `source_scope` to the owning app/workspace, with a matching `entity_ref` and `source_revision`. Set `permission_id` from the trusted grant, bind grant revision and epoch in `version`, and retain purpose, owner, and nullable `acting_user_id`. The paired cross-application IDs are omitted. The trusted grant binds installation and recipient. |
+| Verified request scope | `ContextItem.owner_id`, `application_id`, `workspace_id` | Derive from verified `RequestScope` and app registration. The actor lives on the permission dependency. |
 
 `domain_current` exists in the current category contract. The app registry's `domain_context` sensitivity default is sensitive, but it does not by itself admit a provider: exact operations and fields remain server policy. Same-app scope is mandatory. Existing planner result/byte/token/deadline limits and assembler provenance/history behavior remain authoritative. Never write source facts automatically to durable memory. No extra model call is permitted for source preparation.
 
 ## Recipient-bound snapshot export
+
+The synthetic composition implements preview and confirmation as two explicit owner actions. Its successful result is a typed in-process value. A stale second selection denies the entire confirmation, including any earlier successful fetch. Files, downloads, imports, routes, and external delivery remain outside the synthetic scope.
 
 `export_snapshot` is PAS-orchestrated and separate from source reads. Normative sequence: authenticate owner and actor → select exact recipient and purpose → check a live source/field grant explicitly naming that recipient → re-fetch each exact selected source/ref/revision under a recipient-bound delegation → recheck source revision, installation, membership, grant and expiry → compute the shortest dependency expiry → redact and render preview → require explicit owner confirmation bound to recipient, purpose, fields and content digest → disclose one all-or-nothing snapshot → emit a content-free audit receipt. If any item is stale, unauthorized, unavailable, or too large, reject the whole snapshot. A runtime grant alone fails export to ChatGPT or a manual recipient; a separate grant is required.
 

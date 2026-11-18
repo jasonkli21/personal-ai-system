@@ -1,12 +1,12 @@
 # Delivery and acceptance
 
-**DRAFT / NOT DEPLOYED.** This page defines proposed gates. It is not evidence that a check ran or that an external service is approved. Production remains `NO_GO` as recorded in [current state](../current-state.md).
+**OFFLINE WITNESS / NOT DEPLOYED.** The dated verification record gives the observed results for the synthetic fixture. External admission gates remain proposals or blocked. Production remains `NO_GO` as recorded in [current state](../current-state.md).
 
 ## Stage 0 exit and Stage 1 entry
 
-Stage 0 repairs only documentation/contracts. An independent reviewer must accept the amended source identity, install/read separation, delegation, exact `ContextItem` mapping, export flow, schema and fixtures before Stage 1 begins. At this document revision, that independent acceptance has **not** yet occurred. Stage 1 entry is therefore **NOT_READY** until that decision is recorded.
+The repaired Stage 0 contract had no independent decision at base revision `e7ff57e695f22d6d790fcee910a0178246f5daa9`. The project maintainer recorded **ACCEPT** for entry into the private hermetic implementation on 2026-11-17 and authorized it to proceed. That decision covers the executable-compatible actor/permission mapping and both bounded in-process snapshot cases. Independent review remains pending. See the [dated decision and verification](evidence/2026-11-17-synthetic-application-context.md).
 
-After that acceptance, only the smallest synthetic source slice may begin: in-memory operator installation fakes; two travel and two fitness synthetic sources; bounded `describe`/`search`/`fetch`; typed `ContextItem` mapping; existing planner/assembler integration; deterministic positive and negative fixtures. No network listener, production REST route, live OAuth, MCP server, SIWC execution, paid API, database migration, real app records, durable replication or automatic memory write is allowed in that slice.
+The accepted slice covers two in-memory synthetic installations and four granted travel/fitness records across two owners. It exercises bounded `describe`/`search`/`fetch`, typed `ContextItem` mapping, the shared planner and assembler, and recipient-bound preview and confirmation with whole-snapshot denial. The composition runs only in backend tests. Network listeners, product endpoints, live OAuth, MCP, SIWC, paid calls, native persistence, real data, and automatic memory writes remain outside this scope.
 
 ### Frozen fixture suite
 
@@ -51,7 +51,7 @@ Label evidence by what it actually proves:
 | Billing | Actual account/period/credit and enforceable exposure evidence | Hard cap unless the provider maximum is enforceable |
 | Longitudinal quality | Measured quality/latency and drift on an accepted benchmark | Authorization, no-charge behavior, or external approval |
 
-For the first synthetic slice, only doc/static and hermetic fake checks are required. Record evidence under `docs/context-inference-integration/evidence/` or another non-product, content-free dated report path with revision, commands, exit codes, fixture/identity scope, warnings, and skipped gates. Never include personal data, bearer material, credentials or source payloads. The owner of this project maintains the evidence record; an independent reviewer records the Stage 0 acceptance decision and remaining gate status. No live, OAuth, provider, billing, persistence, deployment, or recovery check is asserted here.
+For the first synthetic slice, only doc/static and hermetic fake checks are required. Record evidence under `docs/context-inference-integration/evidence/` or another non-product, content-free dated report path with revision, commands, exit codes, fixture/identity scope, warnings, and skipped gates. Never include personal data, bearer material, credentials or source payloads. The project maintainer maintains the evidence record. Independent review and downstream admission remain separately tracked. No live, OAuth, provider, billing, persistence, deployment, or recovery check is asserted here.
 
 ## Revocation, dispatch and billing fail-closed rules
 
@@ -65,7 +65,7 @@ Statuses are stable: `DECIDED`, `PROPOSED`, `OPEN`, `BLOCKED_PENDING_APPROVAL`, 
 
 | Area | Status | Owner / next evidence | Risk and affected gate |
 | --- | --- | --- | --- |
-| Synthetic in-memory source, installation fake and ContextItem mapping | `PROPOSED` | Project maintainer: obtain independent Stage 0 acceptance, then implement frozen hermetic suite | Identity/mapping errors; blocks Stage 1 until acceptance and suite pass |
+| Synthetic in-memory source, installation fake and ContextItem mapping | `DECIDED` | Project maintainer: record entry authorization and fixture results, then submit the scoped commit for independent review | Identity and mapping claims apply only to the hermetic composition |
 | Source HTTPS identity, delegation verifier and source-side membership | `BLOCKED_UNVERIFIED` | Project maintainer: later produce exact issuer, audience, key rotation, pinned origin and source rights evidence | Cross-tenant reads; blocks live source data |
 | ChatGPT-facing protected MCP | `BLOCKED_UNVERIFIED` | Project maintainer: choose a real installed client and registration method; verify issuer, audience, scope, search/fetch and citation isolation | Wrong resource/client could disclose data; blocks MCP |
 | Manual export | `PROPOSED` | Project maintainer: review recipient-specific grant, digest preview, all-or-nothing stale handling and offline-copy wording | Irreversible copy; blocks real/manual data export |
@@ -102,7 +102,7 @@ This table records document changes in this remediation; it is not external appr
 
 | Area | Current decision | Minimum independent gate |
 | --- | --- | --- |
-| Stage 1 synthetic source | `NOT_READY` pending independent Stage 0 acceptance | Frozen contract acceptance, then hermetic suite with zero sends, model calls and memory writes |
+| Stage 1 synthetic source | Maintainer `ACCEPT` for offline implementation; independent review pending | Review the scoped implementation and frozen suite evidence, including zero sends, model calls and memory writes |
 | ChatGPT MCP | `BLOCKED_UNVERIFIED` | Installed OAuth/client and live negative isolation/citation checks |
 | Manual export of real data | `BLOCKED_UNVERIFIED` | Recipient-bound live grant and disclosure/revocation review |
 | Local SIWC | `BLOCKED_UNVERIFIED` | Provider/program eligibility, user-controlled host, zero-credit-spend and terminal usage proof |

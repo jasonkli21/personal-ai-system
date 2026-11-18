@@ -70,4 +70,4 @@ The proposed ChatGPT-facing MCP is a protected, read-only resource with only `se
 
 ## Bounded delivery
 
-Stage 0 repairs the contracts only. After independent Stage 0 acceptance, the smallest Stage 1 slice may implement in-memory synthetic travel/fitness sources, install fakes, exact `ContextItem` mapping, shared assembler integration and deterministic positive/negative fixtures. It adds no network listener, real OAuth, MCP server, SIWC execution, paid API, persistence migration, or durable source replication. See [delivery and acceptance](delivery-and-acceptance.md) for mechanical entry/exit criteria and blocked downstream gates.
+The private test composition exercises in-memory travel and fitness sources, bounded read envelopes, exact `ContextItem` mapping through the shared assembler, and a separate recipient-bound snapshot preview and confirmation. Live transport, real OAuth, MCP, SIWC execution, paid APIs, persistence, and durable source replication retain their separate gates. See [delivery and acceptance](delivery-and-acceptance.md) for the entry decision and downstream gates.

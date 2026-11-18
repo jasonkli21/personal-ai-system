@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-11-06. This page is the living implementation and release boundary. Code, executable contracts, migrations, and tests control behavior; dated reports preserve the evidence collected at their revisions. Local synthetic checks do not establish provider, cloud, deployment, or production behavior.
+Updated 2026-11-17. This page is the living implementation and release boundary. Code, executable contracts, migrations, and tests control behavior; dated reports preserve the evidence collected at their revisions. Local synthetic checks do not establish provider, cloud, deployment, or production behavior.
 
 ## Product and safety boundary
 
@@ -18,6 +18,7 @@ Provider SDKs stay behind the LLM and adapter boundaries. Every model turn uses 
 | Inference and routing | Provider-neutral execution and quota-aware routing enforce explicit profiles, disclosure checks, and bounded dispatch. | Live provider eligibility, billing, native network isolation, and production admission remain separate evidence. |
 | Research and retrieval | Bounded source reads retain provenance, freshness, and rights; iterative workflows are gated. | Synthetic sources and fake providers do not establish external-source rights or live utility. |
 | Memory | Durable memory contracts retain provenance and lifecycle boundaries. Experimental knowledge, controls, and optimization remain separately gated. | Synthetic evaluation does not establish native resource behavior, physical deletion, restore safety, or model-mediated utility. |
+| Application context | A backend test composition exercises two synthetic application sources, shared context assembly, and an owner-confirmed in-process snapshot. | The maintainer accepted hermetic implementation. Independent review, live identity, live sources, and external delivery remain open. See [synthetic verification](context-inference-integration/evidence/2026-11-17-synthetic-application-context.md). |
 | Reasoning | Direct response is the default. Bounded synthetic strategies and preview flows remain opt-in; adaptive selection is not promoted. | Independent review, trusted source permissions at physical send, hosted model evidence, and restore acceptance remain open. |
 | Persistence and recovery | Local Postgres/pgvector and DynamoDB Local paths support development and focused native checks. | Neon, AWS IAM, account recovery, distributed restore, backups, and physical erasure have not been established by local fakes. |
 | SDK and consumers | Capability-oriented packages and HTTP contracts support independent local consumers. | Installed checks cover only the consumer profiles that actually ran; external identity and hosted acceptance remain open. |

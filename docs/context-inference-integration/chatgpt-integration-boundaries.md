@@ -60,7 +60,7 @@ Any future provider send checks source, grant and recipient at preparation and j
 
 | Capability | Status | Minimum next evidence |
 | --- | --- | --- |
-| Synthetic source projection into PAS | Proposed; Stage 1 only after independent Stage 0 acceptance | Fixed fixtures, authorization/byte/revision checks and existing assembler evidence |
+| Synthetic source projection into PAS | Private fixture implemented with maintainer entry acceptance | Independent review of the [authorization and assembly evidence](evidence/2026-11-17-synthetic-application-context.md) |
 | Protected ChatGPT-facing MCP | `BLOCKED_UNVERIFIED` | Installed client and chosen registration method; issuer/audience/scope review; live isolation and citation checks |
 | Manual ChatGPT snapshot | Proposed, recipient-grant gated | Preview/recheck, copy warning and independent disclosure review |
 | User-controlled local SIWC | `BLOCKED_UNVERIFIED` | Exact app/user/workspace/host approval; provider eligibility, credits, serializer and usage evidence |
