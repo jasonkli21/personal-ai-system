@@ -1,6 +1,6 @@
 # Current implementation state
 
-Updated 2026-11-17. This page is the living implementation and release boundary. Code, executable contracts, migrations, and tests control behavior; dated reports preserve the evidence collected at their revisions. Local synthetic checks do not establish provider, cloud, deployment, or production behavior.
+Updated 2026-11-18. This page is the living implementation and release boundary. Code, executable contracts, migrations, and tests control behavior; dated reports preserve the evidence collected at their revisions. Local synthetic checks do not establish provider, cloud, deployment, or production behavior.
 
 ## Product and safety boundary
 
@@ -19,6 +19,7 @@ Provider SDKs stay behind the LLM and adapter boundaries. Every model turn uses 
 | Research and retrieval | Bounded source reads retain provenance, freshness, and rights; iterative workflows are gated. | Synthetic sources and fake providers do not establish external-source rights or live utility. |
 | Memory | Durable memory contracts retain provenance and lifecycle boundaries. Experimental knowledge, controls, and optimization remain separately gated. | Synthetic evaluation does not establish native resource behavior, physical deletion, restore safety, or model-mediated utility. |
 | Application context | A backend test composition exercises two synthetic application sources, shared context assembly, and an owner-confirmed in-process snapshot. | Private implementation was maintainer-authorized; independent Stage 0 entry and final review remain blocked. Mixed-provider aggregate source budgeting is unverified. Live identity, live sources, and external delivery remain open. See the [verification](context-inference-integration/evidence/2026-11-17-synthetic-application-context.md) and [review remediation](context-inference-integration/evidence/2026-11-18-synthetic-application-context-review-remediation.md). |
+| ChatGPT-facing context MCP | Optional test-only ASGI adapter serves stateless `search` and `fetch` against one authorized synthetic installation per invocation. | E1 implemented under scoped maintainer authorization, awaiting independent acceptance. Installed-client E2 is `BLOCKED_UNVERIFIED`. Production E3 is `NO_GO`. See the [adapter](../adapters/mcp_context/README.md) and [verification](context-inference-integration/evidence/2026-11-18-synthetic-context-mcp.md). |
 | Reasoning | Direct response is the default. Bounded synthetic strategies and preview flows remain opt-in; adaptive selection is not promoted. | Independent review, trusted source permissions at physical send, hosted model evidence, and restore acceptance remain open. |
 | Persistence and recovery | Local Postgres/pgvector and DynamoDB Local paths support development and focused native checks. | Neon, AWS IAM, account recovery, distributed restore, backups, and physical erasure have not been established by local fakes. |
 | SDK and consumers | Capability-oriented packages and HTTP contracts support independent local consumers. | Installed checks cover only the consumer profiles that actually ran; external identity and hosted acceptance remain open. |

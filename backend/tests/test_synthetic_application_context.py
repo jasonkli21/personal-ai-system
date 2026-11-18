@@ -1,11 +1,12 @@
 """Hermetic acceptance for the private source, context and snapshot composition."""
 
 import json
-import socket
-from collections import Counter
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from datetime import timedelta
+from pathlib import Path
 from time import monotonic
 from uuid import uuid4
 
@@ -16,6 +17,7 @@ from personal_ai.contracts.context_references import ContextPermissionDependency
 from personal_ai.entities import Message, MessageRole, MessageStatus
 from tests.app_context_support.client import TurnBudget
 from tests.app_context_support.context import Itinerary, Workout, context_item
+from tests.app_context_support.fences import side_effect_fence  # noqa: F401
 from tests.app_context_support.fixtures import (
     FITNESS,
     FROZEN,
@@ -36,40 +38,6 @@ from tests.app_context_support.wire import (
 )
 
 pytestmark = pytest.mark.usefixtures("side_effect_fence")
-
-
-@pytest.fixture
-def side_effect_fence(monkeypatch):
-    from personal_ai.llm.execution import SelectedGeneration, SendAccounting
-    from personal_ai.llm.fake import FakeLLMClient
-    from personal_ai.llm.litellm.transport import _TransportState
-    from personal_ai.memory.repositories import InMemoryMemoryRepository
-    from personal_ai.routing.service import RoutingDecisionService
-
-    counters = Counter(network=0, provider=0, model=0, billing=0, memory=0)
-
-    def guard(boundary):
-        def blocked(*_args, **_kwargs):
-            counters[boundary] += 1
-            pytest.fail(f"unexpected synthetic side effect: {boundary}")
-        return blocked
-
-    for target, name, category in (
-        (socket.socket, "connect", "network"),
-        (socket.socket, "connect_ex", "network"),
-        (socket, "getaddrinfo", "network"),
-        (_TransportState, "_admit_send", "provider"),
-        (SendAccounting, "check_send", "provider"),
-        (SendAccounting, "reserve_attempt", "billing"),
-        (SelectedGeneration, "stream_events", "model"),
-        (FakeLLMClient, "complete", "model"),
-        (FakeLLMClient, "stream_events", "model"),
-        (RoutingDecisionService, "dispatch", "billing"),
-        (InMemoryMemoryRepository, "create", "memory"),
-    ):
-        monkeypatch.setattr(target, name, guard(category))
-    yield counters
-    assert counters == Counter(network=0, provider=0, model=0, billing=0, memory=0)
 
 
 @pytest.fixture
@@ -96,6 +64,65 @@ def test_installs_without_grants_and_default_startup_has_no_synthetic_routes(fak
     with pytest.raises(ProtocolError, match="unavailable"):
         fake.read("search")
     assert fake.sources[SOURCES[TRAVEL]].lookup_paths == []
+
+
+def test_default_startup_has_no_optional_mcp_and_no_side_effects(tmp_path):
+    # A fresh interpreter witnesses imports, not the modules preloaded by pytest.
+    probe = """
+import asyncio
+import socket
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import urllib3.util.connection
+
+network = []
+def fence(event, args):
+    if event in {"socket.bind", "socket.connect", "socket.getaddrinfo"} or (
+        event == "socket.__new__" and args[1] in (socket.AF_INET, socket.AF_INET6)
+    ):
+        network.append(event)
+        raise AssertionError("unexpected startup network access")
+
+sys.addaudithook(fence)
+from personal_ai.main import app
+from personal_ai.llm.execution import SelectedGeneration, SendAccounting
+from personal_ai.memory.repositories import InMemoryMemoryRepository
+from personal_ai.persistence import factory
+
+async def startup():
+    inventory = SimpleNamespace(required_operation_contracts=lambda: ())
+    persistence = SimpleNamespace(mutation_repository=lambda: inventory)
+    with (
+        patch.object(factory, "persistence_factory", return_value=persistence),
+        patch.object(SelectedGeneration, "stream_events") as model,
+        patch.object(SendAccounting, "check_send") as provider,
+        patch.object(SendAccounting, "reserve_attempt") as payer,
+        patch.object(InMemoryMemoryRepository, "create") as memory,
+    ):
+        async with app.router.lifespan_context(app):
+            assert not any("mcp" in getattr(route, "path", "") for route in app.routes)
+        for boundary in (model, provider, payer, memory):
+            boundary.assert_not_called()
+
+asyncio.run(startup())
+assert not network
+assert not any(name.split(".")[0] in {"mcp", "personal_ai_mcp_context", "personal_ai_mcp_adapter"}
+               for name in sys.modules)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=tmp_path,
+        env={
+            "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
+            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+            "AI_PROVIDER": "gemini",
+            "AI_MODEL": "fixture-model",
+        },
+        check=False, capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_operator_mutations_are_revision_checked_and_atomic(fake):

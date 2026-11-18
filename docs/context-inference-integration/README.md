@@ -1,8 +1,8 @@
 # Application context and inference integration
 
-**OFFLINE WITNESS / NOT DEPLOYED.** A private test composition exercises bounded reads from synthetic application sources and an in-process recipient-bound snapshot. The live integration remains a proposal. The [implementation status](../current-state.md) governs shipped capabilities and production `NO_GO`. The companion integration plan is historical planning context; it does not establish implementation or release readiness.
+**OFFLINE WITNESS / NOT DEPLOYED.** A private test composition exercises bounded reads from synthetic application sources, an in-process recipient-bound snapshot, and a protected MCP adapter over in-process HTTP. The live integration remains a proposal. The [implementation status](../current-state.md) governs shipped capabilities and production `NO_GO`. The companion integration plan is historical planning context; it does not establish implementation or release readiness.
 
-ChatGPT can request an authorized read through a proposed PAS MCP server. In the other direction, a connected app can ask its user's eligible runtime to run an inference turn. Each path needs its own recipient grant, account binding and release decision. An explicit, redacted snapshot provides a manual alternative when the ChatGPT surface cannot connect.
+The [optional MCP adapter](../../adapters/mcp_context/README.md) exercises the ChatGPT-facing read contract with a synthetic client over ASGI. The proposed inference direction allows a connected app to ask its user's eligible runtime to run an inference turn. Each path needs its own recipient grant, account binding and release decision. An explicit, redacted snapshot provides a manual alternative when the ChatGPT surface cannot connect.
 
 | Read | Decision it supports |
 | --- | --- |

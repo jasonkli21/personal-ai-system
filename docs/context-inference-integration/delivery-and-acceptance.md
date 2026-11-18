@@ -113,6 +113,7 @@ The 2026-11-18 review remediation is complete and accepted as a scoped code/evid
 | Area | Current decision | Minimum independent gate |
 | --- | --- | --- |
 | Stage 1 synthetic source | `BLOCKED_PENDING_INDEPENDENT_STAGE0_REVIEW`; maintainer authorized offline implementation only | Independently review the exact Stage 0 actor/permission mapping and both snapshot outcomes, then review the scoped implementation and frozen suite evidence, including zero sends, model calls and memory writes |
+| Synthetic ChatGPT-facing MCP | E1 implemented under scoped maintainer authorization. Independent acceptance pending. | Review the candidate and its single-installation restriction, separate synthetic recipient grant, URL-free profile and stateless wire evidence at the exact revision. The mixed-provider budget gate remains open. See the [verification](evidence/2026-11-18-synthetic-context-mcp.md). |
 | ChatGPT MCP | `BLOCKED_UNVERIFIED` | Installed OAuth/client and live negative isolation/citation checks |
 | Manual export of real data | `BLOCKED_UNVERIFIED` | Recipient-bound live grant and disclosure/revocation review |
 | Local SIWC | `BLOCKED_UNVERIFIED` | Provider/program eligibility, user-controlled host, zero-credit-spend and terminal usage proof |

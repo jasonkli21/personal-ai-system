@@ -1,10 +1,16 @@
 # ChatGPT integration boundaries
 
-**DRAFT / NOT DEPLOYED.** These are separate proposed interfaces, not a claim that PAS has a deployed ChatGPT connection. Each direction needs its own identity, grants, evidence and release decision.
+**NOT DEPLOYED.** The protected read interface has a synthetic MCP implementation. Each live direction needs its own identity, grants, evidence and release decision.
 
 ## Read direction: ChatGPT to PAS protected MCP
 
-The proposed resource is a protected read-only MCP server over Streamable HTTP at placeholder URI `https://pas.example.invalid/mcp`. This non-resolving URI and `/mcp` path are contract placeholders, not an owned hostname or deployed endpoint. The resource must publish OAuth protected-resource metadata and issuer metadata, use authorization code with PKCE for a named supported client, bind access tokens to this resource audience and exact scopes, and verify issuer, audience, expiry, client binding and source/workspace grant on every call. The actual ChatGPT surface, redirect URI, client registration choice (CIMD, DCR, or preconfigured), issuer, audience, scopes, host and deployment remain `BLOCKED_UNVERIFIED` until installed and checked against a real client.
+The [synthetic read-only adapter](../../adapters/mcp_context/README.md) serves stateless Streamable HTTP revision `2026-07-28`. Its custom tool profile omits `url` in both schemas. Search returns at most ten `{id, title}` objects. Fetch returns `id`, `title`, `text`, `source`, `revision`, `observed_at`, and `fresh_until`. The resource validates an exact issuer, audience, client and `context:read` scope. Access also requires a separate `chatgpt-mcp` grant. It returns both structured and text content under one serialized result limit. Independent E1 acceptance is pending. [Synthetic verification](evidence/2026-11-18-synthetic-context-mcp.md)
+
+Installed ChatGPT remains `BLOCKED_UNVERIFIED`. A real authorization server must publish issuer metadata and verify the exact redirect URI, client registration, authorization code with PKCE S256 and resource binding at authorization and exchange. The resource publishes protected-resource metadata and requires current access-token and connection state. Deep research and company knowledge additionally require the documented citation profile and an authenticated, user-openable canonical item URL. [OpenAI search and fetch format](https://developers.openai.com/api/docs/mcp) · [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+
+### Draft citation profile
+
+`https://pas.example.invalid/mcp` is a placeholder in the draft citation contract. The schemas below describe the proposed citation surface.
 
 Each disclosure has a separate live owner grant naming exact source, app, workspace, fields, purpose, recipient and expiry. ChatGPT identity alone grants no source access and does not authorize plan or paid inference. No arbitrary tools, mutations, prompts that invoke tools, cross-resource token exchange, or bearer tokens in URLs are permitted. Citation URLs are authenticated resolution handles scoped to the same owner and resource; they contain no bearer query parameter and disclose nothing to a foreign tenant. Errors are bounded and content-free.
 
@@ -42,7 +48,7 @@ Proposed complete JSON Schema descriptors (the server validates the input schema
 }
 ```
 
-The existing `adapters/mcp_source` direction reads an MCP source into PAS. It is not this protected ChatGPT-facing PAS resource and does not provide its OAuth or server contract.
+The [inbound MCP adapter](../../adapters/mcp_source/README.md) reads an MCP source into PAS.
 
 ## Export direction: PAS snapshot for manual use
 
@@ -61,7 +67,7 @@ Any future provider send checks source, grant and recipient at preparation and j
 | Capability | Status | Minimum next evidence |
 | --- | --- | --- |
 | Synthetic source projection into PAS | Private fixture implemented with maintainer entry acceptance | Independent review of the [authorization and assembly evidence](evidence/2026-11-17-synthetic-application-context.md) |
-| Protected ChatGPT-facing MCP | `BLOCKED_UNVERIFIED` | Installed client and chosen registration method; issuer/audience/scope review; live isolation and citation checks |
+| Protected ChatGPT-facing MCP | Synthetic E1 implemented, awaiting independent acceptance. Installed E2 `BLOCKED_UNVERIFIED`. | Independent review of the exact synthetic candidate. Installed client, real registration and issuer, audience/scope checks, and live isolation and citation evidence for external use. |
 | Manual ChatGPT snapshot | Proposed, recipient-grant gated | Preview/recheck, copy warning and independent disclosure review |
 | User-controlled local SIWC | `BLOCKED_UNVERIFIED` | Exact app/user/workspace/host approval; provider eligibility, credits, serializer and usage evidence |
 | PAS-managed multi-app SIWC | `BLOCKED_PENDING_APPROVAL` | Written provider authorization for exact hosting, app scope and credential custody |

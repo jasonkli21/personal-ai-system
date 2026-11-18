@@ -265,6 +265,13 @@ mcp-adapter-check:
 	  PYTHONPATH="$(MCP_ADAPTER_IMPORT_PATH)" $(MCP_ADAPTER_PYTHON) -s backend/scripts/offline_test_runner.py \
 	    -q adapters/mcp_source/tests
 
+.PHONY: mcp-context-check
+MCP_CONTEXT_IMPORT_PATH ?= adapters/mcp_context/src:backend/src
+mcp-context-check:
+	env -i PATH="$$PATH" TMPDIR="$${TMPDIR:-/tmp}" LITELLM_LOCAL_MODEL_COST_MAP=True \
+	  PYTHONPATH="$(MCP_CONTEXT_IMPORT_PATH):backend/tests" $(MCP_ADAPTER_PYTHON) -s backend/scripts/offline_test_runner.py \
+	    -q adapters/mcp_context/tests
+
 .PHONY: workflow-check workflow-postgres-check
 workflow-check:
 	$(PLATFORM_PYTHON) -B backend/scripts/offline_test_runner.py -q backend/tests/test_workflow_contract.py backend/tests/test_mutations.py
