@@ -4,7 +4,7 @@
 
 ## Stage 0 exit and Stage 1 entry
 
-The repaired Stage 0 contract had no independent decision at base revision `e7ff57e695f22d6d790fcee910a0178246f5daa9`. The project maintainer recorded **ACCEPT** for entry into the private hermetic implementation on 2026-11-17 and authorized it to proceed. That decision covers the executable-compatible actor/permission mapping and both bounded in-process snapshot cases. Independent review remains pending. See the [dated decision and verification](evidence/2026-11-17-synthetic-application-context.md).
+The repaired Stage 0 contract had no independent decision at base revision `e7ff57e695f22d6d790fcee910a0178246f5daa9`. On 2026-11-17, the project maintainer authorized private hermetic implementation. This is implementation authorization only; it does not accept Stage 0 or establish independent review of the actor/permission mapping and both bounded in-process snapshot cases. Stage 1 entry therefore remains `BLOCKED_PENDING_INDEPENDENT_STAGE0_REVIEW`. See the [dated authorization and verification](evidence/2026-11-17-synthetic-application-context.md) and [remediation disposition](evidence/2026-11-18-synthetic-application-context-review-remediation.md).
 
 The accepted slice covers two in-memory synthetic installations and four granted travel/fitness records across two owners. It exercises bounded `describe`/`search`/`fetch`, typed `ContextItem` mapping, the shared planner and assembler, and recipient-bound preview and confirmation with whole-snapshot denial. The composition runs only in backend tests. Network listeners, product endpoints, live OAuth, MCP, SIWC, paid calls, native persistence, real data, and automatic memory writes remain outside this scope.
 
@@ -65,7 +65,7 @@ Statuses are stable: `DECIDED`, `PROPOSED`, `OPEN`, `BLOCKED_PENDING_APPROVAL`, 
 
 | Area | Status | Owner / next evidence | Risk and affected gate |
 | --- | --- | --- | --- |
-| Synthetic in-memory source, installation fake and ContextItem mapping | `DECIDED` | Project maintainer: record entry authorization and fixture results, then submit the scoped commit for independent review | Identity and mapping claims apply only to the hermetic composition |
+| Synthetic in-memory source, installation fake and ContextItem mapping | `BLOCKED_PENDING_APPROVAL` | Independent reviewer: accept the exact Stage 0 mapping and both snapshot outcomes at a named revision; maintainer authorization and fixture results are recorded separately | Identity and mapping claims apply only to the hermetic composition; blocks Stage 1 independent entry |
 | Source HTTPS identity, delegation verifier and source-side membership | `BLOCKED_UNVERIFIED` | Project maintainer: later produce exact issuer, audience, key rotation, pinned origin and source rights evidence | Cross-tenant reads; blocks live source data |
 | ChatGPT-facing protected MCP | `BLOCKED_UNVERIFIED` | Project maintainer: choose a real installed client and registration method; verify issuer, audience, scope, search/fetch and citation isolation | Wrong resource/client could disclose data; blocks MCP |
 | Manual export | `PROPOSED` | Project maintainer: review recipient-specific grant, digest preview, all-or-nothing stale handling and offline-copy wording | Irreversible copy; blocks real/manual data export |
@@ -80,6 +80,16 @@ Statuses are stable: `DECIDED`, `PROPOSED`, `OPEN`, `BLOCKED_PENDING_APPROVAL`, 
 ## Finding disposition
 
 This table records document changes in this remediation; it is not external approval or proof of runtime readiness.
+
+The 2026-11-18 review remediation is complete and accepted as a scoped code/evidence remediation by the project maintainer. That status does not change the independent entry, implementation acceptance, or production decisions.
+
+| Finding | Disposition | Evidence / remaining gate |
+| --- | --- | --- |
+| R-01 | `DOCUMENTED_BLOCKED` | No independent Stage 0 decision was supplied; Stage 1 entry stays blocked pending an independent review at an exact revision. |
+| R-02 | `FIXED` | Authentication now precedes size/schema errors at source, installation mutation, and PAS read boundaries; authenticated size checks remain. Focused hostile-input tests pass. |
+| R-03 | `UNVERIFIED` | The test provider still creates a fresh per-provider budget. Mixed-provider aggregate byte/token/result/call accounting is not proven; keep the acceptance gate open. |
+| R-04 | `FIXED` | Delegation container, body and signature types/lengths are validated before HMAC; malformed metadata yields opaque `unauthenticated` with no lookup. |
+| R-05 | `PARTIALLY_FIXED` | History-dependent CI jobs now fetch full history. Source-lock and sealed-evaluation tests pass locally; no post-change GitHub matrix run is available, so current CI is not declared green. |
 
 | Finding | Disposition | Document location / residual proof gap |
 | --- | --- | --- |
@@ -102,7 +112,7 @@ This table records document changes in this remediation; it is not external appr
 
 | Area | Current decision | Minimum independent gate |
 | --- | --- | --- |
-| Stage 1 synthetic source | Maintainer `ACCEPT` for offline implementation; independent review pending | Review the scoped implementation and frozen suite evidence, including zero sends, model calls and memory writes |
+| Stage 1 synthetic source | `BLOCKED_PENDING_INDEPENDENT_STAGE0_REVIEW`; maintainer authorized offline implementation only | Independently review the exact Stage 0 actor/permission mapping and both snapshot outcomes, then review the scoped implementation and frozen suite evidence, including zero sends, model calls and memory writes |
 | ChatGPT MCP | `BLOCKED_UNVERIFIED` | Installed OAuth/client and live negative isolation/citation checks |
 | Manual export of real data | `BLOCKED_UNVERIFIED` | Recipient-bound live grant and disclosure/revocation review |
 | Local SIWC | `BLOCKED_UNVERIFIED` | Provider/program eligibility, user-controlled host, zero-credit-spend and terminal usage proof |

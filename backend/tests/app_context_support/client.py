@@ -280,6 +280,7 @@ class SourceClient:
         return source, install, grant, self.authority.policy_fingerprint(grant.app)
 
     def read(self, operation, principal, scope, intent, budget, *, caller, **parameters):
+        self.authority.require_principal(principal)
         data = {
             "schema_version": SCHEMA, "operation": operation, "source_id": intent.source_id,
             "application_id": scope.application_id, "workspace_id": scope.workspace_id,
@@ -288,7 +289,6 @@ class SourceClient:
         raw = encode(data)
         screen(raw)
         budget.check()
-        self.authority.require_principal(principal)
         request = checked(REQUESTS[operation], data)
         source, install, grant, policy = self._admit(request, principal, scope, intent, caller)
         if isinstance(request, Fetch):

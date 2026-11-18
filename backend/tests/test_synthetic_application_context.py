@@ -109,6 +109,8 @@ def test_operator_mutations_are_revision_checked_and_atomic(fake):
     for raw in wrong:
         with pytest.raises(ProtocolError, match="unauthenticated"):
             installations.mutate(raw, fake.principals["a"])
+    with pytest.raises(ProtocolError, match="unauthenticated"):
+        installations.mutate(b" " * (MAX_MESSAGE + 1), fake.principals["a"])
     assert installations.counts == {"install": 2}
     with pytest.raises(ProtocolError, match="invalid_request"):
         installations.mutate(encode(body | {"workspace_id": "trip-a"}), fake.operator)
@@ -307,6 +309,16 @@ def test_single_use_nonce_is_atomic_and_signature_is_required(fake):
     assert source.counts["fetch_lookup"] == 1
 
 
+@pytest.mark.parametrize("change", (
+    {"signature": "not-bytes"}, {"body": "not-bytes"}, {"signature": b"short"},
+))
+def test_malformed_delegation_metadata_is_opaque_and_never_looks_up(fake, change):
+    source, raw, token = delegation(fake, record_ref="r01")
+    malformed = replace(token, **change)
+    assert decode(source.exchange(raw, malformed))["error"]["code"] == "unauthenticated"
+    assert source.lookup_paths == []
+
+
 @pytest.mark.parametrize(("raw_change", "expected"), (
     (lambda raw: raw + b" " * MAX_MESSAGE, "limit_exceeded"),
     (lambda raw: b"\xff" + raw[1:], "invalid_request"),
@@ -319,10 +331,20 @@ def test_transport_caps_before_decode_and_rejects_malformed_bytes(fake, raw_chan
     source, raw, token = delegation(fake, operation="search")
     broken = raw_change(raw)
     assert decode(source.exchange(broken, token))["error"]["code"] == expected
-    assert decode(source.exchange(broken, None))["error"]["code"] == (
-        "limit_exceeded" if expected == "limit_exceeded" else "unauthenticated"
-    )
+    assert decode(source.exchange(broken, None))["error"]["code"] == "unauthenticated"
     assert source.lookup_paths == []
+
+
+def test_pas_read_authentication_precedes_request_encoding_and_size_checks(fake):
+    _, scope, intent = fake.subject()
+    budget = fake.budget()
+    with pytest.raises(ProtocolError, match="unauthenticated"):
+        fake.client.read(
+            "search", AuthenticatedPrincipal.development(), scope, intent, budget,
+            caller=fake.app_clients[TRAVEL], record_kind="itinerary_leg", query="x" * 9000,
+            limit=10,
+        )
+    assert budget.calls == {} and fake.sources[SOURCES[TRAVEL]].lookup_paths == []
 
 
 @pytest.mark.parametrize(("change", "code"), (

@@ -90,9 +90,9 @@ class Installations:
         self.counts = Counter()
 
     def mutate(self, raw, principal):
-        screen(raw)
         if principal is not self._operator:
             raise ProtocolError("unauthenticated")
+        screen(raw)
         data = decode(raw)
         model = {"install": Install, "update": Update, "disable": Disable}.get(
             str(data.get("operation"))
@@ -184,7 +184,13 @@ class Delegations:
 
     def authenticate(self, delegation, service):
         try:
-            if delegation is None or len(delegation.body) > MAX_MESSAGE:
+            if (
+                not isinstance(delegation, Delegation)
+                or type(delegation.body) is not bytes
+                or len(delegation.body) > MAX_MESSAGE
+                or type(delegation.signature) is not bytes
+                or len(delegation.signature) != 32
+            ):
                 raise ProtocolError("unauthenticated")
             expected = hmac.digest(self.keys[service.key_id], delegation.body, "sha256")
             if not hmac.compare_digest(expected, delegation.signature):
@@ -200,7 +206,7 @@ class Delegations:
             ):
                 raise ProtocolError("unauthenticated")
             return claims
-        except (KeyError, ProtocolError) as error:
+        except (KeyError, TypeError, ProtocolError) as error:
             raise ProtocolError("unauthenticated") from error
 
     def consume(self, claims):
@@ -364,8 +370,10 @@ class FixtureSource:
     def exchange(self, raw, delegation):
         self.counts["exchange"] += 1
         try:
-            screen(raw)
             claims = self.delegations.authenticate(delegation, self.service)
+            if type(raw) is not bytes:
+                raise ProtocolError("invalid_request")
+            screen(raw)
             data = decode(raw)
             if not hmac.compare_digest(claims.request_digest, digest(data)):
                 raise ProtocolError("unauthenticated")

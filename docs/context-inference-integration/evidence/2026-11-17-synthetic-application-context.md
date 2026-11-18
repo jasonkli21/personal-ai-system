@@ -2,6 +2,8 @@
 
 **COMPLETE for the private hermetic implementation.**
 
+This records the implementation session's historical maintainer authorization only. It is not an independent Stage 0 entry decision or independent Phase 1 acceptance. The independent prerequisite was not supplied; see the current [delivery gate](../delivery-and-acceptance.md) and [2026-11-18 remediation record](2026-11-18-synthetic-application-context-review-remediation.md).
+
 ## Entry decision
 
 **ACCEPT for private hermetic implementation.** The project maintainer gave this decision in the implementation session on 2026-11-17 after the entry check reported that independent acceptance was absent at base `e7ff57e695f22d6d790fcee910a0178246f5daa9`. The maintainer authorized entry on that base. Independent review remains pending.
