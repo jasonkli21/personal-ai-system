@@ -1,79 +1,98 @@
-# User inference routing policy v1
+# Inference route policy
 
-**DRAFT / NOT DEPLOYED.** The proposed effective policy is materialized per verified owner/app/workspace. The service derives and validates identity from the authenticated session, uses revision-checked owner edits and binds every decision to the stored policy revision. An app may narrow a task's candidates. Only the owner can change consent or increase a budget.
+**DRAFT / NOT DEPLOYED.** This policy describes future route eligibility and billing requirements. Current implementation status is in [current state](../current-state.md). The production factory is not proof that an external free provider is available or authorized.
 
-## Policy shape
+## Current behavior and default
 
-Each example is a complete synthetic policy. Identifiers refer to operator-reviewed catalog entries. Model aliases in these examples represent exact fixture IDs. Materialize a factory policy for each scope from installed free candidates. An empty eligible set stops the operation.
+The automatic `RoutingDecisionService.route()` currently accepts only automatic `STRICT_FREE` requests. The normal inference factory does not admit `explicit_paid`; SIWC uses a separately gated local bridge. Automatic subscription and paid route composition is future work and remains disabled. It must extend the same canonical endpoint registry, authorization, reservation/usage ledger, replay and dispatch lifecycle. Do not add a second router, bypass cost mode, or reclassify subscription/paid routes as free.
 
-```json
-{
-  "version":"inference-policy-v1","revision":1,"preset":"free_only",
-  "scope":{"owner":"owner-a","app":"travel-demo","workspace":"trip-a","operation":"answer"},
-  "required":["text","stream"],"routes":["free_api"],"models":{"free_api":["fixture-free"]},
-  "recipients":["free-endpoint-a"],"plan":null,"background":null,"paid":null,
-  "fallback":"safe_only"
-}
-```
+New owner policy is `free_only`. It opts into neither paid calls nor subscription allowance use. Routes are ordered user preferences, not provider permission. Eligibility is the intersection of immutable system/operator/provider rules, exact owner grant and recipient, current task capability/quality, account/price evidence and the app's narrowing request. Apps can narrow but never widen. A subscription-first order requires an explicit owner edit after that route is admitted.
 
-```json
-{
-  "version":"inference-policy-v1","revision":2,"preset":"subscription_first",
-  "scope":{"owner":"owner-a","app":"travel-demo","workspace":"trip-a","operation":"answer"},
-  "required":["text","stream"],"routes":["subscription","free_api"],
-  "models":{"subscription":["fixture-plan"],"free_api":["fixture-free"]},
-  "recipients":["host-a","plan-endpoint-a","free-endpoint-a"],
-  "plan":{"connection":"plan-a","host":"host-a","account":"account-a","plan_only":true},
-  "background":null,"paid":null,"fallback":"safe_only"
-}
-```
+If no verified free route exists, stop with an actionable, content-free `no_authorized_external_inference_route` state and zero provider sends. Distinguish these states:
 
-```json
-{
-  "version":"inference-policy-v1","revision":3,"preset":"custom",
-  "scope":{"owner":"owner-a","app":"travel-demo","workspace":"trip-a","operation":"answer"},
-  "required":["text","stream"],"routes":["subscription","free_api","paid_api"],
-  "models":{"subscription":["fixture-plan"],"free_api":["fixture-free"],"paid_api":["fixture-luna-text"]},
-  "recipients":["host-a","plan-endpoint-a","free-endpoint-a","luna-demo"],
-  "plan":{"connection":"plan-a","host":"host-a","account":"account-a","plan_only":true},
-  "background":null,
-  "paid":{"opt_in":true,"payer":"payer-a","account":"billing-a","endpoint":"luna-demo","currency":"USD","per_request_micros":40000,"monthly_micros":1500000},
-  "fallback":"safe_only"
-}
-```
-
-`version` and `fallback` are literals, revision is a positive integer. Scope is four exact IDs. Routes is an ordered, duplicate-free list of up to three external classes. Models maps each route to a nonempty array of exact model IDs. Recipients are exact approved host/endpoint IDs. No wildcards. Required capabilities intersect with the task's independently established requirements (including modality, streaming, context size, supported tools and quality floor). Empty disclosure permissions deny. Null plan, background or paid objects disable that use. A plan object requires all shown keys and a current connection bound as described in [ChatGPT boundaries](chatgpt-integration-boundaries.md).
-
-A background grant, if enabled, contains consent ID, operation, app, workspace, host, maximum runs per UTC day and UTC expiry. Authenticate the originating owner and decrement the run limit atomically. An interactive grant cannot authorize scheduled work. The paid object requires every shown key, positive integer micro-unit limits and verified payer/account authority. The monthly limit caps aggregate owner spending across apps, hosts and policies. Apply the strictest active owner, payer and operation caps across concurrent reservations. Store price revision, currency and grant epoch with each attempt. Reject unknown fields, classes, currencies or inconsistent presets on read/write. Version incompatible changes explicitly. Read older policies only via reviewed conservative migration. Unsupported policies deny all external sends.
-
-## Eligibility before preference
-
-1. Apply system, deployment, kill switch, provider program, security and operator admission gates.
-2. Resolve owner, app, workspace, requested operation and current source-purpose-recipient grants. Require permits for each hop, including host and ultimate model. Reassemble for a different recipient and revalidate at physical send. A revoked required source ends the operation.
-3. Enforce current user policy, client/account/host binding, disclosure ceiling, background consent, model allowlists, price and quota. Require current task capability and quality evidence. Exclude a candidate on missing facts.
-4. Visit eligible routes in user order. Within a class use the existing deterministic router with stable endpoint ID as final tie-break. Record policy revision, exclusions and attempt IDs without content or secrets. End on exhaustion.
-
-| Class | Dispatch condition and accounting |
+| State | Meaning and behavior |
 | --- | --- |
-| offline_fake | Explicit local/test profile only. Simulated output is never used as a successful external fallback. |
-| free_api | Exact model, credential, quota window and zero-charge/no-overage attestation are current. Recheck quota at reservation and send. A free marketing label provides no evidence. |
-| subscription | Eligible connected application, account-visible model, plan-only evidence, bound user runtime and current user activity or background grant. Track plan allowance separately. |
-| paid_api | Operator enables an admitted paid profile and user explicitly opts in for the exact endpoint/model/payer. Reserve an enforceable upper bound before send. |
+| `free_available` | At least one exact free endpoint is currently verified and eligible; normal strict-free selection may continue |
+| `free_unverified` | A candidate lacks current evidence; do not call it |
+| `free_exhausted` | Verified free capacity is unavailable/exhausted; stop or try another verified free route only |
+| `offline_fake_test_only` | Synthetic local response for tests; never describe or account it as external inference |
 
-**Factory invariant.** Validate free_only as routes exactly [free_api] with paid, plan and background null. At dispatch independently require a paid authorization and monetary reservation for every endpoint classified as paid. Reject class mismatches, stale attestations, missing policy and unknown costs. Exhaustion leads to stop. Neither an app-supplied model nor a quota failure creates a transition to paid.
+Quota exhaustion does not trigger paid or plan fallback. A new account makes zero paid and subscription calls by default.
 
-## Reservation and fallback state machine
+## Owner policy shape
 
-Bind one durable intent to actor, scope, logical operation and request digest. Idempotent replay returns its receipt. A different payload with the same identity conflicts. Maintain an atomic active-attempt fence across workers, restarts and providers. Disable hidden SDK retries.
+The following is a complete example of a future custom policy. It is not accepted by the current factory. Null values are explicit denial. `models` and `recipients` are additional restrictions and cannot expand the exact endpoint consent.
 
-| State/event | Durable transition and allowed next action |
-| --- | --- |
-| Prepared, candidate denied before send | Record exclusion. Select next unvisited eligible candidate, or stop. Revalidate grants, cost and disclosure each time. |
-| Candidate admitted | Pin policy, endpoint, pricing and source revisions. Reserve quota and any money atomically. If authority or price changes before send, release only against proof of no send. |
-| Reserved | Persist single-use send claim before network I/O. Commit fence before handing off. Only its holder may send once. |
-| Terminal success | Persist terminal receipt and verified usage once. Settle reservation and return result. Replays read it. |
-| Definitive rejection | Advance only if authoritative evidence proves no execution, no disclosure conflict and no charge or allowance consumption. A status code alone is insufficient. Release verified unused reservation. |
-| Timeout, ambiguous 429, disconnect, partial stream, crash after claim or missing terminal usage | Mark unknown, retain reservation and stop all retries/fallback. Reconcile same intent and attempt against authoritative provider/billing evidence. If unavailable, retain fence and escalate to accounting owner. |
-| Known execution with failed output | Record terminal failure, reconcile charge, stop. Revocation fences further sends/output and reuse. Already transmitted data and consumed usage remain external. |
+```json
+{
+  "schema_version": "inference-policy-v1",
+  "mode": "free_only",
+  "routes": ["free_api"],
+  "free": {"endpoints": ["free-endpoint-a"], "models": ["free-model-a"]},
+  "plan": null,
+  "paid": null,
+  "recipients": ["travel-demo"],
+  "background_use": null,
+  "owner_monthly_cap_micros": null
+}
+```
 
-Calculate the upper bound in integer USD micros with rounding up from a current price revision for the exact endpoint/model/payer. Bound serialized input and enforced output, all billable token categories, fixed fees and multiplicities. Refuse unbounded tools, unverifiable pricing or unenforceable maxima. In a single transaction check per-request maximum and UTC billing-month capacity against settled plus outstanding holds, then reserve worst-case cost. Key holds by payer, owner, accounting period and attempt. Anchor the period to the provider billing rule and deny if the period cannot be determined. Carry unresolved exposure through rollover without resetting the fence. Settle exactly once using verified actual usage and release only the proven difference. Unexpected excess freezes that account and triggers investigation. Provider invoice behavior and hard-cap enforcement require independent [acceptance](delivery-and-acceptance.md).
+Future paid consent is exact and per approved endpoint. This example illustrates the required binding; it does not enable paid routing:
+
+```json
+{
+  "schema_version": "inference-policy-v1",
+  "mode": "explicit_paid",
+  "routes": ["paid_api"],
+  "free": null,
+  "plan": null,
+  "paid": {
+    "endpoint_profile_id": "provider-a-prod",
+    "profile_version": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "endpoint": "https://api.provider.example/v1",
+    "model": "model-a-2026-10-01",
+    "payer": "owner-a-provider-account-1",
+    "account": "acct-opaque-1",
+    "recipients": ["travel-demo"],
+    "allowed_data_use": "inference_only",
+    "max_cost_micros_per_call": 10000,
+    "owner_monthly_cap_micros": 500000,
+    "currency": "USD",
+    "price_revision": "price-v4"
+  },
+  "recipients": ["travel-demo"],
+  "background_use": null,
+  "owner_monthly_cap_micros": 500000
+}
+```
+
+Exact endpoint profile/version, endpoint, model, payer, account, recipient and price revision must match at dispatch. Price or account drift, unknown maximum cost, missing consent or data-use mismatch denies before send. A future schema may support a bounded list of separately approved endpoint consents; no wildcard or model substitution is allowed. Matching consent is necessary but not sufficient: operator admission, a hard enforceable cap, atomic holds and reconciled dispatch are also required.
+
+## SIWC eligibility is distinct from a preference
+
+Three independent records must not be collapsed into a `plan_only` boolean:
+
+1. **Owner preference:** this owner asks to use an eligible connected-app plan route for the exact app, operation and host, with separate explicit background consent.
+2. **Provider-observed account/workspace/app evidence:** current account, workspace, model, usage state and whether included allowance can be exhausted without credits or another charge. Record evidence source, observation time, expiry and approver. Unknown or unobservable credit controls deny the route.
+3. **Distribution and host eligibility:** verified connected-app/program approval and user control of the runtime and persistent credentials under current provider terms. A plan name or local byte/time limit is not evidence of no incremental spend or provider-side hard usage cap.
+
+SIWC use must be user-controlled, for the authenticated user and connected application, never pooled. No charge or paid-upgrade prerequisite may gate eligible plan access. Credits and automatic purchases are separate charge paths. If zero incremental charge cannot be established, deny the candidate. See the [SIWC Terms](https://openai.com/policies/sign-in-with-chatgpt-terms/), [plan usage and credit controls](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites), and current [provider limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations). Unsupported provider fields such as `max_output_tokens` cannot be replaced by local truncation claims.
+
+The local SIWC distribution is `BLOCKED_UNVERIFIED` pending exact app/user/workspace/host, program eligibility, credit settings, consent, serializer and terminal usage evidence. Generic PAS-managed multi-app execution is `BLOCKED_PENDING_APPROVAL` pending written authorization for that exact topology. No SIWC credentials belong on PAS centrally managed shared hosts.
+
+## Holds, billing periods and dispatch lifecycle
+
+Future paid calls must fit **both** independent limits:
+
+- Owner budget: UTC calendar-month total across approved apps and payer accounts.
+- Provider exposure: the specific payer account's actual provider billing period and its limit.
+
+Both include committed spend, unsettled reservations and unknown sends from prior periods. If either billing calendar, enforced maximum, price, or account mapping is unavailable, paid dispatch denies. A promised hard cap requires evidence that the upstream charge cannot exceed the held maximum; a ledger alone cannot enforce unknown provider behavior. Keep USD micros and exact price revision pinned.
+
+Lifecycle: `prepared → eligible/reserved → durable send claim → terminal` or `unknown`. A timeout, partial stream, disconnect, ambiguous 429, crash after claim, or lost receipt is unknown and remains pending reconciliation. Only authoritative proof of non-execution before send may release a hold and allow re-selection. No hidden SDK retry; unknown never falls back. Plan allowance records are distinct from the monetary ledger. Restore retains old holds, unknown-send fences and revocation epochs until independently reconciled.
+
+## Candidate and accounting boundary
+
+The future selection seam may produce an ordered set of eligible candidates for the existing router to evaluate. It must not itself authorize, reserve, dispatch, or spend. Each candidate is tagged with its immutable route class, exact model/profile, recipient, policy version, payer, evidence expiry and account state. The existing canonical endpoint registry, permission checks, atomic quota reservations, replay/idempotency and dispatch coordinator remain the single authorities. Current router behavior remains unchanged until a separate acceptance decision admits new execution modes.
+
+There is no hidden fallback. On zero eligible candidates, expose only the content-free state and required next action. Never expose private provider/account details through user-facing errors.

@@ -1,73 +1,141 @@
-# Application context provider v1
+# Application context provider contract
 
-**DRAFT / NOT DEPLOYED.** This proposed protocol connects independent apps using data messages. It requires no PAS imports. Negotiate the literal schema below before reading. Reject unknown request fields, unsupported versions and unknown security classifications. Optional response annotations can be added within v1 only if ignoring them preserves authority and meaning. New required fields, grant semantics or ordering require a new version.
+**DRAFT / NOT DEPLOYED.** This is a proposed, bounded protocol for an independent application to expose typed projections of records it owns. It defines no production route, network listener, credential issuer, or live integration. Stage 1 is limited to in-memory synthetic adapters after independent Stage 0 acceptance.
 
-## Parties and access checks
+## Trust boundaries and principals
 
-The operator binds a service identity and pinned HTTPS origin to one application, approved workspace authority, projection schema and source registration. Authenticate both ends with installation-bound service credentials. Operator enrollment requires a verified administrator. Disable redirects and caller-selected URLs. The authenticated app may describe its installed source. Enabling an installation grants zero record access.
+| Principal | Verified by | Authority | Cannot do |
+| --- | --- | --- | --- |
+| Human requester | PAS consumer authentication; verified issuer/subject and current membership | Establishes `RequestScope.owner_id`, optional `acting_user_id`, and the exact request scope | Choose owner/actor/app/workspace in a request body or gain another app's records |
+| App client | Operator install record, bound to one PAS `application_id` and pinned origin | Authenticate its own user-facing client to PAS where the existing consumer contract admits it | Authenticate a human or grant source-read permission |
+| Source service | PAS validates installation-bound service identity and pinned origin; source separately authenticates PAS | Serve its own records after checking its own ownership/membership and a valid delegation | Infer human consent from machine TLS/OAuth or echoed JSON |
+| PAS signer/verifier | Operator-managed key identity and active key set | Sign and verify narrowly scoped, short-lived source delegations | Turn a signature into a durable or independently revocable grant |
+| Recipient/host | Separate recipient binding and grant; host identity where applicable | Receive only the exact permitted projection for its named purpose | Reuse a runtime grant for ChatGPT, another host, app, or manual copy |
 
-PAS derives the owner from verified issuer/subject and resolves the calling application from its client registration and the workspace from current membership. The owner grants an exact source, kind, field set, purpose, recipient and sensitivity ceiling for that app/workspace, with expiry and a monotonically advancing epoch. An authenticated app service alone cannot speak for an owner. PAS sends the source a short-lived, audience-bound delegation covering that tuple, allowed operation, request digest and expiry. The source validates issuer, audience, operation, current ownership/membership and grant before lookup. No body accepts an owner override. A different app needs its own explicit approved relationship and grant. Default to same-app access.
+The existing `RequestScope` owner and actor are derived from verified authentication and server-side membership. The external app's service identity is a separate authenticated transport principal. Source operations are authorized only when **both** identities are valid and the live PAS grant allows the exact owner, actor, source installation, app, workspace, fields, purpose, recipient, operation, and current grant epoch. Same-email accounts with different verified subjects remain different owners. Unknown membership, mismatched IDs, unavailable revocation state, or cross-app access denies before record lookup. Cross-app promotion is not part of this contract.
 
-## Messages
+### Signed source delegation
 
-Every request includes `schema_version: app-context-v1`, `operation`, `source_id`, `application_id` and `workspace_id` strings. These are selectors checked against the authenticated binding. All IDs are opaque ASCII identifiers of 1–128 characters. The limits below are proposed ceilings for the synthetic slice.
+Each PAS-to-source read carries a signed, short-lived, single-request delegation in authenticated transport metadata (never a URL or portable snapshot). Required claims are `iss` (PAS signer), `aud` (one installed source service), `sub` (PAS-derived end-user subject), `owner_id`, `acting_user_id` (nullable), `application_id`, `workspace_id`, `source_id`, `installation_epoch`, `kind_allowlist`, `field_allowlist`, `purpose`, `recipient`, `operation`, `request_digest`, `nonce`, `grant_id`, `grant_epoch`, `iat`, `exp`, and `kid`. The digest binds the canonical request body; nonces are one-use. The source verifies issuer, audience, key, expiry, nonce, installation and its own record ownership/membership. PAS independently checks the live grant and permission state before and after retrieval. Service authentication is not the delegation, and neither replaces source-side authorization. This repair specifies the claims only; it adds no credential system or verifier.
 
-| Operation | Additional request fields | Successful result |
+## Installation control plane and owner read plane
+
+These are separate protocols and identities. Operator installation/update/disable is control-plane work. It has no owner, actor, workspace, record-read or export authority. Owner data reads are bound to a verified `RequestScope` and a signed delegation. Stage 1 may use only an in-memory synthetic installation registry.
+
+| Operation | Caller / transport | Body | Result |
+| --- | --- | --- | --- |
+| `install` | Verified operator principal; control-plane transport | `schema_version`, `application_id`, `installation_id`, pinned `origin`, `service_identity`, `projection_schema_id`, `max_sensitivity`, `max_ttl_seconds` | PAS-assigned `source_id`, `installation_revision`, `installation_epoch`; no workspace or record access |
+| `update` | Same operator principal | Exact installation ID plus a complete replacement binding and expected revision | New revision/epoch; old cursors and delegations invalidated |
+| `disable` | Same operator principal | Exact installation ID and expected revision | Disabled installation; all reads deny |
+| `describe` | Human-scoped data plane | Exact installed `source_id`, app and workspace selectors; transport carries verified user scope and delegation | Installed schema and bounded operation capabilities after authorization |
+| `search` | Human-scoped data plane | `record_kind`, literal `query`, `limit`, optional cursor | Authorized titles/IDs/revisions only, stable watermark and next cursor |
+| `fetch` | Human-scoped data plane | Exact `record_ref` and `source_revision` | One typed projection only if current revision and all grants still match |
+
+The app cannot choose the PAS-assigned source ID, origin, owner, actor, recipient, grant, epoch, or allowed fields. Those values are resolved from trusted registration, request scope, and live authorization. `export_snapshot` is a PAS orchestration operation, not a source operation: PAS authorizes and fetches exact items one by one under recipient-bound authority, then creates a bounded snapshot.
+
+Example operator installation request (control-plane identity is authenticated outside JSON):
+
+```json
+{"schema_version":"app-context-v1","operation":"install","application_id":"travel-demo","installation_id":"travel-main","origin":"https://travel.example.invalid","service_identity":"travel-source-prod","projection_schema_id":"travel-projection-v1","max_sensitivity":"sensitive","max_ttl_seconds":300}
+```
+
+Example per-owner source request (human identity and delegation are authenticated transport metadata; body selectors are checked against both):
+
+```json
+{"schema_version":"app-context-v1","operation":"search","source_id":"itinerary-demo","application_id":"travel-demo","workspace_id":"trip-a","record_kind":"itinerary_leg","query":"shuttle","limit":10}
+```
+
+## v1 data shapes and bounds
+
+Reject unknown keys, unsupported schema versions, unknown classifications, malformed UTF-8, IDs that cannot round-trip through the owning PAS types, and any body over the raw serialized UTF-8 limit **before parsing**. Do not normalize IDs to make them fit. The source assigns opaque record refs and revisions; PAS assigns source IDs and installation epochs. `source_revision` changes on every material content or authorization-relevant change. `source_revision` is never inferred from a search cursor. Cursors bind owner, actor, app, workspace, source, kind, query, watermark, sort position, grant ID/epoch, and expiry. A watermark change or grant epoch change makes the cursor stale; restart with a fresh authorized search.
+
+The frozen synthetic schema is `itinerary_leg{title:string, platform:string}` and `workout{title:string, duration_minutes:integer}`. Each field has a source schema sensitivity and PAS policy sensitivity; effective sensitivity is the maximum of source, operator, and PAS classification. A source cannot lower classification. Deny unknown fields, malformed types, or values above a grant ceiling. Search titles are disclosed context and require the same current read grant as fetched fields.
+
+| Bound | v1 proposal |
+| --- | --- |
+| Serialized request/response | 8 KiB raw UTF-8 per message before parsing |
+| Search | One page per turn, `limit` 1–10, query 0–256 UTF-8 bytes |
+| Fetch | At most 10 exact fetches per turn, shared deadline and aggregate byte/token budget |
+| Record projection | 8 KiB raw UTF-8; each string at most 2 KiB |
+| Clock | UTC RFC 3339 timestamps; reject naive, future-observed, expired or invalid intervals |
+| Order | `effective_at` descending, then opaque `record_ref` ascending; exact ties are stable by `source_id` |
+| Error precedence | Authenticate → validate schema/installation → authorize tuple/grant → validate cursor/revision → lookup → enforce limits |
+
+Successful examples below are canonical; JSON examples in this page are illustrative wire values and must parse as strict JSON. `describe` only returns installed, grant-permitted kinds and fields:
+
+```json
+{"schema_version":"app-context-v1","source_id":"itinerary-demo","installation_revision":"i3","installation_epoch":3,"operations":["search","fetch"],"kinds":[{"name":"itinerary_leg","fields":[{"name":"title","type":"string","sensitivity":"personal"},{"name":"platform","type":"string","sensitivity":"personal"}]}],"max_page_size":10,"max_record_bytes":8192,"max_ttl_seconds":300}
+```
+
+Search response, with the same envelope rules for the fitness source:
+
+```json
+{"schema_version":"app-context-v1","source_id":"itinerary-demo","application_id":"travel-demo","workspace_id":"trip-a","record_kind":"itinerary_leg","watermark":"w7","items":[{"record_ref":"r01","source_revision":"v7","record_kind":"itinerary_leg","effective_at":"2030-01-02T08:00:00Z","title":"Demo shuttle A"}],"next_cursor":null}
+```
+
+Fetch response. The echoed grant fields are provenance only; PAS permission is derived from its own live grant authority, never from source echo:
+
+```json
+{"schema_version":"app-context-v1","source_id":"itinerary-demo","application_id":"travel-demo","workspace_id":"trip-a","record_ref":"r01","record_kind":"itinerary_leg","source_revision":"v7","watermark":"w7","observed_at":"2030-01-02T09:00:00Z","effective_at":"2030-01-02T08:00:00Z","expires_at":"2030-01-02T09:05:00Z","sensitivity":"personal","content_projection":{"title":"Demo shuttle A","platform":"Blue"}}
+```
+
+Stale or unauthorized reads use uniform opaque errors; do not reveal tenant existence, title, count, or timing-sensitive pagination metadata:
+
+```json
+{"schema_version":"app-context-v1","error":{"code":"stale_dependency","request_id":"req-opaque"}}
+```
+
+Stable codes: `invalid_request` (400), `unauthenticated` (401), `unavailable` (404 for absent or unauthorized), `stale_dependency` (409 for an authorized stale revision/cursor/grant), `limit_exceeded` (413), `rate_limited` (429), and `source_unavailable` (503). Retry reads only after fresh authorization and within the same deadline. Never retry an inference send after an unknown outcome.
+
+## Exact synthetic registry and clock
+
+All fixtures use fixed clock `2030-01-02T09:00:00Z`; timestamps are valid at that clock. Each source owns its own revision and authoritative record. The repeated `r01` values deliberately test source-scoped opaque references. Initial grants authorize only the named app answer/runtime; none authorizes ChatGPT or a manual export.
+
+| Owner | App | Workspace | Source | Ref | Revision | Kind and allowed fields | Initial read grant |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `owner-a` | `travel-demo` | `trip-a` | `itinerary-demo` | `r01` | `v7` | `itinerary_leg`: title=`Demo shuttle A`, platform=`Blue`; personal | A → travel answer/runtime-A |
+| `owner-a` | `fitness-demo` | `gym-a` | `workout-demo` | `r01` | `v2` | `workout`: title=`Fixture session A`, duration_minutes=20; sensitive | A → fitness answer/runtime-A |
+| `owner-b` | `travel-demo` | `trip-b` | `itinerary-demo` | `r01` | `v4` | `itinerary_leg`: title=`Demo shuttle B`, platform=`Green`; personal | B → travel answer/runtime-B |
+| `owner-b` | `fitness-demo` | `gym-b` | `workout-demo` | `r01` | `v3` | `workout`: title=`Fixture session B`, duration_minutes=30; sensitive | B → fitness answer/runtime-B |
+| `owner-a` | `travel-demo` | `trip-a-ungranted` | `itinerary-demo` | `r01` | `v1` | `itinerary_leg`; **never disclose** | None |
+
+The two operator installations are source-specific and succeed without a user workspace. Tests also include a different verified subject with the same email, service-only credentials, mismatched actor, and forged app/workspace/source/recipient/purpose/epoch. Missing or unsupported installation/version denies before lookup. Fixture search results and encoded responses are byte-stable for identical authorized inputs.
+
+## Mapping into existing PAS context
+
+This adapter feeds the existing provider coordinator, planner and assembler. It does not create a new context model, authorization engine, memory store, token counter or model route. Stage 1 admission requires an owning application policy that explicitly registers the provider and fields; registry defaults alone do not grant access.
+
+| Source value | Existing PAS value | Rule |
 | --- | --- | --- |
-| register | Operator supplies installation ID, service identity, pinned origin, allowed kind/field schemas, maximum sensitivity and TTL in seconds | Source ID and installation revision. Re-registering identical metadata is idempotent. Any material change increments the installation epoch and invalidates dependent handles. |
-| describe | None | Installation revision, array of supported read operations, kind/field schemas, sensitivity ceilings, TTL and page limits, constrained by installed policy |
-| search | One allowed kind, literal query (0–256 characters), limit (1–10), optional opaque cursor | Object with `items` (authorized ref, revision, kind, effective time and permitted title per item), watermark string and nullable `next_cursor`. Empty authorized search returns an empty list. |
-| fetch | Exact opaque record_ref and source_revision from search | One projected record in the shape below. A changed revision requires a fresh search. |
-| export_snapshot | Owner-initiated list of 1–10 exact ref/revision pairs, declared purpose and named recipient | Versioned object with `snapshot_id`, `recipient`, `purpose`, `expires_at` and `records` containing only approved projected fields and dependencies. Use the earliest dependency expiry. Reject the whole export if any record fails. |
+| Installed source + schema revision | `ContextItem.provider_id`, `source_id`, `source_version` | `provider_id` is a PAS capability ID matching `^[a-z][a-z0-9_.-]{1,80}$`; `source_id` is exact installed source; `source_version` pins the schema and source revision together without lossy conversion |
+| Kind and exact opaque ref | Typed domain payload, `item_id`, non-empty `source_refs` | Validate `item_id` against `ContextItem` bounds; `ContextSourceReference(kind="record", reference_id=...)`; preserve immutable source/ref/revision identity |
+| Read/search for context | `ContextOperation="search"` and registered `ContextOperationSpec` | `fetch` is adapter implementation detail, not a new model-visible operation; if another existing operation is selected it must be declared and permitted by the app policy |
+| Domain-owned itinerary/workout fact | `ContextSourceClass="domain_current"`, `authority="authoritative"` | Only for the original owning app's authoritative source; never label it `client_context` or `external_research` |
+| Effective time and source expiry | `observed_at`, `effective_at`, `expires_at` | Require timezone-aware values; clamp expiry to the earliest source TTL, grant and installation expiry |
+| Source + PAS field classification | `ContextItem.sensitivity`, complete `field_sensitivity` | Use the most restrictive joined classification; enforce server-owned `ContextFieldPolicy` before constructing item |
+| Live PAS grant and source revision | `ContextPermissionDependency` | Build from trusted grant ID/version/epoch and exact owner/actor/app/workspace/purpose/revision; ignore echoed permission as authority |
+| Verified request scope | `owner_id`, `acting_user_id`, `application_id`, `workspace_id` | Derive from `RequestScope` and trusted app registration, never body values |
 
-For register, the operator assigns the source ID before installation. Use the following operation-specific JSON keys in addition to the common envelope. A question mark denotes an optional key. Schema and policy IDs resolve only in the operator's immutable catalog.
+`domain_current` exists in the current category contract. The app registry's `domain_context` sensitivity default is sensitive, but it does not by itself admit a provider: exact operations and fields remain server policy. Same-app scope is mandatory. Existing planner result/byte/token/deadline limits and assembler provenance/history behavior remain authoritative. Never write source facts automatically to durable memory. No extra model call is permitted for source preparation.
 
-| Operation | Request keys and types | Result keys and types |
-| --- | --- | --- |
-| register | installation_id, service_identity, origin, projection_schema_id, max_sensitivity (strings), max_ttl_seconds (positive integer) | source_id, installation_revision (strings) |
-| describe | No additional keys | installation_revision, projection_schema_id, max_sensitivity (strings), operations (string array), max_ttl_seconds, max_page_size (positive integers) |
-| search | record_kind, query, cursor? (strings), limit (integer) | items (array of objects with record_ref, source_revision, record_kind, effective_at and title strings), watermark (string), next_cursor (string or null) |
-| fetch | record_ref, source_revision (strings) | Record object below |
-| export_snapshot | selections (array of objects with record_ref and source_revision strings), purpose, recipient (strings) | schema_version, snapshot_id, recipient, purpose, expires_at (strings), records (record array) |
+## Recipient-bound snapshot export
 
-The schema catalog defines field types, redaction rules and bounds for each kind. PAS orchestrates export through authorized fetches. Before returning a snapshot, verify that the named recipient and purpose match the export grant. An adapter must never accept the caller's field list as authority.
+`export_snapshot` is PAS-orchestrated and separate from source reads. Normative sequence: authenticate owner and actor → select exact recipient and purpose → check a live source/field grant explicitly naming that recipient → re-fetch each exact selected source/ref/revision under a recipient-bound delegation → recheck source revision, installation, membership, grant and expiry → compute the shortest dependency expiry → redact and render preview → require explicit owner confirmation bound to recipient, purpose, fields and content digest → disclose one all-or-nothing snapshot → emit a content-free audit receipt. If any item is stale, unauthorized, unavailable, or too large, reject the whole snapshot. A runtime grant alone fails export to ChatGPT or a manual recipient; a separate grant is required.
 
-Bind each cursor to the verified tuple, filter, watermark, sort position, grant epoch and expiry using server-side state or authenticated encoding. Order by effective time descending then opaque ref ascending. Reject a changed watermark or epoch. Cap a turn at one search page and at most ten exact fetches, each within a shared deadline. A consumer explicitly requests another page as a new read.
+PAS request to begin a preview (confirmation is a separate owner action bound to the resulting preview digest):
 
 ```json
-{"schema_version":"app-context-v1","operation":"fetch","source_id":"itinerary-demo","application_id":"travel-demo","workspace_id":"trip-a","record_ref":"r01","source_revision":"v7"}
+{"schema_version":"app-context-v1","operation":"export_snapshot","recipient":"manual-chatgpt","purpose":"answer-context","selections":[{"source_id":"itinerary-demo","application_id":"travel-demo","workspace_id":"trip-a","record_ref":"r01","source_revision":"v7","fields":["title","platform"]}]}
 ```
 
-## Two synthetic fetch responses
+Snapshot shape is `schema_version`, opaque random `snapshot_id`, exact `recipient`, `purpose`, `created_at`, `expires_at`, and typed `records` with source/ref/revision, permitted projection, and dependencies. No bearer token, delegation, credential, raw grant secret, or authority-bearing URL appears in the snapshot or filename. Any download handle is owner-bound and short-lived; snapshot ID alone is not authorization. Reuse/import inside PAS rechecks live grants, revisions and expiry. A manual/offline recipient can keep copied text after expiry or revocation; PAS cannot revoke that copy. State this before confirmation.
+
+Synthetic export response shape (a ChatGPT/manual grant must be separately present; this example does not authorize one):
 
 ```json
-{
-  "schema_version":"app-context-v1","source_id":"itinerary-demo","application_id":"travel-demo","workspace_id":"trip-a",
-  "record_ref":"r01","record_kind":"itinerary_leg","source_revision":"v7",
-  "observed_at":"2030-01-02T09:00:00Z","effective_at":"2030-01-02T08:00:00Z","expires_at":"2030-01-02T09:05:00Z",
-  "sensitivity":"personal","provenance":{"installation_revision":"i3","authority":"itinerary-demo"},
-  "grants_or_permission_dependency":{"grant_id":"g-trip","epoch":4,"purpose":"answer","recipient":"runtime-a"},
-  "content_projection":{"title":"Demo shuttle","platform":"Blue"}
-}
+{"schema_version":"app-context-v1","snapshot_id":"snap-opaque-1","recipient":"manual-chatgpt","purpose":"answer-context","created_at":"2030-01-02T09:00:00Z","expires_at":"2030-01-02T09:05:00Z","records":[{"source_id":"itinerary-demo","record_ref":"r01","source_revision":"v7","record_kind":"itinerary_leg","content_projection":{"title":"Demo shuttle A","platform":"Blue"},"dependency":{"grant_id":"grant-manual-a","grant_epoch":1,"application_id":"travel-demo","workspace_id":"trip-a"}}]}
 ```
 
-```json
-{
-  "schema_version":"app-context-v1","source_id":"workout-demo","application_id":"fitness-demo","workspace_id":"gym-b",
-  "record_ref":"r01","record_kind":"workout","source_revision":"v2",
-  "observed_at":"2030-01-02T09:00:00Z","effective_at":"2030-01-01T10:00:00Z","expires_at":"2030-01-02T09:02:00Z",
-  "sensitivity":"sensitive","provenance":{"installation_revision":"i8","authority":"workout-demo"},
-  "grants_or_permission_dependency":{"grant_id":"g-gym","epoch":9,"purpose":"answer","recipient":"runtime-b"},
-  "content_projection":{"title":"Fixture session","duration_minutes":20}
-}
-```
+Source changes are checked at preparation and immediately before issuing a single-use, short-lived send permit. The verified host performs its final possible check; durable send-start is fenced. A change observed before send denies. A midstream change stops further PAS-controlled output and reuse, but cannot recall transmitted bytes. There is a residual check-to-wire race; live-data admission remains blocked until measured and accepted. An ambiguous send is unknown/terminal-pending-reconciliation, with no automatic retry or fallback. Restore must consult current independent revocation state before reopening reads.
 
-The source issues ref, immutable revision, kind, provenance and typed projection. Reusing a ref across sources is valid. Every material edit changes the revision. PAS matches all IDs and the authority/installation revision against the installation. The source sets UTC observation, domain-effective and expiry timestamps. Reject a future observation, missing time, expired record or excessive age. A future itinerary event can have a future effective time. Effective expiry is the minimum of source expiry, observation plus operator TTL, and grant/installation validity. PAS takes the highest of field, source and operator sensitivity in the ordered set public, personal, sensitive, restricted. Unknown fields or excessive sensitivity deny the projection. The source echoes the grant dependency from verified delegation. PAS independently checks it against live grant state, including actor, app, workspace and allowed fields.
-
-Enforce an 8 KiB UTF-8 record limit before decoding projection text. Validate field types and byte limits against the installed schema. Treat all projected strings as quoted data. For identical authorized inputs, deduplicate by source/ref/revision, rank by explicit source selection then effective time descending and source/ref ascending. Use the shared assembler and its counter on the serialized projection including citations. Admit whole records that fit the remaining context after required turns and output reserve. Skip oversize records with a content-free reason. Return zero optional records if the budget is exhausted. No per-record model call or automatic durable memory write.
-
-## Failure and reuse
-
-Return a stable code plus opaque request ID. Use `invalid_request` (400), `unauthenticated` (401), uniform `unavailable` (404 for missing or unauthorized records), `stale_dependency` (409 for an authorized stale revision/cursor), `limit_exceeded` (413), `rate_limited` (429) or `source_unavailable` (503). Never expose another tenant's existence in errors, counts or timing-dependent pagination metadata. Retry bounded reads only after reauthorization and within deadline.
-
-Revalidate installation, grant epoch, membership, revision and expiry at search, fetch, packaging and final disclosure, including model send. Stop on change or inability to verify. Drop pending output and invalidate dependent handles, packages and summaries. Restore requires current independent revocation state before reopening reads. PAS-controlled snapshot import requires a live recheck of all dependencies, recipient and expiry. Manual export requires a separate explicit disclosure grant, owner preview and field redaction. Offline recipients can retain copied text beyond revocation or expiry. See [architecture](architecture.md) and [acceptance](delivery-and-acceptance.md).
+See [architecture](architecture.md), [ChatGPT boundaries](chatgpt-integration-boundaries.md), and [delivery and acceptance](delivery-and-acceptance.md).

@@ -1,70 +1,73 @@
-# Architecture and ownership
+# Architecture and trust boundaries
 
-[DRAFT / NOT DEPLOYED](README.md). The diagrams describe proposed trust boundaries. Each arrow that carries records requires a current, recipient-specific disclosure decision.
+**DRAFT / NOT DEPLOYED.** This page describes a proposed integration. Shipped behavior and release status are in [current state](../current-state.md). No topology here authorizes real app data, provider calls, production credentials, or deployment.
+
+## Ownership and principals
+
+| Principal | Identity source | Owns or may authorize | Boundary |
+| --- | --- | --- | --- |
+| Human owner/actor | Verified end-user identity and current membership; maps to PAS `RequestScope` | Their own request and explicit, scoped grants | IDs in a body never establish identity or consent |
+| Operator | Verified control-plane role | Install, update and disable an app source binding | Cannot perform owner reads or create owner grants |
+| External app client | Operator installation bound to one PAS app | Its own client identity | Cannot authenticate an end user by service credential |
+| Independent source service | Installation-bound service identity and pinned origin | Its own authoritative records and source-side membership checks | Does not rely on a PAS signature as a substitute for its own record rights |
+| PAS signer/verifier | PAS-managed signing keys | Narrow, short-lived delegation for one authorized operation | Signature is not a live grant or a revocation lease |
+| Recipient/host | Separate destination identity, grant and, when relevant, verified host | The exact disclosed projection or dispatch | Runtime, ChatGPT, manual, and other recipients are distinct |
+
+The human-to-PAS consumer authentication, PAS-to-source service authentication, and ChatGPT-to-PAS protected MCP authentication are separate trust relationships. A source delegation binds the verified human subject and actor, owner, app, workspace, source installation and epoch, kind/field allowlist, purpose, recipient, operation, request digest/nonce, grant and epoch, issuer, audience, issue/expiry, and key ID. Both PAS and the source check their own authority; source membership and record ownership are still required.
 
 ```mermaid
 flowchart LR
-    App[App record authority] -->|Minimal projection| Core[PAS source guard and assembler]
-    Core -->|Authorized result| MCP[PAS MCP resource server]
-    MCP -->|Connector disclosure| GPT[ChatGPT]
-    Core -->|Scoped package| Host[User runtime]
-    Core -->|Approved API operation| Gateway[PAS inference gateway]
-    Gateway --> API[Eligible API endpoint]
+  H[Verified human] -->|ID token + current membership| P[PAS RequestScope]
+  O[Verified operator] -->|install/update/disable only| I[Installed source binding]
+  P -->|live grant check + signed downscope| A[Source adapter]
+  I --> A
+  A -->|service auth + delegation| S[Independent source]
+  S -->|own record rights + revision| A
+  A -->|typed ContextItem + trusted dependency| C[Existing context coordinator]
+  C --> L[Existing planner and assembler]
 ```
 
-**Connector read.** ChatGPT sees only model-readable records released for this connection. PAS checks even search titles before returning them.
+## Shared context path
+
+The adapter is a provider of typed, bounded projections. It uses the existing `ContextItem`, application field policy, context provider coordinator, planner, and assembler. It does not add a second memory, permission engine, token counter, routing service, or model call. For the synthetic owner-domain facts, the source class is `domain_current` and authority may be `authoritative` only for the original owning application. Source text is data, not instructions. Existing same-app rules and server-owned sensitivity classification apply; no cross-app promotion is proposed.
+
+`ContextItem` mapping is specified field by field in the [application context contract](application-context-contract.md). In particular, every item has a typed payload, non-empty exact source reference, pinned source identity/revision, verified scope, field sensitivity, and a dependency created from PAS live-grant authority. Source echoed grants are never sufficient. Search maps to the existing `search` operation; `fetch` is internal adapter retrieval detail. The planner retains its existing result, byte, token and deadline limits and required-history behavior.
+
+## Installation, source reads and export
+
+Operator installation is a control plane with an operator principal. It binds app, pinned origin, service identity, schema and policy, but receives no user workspace and grants no record access. Owner reads are a separate human-scoped plane with a signed request delegation. Stage 1 uses only an in-memory synthetic installation; no production admin API, listener or credentials are in scope.
+
+Snapshot export is PAS orchestration. PAS requires an independently granted exact recipient and purpose, fetches each exact revision under that recipient-bound authority, checks all dependencies, previews/redacts, requires explicit confirmation bound to the preview digest, then returns one all-or-nothing content-bounded snapshot. Reuse inside PAS rechecks live grants/revisions. An offline copy cannot be revoked. See the contract for the complete sequence and wire schemas.
 
 ```mermaid
 sequenceDiagram
-    participant C as ChatGPT
-    participant P as PAS MCP
-    participant A as App source
-    C->>P: Search with PAS resource token
-    P->>A: Bounded search under current source grant
-    A-->>P: Scoped handles and revisions
-    P-->>C: Rechecked search results
-    C->>P: Fetch selected handle
-    P->>A: Check grant and fetch exact revision
-    A-->>P: Projected record and dependencies
-    P-->>C: Recheck then disclose cited projection
+  participant U as Verified owner
+  participant P as PAS
+  participant A as Source adapter
+  participant S as Independent source
+  U->>P: request context for current app/task
+  P->>P: resolve RequestScope, installation and live grant
+  P->>A: exact request + one-use delegation
+  A->>S: authenticated service request + delegation
+  S->>S: verify PAS claims and own record membership
+  S-->>A: authorized projection with source revision
+  A-->>P: typed ContextItem with trusted dependency
+  P->>P: planner and assembler enforce shared budgets
+  P-->>U: answer context; no automatic memory write
 ```
 
-**Plan inference.** The connected app initiates the turn. Physical send authority and token use belong to the selected user's runtime.
+For external dispatch, source checks occur at preparation and just before a single-use send permit. The host performs its last possible check and durable send-start is fenced. This is not an atomic source-to-provider transaction: if a revocation races after the final check, transmitted bytes cannot be recalled. A midstream change stops further PAS-controlled output and reuse; unknown sends remain fenced and never retry or fall back automatically. The residual check-to-wire race keeps live data blocked until measured and accepted.
 
-```mermaid
-sequenceDiagram
-    participant H as Connected app on user host
-    participant P as PAS
-    participant O as OpenAI
-    H->>P: Request bounded context for this operation
-    P-->>H: Assembled package bound to host and endpoint
-    H->>P: Revalidate source dependencies for send
-    P-->>H: Short lived single-use authorization
-    H->>O: Authorized eligible Responses request
-    O-->>H: Stream and terminal status
-    H-->>P: Minimal scoped receipt
-```
+## Inference routing boundary
 
-**Shared service and individual hosts.** The shared deployment may partition registry, policy, grant and receipt metadata by tenant. A host independently checks the initiating user, application, operation, package digest, expiry and replay fence. A host identifier by itself proves no control.
+The existing automatic `RoutingDecisionService.route()` accepts automatic `STRICT_FREE` only. Normal `explicit_paid` is unsupported, and the SIWC local bridge is a separately gated path. Automatic plan/paid composition is future work. Any future candidate-selection seam must wrap the same canonical endpoint registry, auth, policy, reservation/usage ledger, replay and dispatch lifecycle; it cannot create a second router or classify SIWC/paid as free. Cross-mode selection remains disabled until native transaction, accounting and reconciliation acceptance.
 
-```mermaid
-flowchart TB
-    Shared[Shared PAS context service] -->|Owner A package| A[User A local runtime]
-    Shared -->|Owner B package| B[User B local runtime]
-    A -->|Local credential A| OA[OpenAI account A]
-    B -->|Local credential B| OB[OpenAI account B]
-```
+Fresh owner policy is free-only. If no verified free route is eligible, return a content-free no-authorized-route state and send nothing. Offline fake is for tests and must never be presented as external inference. Paid APIs, SIWC, and MCP have independent gates.
 
-## Interface and ownership matrix
+## ChatGPT-facing edge
 
-| Interface and owner | As implemented in this checkout | Target and change |
-| --- | --- | --- |
-| App → PAS identity and selection | [Client authority](../../backend/src/personal_ai/auth/application_clients.py) checks verified client/app bindings. [Consumer contract](../platform-independence/consumer-v1.md) and [HTTP tests](../../backend/tests/test_external_consumer_http.py) cover bounded consumer operations. [Registry](../../backend/src/personal_ai/applications/registry.py) composes manifests. | Reuse owner and membership checks. Introduce authenticated independent read providers with separate operator installation and owner grants. |
-| App → context | Optional [reference apps](../../reference-apps/README.md) supply domain contributions. [Reading Logbook](../../examples/reading-logbook/README.md) owns its SQLite data. | Keep authoritative transactions, rules and UI in the app. Fetch projected records lazily. Initial scope has request-local buffers only and no replicated index. |
-| PAS context → recipient | [Assembler](../../backend/src/personal_ai/context/assembler.py) accepts provider selections, budgets turns and handles branch history. [Retrieval guard](../../backend/src/personal_ai/retrieval/service.py) checks current installation and authority. | Translate records into existing candidates, carry grant epochs to final disclosure and preserve the active branch on edit/retry. Extend revalidation across the host boundary. |
-| Memory and evidence | [Profile consent](../platform-independence/profile-sharing-v1.md) narrowly governs selected explicit preferences. [Memory policy](../../backend/src/personal_ai/memory/policy.py) governs memory admission. | Keep durable preferences separate. Time-sensitive external evidence needs observation time, rights and expiry. App revisions control current itinerary/workout facts. Summaries remain lossy and inherit dependencies for reuse. |
-| ChatGPT → PAS | [MCP adapter](../../adapters/mcp_source/README.md) exercises synthetic retrieval with trusted host scope and no deployed connector authentication. [Adapter ADR](../decisions/0024-read-only-mcp-source-adapter.md) | New protected MCP edge maps read tools onto guarded reads. Preserve private API invocation behind this edge. |
-| PAS → inference gateway | [Routing](../../backend/src/personal_ai/routing/service.py) owns authorization, reservations and dispatch. [Execution factory](../../backend/src/personal_ai/llm/execution.py) checks endpoint facts and rejects explicit paid mode. | Apply per-user restrictions inside the existing decision lifecycle. Extend accounting for verified monetary ceilings before paid admission. |
-| User host → OpenAI | [Local bridge](../../backend/src/personal_ai/local_bridge/runtime.py), [Responses serializer](../../backend/src/personal_ai/llm/chatgpt/responses.py) and [lifecycle tests](../../backend/tests/test_chatgpt_local_lifecycle.py) already cover gated local execution, local state and unknown-send fences. | Reuse this prototype. Bind the connected app and source revisions at physical send. Prove host control and live compatibility for each admitted distribution. |
+The proposed ChatGPT-facing MCP is a protected, read-only resource with only `search(query:string)` and `fetch(id:string)`. A placeholder URI and exact schemas are in [ChatGPT boundaries](chatgpt-integration-boundaries.md); the actual host, OAuth client, issuer/audience, consent and live behavior remain `BLOCKED_UNVERIFIED`. Existing `adapters/mcp_source` reads a synthetic MCP source into PAS and is a different direction. Authentication to MCP confers no SIWC or paid inference permission.
 
-**DECIDED.** Provider SDKs stay behind adapters. The source owns truth, PAS owns selection, the user owns consent, and the approved host owns plan dispatch. Secrets stay out of content, traces, logs, backups of shared metadata and snapshots. **PROPOSED.** The [source protocol](application-context-contract.md), [connector and host controls](chatgpt-integration-boundaries.md) and [routing policy](inference-routing-policy.md) require the [acceptance gates](delivery-and-acceptance.md).
+## Bounded delivery
+
+Stage 0 repairs the contracts only. After independent Stage 0 acceptance, the smallest Stage 1 slice may implement in-memory synthetic travel/fitness sources, install fakes, exact `ContextItem` mapping, shared assembler integration and deterministic positive/negative fixtures. It adds no network listener, real OAuth, MCP server, SIWC execution, paid API, persistence migration, or durable source replication. See [delivery and acceptance](delivery-and-acceptance.md) for mechanical entry/exit criteria and blocked downstream gates.

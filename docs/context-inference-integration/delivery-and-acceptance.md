@@ -1,61 +1,113 @@
 # Delivery and acceptance
 
-**DRAFT / NOT DEPLOYED.** [Current state](../current-state.md) governs production NO_GO. A passing gate admits only the named configuration, data class and execution mode. Each evidence record needs revision, configuration, fixture or consent reference, environment, observed counts, failure cases, reviewer and expiry. Keep credentials and personal content out of evidence.
+**DRAFT / NOT DEPLOYED.** This page defines proposed gates. It is not evidence that a check ran or that an external service is approved. Production remains `NO_GO` as recorded in [current state](../current-state.md).
 
-## Build order and exits
+## Stage 0 exit and Stage 1 entry
 
-| Slice | Dependencies and bounded deliverable | Exit evidence required |
+Stage 0 repairs only documentation/contracts. An independent reviewer must accept the amended source identity, install/read separation, delegation, exact `ContextItem` mapping, export flow, schema and fixtures before Stage 1 begins. At this document revision, that independent acceptance has **not** yet occurred. Stage 1 entry is therefore **NOT_READY** until that decision is recorded.
+
+After that acceptance, only the smallest synthetic source slice may begin: in-memory operator installation fakes; two travel and two fitness synthetic sources; bounded `describe`/`search`/`fetch`; typed `ContextItem` mapping; existing planner/assembler integration; deterministic positive and negative fixtures. No network listener, production REST route, live OAuth, MCP server, SIWC execution, paid API, database migration, real app records, durable replication or automatic memory write is allowed in that slice.
+
+### Frozen fixture suite
+
+Use the exact five rows and fixed clock `2030-01-02T09:00:00Z` in the [source contract](application-context-contract.md#exact-synthetic-registry-and-clock). The positive authorized item IDs are exactly `(itinerary-demo,r01,v7)` and `(workout-demo,r01,v2)` for owner A, and `(itinerary-demo,r01,v4)` and `(workout-demo,r01,v3)` for owner B, when the matching app/workspace/grant is selected. Results sort by effective time descending, then `record_ref` ascending, then source ID for exact ties. `trip-a-ungranted/r01/v1` is never returned or titled. Replaying an identical authorized request is byte-identical.
+
+The hermetic gate requires all of these outcomes:
+
+| Case | Expected outcome |
+| --- | --- |
+| Two operator installs with no user workspace | Both install and receive distinct PAS-assigned source IDs/epochs |
+| Service credential without verified human RequestScope | `unauthenticated`; zero source lookup |
+| Data caller tries install/update/disable | `unauthenticated` or `invalid_request`; no registry mutation |
+| Missing/unknown source, disabled installation, unsupported schema | Deny before source lookup |
+| Owner A reads owner A matching travel/fitness tuples | Exact A fixture records only |
+| Owner B reads owner B matching travel/fitness tuples | Exact B fixture records only |
+| Different subject with same email; wrong owner, actor, app, workspace, source, recipient, purpose, grant, epoch, issuer, audience, nonce or signature | Uniform denial; zero foreign titles; no lookup where authority is invalid |
+| Owner A reads ungranted workspace | `unavailable`; no title, count, cursor or timing disclosure |
+| Search cursor with changed watermark/grant epoch; stale fetch revision | `stale_dependency`; caller must reauthorize and search again |
+| Runtime grant used for ChatGPT/manual snapshot | Deny; no recipient reuse |
+| New recipient, purpose or field after preview; changed/revoked/stale record | Deny entire export; no partial snapshot |
+| Valid separately granted recipient snapshot | Re-fetch exact revisions, preview, explicit digest-bound confirmation, all-or-nothing typed snapshot; content-free receipt |
+| Oversized, invalid UTF-8, wrong field type, unknown field/classification, invalid PAS identifier round-trip | `limit_exceeded` or `invalid_request`; no normalization and no disclosure |
+| Future/naive/expired observation or invalid effective/expiry interval | Deny |
+| Cross-app context, missing source ref, downgraded sensitivity, missing trusted permission dependency | Deny; unchanged `ContextItem` validation |
+| Limits exhausted | Existing planner/assembler bounds apply; preserve required history; zero optional records if necessary |
+| Every source preparation case | Zero model calls, zero provider sends, zero durable-memory writes |
+
+Error priority is authentication → schema/installation → authorization → cursor/revision → record lookup → bounds. Missing and unauthorized records are indistinguishable. A stale code is returned only after the caller is authorized to know the selected record. Count each source search/fetch against one shared turn deadline and byte/token/result budget; enforce raw UTF-8 message limits before parsing. Confirm deterministic order and counters from the exact installed fake registry. The initial runtime grant is never a ChatGPT export grant.
+
+## Validation classes and evidence
+
+Label evidence by what it actually proves:
+
+| Class | Proves | Does not prove |
 | --- | --- | --- |
-| Independent source reads | [Provider contract](application-context-contract.md), current identity and assembler. Implement a synthetic registry plus travel and fitness adapters, describe/search/fetch and explicit snapshot assembly. No external listener or real data. | Hermetic two-owner matrix below, exact output/ordering and token counts, zero model calls for retrieval. |
-| ChatGPT reads | Source slice. New protected-resource edge, connector account linking, two read tools and manual export UX. | Installed OAuth negative tests and authorized direct/indirect prompts on a named ChatGPT surface. Admit manual mode separately. |
-| Local plan execution | Source slice. Extend the existing local bridge with connected-app and dependency checks. Independently gate this slice from MCP. | Prove user custody, supported serializer, model discovery, authorized terminal stream and denial on mismatch/disconnect for a named local distribution. |
-| Configurable routing and costs | Stable source and dispatch contracts. Add user policy, inspector, payer-bound price registry, atomic holds and reconciliation. Subscription stays absent from candidates until its own gate passes. | Native concurrency/replay and audited cost bounds. Only separately authorized billing verification can admit a paid endpoint. |
-| Shared context service | Source and identity gates plus each enabled integration's gates. Tenant-scoped registries, receipts, deletion fences, isolated runtime binding. | Deployed private invocation, egress controls, two-user isolation and restore drills. Managed plan proxy remains blocked. |
-| Independent acceptance | Per-mode evidence from preceding slices. Review source rights, identity, actual provider behavior, recovery, privacy and usefulness. | Dated independent decision with allowed scope, rollback trigger and owner. Remaining modes stay disabled. |
+| Doc/static | Links, strict JSON syntax, balanced Mermaid fences, schema cross-references | Runtime behavior, provider support, authorization correctness |
+| Hermetic fake | Deterministic local authorization, limits, fixture behavior and counters | Real identity, TLS, OAuth, external-source rights or production security |
+| Installed local | Behavior on a named user-controlled app/host | Shared cloud isolation or other users' settings |
+| Native persistence | Atomic local/database reservations, replay and restore behavior | Live provider billing or cloud deployment |
+| Live OAuth/provider | Exact installed identity, client/scope, model and observed provider response | Other apps/users, future provider policy, production scale |
+| Deployed recovery | Real revocation, deletion/restore, private egress and tenant isolation | Legal approval or untested billing scenarios |
+| Billing | Actual account/period/credit and enforceable exposure evidence | Hard cap unless the provider maximum is enforceable |
+| Longitudinal quality | Measured quality/latency and drift on an accepted benchmark | Authorization, no-charge behavior, or external approval |
 
-## Acceptance matrix
+For the first synthetic slice, only doc/static and hermetic fake checks are required. Record evidence under `docs/context-inference-integration/evidence/` or another non-product, content-free dated report path with revision, commands, exit codes, fixture/identity scope, warnings, and skipped gates. Never include personal data, bearer material, credentials or source payloads. The owner of this project maintains the evidence record; an independent reviewer records the Stage 0 acceptance decision and remaining gate status. No live, OAuth, provider, billing, persistence, deployment, or recovery check is asserted here.
 
-Run a Cartesian fixture of owners A/B with both travel and fitness registered for each. Give each owner an isolated workspace per app, one scoped grant, an independent host and account. Reuse the same opaque record ref in all four partitions. Give A a second travel workspace without a grant. Use controlled time, varying revisions and distinct sentinel values per partition. Count source reads, disclosures, physical sends, allowance debits, charges and durable receipts.
+## Revocation, dispatch and billing fail-closed rules
 
-| Scenario | Required observation | Minimum evidence |
+Source freshness is checked during preparation and immediately before a single-use, short-lived send permit. The verified host performs its last possible check; send-start is durably fenced. A change seen before send denies. A midstream change stops further PAS-controlled output/reuse, but bytes already transmitted cannot be recalled. This is not an atomic source-to-provider transaction; the residual check-to-wire race remains a live-data blocker. Unknown sends stay pending reconciliation, retain their hold/fence across restart or billing rollover, and never automatically retry or fall back.
+
+Automatic route selection currently supports `STRICT_FREE` only. Future paid execution must bind exact endpoint profile/version, model, payer/account, recipient, data use and price revision and fit both a UTC-calendar-month owner budget and provider-account-specific billing period, including unsettled holds and prior-period unknowns. If either cap cannot be enforced or a send outcome is unknown, deny further spending. Subscription allowance is separate from paid monetary accounting. Offline fake is test-only; no eligible free endpoint means no send, not silent paid/plan selection.
+
+## Decision and gate ledger
+
+Statuses are stable: `DECIDED`, `PROPOSED`, `OPEN`, `BLOCKED_PENDING_APPROVAL`, `BLOCKED_UNVERIFIED`. Every entry names an accountable role, next evidence/action, risk and affected gate. “Owner” below means project maintainer; it assigns accountability, not independent acceptance.
+
+| Area | Status | Owner / next evidence | Risk and affected gate |
+| --- | --- | --- | --- |
+| Synthetic in-memory source, installation fake and ContextItem mapping | `PROPOSED` | Project maintainer: obtain independent Stage 0 acceptance, then implement frozen hermetic suite | Identity/mapping errors; blocks Stage 1 until acceptance and suite pass |
+| Source HTTPS identity, delegation verifier and source-side membership | `BLOCKED_UNVERIFIED` | Project maintainer: later produce exact issuer, audience, key rotation, pinned origin and source rights evidence | Cross-tenant reads; blocks live source data |
+| ChatGPT-facing protected MCP | `BLOCKED_UNVERIFIED` | Project maintainer: choose a real installed client and registration method; verify issuer, audience, scope, search/fetch and citation isolation | Wrong resource/client could disclose data; blocks MCP |
+| Manual export | `PROPOSED` | Project maintainer: review recipient-specific grant, digest preview, all-or-nothing stale handling and offline-copy wording | Irreversible copy; blocks real/manual data export |
+| SIWC local connected app | `BLOCKED_UNVERIFIED` | Project maintainer: obtain exact app/user/workspace/host eligibility, zero-credit-spend evidence, serializer and terminal usage result | Allowance/credit charge and custody; blocks SIWC |
+| SIWC managed multi-app execution | `BLOCKED_PENDING_APPROVAL` | Project maintainer: obtain written provider approval for exact topology before any execution work | Shared subscription proxy and credential custody; independently blocked |
+| Free external inference | `PROPOSED` / existing limited strict-free route | Project maintainer: keep endpoint/model/account zero-charge evidence current and route through current strict-free path | Quota, terms or account drift; no verified route means no send |
+| Paid inference | `BLOCKED_UNVERIFIED` | Project maintainer: exact consent plus native atomic accounting, enforceable cap and billing reconciliation | Unbounded spend; blocks paid APIs |
+| Shared-host live data | `BLOCKED_UNVERIFIED` | Project maintainer: deployed identity, isolation, private egress, restore/deletion and revocation race evidence | Tenant leakage and irreversibility; blocks shared hosting/live data |
+| Latency and longitudinal quality thresholds | `OPEN` | Project maintainer and independent evaluator: establish thresholds from an accepted workload and record measurement method before promotion | Unknown performance/quality; does not block synthetic authorization suite, blocks quality claims |
+| Naming-check claim about unavailable companion planning input | `OPEN` / unverified companion reference | Project maintainer: identify a tracked path and exact check output if reproducible; otherwise retain as unverified external-input note | Do not rename unrelated history or claim a repository failure; no Stage 1 blocker |
+
+## Finding disposition
+
+This table records document changes in this remediation; it is not external approval or proof of runtime readiness.
+
+| Finding | Disposition | Document location / residual proof gap |
 | --- | --- | --- |
-| Travel and fitness positive reads | Return only exact current leg or workout projection for its owner/app/workspace, with revision, sensitivity and citation. Same input and clock produce identical ordered bytes. | Hermetic fake |
-| Swap owner, workspace, app, ref, cursor, grant scope, recipient or actor independently | Uniform denial for unauthorized lookup, zero foreign records/titles, sends or ledger effects. Repeat in both directions and on exported data. | Hermetic plus installed local |
-| Revision or grant changes after search, package, before send, midstream | Stale fetch fails, unsent package denied, further disclosures stop, past send recorded. Expired or revoked snapshot fails PAS reuse. | Fake barriers plus installed send-boundary integration |
-| Current app fact disagrees with memory, summary or old evidence | Current authorized revision controls the answer. With unavailable source, report missing evidence. No stale summary substitution. | Hermetic plus longitudinal answer evaluation |
-| Malicious record contains tool or billing instructions | Only projected data returned. Zero extra tools, expanded sources or paid sends. Inspect generated answers separately. | Fake plus live quality review |
-| Connector auth expired, issuer/audience/client wrong, missing scope, same-email wrong subject | Zero disclosed records and zero outbound reads before admission. Valid installed connection returns cited synthetic result. | Installed OAuth plus live connector |
-| Direct and indirect ChatGPT prompt, unavailable installation | Record selection and citation accuracy separately. Direct request retrieves authorized fixture. Unsupported surface can preview/export limited fields for manual use. | Live named surface plus local export |
-| Eligible local SIWC, identity-only, expired, disconnected, wrong app/account/host or foreign trigger | Positive account-visible model completes supported stream. All invalid cases have zero plan dispatch after denial. No remote token persistence. | Installed custody plus live authorized account |
-| Remote control uncertain, managed host, background consent absent/revoked | Zero plan sends even when operator routing preference lists subscription first. | Installed and deployed isolation |
-| New account, misclassified model, free quota exhausted | Zero paid or plan calls. Use only another verified free route or stop. | Hermetic and installed physical send counter |
-| Custom order, one eligible candidate at each rank | First eligible subscription/free/approved-paid endpoint wins. Denied endpoint/model/payer, missing price or exhausted ceiling produce zero paid sends. | Hermetic plus native ledger |
-| Concurrent paid requests, price change, month boundary, duplicate settlement | Settled plus outstanding liability obeys caps. Each approved send has one pre-send hold and one eventual settlement. Retain unknown exposure. | Native transactions plus authorized provider billing comparison |
-| Conclusive no-send, ambiguous send, stream break, crash and retry | Only proven safe failure advances. Unknown attempts retain hold and fence across restart, replay and new provider selection. | Hermetic fault injection plus native crash/restart |
-| Owner deleted, host remapped or revoked grant restored from backup | Quarantine until current tombstones/epochs and receipt fences are reconciled. No data, quota or logs visible to other owner. | Deployed recovery drill |
+| CI-001 | `FIXED` | [Application context contract](application-context-contract.md): separate operator/data planes; only synthetic install fake proposed |
+| CI-002 | `FIXED` | [Application context contract](application-context-contract.md), [architecture](architecture.md): five principals and exact delegation claims; actual verifier remains unimplemented |
+| CI-003 | `FIXED` | [Application context contract](application-context-contract.md): exact PAS mapping; runtime adapter remains unimplemented |
+| CI-004 | `FIXED` | [Application context contract](application-context-contract.md): recipient-bound export flow and copy limitation; runtime handling remains unimplemented |
+| CI-005 | `FIXED` | [Application context contract](application-context-contract.md): schemas, bounds, fixtures and stale error; schema has not been consumed by implementation |
+| CI-006 | `FIXED` | [Architecture](architecture.md), [routing policy](inference-routing-policy.md): strict-free current boundary; no new route implemented |
+| CI-007 | `FIXED` | [Routing policy](inference-routing-policy.md): exact model/profile/payer/account/recipient and price revision; paid execution remains blocked |
+| CI-008 | `FIXED` | [ChatGPT boundaries](chatgpt-integration-boundaries.md): proposed URI and two-tool schema; exact installed client conformance remains blocked/unverified |
+| CI-009 | `FIXED` | [Routing policy](inference-routing-policy.md), [ChatGPT boundaries](chatgpt-integration-boundaries.md): separate preference/evidence/eligibility; no live account evidence |
+| CI-010 | `FIXED` | [Application context contract](application-context-contract.md), [ChatGPT boundaries](chatgpt-integration-boundaries.md): explicit non-atomic race and send fence; live race measurement remains blocked |
+| CI-011 | `FIXED` | [Routing policy](inference-routing-policy.md): UTC owner and provider account periods with unsettled holds; no native ledger proof |
+| CI-012 | `FIXED` | [Routing policy](inference-routing-policy.md): free status matrix and zero-send behavior; user-facing implementation remains future |
+| CI-013 | `FIXED` | This page: frozen fixture outcomes, evidence classes, owners and independent gates; no suite executed here |
+| CI-014 | `FIXED` | This page: companion naming assertion explicitly unverified; no unsupported naming-check claim |
 
-## Baselines and decision ledger
+## Promotion gates
 
-On fixed cold and warm synthetic corpora, compare no-source turns to one-source and maximum-size turns. Record p50/p95 added latency, calls, bytes, input-token delta and skipped records with a pinned counter. Targets are zero extra model calls for retrieval, zero over-budget turns, bounded fetch counts and identical selection on replay. Measure authorization-to-send delay under load and revocation races. Establish a reviewed numerical p95 latency and race-window ceiling from those measurements before promotion. Evaluate answer correctness and citation revision against labeled facts, including missing evidence and changed itineraries. Establish acceptance thresholds on held-out prompts before live quality trials. Measure maximum reserved versus invoiced cost and reconciliation lag for each price revision. Require zero uncovered liability and duplicate charges. Set a maximum unresolved age for escalation, never automatic release.
-
-| Status and decision/risk | Evidence owner and next action | Until resolved |
+| Area | Current decision | Minimum independent gate |
 | --- | --- | --- |
-| DECIDED — domain ownership, one assembler, distinct authorizations, free-only factory | Architecture owner checks [interfaces](architecture.md) and [policy](inference-routing-policy.md) in implementation review | Reject alternate paths around these checks |
-| PROPOSED — typed provider, paging and deterministic budget | Source owner builds the first slice and records baseline | Synthetic data only |
-| BLOCKED_UNVERIFIED — private source identity, host authority and revocation race | Security owner demonstrates authenticated source delegation and final dependency check at physical send, measures race, validates logs, deletion and backup recovery | No real personal records or shared deployment |
-| BLOCKED_UNVERIFIED — MCP availability | Connector owner verifies named workspace, registered client and live tool schemas | Manual export subject to its own consent and data gate |
-| BLOCKED_UNVERIFIED — specific connected app, local or exclusively controlled remote runtime | Integration owner documents feature/distribution and free access, proves local credential custody, control, account-specific eligibility, plan-only billing and scoped consent | No real plan credential use until authorized controlled trial, no admitted route before successful trial |
-| BLOCKED_PENDING_APPROVAL — managed SIWC or generic multi-app inference | Distribution owner obtains written provider authorization covering the exact app, host and custody model and independent review | No managed plan execution or subscription pooling |
-| BLOCKED_UNVERIFIED — live free pricing, paid ceilings, ambiguous settlement | Accounting owner verifies current attestation, enforceable maximum, provider receipts and native ledger under replay | Omit unverified free endpoints. Disable paid traffic except separately approved gated verification. |
-| OPEN — quality and latency thresholds | Evaluation owner locks measured baselines, held-out rubric and per-mode targets | No quality or performance promotion |
+| Stage 1 synthetic source | `NOT_READY` pending independent Stage 0 acceptance | Frozen contract acceptance, then hermetic suite with zero sends, model calls and memory writes |
+| ChatGPT MCP | `BLOCKED_UNVERIFIED` | Installed OAuth/client and live negative isolation/citation checks |
+| Manual export of real data | `BLOCKED_UNVERIFIED` | Recipient-bound live grant and disclosure/revocation review |
+| Local SIWC | `BLOCKED_UNVERIFIED` | Provider/program eligibility, user-controlled host, zero-credit-spend and terminal usage proof |
+| Managed multi-app SIWC | `BLOCKED_PENDING_APPROVAL` | Written provider approval for exact topology and custody |
+| Paid APIs | `BLOCKED_UNVERIFIED` | Exact paid consent, hard cap, native holds and reconciliation proof |
+| Shared cloud hosting | `BLOCKED_UNVERIFIED` | Real auth, isolation, private ingress/egress, deletion/restore and recovery drills |
 
-The supplied planning reference currently triggers the repository naming check at two historical numbering references. Documentation owner should resolve the planning text separately before relying on a green repository-wide naming gate.
-
-## Implementation-readiness checklist
-
-- [ ] Pin the draft versions, fixture clock, source schemas, identity tuples and denial counters before writing the adapters.
-- [ ] Assign owners for grant/epoch authority, revocation barrier, receipt fencing and evidence retention. No live data needed for the first slice.
-- [ ] Before real credentials, document terms review, specific app eligibility, user control, local storage and disconnect/recovery results. Obtain explicit test-user authorization and a bounded trial plan.
-- [ ] Before personal data or shared hosting, independently verify deployed identity, private invocation, source rights, recipient disclosure, isolation, egress, deletion and restore.
-- [ ] Before paid verification, obtain explicit payer approval for exact pricing, amount, account and test period. Demonstrate native holds and unknown-send handling first.
-- [ ] Record evidence separately for static review, hermetic fake, installed local integration, native persistence, live provider, deployed recovery and longitudinal usefulness. Platform admission and answer quality need separate decisions.
+No fake, documentation check, or offline result advances these independent gates by itself.

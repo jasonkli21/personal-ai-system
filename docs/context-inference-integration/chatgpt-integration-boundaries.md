@@ -1,46 +1,70 @@
 # ChatGPT integration boundaries
 
-**DRAFT / NOT DEPLOYED.** Connecting a source to ChatGPT authorizes a disclosure to ChatGPT. Authorizing plan inference lets an eligible connected app use an allowance. A user can authorize either independently. Neither token is accepted at the other resource.
+**DRAFT / NOT DEPLOYED.** These are separate proposed interfaces, not a claim that PAS has a deployed ChatGPT connection. Each direction needs its own identity, grants, evidence and release decision.
 
-## Connector read
+## Read direction: ChatGPT to PAS protected MCP
 
-The user owns the records. PAS acts as the OAuth protected resource, with a configured authorization server. Advertise protected-resource metadata, require authorization code with PKCE S256 and exact redirect URIs, and bind the resource indicator to the canonical MCP audience. At each tool call validate issuer, signature, audience, expiry, approved client identity, read scope and connection state. Link the authenticated issuer/subject to a verified PAS owner through an explicit account-link flow. Re-read workspace membership and the source grant for this connector, purpose and fields. Keep the connector edge separate from the private core. Revoke at the issuer and disable the local mapping immediately on disconnect.
+The proposed resource is a protected read-only MCP server over Streamable HTTP at placeholder URI `https://pas.example.invalid/mcp`. This non-resolving URI and `/mcp` path are contract placeholders, not an owned hostname or deployed endpoint. The resource must publish OAuth protected-resource metadata and issuer metadata, use authorization code with PKCE for a named supported client, bind access tokens to this resource audience and exact scopes, and verify issuer, audience, expiry, client binding and source/workspace grant on every call. The actual ChatGPT surface, redirect URI, client registration choice (CIMD, DCR, or preconfigured), issuer, audience, scopes, host and deployment remain `BLOCKED_UNVERIFIED` until installed and checked against a real client.
 
-Offer only read-only annotated tools. For the retrieval compatibility surface, map `search(query: string)` to a bounded list of authorized `{id,title,url}` entries under `results`. Bind opaque result IDs to the connection, source, revision and expiry. Map `fetch(id: string)` to `{id,title,text,url,metadata}` with source revision and observation time. Use model-readable JSON in MCP text content, with matching structured content where supported. Citation URLs require current authorization and contain no bearer secrets. Enforce read-only behavior in the handler. When a surface cannot install/select the plugin, offer an explicit recipient-bound [snapshot](application-context-contract.md). Users choose whether to transfer it.
+Each disclosure has a separate live owner grant naming exact source, app, workspace, fields, purpose, recipient and expiry. ChatGPT identity alone grants no source access and does not authorize plan or paid inference. No arbitrary tools, mutations, prompts that invoke tools, cross-resource token exchange, or bearer tokens in URLs are permitted. Citation URLs are authenticated resolution handles scoped to the same owner and resource; they contain no bearer query parameter and disclose nothing to a foreign tenant. Errors are bounded and content-free.
 
-## Plan execution
+The only proposed tools are:
 
-**DECIDED.** Start with one identified local app distribution and named in-app operation. Bind verified PAS owner, PAS app/workspace, OpenAI subject/workspace, issued OAuth client, host, operation and plan consent. Record an explicit user-confirmed link across the two identity systems. A common PAS backend or matching email establishes none of those associations. Remapping invalidates outstanding authorizations. Another app cannot submit arbitrary prompts with this connection. Registration and account discovery alone do not admit a route.
-
-The user initiates sign-in on their local installation. Use supported OAuth/PKCE and verify state, nonce, ID token, account, granted inference scopes and model visibility. The stable opaque host ID identifies one installation. Verify host possession and user control separately. Persist credentials only on the user's local controlled device. Serialize renewal and rotation there. On disconnect fence sends first, clear local credentials and track any pending upstream revocation. Keep credential material out of PAS, telemetry and portable state. A possible user-exclusive remote execution host requires separate control and credential-custody evidence. The initial design admits local execution only. Explicit background consent names app, operation, host, cadence/limit and expiry and is rechecked per run.
-
-## Provider evidence and open eligibility decisions
-
-Public documents reviewed **2026-11-17**. These are engineering constraints. Release admission requires evidence for the actual app, account, host and terms in force at dispatch. Record reviewer, source revision/date, expiry and the mode covered. Changed or expired evidence disables that mode.
-
-| Published rule or limitation | PAS consequence and evidence owner | Official source |
-| --- | --- | --- |
-| Plan use is limited to the connected app and its user, with user-controlled execution, explicit background authorization, no pooling and no developer paywall for this use. Persistent tokens must be local under user control. | **BLOCKED_PENDING_APPROVAL** for generic multi-app or managed SIWC. Distribution owner must obtain applicable written program approval covering app identity, initiation, hosting, custody and charging. A submitted interest form confers no approval. | [SIWC terms §§1, 3.1](https://openai.com/policies/sign-in-with-chatgpt-terms/) |
-| OSS registration binds the issued client to the user/workspace. Each host has a stable identifier. Identity and plan access do not expose chats or memories. | **BLOCKED_UNVERIFIED** for each local app until its owner documents the connected feature, distribution and exclusive host control and tests an actual authorized session. | [Open-source overview](https://developers.openai.com/siwc/token-sharing-open-source) |
-| Identity and Responses scopes are distinct. Commercial participation is selective. | Integration owner verifies actual scopes and program enrollment. Identity-only connections have no inference route. | [SIWC quickstart](https://developers.openai.com/siwc/quickstart) |
-| HTTP preview requires input history, streaming and disabled storage. Several fields and tools are unsupported, including max_output_tokens and hosted MCP. | Adapter owner verifies discovered model and text-only serializer with store=false, stream=true, input array, no unsupported fields/tools and a terminal event. Incompatibility excludes this candidate. | [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations) |
-| Participating commercial plans and workspace permissions vary. Applicable credits may be used depending on settings. | Operator must establish plan-only usage for this account and operation. A plan name or commercial help article cannot establish OSS eligibility or a zero incremental charge. Unknown credit behavior denies. | [Plan availability and credits](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites) |
-| MCP tool descriptors, annotations and output schemas define the installed tool surface. Retrieval integrations can require compatible search/fetch. | Connector owner pins and validates the negotiated schemas and read-only handlers before enabling that surface. | [Plugin MCP server](https://developers.openai.com/plugins/build/mcp-server), [remote MCP retrieval](https://developers.openai.com/api/docs/mcp) |
-| Protected MCP resources use resource-specific OAuth. Client authentication complements end-user authorization. | Identity owner must verify registration, production client identity and owner mapping against an installed client. Reject unknown clients. | [Plugin authentication](https://developers.openai.com/plugins/build/auth) |
-| Installation, workspace controls and tool selection determine whether ChatGPT can call the connector. | Product owner tests direct and indirect prompts on the named surface and records actual tool selection. Availability elsewhere remains open. | [Connect and test](https://developers.openai.com/plugins/deploy/connect-chatgpt) |
-
-## Threats and residual limits
-
-| Boundary and failure | Preventive control | Acceptance probe | Residual limitation |
+| Tool | Input schema | Output schema | Annotation |
 | --- | --- | --- | --- |
-| App/MCP user substitutes another tenant's handle or changes app in a record | Bind current identity, workspace, grant and revision at both peers | Swap handles across two owners and two apps, including search titles | A compromised authorized source can misstate its own data |
-| Record asks model to expand search, expose secrets or approve paid use | Quote projected fields as data, keep tool and cost authority in trusted code | Insert synthetic instruction and inspect side effects, receipts and projections | Generated text may still be misleading |
-| Account hint or stale client mapping links wrong owner | Verified issuer/subject and explicit linking, rotate mapping epoch | Same email, different subject, then remap during preparation | Already disclosed results persist |
-| Managed worker attempts to use local plan token | Local custody, isolated process and deny managed execution | Inspect shared storage, logs, egress and backup after connect/refresh | Compromised user host remains a risk |
-| Grant expires between prepare/send or snapshot is replayed | Final dependency check, short expiry, single-use send authorization | Revoke before send, during stream and before reimport | Cannot claw back transmitted prompts, copies or results. Bound and measure check-to-send race. |
-| Stale price, exhausted quota or ambiguous send causes double charge | Atomic reservation, unique attempt and unknown-send fence | Change price and crash across send/settle under concurrent retries | Provider billing can settle late |
-| Cached summary displaces current record | Require source revision and freshness for current facts | Change itinerary after summary and compare selected evidence | Unavailable source leaves answer incomplete |
-| Restore or owner deletion resurrects grants | Independent deletion/revocation watermark, quarantine restored state | Restore old database and roll back clock after revoke/delete | Physical erasure needs native backup evidence |
-| Scheduled work consumes allowance after consent ends | Operation-specific expiring consent and initiating-owner check | Trigger from another user and revoke between runs | Previously consumed allowance persists |
+| `search` | `{ "type":"object", "properties":{"query":{"type":"string","minLength":1,"maxLength":256}}, "required":["query"], "additionalProperties":false }` | `{ "results":[{"id":"opaque","title":"authorized title","url":"authenticated citation URL"}] }` | `readOnlyHint:true`, `destructiveHint:false`, `openWorldHint:false` |
+| `fetch` | `{ "type":"object", "properties":{"id":{"type":"string","minLength":1,"maxLength":200}}, "required":["id"], "additionalProperties":false }` | `{ "id":"opaque","title":"authorized title","text":"bounded projection","url":"authenticated citation URL","metadata":{"source":"opaque","revision":"opaque"} }` | `readOnlyHint:true`, `destructiveHint:false`, `openWorldHint:false` |
 
-See [routing](inference-routing-policy.md) for failure transitions and [delivery](delivery-and-acceptance.md) for evidence requirements.
+Both JSON text content and MCP structured content must encode the same bounded value. Search results are authorized before titles are returned. `fetch` accepts only a previously authorized opaque item reference under the caller's active owner/app/workspace grant. Invalid issuer, audience, client, scope, connection or mapping returns a uniform denial with no records. Exact error names and transport conformance remain to be reviewed against the installed MCP client before implementation.
+
+Proposed complete JSON Schema descriptors (the server validates the input schema and returns output matching the declared schema):
+
+```json
+{
+  "tools": [
+    {
+      "name": "search",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "inputSchema": {"type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":256}},"required":["query"],"additionalProperties":false},
+      "outputSchema": {"type":"object","properties":{"results":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"id":{"type":"string","maxLength":200},"title":{"type":"string","maxLength":256},"url":{"type":"string","format":"uri"}},"required":["id","title","url"],"additionalProperties":false}}},"required":["results"],"additionalProperties":false}
+    },
+    {
+      "name": "fetch",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "inputSchema": {"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":200}},"required":["id"],"additionalProperties":false},
+      "outputSchema": {"type":"object","properties":{"id":{"type":"string","maxLength":200},"title":{"type":"string","maxLength":256},"text":{"type":"string","maxLength":8192},"url":{"type":"string","format":"uri"},"metadata":{"type":"object","properties":{"source":{"type":"string","maxLength":100},"revision":{"type":"string","maxLength":100}},"required":["source","revision"],"additionalProperties":false}},"required":["id","title","text","url","metadata"],"additionalProperties":false}
+    }
+  ]
+}
+```
+
+The existing `adapters/mcp_source` direction reads an MCP source into PAS. It is not this protected ChatGPT-facing PAS resource and does not provide its OAuth or server contract.
+
+## Export direction: PAS snapshot for manual use
+
+Manual export requires a live grant for the exact ChatGPT/manual recipient, purpose, fields and selected source revisions. A grant to `runtime-a` or `runtime-b` cannot be reused. PAS authenticates owner/actor, re-fetches exact revisions under recipient-bound authority, checks grant and expiry, creates a redacted preview, binds confirmation to recipient/purpose/fields/content digest, then returns an all-or-nothing snapshot and content-free audit receipt. If one item is stale, unauthorized or unavailable, reject the whole export. PAS rechecks dependencies before any PAS-controlled import/reuse.
+
+Portable content contains no bearer token, delegation, credential, raw grant secret or authority-bearing URL. A snapshot ID is not a bearer authorization. A local download handle must be owner-bound and short-lived. Explain before confirmation that a manual recipient may retain a copied snapshot after revocation or expiry; PAS cannot recall an offline copy. See the exact export sequence in the [source contract](application-context-contract.md).
+
+## Execution direction: connected-app inference
+
+ChatGPT authentication and MCP read access do not grant SIWC or paid execution. SIWC plan inference is a distinct connected-app route with exact user, app, operation, model, host and provider eligibility. User preference, observed account/workspace credit settings, and runtime/distribution eligibility are separate evidence. If credits/no-charge behavior is unknown, deny. The runtime must be user-controlled; persistent SIWC credentials cannot live on PAS shared managed infrastructure. No paid upgrade may be required to use an eligible plan route. Generic multi-app plan proxy remains `BLOCKED_PENDING_APPROVAL`; a named local connected app remains `BLOCKED_UNVERIFIED` until evidence is obtained.
+
+Any future provider send checks source, grant and recipient at preparation and just before a single-use short-lived permit; the verified host performs its final possible check and durably fences send-start. This is not an atomic source-to-provider guarantee. A change noticed before send denies; a midstream change stops further PAS-controlled output/reuse, but already transmitted bytes cannot be recalled. Unknown sends never retry or fall back automatically. The residual check-to-wire race blocks live data pending measured acceptance.
+
+## Independent status
+
+| Capability | Status | Minimum next evidence |
+| --- | --- | --- |
+| Synthetic source projection into PAS | Proposed; Stage 1 only after independent Stage 0 acceptance | Fixed fixtures, authorization/byte/revision checks and existing assembler evidence |
+| Protected ChatGPT-facing MCP | `BLOCKED_UNVERIFIED` | Installed client and chosen registration method; issuer/audience/scope review; live isolation and citation checks |
+| Manual ChatGPT snapshot | Proposed, recipient-grant gated | Preview/recheck, copy warning and independent disclosure review |
+| User-controlled local SIWC | `BLOCKED_UNVERIFIED` | Exact app/user/workspace/host approval; provider eligibility, credits, serializer and usage evidence |
+| PAS-managed multi-app SIWC | `BLOCKED_PENDING_APPROVAL` | Written provider authorization for exact hosting, app scope and credential custody |
+| Paid API | `BLOCKED_UNVERIFIED` | Exact endpoint/model/payer grant, enforceable cap, atomic holds and reconciliation |
+
+No evidence in this draft admits a live surface, OAuth client, provider account, endpoint, host, or distribution.
