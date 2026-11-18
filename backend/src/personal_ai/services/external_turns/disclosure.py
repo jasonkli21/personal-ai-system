@@ -34,8 +34,8 @@ class ExternalTurnDisclosure:
             raise ConversationConflictError("automatic_execution_uses_existing_routing_lane")
         self._validate_launch_context(request, conversation_id)
         disclosure = self._disclosure_policy(choice.mode)
-        self._snapshot(conversation_id, choice, ())
-        excluded, _ = self._request_sources(request, disclosure)
+        excluded, source_free = self._request_sources(request, disclosure)
+        self._snapshot(conversation_id, choice, (), source_free=source_free)
         self.chat.validate_manual_import_candidates(conversation_id, request.candidate_message_ids)
         candidate_message_ids = () if "conversation" in excluded else request.candidate_message_ids
         plan, direct_count = self.chat.preview_external_context(
@@ -44,7 +44,9 @@ class ExternalTurnDisclosure:
             candidate_message_ids=candidate_message_ids,
             candidate_entities=request.entity_refs,
             explicit_context_selections=request.explicit_context_selections,
-            history_authorizer=lambda ids: self._snapshot(conversation_id, choice, ids),
+            history_authorizer=lambda ids: self._snapshot(
+                conversation_id, choice, ids, source_free=source_free
+            ),
             excluded_source_classes=excluded,
             maximum_context_sensitivity=disclosure.maximum_sensitivity,
             context_assembler=self.context_assembler,

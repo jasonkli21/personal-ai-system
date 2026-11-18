@@ -16,7 +16,7 @@ from personal_ai.context import ContextAssembler
 from personal_ai.context.tokens import EstimatedTokenCounter
 from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.entities import Conversation, Message, MessageRole, MessageStatus
-from personal_ai.entities.turn_execution import TurnAttribution
+from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
 from personal_ai.llm.chatgpt.responses import ChatGPTResponses
 from personal_ai.llm.client import ExternalCompletion
 from personal_ai.llm.external import CHATGPT_PLAN_PROFILE
@@ -252,6 +252,69 @@ def test_issuer_requires_paired_foreground_principal_and_denies_explicit_sources
     )
     assert not provider.requests and not fallback
     assert [call for call in bridge.lifecycle.oauth.calls if call[0] == "refresh"] == []
+
+
+def test_preview_uses_source_free_snapshot_for_inherited_active_history(local_turn):
+    service, cid, request, _bridge, provider, _session, fallback = local_turn
+
+    clean = service.preview(cid, request)
+    assert clean["selected_message_count"] == 2
+    assert not provider.requests and not fallback
+
+    active = service.authority.messages.list_active(
+        owner_id=service.context.scope.owner_id,
+        conversation_id=cid,
+    )
+    assistant = next(message for message in active if message.role == MessageRole.ASSISTANT)
+    snapshot = ContextSourceSnapshot(
+        provider_id="synthetic.source",
+        source_id="record",
+        source_version="v1",
+        item_id="item",
+        owner_id=assistant.owner_id,
+        application_id=assistant.application_id,
+        workspace_id=None,
+        operation="current",
+        content_fingerprint="a" * 64,
+    )
+    service.authority.messages._messages[assistant.id] = assistant.model_copy(
+        update={
+            "attribution": TurnAttribution(
+                fact_source="server_observed",
+                execution_origin="automatic_managed",
+                provider_id="synthetic-provider",
+                model_id="synthetic-model",
+                recorded_at=datetime.now(UTC),
+                source_snapshots=(snapshot,),
+            )
+        }
+    )
+
+    with pytest.raises(ConversationConflictError, match="local_chat_source_context_denied"):
+        service.preview(cid, request)
+
+    service.authority.messages._messages[assistant.id] = assistant.model_copy(
+        update={
+            "attribution": None,
+            "execution": TurnReservation(
+                reservation_id=uuid4(),
+                request_digest="b" * 64,
+                mode="manual_external",
+                state="completed",
+                package_fingerprint="c" * 64,
+                branch_digest="d" * 64,
+                authority_digest="e" * 64,
+                policy_version="legacy-memory-turn",
+                effective_sensitivity="personal",
+                expires_at=datetime.now(UTC),
+                max_output_bytes=100,
+                selected_memory_ids=(uuid4(),),
+            ),
+        }
+    )
+    with pytest.raises(ConversationConflictError, match="local_chat_source_context_denied"):
+        service.preview(cid, request)
+    assert not provider.requests and not fallback
 
 
 def test_issuer_rechecks_inherited_application_provenance_before_signing(local_turn):

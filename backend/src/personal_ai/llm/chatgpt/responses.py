@@ -38,6 +38,20 @@ ERROR_CODES = {
     "chatpass_v2_invalid_authorization_context": "bridge_permission_denied",
     "subscription_sharing_user_unavailable": "bridge_unavailable",
 }
+# Only these provider-documented account/admission outcomes establish that the
+# request was refused. HTTP status and an arbitrary error code do not prove it.
+DEFINITE_REJECTION_CODES = frozenset(
+    {
+        "subscription_sharing_user_not_eligible",
+        "subscription_sharing_usage_limit_exceeded",
+        "subscription_sharing_usage_unavailable",
+        "subscription_sharing_unsupported_capability",
+        "subscription_sharing_route_not_supported",
+        "subscription_sharing_invalid_user",
+        "chatpass_v2_scope_not_authorized",
+        "chatpass_v2_invalid_authorization_context",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,7 +272,7 @@ class ChatGPTResponses:
                 name.encode()
                 result.append(VisibleModel(slug, name))
             return tuple(result)
-        except (ValueError, KeyError, TypeError, LLMInvalidResponseError):
+        except (ValueError, KeyError, TypeError, UnicodeError, LLMInvalidResponseError):
             raise BridgeProviderFailure("bridge_catalog_invalid") from None
         except (httpx.HTTPError, TimeoutError):
             raise BridgeProviderFailure("bridge_unavailable") from None
@@ -325,16 +339,15 @@ class ChatGPTResponses:
                         response.status_code,
                         request_id=response.headers.get("x-request-id"),
                     )
-                    # A generic server/gateway error does not establish that the
-                    # provider rejected admission before doing work. Documented
-                    # subscription admission errors remain explicit rejections.
+                    # Preserve diagnostics separately from send certainty. Only a
+                    # closed set of documented provider outcomes proves rejection.
                     raw_error = data.get("error")
                     documented = (
                         isinstance(raw_error, dict)
                         and isinstance(raw_error.get("code"), str)
-                        and raw_error["code"] in ERROR_CODES
+                        and raw_error["code"] in DEFINITE_REJECTION_CODES
                     )
-                    if response.status_code >= 500 and not documented:
+                    if not documented:
                         yield terminal(
                             "incomplete",
                             "bridge_transport_unknown",

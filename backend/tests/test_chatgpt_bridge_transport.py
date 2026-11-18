@@ -84,6 +84,7 @@ class ProviderFixture:
         self.requests = []
         self.events = [created(), delta(), completed()]
         self.raw = None
+        self.catalog_raw = None
         self.catalog = [
             {
                 "slug": "account-visible-model",
@@ -101,6 +102,8 @@ class ProviderFixture:
         self.requests.append(request)
         assert request.url.host == "api.openai.com"
         if request.url.path == "/v1/models":
+            if self.catalog_raw is not None:
+                return httpx.Response(200, content=self.catalog_raw)
             return httpx.Response(200, json={"models": self.catalog})
         assert request.url.path == "/v1/responses"
         if self.status != 200:
@@ -394,36 +397,44 @@ def test_valid_terminal_commits_before_eof_and_ignores_unread_post_terminal_even
 
 
 @pytest.mark.parametrize(
-    "status,error,code",
+    "status,error,status_name,code",
     [
-        (401, {"detail": "private-admission-details"}, "bridge_auth_required"),
-        (403, {"detail": "private-admission-details"}, "bridge_admission_denied"),
-        (503, {"detail": "private-admission-details"}, "bridge_transport_unknown"),
-        (403, {"error": {"code": "subscription_sharing_user_not_eligible"}}, "bridge_ineligible"),
+        (400, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (403, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (408, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (409, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (429, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (500, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (503, {"detail": "private-admission-details"}, "incomplete", "bridge_transport_unknown"),
+        (403, {"error": {"code": "subscription_sharing_user_not_eligible"}}, "rejected", "bridge_ineligible"),
         (
             429,
             {"error": {"code": "subscription_sharing_usage_limit_exceeded"}},
+            "rejected",
             "bridge_usage_limit",
         ),
         (
             503,
             {"error": {"code": "subscription_sharing_usage_unavailable"}},
+            "rejected",
             "bridge_usage_unavailable",
         ),
         (
             400,
             {"error": {"code": "subscription_sharing_unsupported_capability"}},
+            "rejected",
             "bridge_unsupported_request",
         ),
     ],
 )
 def test_admission_and_usage_errors_are_normalized_without_body_or_billing_fallback(
-    status, error, code
+    status, error, status_name, code
 ):
     fixture = ProviderFixture()
     fixture.status, fixture.error = status, error
     result = transport_events(fixture)
     assert result[-1].metadata.error_code == code
+    assert result[-1].metadata.status == status_name
     assert "private-admission-details" not in str(asdict(result[-1]))
     assert len(fixture.sends()) == 1
 
@@ -498,8 +509,83 @@ def test_generic_rate_limit_is_not_recorded_as_plan_usage_limit():
     fixture.status = 429
     fixture.error = {"error": {"code": "edge_throttle", "message": "temporarily limited"}}
     result = transport_events(fixture)
-    assert result[-1].metadata.error_code == "bridge_rate_limited"
+    assert result[-1].metadata.error_code == "bridge_transport_unknown"
     assert usage_observation(result[-1].metadata.error_code, now=10).state == "unknown"
+
+
+@pytest.mark.parametrize("status", [400, 403, 408, 409, 429, 500, 503])
+def test_ambiguous_http_status_stays_unknown_and_fenced_after_one_send(tmp_path, status):
+    bridge, provider, session, package, proof, private = bridge_fixture(tmp_path)
+    provider.status = status
+    provider.error = {"error": {"code": "edge_admission_unknown"}}
+
+    result = run_bridge(bridge, session, package, proof)
+
+    assert result[-1].metadata.status == "incomplete"
+    assert result[-1].metadata.error_code == "bridge_transport_unknown"
+    assert [request.method for request in provider.requests] == ["GET", "POST"]
+    with bridge.lifecycle.store.transaction() as tx:
+        assert tx.state.receipts[package.dispatch_identity].status == "send_started"
+    receipt = asyncio.run(
+        bridge.reconcile(
+            package.dispatch_identity,
+            package.fingerprint,
+            origin=session.origin,
+            authorization=session.authorization,
+        )
+    )
+    assert receipt.status == "unknown"
+    resigned = sign_for_bridge(bridge, session, package, private)
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        run_bridge(bridge, session, package, resigned)
+    assert [request.method for request in provider.requests] == ["GET", "POST"]
+
+
+def test_documented_usage_rejection_settles_without_replay(tmp_path):
+    bridge, provider, session, package, proof, private = bridge_fixture(tmp_path)
+    provider.status = 429
+    provider.error = {"error": {"code": "subscription_sharing_usage_limit_exceeded"}}
+
+    result = run_bridge(bridge, session, package, proof)
+
+    assert result[-1].metadata.status == "rejected"
+    assert result[-1].metadata.error_code == "bridge_usage_limit"
+    with bridge.lifecycle.store.transaction() as tx:
+        assert tx.state.receipts[package.dispatch_identity].status == "rejected"
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        run_bridge(bridge, session, package, sign_for_bridge(bridge, session, package, private))
+    assert [request.method for request in provider.requests] == ["GET", "POST"]
+
+
+@pytest.mark.parametrize("name", ["\\ud800", "\\udfff"])
+def test_malformed_model_label_is_a_bounded_catalog_denial(name):
+    fixture = ProviderFixture()
+    fixture.catalog_raw = (
+        b'{"models":[{"slug":"account-visible-model","display_name":"'
+        + name.encode("ascii")
+        + b'","visibility":"list"}]}'
+    )
+
+    with pytest.raises(BridgeProviderFailure, match="bridge_catalog_invalid"):
+        asyncio.run(fixture.provider.discover("synthetic-access"))
+
+    assert [request.method for request in fixture.requests] == ["GET"]
+    assert fixture.requests[0].url.path == "/v1/models"
+
+
+def test_malformed_model_label_returns_bounded_loopback_error_without_post(tmp_path):
+    bridge, provider, session, _, _, _ = bridge_fixture(tmp_path)
+    provider.catalog_raw = (
+        b'{"models":[{"slug":"account-visible-model","display_name":"bad-'
+        b'\\ud800-label","visibility":"list"}]}'
+    )
+    headers = {"Origin": session.origin, "X-Bridge-Authorization": session.authorization}
+    app = create_loopback_app(bridge, port=8765)
+    with TestClient(app, base_url="http://127.0.0.1:8765", client=("127.0.0.1", 1234)) as client:
+        response = client.get("/models", headers=headers)
+    assert response.status_code == 409
+    assert response.json() == {"error": "bridge_models_unavailable"}
+    assert [request.method for request in provider.requests] == ["GET"]
 
 
 def test_usage_failure_after_deltas_is_not_completion_or_reset_timestamp():

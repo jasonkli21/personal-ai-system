@@ -8,4 +8,6 @@ The synthetic composition admits one local PAS chat installation. Trusted code p
 
 The bridge checks the exact account-visible model and rechecks the pairing, proof, profile and credential under the durable send-start lock. A successful stream requires a matching Responses terminal and a durable receipt. Reconciliation returns safe status without response text. Acknowledged or expired receipts compact to non-resend fences. When authorization changes after the local commit, a request may already reach the transport. An uncertain outcome retains its fence and receives no automatic resend or fallback.
 
+An HTTP error is a definite rejection only when its provider error code is in the closed documented admission-denial set. Generic HTTP status codes, including `429`, remain unknown, retain the `send_started` fence, and cannot be retried under the same dispatch identity. Account labels are rechecked against stored credential and account identifiers whenever status is projected, including restored older state.
+
 See the [integration boundary](../../../../docs/context-inference-integration/chatgpt-integration-boundaries.md#execution-direction-connected-app-inference) and [synthetic verification](../../../../docs/context-inference-integration/evidence/2026-11-18-synthetic-local-chatgpt-inference.md).

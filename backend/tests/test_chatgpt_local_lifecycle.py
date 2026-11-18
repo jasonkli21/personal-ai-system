@@ -586,6 +586,59 @@ def test_identical_email_registrations_have_distinct_safe_labels():
     )
 
 
+@pytest.mark.parametrize(
+    "protected",
+    [
+        "synthetic-access",
+        "synthetic-refresh",
+        "synthetic-id-token",
+        "synthetic-subject",
+        "oaiapp_synthetic",
+    ],
+)
+def test_safe_connection_projection_redacts_legacy_labels_with_protected_values(
+    tmp_path, protected
+):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+    with lifecycle.store.transaction() as tx:
+        registration = tx.state.registrations[safe.connection_id]
+        registration.account_email = None
+        registration.account_name = f"🧪 legacy {protected} account"
+        tx.save()
+    previous_calls = list(oauth.calls)
+
+    projected = lifecycle.connections()[0]
+    payload = projected.public_payload()
+
+    assert projected.account_label.startswith("ChatGPT account · ")
+    assert protected not in str(payload)
+    assert "🧪" not in str(payload)
+    assert oauth.calls == previous_calls
+
+
+def test_safe_connection_projection_preserves_unicode_labels_and_hides_disconnected_legacy_label(
+    tmp_path,
+):
+    lifecycle, oauth, safe = connected_lifecycle(tmp_path)
+    with lifecycle.store.transaction() as tx:
+        registration = tx.state.registrations[safe.connection_id]
+        registration.account_email = None
+        registration.account_name = "東京 account 🌱"
+        tx.save()
+    assert lifecycle.connections()[0].account_label.startswith("東京 account 🌱 · ")
+
+    lifecycle.disconnect(safe.connection_id)
+    with lifecycle.store.transaction() as tx:
+        registration = tx.state.registrations[safe.connection_id]
+        registration.account_name = "synthetic-access from old backup"
+        tx.save()
+    previous_calls = list(oauth.calls)
+    disconnected = lifecycle.connections()[0]
+    assert disconnected.account_label.startswith("ChatGPT account · ")
+    assert "synthetic-access" not in str(disconnected.public_payload())
+    assert oauth.calls == previous_calls
+
+
 def test_same_email_cannot_relink_distinct_registered_subjects(tmp_path):
     lifecycle, oauth, first = connected_lifecycle(tmp_path)
     oauth.subject = "different-subject"

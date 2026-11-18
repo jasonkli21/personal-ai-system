@@ -81,6 +81,20 @@ class CredentialLifecycle:
     @staticmethod
     def _safe(registration):
         label = registration.account_email or registration.account_name or "ChatGPT account"
+        credentials = registration.credentials
+        protected = tuple(
+            value
+            for value in (
+                credentials.access_token if credentials else None,
+                credentials.refresh_token if credentials else None,
+                credentials.id_token if credentials else None,
+                registration.subject,
+                registration.client_id,
+            )
+            if value
+        )
+        if not credentials or any(value in label for value in protected):
+            label = "ChatGPT account"
         label = f"{label} · {registration.connection_id[:8]}"
         return SafeConnection(
             registration.connection_id,

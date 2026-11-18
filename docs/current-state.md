@@ -37,6 +37,8 @@ The longitudinal memory study now uses additive source lock v5, which supersedes
 
 `make source-contract-check` is read-only and fails if bound files are dirty or drifted. The explicit proposal commands create a new versioned candidate and refuse to overwrite an existing identity.
 
+The 2026-11-18 independent SIWC review findings S3-001 through S3-004 have a scoped repair candidate covering ambiguous send outcomes, source-free preview authority, malformed catalog labels, and legacy account-label projection. Its focused filesystem-backed suite could not run in the current sandbox because writable temporary roots contain a `.git` marker that the protected credential store correctly rejects. Source-identity gates remain separate and unmodified; see the [dated SIWC repair record](context-inference-integration/evidence/2026-11-18-siwc-repair.md). Local SIWC remains `BLOCKED_UNVERIFIED`, managed SIWC `BLOCKED_PENDING_APPROVAL`, and production `NO_GO` pending independent review and external gates.
+
 ## Release boundary
 
 Production remains **NO_GO**. Independent final review remains pending. External acceptance for real identity, model/provider rights, cloud IAM and billing, distributed restore, physical deletion, and hosted operation remains open or `BLOCKED_UNVERIFIED`. Existing memory, reasoning, workflow, and source-disclosure gates stay disabled where their contracts require it.
