@@ -9,6 +9,7 @@ The [optional MCP adapter](../../adapters/mcp_context/README.md) exercises the C
 | [Architecture](architecture.md) | Which component owns each record, credential and dispatch |
 | [Application context contract](application-context-contract.md) | How to implement an independent source and select records |
 | [Shared application service](shared-application-service.md) | How to bind a synthetic app, grant a projection and recover the original consumer request |
+| [User-owned application inference](user-owned-application-inference.md) | How the opt-in fixture confirms and delivers a sourced turn to a paired runtime |
 | [ChatGPT integration boundaries](chatgpt-integration-boundaries.md) | Which OAuth grant, host and evidence each direction requires |
 | [Inference routing policy](inference-routing-policy.md) | Which endpoints a user can authorize and how spending is bounded |
 | [Delivery and acceptance](delivery-and-acceptance.md) | What to build first and how to admit a specific mode |

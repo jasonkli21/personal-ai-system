@@ -536,6 +536,7 @@ class ProtectedLocalStore:
         expires_at: int,
         now: int,
         authorize=None,
+        retain_fence: bool = False,
     ):
         with self._claim_fds_lock:
             descriptor = self._claim_fds.get(claim_token)
@@ -577,6 +578,10 @@ class ProtectedLocalStore:
                 receipt.updated_at = current
                 receipt.claim_token = None
                 tx.state.clock_high_water = current
+                if retain_fence:
+                    # Persist outside the replaceable receipt snapshot before
+                    # enabling a physical send. A torn write can only deny reuse.
+                    self._persist_send_fence(identity, receipt)
                 tx.save()
         finally:
             self._release_pre_send(descriptor, claim_token)
@@ -630,18 +635,18 @@ class ProtectedLocalStore:
         try:
             with self.transaction() as tx:
                 receipt = tx.state.receipts.get(identity)
-                if receipt is None:
+                if receipt is None or receipt.status == "claimed_pre_send":
                     fence = self._read_send_fence(identity)
-                    if (
-                        fence is None
-                        or fence["fingerprint"] != fingerprint
-                        or fence["origin_digest"]
-                        != hashlib.sha256((origin or "").encode()).hexdigest()
-                        or fence["connection_id"] != connection
-                        or fence["connection_revision"] != revision
-                    ):
-                        raise LocalStoreError("dispatch_receipt_not_found")
-                    return "unknown"
+                    if fence is not None:
+                        if (
+                            fence["fingerprint"] != fingerprint
+                            or fence["origin_digest"]
+                            != hashlib.sha256((origin or "").encode()).hexdigest()
+                            or fence["connection_id"] != connection
+                            or fence["connection_revision"] != revision
+                        ):
+                            raise LocalStoreError("dispatch_receipt_not_found")
+                        return "unknown"
                 if (
                     receipt is None
                     or receipt.fingerprint != fingerprint

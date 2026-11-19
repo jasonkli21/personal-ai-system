@@ -42,9 +42,31 @@ def source_snapshots_current(snapshots: Iterable, revalidator, *, now) -> bool:
 
 def source_snapshot_authority_complete(snapshot):
     """A shared-profile source can never become untainted through missing metadata."""
+    if snapshot.source_version == "application-plan-memory:v1":
+        dependencies = snapshot.permission_dependencies
+        return (
+            snapshot.provider_id == "ai_memory"
+            and len(dependencies) == 3
+            and len({dep.source_scope for dep in dependencies}) == 1
+            and {
+                dep.purpose for dep in dependencies
+                if dep.permission_id == f"application-plan-memory:{dep.purpose}"
+            } == {"approved-pas-memory-origin", "runtime-handoff", "inference-disclosure"}
+            and all(
+                dep.owner_id == snapshot.owner_id
+                and dep.acting_user_id is not None
+                and dep.entity_ref is not None
+                and dep.entity_ref.entity_id == snapshot.item_id
+                and dep.source_scope is not None
+                for dep in dependencies
+            )
+        )
     if snapshot.source_version.startswith("shared-source:"):
         dependencies = snapshot.permission_dependencies
-        return bool(snapshot.expires_at) and len(dependencies) == 2 and {
+        purposes = {"answer-context", "inference-disclosure"}
+        if snapshot.source_version.startswith("shared-source:application-plan:"):
+            purposes.add("runtime-handoff")
+        return bool(snapshot.expires_at) and len(dependencies) == len(purposes) and {
             dep.purpose for dep in dependencies
             if dep.permission_id.startswith("shared-source:")
             and dep.owner_id == snapshot.owner_id and dep.entity_ref is not None
@@ -53,7 +75,7 @@ def source_snapshot_authority_complete(snapshot):
             and dep.source_scope is not None
             and dep.source_scope.application_id == snapshot.application_id
             and dep.source_scope.workspace_id == snapshot.workspace_id
-        } == {"answer-context", "inference-disclosure"}
+        } == purposes
     if snapshot.provider_id == "retrieval_context":
         return bool(snapshot.expires_at) and any(
             dep.permission_id.startswith("retrieval_context:")

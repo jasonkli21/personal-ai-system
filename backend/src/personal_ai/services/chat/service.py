@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from time import monotonic
+from typing import Protocol
 from uuid import UUID, uuid4, uuid5
 
 import anyio
@@ -24,7 +25,7 @@ from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.authority import source_snapshots_current
 from personal_ai.context.authorization import authorize_base_disclosure, make_inference_context
-from personal_ai.context.contracts import ContextError
+from personal_ai.context.contracts import AssembledContext, ContextError, fingerprint
 from personal_ai.context.deadline import remaining
 from personal_ai.context.history import (
     conversation_context_messages,
@@ -109,6 +110,32 @@ class InvalidRetryTargetError(Exception):
     """A regenerate or edit-and-retry target is not in a retryable state."""
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class BoundChatContext:
+    """Transient assembly against one exact active branch."""
+
+    assembled: AssembledContext
+    branch_digest: str
+    inference: InferenceContext
+
+
+class BoundGeneration(Protocol):
+    def stream_events(
+        self, messages: Sequence[ChatMessage], *, max_output_tokens: int, timeout_seconds: float,
+        inference_context: InferenceContext | None,
+    ) -> AsyncIterator[GenerationEvent]: ...
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class ConfirmedLocalTurn:
+    context: BoundChatContext
+    intent_digest: str
+    generation: BoundGeneration
+    connection_id: UUID
+    connection_revision: int
+    package_fingerprint: str
+
+
 @dataclass(frozen=True, slots=True)
 class _PreparedTurn:
     created: tuple[Message, ...]
@@ -122,6 +149,7 @@ class _PreparedTurn:
     effective_context_sensitivity: ContextSensitivity | None = None
     inference_context: InferenceContext | None = None
     reasoning: TurnObservation | None = None
+    local: ConfirmedLocalTurn | None = None
 
 
 class ChatTurnService:
@@ -353,6 +381,20 @@ class ChatTurnService:
             external_lane=False,
         )
 
+    def preview_bound_context(self, conversation_id, content, *, assembler, prepare_sources, user_id):
+        from personal_ai.context.tokens import EstimatedTokenCounter
+
+        if (
+            not external_conversation_namespace()
+            or type(assembler.counter) is not EstimatedTokenCounter
+            or assembler.summarizer is not None
+        ):
+            raise ContextPreparationError("external_context_requires_local_preparation")
+        return self._preview_context(
+            conversation_id, content, context_assembler=assembler,
+            external_lane=False, bound_preview=(prepare_sources, user_id),
+        )
+
     def _preview_context(
         self,
         conversation_id: UUID,
@@ -366,6 +408,7 @@ class ChatTurnService:
         maximum_context_sensitivity: ContextSensitivity | None = None,
         context_assembler: ContextAssembler | None = None,
         external_lane: bool,
+        bound_preview=None,
     ):
         """Share history policy and planner projection across execution lanes."""
         if self._application_context is None:
@@ -430,14 +473,28 @@ class ChatTurnService:
         }:
             raise ContextPreparationError("continuation_source_policy_denied")
         if external_conversation_namespace():
+            deadline = monotonic() + context.settings.request_timeout_seconds
+            retrieval = None
+            if bound_preview is not None:
+                from personal_ai.context.contracts import complete_turns
+
+                # A previous sourced answer has its own destination grants. The
+                # opt-in lane only reuses ordinary complete conversation history.
+                history = [
+                    message for pair in complete_turns(history)
+                    if not source_snapshots_for_message(pair[1]) for message in pair
+                ]
+                prepare_sources, user_id = bound_preview
+                retrieval = prepare_sources(plan, self._application_context, deadline)
             preview = self._new_message(
                 conversation_id=conversation_id, role=MessageRole.USER, content=content,
                 status=MessageStatus.COMPLETED, now=datetime.now(UTC),
                 parent_message_id=history[-1].id if history else None,
+                message_id=user_id if bound_preview is not None else None,
             )
             assembled = context.assemble(
                 history, preview, refresh=False, application_context=self._application_context,
-                context_plan=plan, deadline=monotonic() + context.settings.request_timeout_seconds,
+                context_plan=plan, deadline=deadline, retrieval=retrieval,
             )
             self._require_prepared_authority(active)
             if not source_snapshots_current(
@@ -446,6 +503,15 @@ class ChatTurnService:
             ):
                 raise ContextPreparationError("context_source_authority_changed")
             require_current_client_authority()
+            if bound_preview is not None:
+                if assembled.summary is not None or assembled.manifest is None:
+                    raise ContextPreparationError("context_source_authority_changed")
+                return BoundChatContext(
+                    assembled, fingerprint(active, include_state=True),
+                    make_inference_context(
+                        self._application_context, assembled.manifest.effective_sensitivity,
+                    ),
+                )
         return plan, len(history)
 
     def _require_prepared_authority(self, messages: Sequence[Message]) -> None:
@@ -455,8 +521,29 @@ class ChatTurnService:
         ):
             raise ContextPreparationError("context_source_authority_changed")
 
+    def replay_bound_turn(self, conversation_id, request, *, intent_digest):
+        if not external_conversation_namespace() or self._application_context is None:
+            raise ContextPreparationError("external_context_requires_local_preparation")
+        authorized_conversation(
+            self._conversations, owner_id=self._owner_id, conversation_id=conversation_id,
+        )
+        identity = continuation_message_id(
+            conversation_id, self._owner_id, self._application_context.scope, request.idempotency_key,
+        )
+        try:
+            assistant = self.get_message(conversation_id, identity)
+        except ResourceNotFoundError:
+            return None
+        self._require_prepared_authority((assistant,))
+        if assistant.continuation_digest != intent_digest:
+            raise ConversationConflictError("idempotency_input_changed")
+        if assistant.status is not MessageStatus.COMPLETED:
+            raise ConversationConflictError("continuation_exists_inspect_canonical_state")
+        return self._replay_completed_continuation(conversation_id, assistant)
+
     def continue_turn(
         self, conversation_id: UUID, request: ContinuationRequest, *, _fixture_selection=None,
+        confirmed_local: ConfirmedLocalTurn | None = None,
     ) -> AsyncIterator[TurnEvent]:
         """An automatic continuation uses the configured generation lane and shared assembly."""
         started = monotonic()
@@ -500,7 +587,11 @@ class ChatTurnService:
         identity = continuation_message_id(
             conversation_id, self._owner_id, scope, request.idempotency_key
         )
-        intent_digest = request.intent_digest
+        if confirmed_local is not None and (
+            not external_conversation_namespace() or reasoning is not None
+        ):
+            raise ContextPreparationError("external_context_requires_local_preparation")
+        intent_digest = confirmed_local.intent_digest if confirmed_local else request.intent_digest
         request_id = str(request.idempotency_key)
         if reasoning is not None:
             conversation = authorized_conversation(
@@ -537,6 +628,10 @@ class ChatTurnService:
             observation = TurnObservation(resolve(reasoning), started, request_id)
         if active is None:
             active = self._active(conversation_id)
+        if confirmed_local and (
+            fingerprint(active, include_state=True) != confirmed_local.context.branch_digest
+        ):
+            raise ConversationConflictError("continuation_branch_changed")
         self._require_prepared_authority(active)
         user_id = uuid5(identity, "user")
         try:
@@ -591,6 +686,7 @@ class ChatTurnService:
             user_already_persisted=already_persisted,
             reasoning=observation,
             excluded_source_classes=frozenset(request.excluded_source_classes),
+            confirmed_local=confirmed_local,
         )
 
     def send(
@@ -705,12 +801,13 @@ class ChatTurnService:
         excluded_source_classes=frozenset(),
         maximum_context_sensitivity: ContextSensitivity | None = None,
         reasoning: TurnObservation | None = None,
+        confirmed_local: ConfirmedLocalTurn | None = None,
     ) -> _PreparedTurn:
         if self._application_context is None and getattr(
             self._llm, "requires_inference_context", True
         ):
             raise ContextPreparationError("application_context_required")
-        if not external and getattr(self._llm, "requires_inference_context", False):
+        if not external and not confirmed_local and getattr(self._llm, "requires_inference_context", False):
             try:
                 require_matching_endpoint(self._llm, self._context.counter)
             except LLMInvalidRequestError as error:
@@ -781,14 +878,17 @@ class ChatTurnService:
             history_exclusions = {}
             if reasoning is None and self._application_context is not None:
                 authorize_base_disclosure(self._application_context)
-                context_plan = context.plan_context(
-                    user.content,
-                    self._application_context,
-                    candidate_entities=candidate_entities,
-                    explicit_context_selections=explicit_context_selections,
-                    excluded_source_classes=excluded_source_classes,
-                    maximum_sensitivity=maximum_context_sensitivity,
-                )
+                if confirmed_local:
+                    context_plan = confirmed_local.context.assembled.context_plan
+                else:
+                    context_plan = context.plan_context(
+                        user.content,
+                        self._application_context,
+                        candidate_entities=candidate_entities,
+                        explicit_context_selections=explicit_context_selections,
+                        excluded_source_classes=excluded_source_classes,
+                        maximum_sensitivity=maximum_context_sensitivity,
+                    )
                 reuse_policy = (
                     self._application_context.definition.context_policy.sidecar.manual_import_reuse
                 )
@@ -820,12 +920,12 @@ class ChatTurnService:
                     message.id for message in history_for_context
                 }:
                     raise ContextPreparationError("continuation_source_policy_denied")
-                use_planned_memory = any(
+                use_planned_memory = context_plan is not None and any(
                     selection.provider_id == "ai_memory" and selection.operation == "search"
                     for selection in context_plan.selections
                 )
             retrieval = None
-            if self._memory_retriever is not None and use_planned_memory:
+            if confirmed_local is None and self._memory_retriever is not None and use_planned_memory:
                 memory_selection_timeout = next(
                     (
                         selection.timeout_seconds
@@ -879,7 +979,7 @@ class ChatTurnService:
                 bind_disclosure_guard(revalidate_preparation),
                 bind_usage_task("chat_generation", request_id=request_id) if reasoning else nullcontext(),
             ):
-                assembled = context.assemble(
+                assembled = confirmed_local.context.assembled if confirmed_local else context.assemble(
                     history_for_context,
                     post_active[-1],
                     deadline=deadline,
@@ -1035,6 +1135,7 @@ class ChatTurnService:
             source_snapshots=unique_snapshots,
             effective_context_sensitivity=assembled.manifest.effective_sensitivity,
             reasoning=reasoning,
+            local=confirmed_local,
         )
 
     def _stream(self, turn: _PreparedTurn) -> AsyncIterator[TurnEvent]:
@@ -1130,6 +1231,12 @@ class ChatTurnService:
                     now=datetime.now(UTC),
                 ):
                     raise ContextPreparationError("context_source_authority_changed")
+                if turn.local:
+                    active = self._messages.list_active(
+                        owner_id=self._owner_id, conversation_id=turn.assistant.conversation_id,
+                    )
+                    if not active or active[-1] != turn.assistant:
+                        raise ContextPreparationError("context_source_authority_changed")
 
             await io_call(require_current_client_authority)
             if not source_snapshots_current(
@@ -1160,7 +1267,8 @@ class ChatTurnService:
                 ),
                 observe_usage(reasoning.record if reasoning else None),
             ):
-                provider_iterator = self._llm.stream_events(
+                generation = turn.local.generation if turn.local else self._llm
+                provider_iterator = generation.stream_events(
                     turn.history,
                     max_output_tokens=output_limit,
                     timeout_seconds=remaining(turn.deadline),
@@ -1241,7 +1349,10 @@ class ChatTurnService:
                         "model": generation_metadata.identity.model_id,
                         "attribution": TurnAttribution(
                             fact_source="server_observed",
-                            execution_origin="automatic_managed",
+                            execution_origin="connected_local" if turn.local else "automatic_managed",
+                            connection_id=turn.local.connection_id if turn.local else None,
+                            connection_revision=turn.local.connection_revision if turn.local else None,
+                            package_fingerprint=turn.local.package_fingerprint if turn.local else None,
                             provider_id=generation_metadata.identity.provider_id,
                             model_id=generation_metadata.identity.model_id,
                             recorded_at=datetime.now(UTC),
@@ -1274,7 +1385,7 @@ class ChatTurnService:
                 return
             terminal = True
             completed_turn.append(completed)
-            if reasoning is None:
+            if reasoning is None and turn.local is None:
                 self.schedule_post_completion(
                     completed, turn.selected_memory_ids, request_id=turn.request_id
                 )

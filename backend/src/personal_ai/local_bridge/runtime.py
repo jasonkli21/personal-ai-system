@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import secrets
 import threading
 import time
@@ -17,6 +18,7 @@ import anyio
 from pydantic import BaseModel, ConfigDict, Field
 
 from personal_ai.auth.dispatch_grants import (
+    ApplicationPlanScope,
     DispatchGrantVerifier,
     LocalChatScope,
     SignedDispatchGrant,
@@ -40,6 +42,7 @@ from personal_ai.llm.external import ExecutionProfileIdentity, PreparedExecution
 from personal_ai.local_bridge.disclosure import CredentialEcho, LocalOutputGuard
 from personal_ai.local_bridge.lifecycle import CredentialLifecycle
 from personal_ai.routing.contracts import DataUsePolicy
+from personal_ai.storage.async_io import sync_call
 
 
 class BridgeDenied(RuntimeError):
@@ -75,11 +78,17 @@ class CompatibilityGate(BaseModel):
         )
 
     def require_package(self, package, *, now):
+        self.require_binding(
+            package.connection_id, package.execution_profile, package.model_id,
+            package.effective_sensitivity, now=now,
+        )
+
+    def require_binding(self, connection_id, profile, model_id, sensitivity, *, now):
         if (
             not self.plan_only_verified
-            or self.connection_id != package.connection_id
-            or self.execution_profile != package.execution_profile
-            or self.model_id != package.model_id
+            or self.connection_id != connection_id
+            or self.execution_profile != profile
+            or self.model_id != model_id
             or not self.verified_at <= now < self.valid_until
             or self.valid_until - self.verified_at > 7 * 86400
             or self.distribution != "local_personal"
@@ -87,7 +96,7 @@ class CompatibilityGate(BaseModel):
         ):
             raise BridgeDenied("bridge_compatibility_unverified")
         rank = {"public": 0, "personal": 1, "sensitive": 2, "restricted": 3}
-        if rank[package.effective_sensitivity] > rank[self.data_use.max_sensitivity]:
+        if rank[sensitivity] > rank[self.data_use.max_sensitivity]:
             raise BridgeDenied("bridge_disclosure_denied")
 
 
@@ -111,7 +120,7 @@ class ReceiptStatus:
 class LocalChatInstallation:
     """Trusted fixture pairing policy, supplied outside browser IPC."""
 
-    scope: LocalChatScope
+    scope: LocalChatScope | ApplicationPlanScope
     origin: str
     host_id: str
     runtime_id: UUID
@@ -121,6 +130,15 @@ class LocalChatInstallation:
     client_id: str
     account_issuer: str
     account_subject: str
+
+    @property
+    def registration_binding(self):
+        facts = (
+            self.origin, self.host_id, str(self.runtime_id), self.signer_key_id,
+            str(self.connection_id), self.connection_revision, self.client_id,
+            self.account_issuer, self.account_subject,
+        )
+        return hashlib.sha256(json.dumps(facts, separators=(",", ":")).encode()).hexdigest()
 
     def require_registration(self, state, registration):
         if (
@@ -190,6 +208,16 @@ class LocalChatGPTBridge:
         if (
             verifier.audience != installation.runtime_id
             or installation.signer_key_id not in verifier.keys
+            or (
+                isinstance(installation.scope, ApplicationPlanScope)
+                and (
+                    installation.scope.runtime_id != installation.runtime_id
+                    or installation.scope.registration_binding != installation.registration_binding
+                    or installation.scope.local_recipient != f"local:{installation.runtime_id}"
+                    or installation.scope.model_recipient
+                    != f"openai-responses:{installation.registration_binding}"
+                )
+            )
         ):
             raise BridgeDenied("bridge_admission_denied")
         self.gates = {gate.key: gate for gate in gates}
@@ -288,22 +316,20 @@ class LocalChatGPTBridge:
             raise BridgeDenied("bridge_admission_denied")
         now = int(self.clock())
         claims = self.verifier.verify(proof, package, caller_id=session.caller_id, now=now)
+        scope = self.installation.scope
+        if isinstance(scope, ApplicationPlanScope):
+            self._require_application_plan(claims)
+            payload = serialize(package.chat_messages(), package.model_id)
+            if claims.application_plan.provider_payload_sha256 != hashlib.sha256(payload).hexdigest():
+                raise BridgeDenied("bridge_disclosure_denied")
+        elif claims.local_chat != scope or claims.application_plan is not None:
+            raise BridgeDenied("bridge_disclosure_denied")
         if (
-            claims.local_chat != self.installation.scope
-            or not self.installation.scope.matches_package(package)
+            not scope.matches_package(package)
             or claims.key_id != self.installation.signer_key_id
         ):
             raise BridgeDenied("bridge_disclosure_denied")
-        gate = self.gates.get(
-            (
-                str(package.connection_id),
-                package.execution_profile.endpoint.endpoint_profile_id,
-                package.execution_profile.endpoint.profile_version,
-                package.model_id,
-            )
-        )
-        if gate is None or gate.client_id != self.installation.client_id:
-            raise BridgeDenied("bridge_compatibility_unverified")
+        gate = self._gate(package.connection_id, package.execution_profile, package.model_id)
         # Local policy denial must precede even a rotating credential refresh.
         gate.require_package(package, now=now)
         if not self.provider.supports_profile(package.execution_profile):
@@ -311,6 +337,44 @@ class LocalChatGPTBridge:
         if claims.routing_root is not None:
             self._authorize_root(claims.routing_root, package, claims, session)
         return session
+
+    def _gate(self, connection_id, profile, model_id):
+        key = (str(connection_id), profile.endpoint.endpoint_profile_id,
+               profile.endpoint.profile_version, model_id)
+        gate = self.gates.get(key)
+        if gate is None or gate.client_id != self.installation.client_id:
+            raise BridgeDenied("bridge_compatibility_unverified")
+        return gate
+
+    def _require_application_plan(self, claims):
+        if (
+            not isinstance(self.installation.scope, ApplicationPlanScope)
+            or claims.application_plan is None
+            or claims.application_plan.scope != self.installation.scope
+            or claims.local_chat is not None
+            or claims.routing_root is None
+            or claims.key_id != self.installation.signer_key_id
+            or claims.provider_id != PROVIDER
+        ):
+            raise BridgeDenied("bridge_disclosure_denied")
+
+    def authorize_handoff(self, proof, profile, *, origin, authorization):
+        """Authenticate the paired runtime using the signed envelope before plaintext delivery."""
+        self._require_offline_transport()
+        session = self.authorize(origin, authorization)
+        now = int(self.clock())
+        claims = self.verifier.verify_claims(proof, caller_id=session.caller_id, now=now)
+        self._require_application_plan(claims)
+        if claims.connection_id != session.connection_id or not self.provider.supports_profile(profile):
+            raise BridgeDenied("bridge_admission_denied")
+        self._gate(session.connection_id, profile, claims.model_id).require_binding(
+            session.connection_id, profile, claims.model_id, claims.effective_sensitivity, now=now,
+        )
+        with self.lifecycle.store.transaction() as tx:
+            self.installation.require_registration(
+                tx.state, tx.state.registrations.get(str(session.connection_id))
+            )
+        self._authorize_root(claims.routing_root, None, claims, session)
 
     def _authorize_root(self, root_id, package, claims, session):
         """Require current trusted root state; a signed UUID alone grants nothing."""
@@ -330,6 +394,8 @@ class LocalChatGPTBridge:
 
     async def execute(self, package, proof, *, origin, authorization):
         session = self._require_dispatch(package, proof, origin=origin, authorization=authorization)
+        plan = proof.claims.application_plan is not None
+        worker = sync_call if plan else anyio.to_thread.run_sync
         messages = package.chat_messages()
         serialize(messages, package.model_id)
         send_started = False
@@ -340,7 +406,7 @@ class LocalChatGPTBridge:
                 session.expires_at - self.clock(),
             )
             async with asyncio.timeout(duration):
-                snapshot = await anyio.to_thread.run_sync(
+                snapshot = await worker(
                     partial(
                         self.lifecycle.snapshot,
                         str(package.connection_id),
@@ -368,6 +434,7 @@ class LocalChatGPTBridge:
                     if (
                         registration.credentials.access_token != snapshot.access_token
                         or registration.credentials.expires_at <= self.clock()
+                        or (plan and self.clock() >= min(proof.claims.expires_at, session.expires_at))
                     ):
                         raise BridgeDenied("bridge_connection_changed")
 
@@ -394,12 +461,13 @@ class LocalChatGPTBridge:
                             expires_at=min(proof.claims.expires_at, session.expires_at),
                             now=int(self.clock()),
                             authorize=authorize_send,
+                            **({"retain_fence": True} if plan else {}),
                         )
                     except BaseException:
                         store.release_pre_send(identity, fingerprint, claim)
                         raise
 
-                await anyio.to_thread.run_sync(fence_send)
+                await worker(fence_send)
                 send_started = True
                 stream = self.provider.stream(
                     messages,
@@ -414,12 +482,17 @@ class LocalChatGPTBridge:
                 )
                 try:
                     async for event in stream:
-                        if not await anyio.to_thread.run_sync(
+                        if not await worker(
                             self.lifecycle.current, snapshot.connection_id, snapshot.revision
                         ):
                             raise BridgeDenied("bridge_connection_changed")
                         if self.clock() >= min(proof.claims.expires_at, session.expires_at):
                             raise BridgeDenied("bridge_authorization_expired")
+                        if plan:
+                            await worker(
+                                self._authorize_root, proof.claims.routing_root,
+                                package, proof.claims, session,
+                            )
                         if event.kind == "delta":
                             safe_delta = guard.feed(event.delta)
                             if safe_delta:
@@ -431,7 +504,7 @@ class LocalChatGPTBridge:
                                 yield GenerationEvent.text_delta(safe_tail)
                             metadata = _sanitize_provider_error(event.metadata, guard)
                             event = GenerationEvent.terminal(metadata)
-                            await anyio.to_thread.run_sync(
+                            await worker(
                                 self.lifecycle.observe_usage,
                                 snapshot.connection_id,
                                 snapshot.revision,
@@ -445,7 +518,7 @@ class LocalChatGPTBridge:
                                 "bridge_protocol_invalid",
                                 "bridge_output_bound",
                             }:
-                                await anyio.to_thread.run_sync(
+                                await worker(
                                     self.lifecycle.store.settle,
                                     package.dispatch_identity,
                                     metadata.status,
@@ -456,7 +529,7 @@ class LocalChatGPTBridge:
         except CredentialEcho:
             raise BridgeDenied("bridge_credential_echo") from None
         except BridgeProviderFailure as error:
-            await anyio.to_thread.run_sync(
+            await worker(
                 self.lifecycle.observe_usage,
                 str(package.connection_id),
                 package.connection_revision,

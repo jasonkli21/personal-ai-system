@@ -317,12 +317,16 @@ class MemoryContextProvider:
                 # the retriever's responsibility.
                 continue
             is_derived = isinstance(memory, DerivedMemory)
+            dependencies = injection_dependencies(self.inputs.retrieval, memory)
+            version = str(getattr(memory, "schema_version", 1))
+            if any(dep.permission_id.startswith("application-plan-memory:") for dep in dependencies):
+                version = "application-plan-memory:v1"
             records.append(
                 ContextItem(
                     source_class="ai_memory",
                     provider_id=self.spec.provider_id,
                     source_id=str(memory.id),
-                    source_version=str(getattr(memory, "schema_version", 1)),
+                    source_version=version,
                     item_id=str(memory.id),
                     owner_id=scope.owner_id,
                     application_id=scope.application_id,
@@ -366,7 +370,7 @@ class MemoryContextProvider:
                             for message_id in source.source_message_ids
                         )
                     ),
-                    permission_dependencies=injection_dependencies(self.inputs.retrieval, memory),
+                    permission_dependencies=dependencies,
                     payload=MemoryContextPayload(
                         record_kind=(
                             "derived_memory" if hasattr(memory, "source_memory_ids") else "memory"

@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from personal_ai.llm.external import PreparedExecution
 
@@ -35,9 +35,38 @@ class LocalChatScope(BaseModel):
         )
 
 
+class ApplicationPlanScope(BaseModel):
+    """Exact app pairing, with an opaque binding to locally held registration facts."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    application_id: str = Field(min_length=2, max_length=42)
+    owner_id: str = Field(min_length=1, max_length=200)
+    actor_id: str = Field(min_length=1, max_length=512)
+    workspace_id: str | None
+    client_namespace: str = Field(pattern=r"^[a-f0-9]{64}$")
+    runtime_id: UUID
+    registration_binding: str = Field(pattern=r"^[a-f0-9]{64}$")
+    local_recipient: str = Field(min_length=1, max_length=160)
+    model_recipient: str = Field(min_length=1, max_length=160)
+
+    def matches_package(self, package: PreparedExecution) -> bool:
+        return (self.application_id, self.owner_id, self.workspace_id) == (
+            package.application_id, package.owner_id, package.workspace_id,
+        )
+
+
+class ApplicationPlanDispatch(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    operation: Literal["foreground_application_plan"] = "foreground_application_plan"
+    scope: ApplicationPlanScope
+    attempt_id: UUID
+    intent_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    provider_payload_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class DispatchGrant(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     issuer: str = Field(min_length=1, max_length=200)
     key_id: str = Field(min_length=1, max_length=100)
     audience: UUID
@@ -53,10 +82,24 @@ class DispatchGrant(BaseModel):
     expires_at: int = Field(strict=True, ge=0)
     local_chat: LocalChatScope | None = Field(default=None, exclude_if=lambda value: value is None)
     routing_root: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
+    application_plan: ApplicationPlanDispatch | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def bind_version(self):
+        if (self.schema_version == 2) != (self.application_plan is not None) or (
+            self.application_plan is not None and (
+                self.local_chat is not None or self.routing_root is None
+                or self.audience != self.application_plan.scope.runtime_id
+            )
+        ):
+            raise ValueError("dispatch_grant_invalid")
+        return self
 
     def canonical(self) -> bytes:
         return (
-            b"personal-ai-dispatch-v1\0"
+            f"personal-ai-dispatch-v{self.schema_version}\0".encode()
             + json.dumps(
                 self.model_dump(mode="json"),
                 sort_keys=True,
@@ -90,8 +133,25 @@ class DispatchGrantVerifier:
         now: int,
     ) -> DispatchGrant:
         try:
-            proof = SignedDispatchGrant.model_validate(proof.model_dump())
             package = PreparedExecution.model_validate(package.model_dump())
+        except (ValueError, AttributeError, TypeError):
+            raise InvalidDispatchGrant() from None
+        claims = self.verify_claims(proof, caller_id=caller_id, now=now)
+        if (
+            claims.package_hash != package.fingerprint
+            or claims.connection_id != package.connection_id
+            or claims.provider_id != package.provider_id
+            or claims.model_id != package.model_id
+            or claims.policy_version != package.policy_version
+            or claims.effective_sensitivity != package.effective_sensitivity
+        ):
+            raise InvalidDispatchGrant()
+        return claims
+
+    def verify_claims(self, proof, *, caller_id, now) -> DispatchGrant:
+        """Authenticate the content-free envelope before the recipient receives a package."""
+        try:
+            proof = SignedDispatchGrant.model_validate(proof.model_dump())
         except (ValueError, AttributeError, TypeError):
             raise InvalidDispatchGrant() from None
         claims = proof.claims
@@ -101,12 +161,6 @@ class DispatchGrantVerifier:
             or claims.issuer != self.issuer
             or claims.audience != self.audience
             or claims.caller_id != caller_id
-            or claims.package_hash != package.fingerprint
-            or claims.connection_id != package.connection_id
-            or claims.provider_id != package.provider_id
-            or claims.model_id != package.model_id
-            or claims.policy_version != package.policy_version
-            or claims.effective_sensitivity != package.effective_sensitivity
             or not claims.issued_at <= now < claims.expires_at
             or not 0 < claims.expires_at - claims.issued_at <= 120
         ):
@@ -138,15 +192,23 @@ class DispatchGrantSigner:
         expires_at: datetime,
         local_chat: LocalChatScope | None = None,
         routing_root: UUID | None = None,
+        application_plan: ApplicationPlanDispatch | None = None,
     ) -> SignedDispatchGrant:
         if (
             now.tzinfo is None
             or expires_at.tzinfo is None
             or not 0 < (expires_at - now).total_seconds() <= 120
-            or (routing_root is not None and local_chat is None)
+            or (routing_root is not None and local_chat is None and application_plan is None)
+            or (application_plan is not None and (
+                local_chat is not None
+                or routing_root is None
+                or application_plan.scope.runtime_id != audience
+                or not application_plan.scope.matches_package(package)
+            ))
         ):
             raise InvalidDispatchGrant()
         claims = DispatchGrant(
+            schema_version=2 if application_plan is not None else 1,
             issuer=self.issuer,
             key_id=self.key_id,
             audience=audience,
@@ -162,6 +224,7 @@ class DispatchGrantSigner:
             expires_at=int(expires_at.timestamp()),
             local_chat=local_chat,
             routing_root=routing_root,
+            application_plan=application_plan,
         )
         return SignedDispatchGrant(
             claims=claims,

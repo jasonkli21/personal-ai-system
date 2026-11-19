@@ -87,6 +87,7 @@ PROJECTION_TOKENS = 256
 SOURCE_SECONDS = 2.0
 MAX_AUTHORITY_READS = 128
 _authority_reads = ContextVar("shared_service_authority_reads", default=None)
+plan_source_recipients = ContextVar("application_plan_source_recipients", default=None)
 
 
 def verified_actor(principal):
@@ -181,6 +182,7 @@ class OwnerSourceControls(Authority):
         self.recovery_current = recovery_current
         self.links = {}
         self._lock = RLock()
+        self.plan_recipients = lambda owner, app, workspace, binding: ()
 
     def is_member(self, principal, application_id, workspace_id):
         with self._lock:
@@ -249,6 +251,9 @@ class OwnerSourceControls(Authority):
                 "chatgpt-mcp": "mcp-read",
                 "local-siwc": "local-inference",
             }
+            plan_recipients = self.plan_recipients(principal.owner_id, app, workspace, binding)
+            if plan_recipients:
+                purposes.update(zip(plan_recipients, ("runtime-handoff", MODEL_PURPOSE), strict=True))
             purpose = purposes.get(recipient)
             if purpose is None:
                 raise ProtocolError("invalid_request")
@@ -324,6 +329,12 @@ class OwnerSourceControls(Authority):
             grant = super().authorize(principal, scope, intent, operation, install)
             if grant.client_namespace != external_conversation_namespace():
                 raise ProtocolError("unavailable")
+            if grant.recipient.startswith(("local:", "openai-responses:")) and (
+                grant.recipient not in self.plan_recipients(
+                    scope.owner_id, scope.application_id, scope.workspace_id, grant.client_namespace
+                )
+            ):
+                raise ProtocolError("unavailable")
             return grant
 
     def authorize_delegation(self, claims, install):
@@ -343,7 +354,7 @@ class SourcePermissions:
     def supports(self, dependency):
         return dependency.permission_id.startswith(GRANT_PREFIX)
 
-    def dependency(self, grant, install, entity, revision, watermark):
+    def dependency(self, grant, install, entity, revision, watermark, *, timestamps=()):
         from personal_ai.contracts.context_references import ContextPermissionDependency
 
         return ContextPermissionDependency(
@@ -361,6 +372,7 @@ class SourcePermissions:
                     grant.recipient,
                     grant.purpose,
                     grant.fields,
+                    *timestamps,
                 ]
             ),
             purpose=grant.purpose,
@@ -417,6 +429,11 @@ class SourcePermissions:
                     dependency.entity_ref,
                     record.revision,
                     watermark,
+                    timestamps=(
+                        (record.observed_at.isoformat(), record.effective_at.isoformat(),
+                         record.expires_at.isoformat())
+                        if grant.recipient.startswith(("local:", "openai-responses:")) else ()
+                    ),
                 )
             )
 
@@ -470,22 +487,24 @@ class SharedSourceProvider:
         try:
             scope = source_scope(principal, scope)
             runtime = authority.find(key, RUNTIME_PURPOSE, RUNTIME)
-            inference = authority.find(key, MODEL_PURPOSE, RECIPIENT)
-            install = self.client.installations.active(self.config.source)
-            model_intent = Intent(
-                install.source_id,
-                inference.id,
-                RECIPIENT,
-                MODEL_PURPOSE,
-                selection.fields,
+            plan = plan_source_recipients.get()
+            onward = (
+                (("runtime-handoff", plan[0]), (MODEL_PURPOSE, plan[1]))
+                if plan else ((MODEL_PURPOSE, RECIPIENT),)
             )
-            authority.authorize(principal, scope, model_intent, "fetch", install)
-            authority.field_sensitivity(install, inference, selection.fields)
+            install = self.client.installations.active(self.config.source)
+            grants = [runtime]
+            for purpose, recipient in onward:
+                grant = authority.find(key, purpose, recipient)
+                intent = Intent(install.source_id, grant.id, recipient, purpose, selection.fields)
+                authority.authorize(principal, scope, intent, "fetch", install)
+                authority.field_sensitivity(install, grant, selection.fields)
+                grants.append(grant)
             budget = TurnBudget(
                 deadline,
                 self.counter,
                 max_bytes=selection.max_bytes,
-                max_tokens=selection.max_tokens,
+                max_tokens=min(selection.max_tokens, PROJECTION_TOKENS),
                 max_results=selection.max_results,
             )
             search_intent = Intent(
@@ -535,12 +554,17 @@ class SharedSourceProvider:
                         entity,
                         result.value.source_revision,
                         result.value.watermark,
+                        timestamps=(
+                            (result.value.observed_at.isoformat(), result.value.effective_at.isoformat(),
+                             result.value.expires_at.isoformat())
+                            if plan and grant is not runtime else ()
+                        ),
                     )
-                    for grant in (runtime, inference)
+                    for grant in grants
                 )
                 if not all(self.permissions.is_current(dep) for dep in deps):
                     raise ProtocolError("stale_dependency")
-                model_expiry = min(inference.expires_at, item.expires_at)
+                model_expiry = min(item.expires_at, *(grant.expires_at for grant in grants))
                 items.append(
                     item.model_copy(
                         update={
@@ -552,7 +576,7 @@ class SharedSourceProvider:
                             ),
                             "expires_at": model_expiry,
                             "permission_dependencies": deps,
-                            "source_version": GRANT_PREFIX
+                            "source_version": GRANT_PREFIX + ("application-plan:" if plan else "")
                             + digest([result.value.source_revision, result.value.watermark]),
                         }
                     )
@@ -644,21 +668,22 @@ class SharedSlots:
                 del self.active[client]
 
 
-def make_application(config, authority):
+def make_application(config, authority, *, memory=False):
     baseline = ApplicationContextPolicy()
+    builtins = ("conversation_history", "ai_memory") if memory else ("conversation_history",)
     definition = ApplicationDefinition(
         application_id=config.app,
         display_name=config.app,
         workspace_kind=config.workspace_kind,
         memory_namespace=config.app,
-        context_provider_ids=(config.source,),
+        context_provider_ids=(config.source, *(("ai_memory",) if memory else ())),
         context_policy=ApplicationContextPolicy(
             maximum_model_sensitivity="sensitive",
             provider_policies=(
                 *tuple(
                     provider
                     for provider in baseline.provider_policies
-                    if provider.provider_id == "conversation_history"
+                    if provider.provider_id in builtins
                 ),
                 ContextProviderPolicy(
                     provider_id=config.source,
@@ -699,6 +724,7 @@ class SharedService:
         selected=(TRAVEL_APP, FITNESS_APP),
         recovery_current=lambda: True,
         without_workspace_authorizer=frozenset(),
+        application_plan=False,
     ):
         self.bindings = []
         self.policy_file = path / "application-clients.json"
@@ -719,6 +745,7 @@ class SharedService:
             summary_trigger_tokens=1000,
             max_summary_tokens=512,
             request_timeout_seconds=5,
+            memory_enabled=application_plan,
         )
         self.now = datetime.now(UTC)
         clock = lambda: self.now
@@ -778,6 +805,7 @@ class SharedService:
                 lambda item=item: make_application(
                     item,
                     None if item.app in without_workspace_authorizer else self.controls,
+                    memory=application_plan,
                 ),
             )
             for item in selected

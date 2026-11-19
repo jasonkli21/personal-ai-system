@@ -53,6 +53,10 @@ def create_loopback_app(
     *,
     port: int,
 ) -> FastAPI:
+    from personal_ai.auth.dispatch_grants import LocalChatScope
+
+    if not isinstance(bridge.installation.scope, LocalChatScope):
+        raise BridgeDenied("bridge_admission_denied")
     if not 1024 <= port <= 65535:
         raise ValueError("bridge_port_invalid")
     host = f"127.0.0.1:{port}"
