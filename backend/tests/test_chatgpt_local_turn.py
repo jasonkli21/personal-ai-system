@@ -308,6 +308,7 @@ def test_preview_uses_source_free_snapshot_for_inherited_active_history(local_tu
                 effective_sensitivity="personal",
                 expires_at=datetime.now(UTC),
                 max_output_bytes=100,
+                completion_digest="f" * 64,
                 selected_memory_ids=(uuid4(),),
             ),
         }
@@ -354,8 +355,23 @@ def test_issuer_rechecks_inherited_application_provenance_before_signing(local_t
     assert not provider.requests
 
 
-@pytest.mark.parametrize("missing", [None, "consent", "program", "account", "included_only"])
-def test_policy_offer_fences_before_publication_and_stays_local(local_turn, missing):
+@pytest.mark.parametrize(
+    ("missing", "revoked_fact", "hidden_model"),
+    [
+        (None, None, False),
+        (None, "owner_policy", False),
+        (None, "route_grant", False),
+        (None, "consent", False),
+        (None, None, True),
+        ("consent", None, False),
+        ("program", None, False),
+        ("account", None, False),
+        ("included_only", None, False),
+    ],
+)
+def test_policy_offer_fences_before_publication_and_stays_local(
+    local_turn, missing, revoked_fact, hidden_model
+):
     from contextlib import ExitStack
 
     from personal_ai.auth.scope import (
@@ -395,8 +411,12 @@ def test_policy_offer_fences_before_publication_and_stays_local(local_turn, miss
     store = MemorySettings()
 
     class LocalAuthority(Authority):
+        admission = None
+        offer_evidence = None
+
         def plan_offer(self, connection, admission, package, choice, now):
-            return PlanOfferEvidence(
+            self.admission = admission
+            self.offer_evidence = PlanOfferEvidence(
                 exact,
                 prepared.connected_package.fingerprint,
                 continuation.choice.audience,
@@ -408,13 +428,15 @@ def test_policy_offer_fences_before_publication_and_stays_local(local_turn, miss
                 missing != "account",
                 missing != "included_only",
             )
+            return self.offer_evidence
 
+    local_authority = LocalAuthority(
+        maximum_sensitivity=prepared.connected_package.effective_sensitivity
+    )
     coordinator = IsolatedInferenceRouting(
         RoutingDecisionService(issuer.registry, MemoryRepository()),
         OwnerInferenceSettings(store, issuer.registry, is_member=lambda _: False),
-        authority=LocalAuthority(
-            maximum_sensitivity=prepared.connected_package.effective_sensitivity
-        ),
+        authority=local_authority,
     )
     with ExitStack() as stack:
         stack.callback(reset_request_scope, bind_request_scope(issuer.context.scope))
@@ -454,11 +476,81 @@ def test_policy_offer_fences_before_publication_and_stays_local(local_turn, miss
         with pytest.raises(PolicyDenied, match="fenced"):
             coordinator.prepare(**kwargs)
     assert not provider.requests
+
+    class CurrentRootAuthority:
+        def authorize(self, *, root_id, package, claims, installation, session):
+            now = datetime.now(UTC)
+            try:
+                coordinator.require_authority(None, local_authority.admission, now)
+            except PolicyDenied:
+                return False
+            evidence = local_authority.offer_evidence
+            return (
+                evidence is not None
+                and evidence.matches(
+                    local_authority.admission, package, continuation.choice
+                )
+                and evidence.eligible(now)
+                and root_id == grant.claims.routing_root
+                and claims.routing_root == root_id
+                and package.fingerprint == prepared.connected_package.fingerprint
+                and package.owner_id == issuer.context.scope.owner_id
+                and package.application_id == issuer.context.scope.application_id
+                and package.workspace_id == issuer.context.scope.workspace_id
+                and package.model_id == grant.claims.model_id
+                and package.execution_profile.endpoint == continuation.choice.endpoint
+                and claims.package_hash == package.fingerprint
+                and claims.connection_id == installation.connection_id
+                and package.connection_revision == installation.connection_revision
+                and session.connection_id == installation.connection_id
+                and claims.local_chat == installation.scope
+                and claims.local_chat.actor_id == installation.scope.actor_id
+            )
+
+    root_authority = CurrentRootAuthority()
+    bridge.root_authority = root_authority
+    if revoked_fact == "owner_policy":
+        with ExitStack() as stack:
+            stack.callback(reset_request_scope, bind_request_scope(issuer.context.scope))
+            stack.callback(
+                reset_verified_principal, bind_verified_principal(issuer.authority.principal)
+            )
+            coordinator.settings.update(
+                expected_revision=1, payload=policy().model_dump_json().encode()
+            )
+    elif revoked_fact == "route_grant":
+        local_authority.active = False
+    elif revoked_fact == "consent":
+        from dataclasses import replace
+
+        local_authority.offer_evidence = replace(
+            local_authority.offer_evidence, owner_plan_consent=False
+        )
+    if revoked_fact is not None:
+        from personal_ai.local_bridge.runtime import BridgeDenied
+
+        with pytest.raises(BridgeDenied, match="admission_denied"):
+            run_bridge(bridge, session, prepared.connected_package, grant)
+        assert not provider.requests
+        assert root[4] == "fenced"
+        with bridge.lifecycle.store.transaction() as tx:
+            assert prepared.connected_package.dispatch_identity not in tx.state.receipts
+        return
+
+    if hidden_model:
+        from personal_ai.local_bridge.runtime import BridgeDenied
+
+        provider.catalog = []
+        with pytest.raises(BridgeDenied, match="model_unavailable"):
+            run_bridge(bridge, session, prepared.connected_package, grant)
+        assert [req.method for req in provider.requests] == ["GET"]
+        return
+
     events = run_bridge(bridge, session, prepared.connected_package, grant)
     assert events[-1].metadata.status == "success"
     from personal_ai.local_bridge.store import LocalStoreError
 
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, prepared.connected_package, grant)
-    assert [req.method for req in provider.requests] == ["POST"]
+    assert [req.method for req in provider.requests] == ["GET", "POST", "GET"]
     assert not fallback

@@ -180,10 +180,12 @@ class LocalChatGPTBridge:
         *,
         installation: LocalChatInstallation,
         gates: tuple[CompatibilityGate, ...] = (),
+        root_authority=None,
         clock=time.time,
     ):
         self.lifecycle, self.provider, self.verifier = lifecycle, provider, verifier
         self.installation = installation
+        self.root_authority = root_authority
         self.origins = frozenset({exact_origin(installation.origin)})
         if (
             verifier.audience != installation.runtime_id
@@ -306,7 +308,25 @@ class LocalChatGPTBridge:
         gate.require_package(package, now=now)
         if not self.provider.supports_profile(package.execution_profile):
             raise BridgeDenied("bridge_execution_profile_unsupported")
+        if claims.routing_root is not None:
+            self._authorize_root(claims.routing_root, package, claims, session)
         return session
+
+    def _authorize_root(self, root_id, package, claims, session):
+        """Require current trusted root state; a signed UUID alone grants nothing."""
+        authority = self.root_authority
+        try:
+            allowed = authority is not None and authority.authorize(
+                root_id=root_id,
+                package=package,
+                claims=claims,
+                installation=self.installation,
+                session=session,
+            ) is True
+        except Exception:  # noqa: BLE001 - authority errors must fail closed
+            raise BridgeDenied("bridge_admission_denied") from None
+        if not allowed:
+            raise BridgeDenied("bridge_admission_denied")
 
     async def execute(self, package, proof, *, origin, authorization):
         session = self._require_dispatch(package, proof, origin=origin, authorization=authorization)
@@ -326,19 +346,17 @@ class LocalChatGPTBridge:
                         str(package.connection_id),
                         package.timeout_seconds + 30,
                         authorize=self.installation.require_registration,
-                        allow_refresh=proof.claims.routing_root is None,
                     )
                 )
                 if snapshot.revision != package.connection_revision:
                     raise BridgeDenied("bridge_connection_changed")
                 guard = LocalOutputGuard(snapshot.protected_values)
-                if proof.claims.routing_root is None:
-                    models = await self.provider.discover(snapshot.access_token)
-                    for model in models:
-                        guard.check(model.slug)
-                        guard.check(model.display_name)
-                    if package.model_id not in {m.slug for m in models}:
-                        raise BridgeDenied("bridge_model_unavailable")
+                models = await self.provider.discover(snapshot.access_token)
+                for model in models:
+                    guard.check(model.slug)
+                    guard.check(model.display_name)
+                if package.model_id not in {m.slug for m in models}:
+                    raise BridgeDenied("bridge_model_unavailable")
                 # Expiry and caller authority are rechecked before the durable pre-send claim.
                 self._require_dispatch(package, proof, origin=origin, authorization=authorization)
 

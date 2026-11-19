@@ -62,6 +62,7 @@ class PostgresProviderUsageAccounting:
         header_freshness_seconds: int = 60,
         stale_attempt_seconds: int = 300,
         endpoint_profile_resolver=None,
+        charge_receipt_authority=None,
         operational_event_writer: Callable[[dict], None] | None = None,
         operational_event_purger: Callable[[datetime, int], int] | None = None,
     ) -> None:
@@ -73,6 +74,9 @@ class PostgresProviderUsageAccounting:
         self.header_freshness_seconds = header_freshness_seconds
         self.stale_attempt_seconds = stale_attempt_seconds
         self.endpoint_profile_resolver = endpoint_profile_resolver
+        # Installed only by trusted composition. The public reconciliation call
+        # cannot select or replace its verifier per receipt.
+        self._charge_receipt_authority = charge_receipt_authority
         self.operational_event_writer = operational_event_writer
         self.operational_event_purger = operational_event_purger
 
@@ -762,13 +766,16 @@ class PostgresProviderUsageAccounting:
             connection, invocation, attempt_id, root_id, exposure, now, claim=claim
         )
 
-    def reconcile_charge(self, receipt, *, verify):
-        """Only a trusted, independent billing authority may account a claimed send."""
+    def reconcile_charge(self, receipt):
+        """Settle only when composition installed a trusted billing authority."""
         from personal_ai.routing.price import ChargeReceipt
 
         receipt = ChargeReceipt.model_validate(receipt.model_dump())
+        authority = self._charge_receipt_authority
+        if authority is None:
+            raise UsageAdmissionDenied("inference_charge_receipt_unverified")
         with self.database.transaction() as connection:
-            if verify(connection, receipt) is not True:
+            if authority.verify(connection, receipt) is not True:
                 raise UsageAdmissionDenied("inference_charge_receipt_unverified")
             monetary.reconcile(connection, receipt)
 

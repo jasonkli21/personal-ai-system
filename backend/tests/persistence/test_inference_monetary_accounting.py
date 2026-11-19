@@ -47,12 +47,14 @@ def database(isolated_postgres_dsn):
         db.close()
 
 
-def compose(database, profiles, authority):
+def compose(database, profiles, authority, *, charge_receipt_authority=None):
     catalog = PostgresEndpointRegistryRepository(database)
     registry = EndpointRegistry(profiles, repository=catalog)
     observations = PostgresRoutingDecisionRepository(database)
     usage = PostgresProviderUsageAccounting(
-        database, endpoint_profile_resolver=EndpointProfileResolver(registry, catalog)
+        database,
+        endpoint_profile_resolver=EndpointProfileResolver(registry, catalog),
+        charge_receipt_authority=charge_receipt_authority,
     )
     routing = RoutingDecisionService(
         registry, observations, usage=usage, authorization=Authorization()
@@ -136,7 +138,16 @@ def test_money_and_quota_commit_together_and_reconcile_exact_attempt(database):
         assert coordinator.dispatch(reserved, transport=SyntheticTransport(write)) == "synthetic"
         assert query(database, "SELECT state FROM provider_monetary_holds") == [("claimed",)]
         assert coordinator.settings.read()[-1] == 0
-        restarted = compose(database, (profile,), authority)
+        class FixtureChargeReceiptAuthority:
+            def verify(self, _connection, candidate):
+                return candidate == receipt
+
+        restarted = compose(
+            database,
+            (profile,),
+            authority,
+            charge_receipt_authority=FixtureChargeReceiptAuthority(),
+        )
         with pytest.raises(PolicyDenied, match="fenced"):
             prepare(restarted, route)
         with pytest.raises(PolicyDenied, match="no_authorized"):
@@ -152,13 +163,14 @@ def test_money_and_quota_commit_together_and_reconcile_exact_attempt(database):
             actual_micros=3,
         )
         with pytest.raises(UsageAdmissionDenied, match="unverified"):
-            restarted.routing.usage.reconcile_charge(receipt, verify=lambda c, r: False)
-        restarted.routing.usage.reconcile_charge(receipt, verify=lambda c, r: r == receipt)
-        restarted.routing.usage.reconcile_charge(receipt, verify=lambda c, r: r == receipt)
+            coordinator.routing.usage.reconcile_charge(receipt)
+        assert query(database, "SELECT state FROM provider_monetary_holds") == [("claimed",)]
+        with pytest.raises(TypeError):
+            restarted.routing.usage.reconcile_charge(receipt, verify=lambda _c, _r: True)
+        restarted.routing.usage.reconcile_charge(receipt)
+        restarted.routing.usage.reconcile_charge(receipt)
         with pytest.raises(UsageAdmissionDenied, match="conflict"):
-            restarted.routing.usage.reconcile_charge(
-                receipt.model_copy(update={"actual_micros": 4}), verify=lambda c, r: True
-            )
+            restarted.routing.usage.reconcile_charge(receipt.model_copy(update={"actual_micros": 4}))
         assert restarted.settings.read()[-1] == 5
         with pytest.raises(PolicyDenied):
             prepare(restarted, route, request=request().model_copy(update={"request_id": "newer"}))
@@ -502,7 +514,19 @@ def test_owner_cap_spans_apps_and_payers_and_excess_freezes_profile(database):
         update={"scope": ApplicationScope(application_id="travel", workspace_id="demo")}
     )
     authority = Authority()
-    coordinator = compose(database, (first, second), authority)
+    class FixtureChargeReceiptAuthority:
+        receipt = None
+
+        def verify(self, _connection, candidate):
+            return self.receipt == candidate
+
+    billing_authority = FixtureChargeReceiptAuthority()
+    coordinator = compose(
+        database,
+        (first, second),
+        authority,
+        charge_receipt_authority=billing_authority,
+    )
     now = coordinator.routing.current_time(owner_id="owner")
     authority.exposure = price(a, now)
     with actor():
@@ -525,7 +549,8 @@ def test_owner_cap_spans_apps_and_payers_and_excess_freezes_profile(database):
             receipt_id="8" * 64,
             actual_micros=9,
         )
-        coordinator.routing.usage.reconcile_charge(receipt, verify=lambda c, r: r == receipt)
+        billing_authority.receipt = receipt
+        coordinator.routing.usage.reconcile_charge(receipt)
         assert coordinator.settings.read()[-1] == 0
     assert query(
         database, "SELECT actual_micros, owner_month, payer_start FROM provider_monetary_holds"

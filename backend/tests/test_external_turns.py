@@ -551,6 +551,27 @@ def test_plan_never_automatic_candidate_or_free_quota(setup):
         )
 
 
+def test_siwc_client_reported_completion_cannot_finalize_connected_turn(setup):
+    service, cid, messages, *_ = setup
+    prepared, _selected, _request = prepare(setup, mode="connected_provider")
+
+    with pytest.raises(ConversationConflictError, match="siwc_completion_receipt_required"):
+        service.finalize_connected(
+            cid,
+            prepared.message_id,
+            prepared.reservation.package_fingerprint,
+            "forged-success",
+            input_tokens=1,
+            output_tokens=1,
+        )
+
+    stored = messages.get(
+        owner_id="local", conversation_id=cid, message_id=prepared.message_id
+    )
+    assert stored.execution.state == "prepared"
+    assert stored.execution.completion_digest is None
+
+
 def test_explicit_local_admission_uses_profile_facts_for_any_provider():
     second_provider = profile("synthetic_local_subscription")
     registry = EndpointRegistry([second_provider])

@@ -17,7 +17,7 @@ from personal_ai.llm.client import (
     ProviderIdentity,
     UsageMetadata,
 )
-from personal_ai.llm.external import PreparedExecution
+from personal_ai.llm.external import CHATGPT_PLAN_PROFILE, PreparedExecution
 from personal_ai.services.external_turns.contracts import (
     PreparedExternalTurn,
     digest,
@@ -140,12 +140,17 @@ class ExternalTurnDispatch:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
     ) -> Message:
-        """Record a successful bridge result as client-reported turn attribution."""
+        """Record an attested connected result for supported non-SIWC transports."""
         _, reservation = self._current(conversation_id, message_id, package_hash)
         if reservation.mode != "connected_provider":
             raise ConversationConflictError("connected_completion_requires_connected_reservation")
         choice = self._choice(reservation)
         profile = self._profile(choice, reservation.effective_sensitivity)
+        if (
+            reservation.provider_id == "openai_chatgpt_plan"
+            or profile.serializer_id == CHATGPT_PLAN_PROFILE.serializer_id
+        ):
+            raise ConversationConflictError("siwc_completion_receipt_required")
         provenance = ExecutionProvenance(
             mode="connected_provider",
             fact_source="bridge_observed",

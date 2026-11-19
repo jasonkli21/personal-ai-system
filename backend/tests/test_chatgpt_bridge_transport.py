@@ -496,7 +496,7 @@ def test_local_bridge_drops_provider_error_fields_that_echo_credentials(tmp_path
     provider.request_id = "oaiapp_synthetic"
     result = run_bridge(bridge, session, package, proof)
     observation = result[-1].metadata.provider_error
-    assert result[-1].metadata.error_code == "bridge_unsupported_request"
+    assert result[-1].metadata.error_code == "bridge_transport_unknown"
     assert observation.status == 400
     assert observation.code is None and observation.param is None and observation.request_id is None
     assert "synthetic-access" not in str(asdict(result[-1]))
@@ -538,7 +538,7 @@ def test_ambiguous_http_status_stays_unknown_and_fenced_after_one_send(tmp_path,
     resigned = sign_for_bridge(bridge, session, package, private)
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, resigned)
-    assert [request.method for request in provider.requests] == ["GET", "POST"]
+    assert [request.method for request in provider.requests] == ["GET", "POST", "GET"]
 
 
 def test_documented_usage_rejection_settles_without_replay(tmp_path):
@@ -554,7 +554,7 @@ def test_documented_usage_rejection_settles_without_replay(tmp_path):
         assert tx.state.receipts[package.dispatch_identity].status == "rejected"
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, sign_for_bridge(bridge, session, package, private))
-    assert [request.method for request in provider.requests] == ["GET", "POST"]
+    assert [request.method for request in provider.requests] == ["GET", "POST", "GET"]
 
 
 @pytest.mark.parametrize("name", ["\\ud800", "\\udfff"])
