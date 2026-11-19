@@ -34,6 +34,7 @@ from personal_ai.auth.application_clients import (
     ClientApplicationDenied,
     ClientPolicyUnavailable,
     bind_client_authority,
+    client_binding_namespace,
     external_operation_allowed,
     require_client_application,
     reset_client_authority,
@@ -289,7 +290,18 @@ async def authenticate_request(request: Request) -> Response | None:
         request.state.allowed_origin = origin
 
     verified_user_token: str | None = None
+    isolated_conversations = (
+        settings.app_environment == "test"
+        and getattr(request.app.state, "isolate_external_conversations", False)
+    )
     if request.url.path not in PUBLIC_PATHS:
+        if isolated_conversations and any(
+            name in request.headers for name in ("x-user-id-token", "x-user-delegation")
+        ):
+            return _error(
+                401, "invalid_identity", "Sign in again to continue.", challenge=True,
+                request=request, correlation_id=correlation_id,
+            )
         if settings.auth_mode == "development" and settings.app_environment in {"local", "test"}:
             request.state.principal = AuthenticatedPrincipal.development()
         else:
@@ -431,6 +443,11 @@ async def authenticate_request(request: Request) -> Response | None:
                     request=request,
                     correlation_id=correlation_id,
                 )
+            if isolated_conversations and not external:
+                return _error(
+                    403, "application_client_denied", "This client cannot access this application.",
+                    request=request, correlation_id=correlation_id,
+                )
             if external:
                 if any(name in request.headers for name in ("x-owner-id", "x-acting-user-id")):
                     return _error(
@@ -533,6 +550,22 @@ async def authenticate_request(request: Request) -> Response | None:
                     correlation_id=correlation_id,
                 )
         external_lane = getattr(request.state, "external_client", False)
+        namespace = None
+        conversation_access = None
+        if external_lane and isolated_conversations:
+            namespace = client_binding_namespace(principal, application_id)
+            conversation_access = getattr(request.app.state, "external_conversation_access", None)
+            try:
+                allowed = callable(conversation_access) and await anyio.to_thread.run_sync(
+                    conversation_access, request_scope, namespace
+                )
+            except Exception:  # noqa: BLE001 - unavailable private authority denies access
+                allowed = False
+            if allowed is not True:
+                return _error(
+                    403, "access_denied", "This account is not enabled for this application.",
+                    request=request, correlation_id=correlation_id,
+                )
 
         def current_source_authority():
             current_settings = _settings_for_request(request)
@@ -540,7 +573,10 @@ async def authenticate_request(request: Request) -> Response | None:
                 raise ClientApplicationDenied
             _ensure_active_principal(request, current_settings, principal, correlation_id)
             registry = application_registry_for(request)
-            registry.get(application_id)
+            if registry.get(application_id) != application_definition and namespace is not None:
+                raise ClientApplicationDenied
+            if conversation_access and conversation_access(request_scope, namespace) is not True:
+                raise ClientApplicationDenied
             if workspace_id is not None and not registry.workspace_authorizer.is_member(
                 principal, application_id, workspace_id
             ):
@@ -556,6 +592,8 @@ async def authenticate_request(request: Request) -> Response | None:
         request.state.profile_share_authority = current_profile_share_authority
         if external_lane:
             request.state.client_authority = current_source_authority
+            if isolated_conversations:
+                request.state.conversation_namespace = namespace
         request.state.request_scope = request_scope
         if _provider_switch_is_on(request, settings):
             return _safeguard_error(
@@ -773,7 +811,8 @@ class AuthenticationMiddleware:
                 else None
             )
             client_authority_token = bind_client_authority(
-                getattr(request.state, "client_authority", None) if response is None else None
+                getattr(request.state, "client_authority", None) if response is None else None,
+                getattr(request.state, "conversation_namespace", None) if response is None else None,
             )
             if response is None:
                 await self.app(scope, app_receive, harden_send)
@@ -792,7 +831,8 @@ class AuthenticationMiddleware:
                 elapsed_ms,
                 correlation_id,
                 getattr(getattr(request.state, "request_scope", None), "application_id", "unknown"),
-                getattr(getattr(request.state, "request_scope", None), "workspace_id", None)
+                (None if getattr(request.state, "external_client", False) else
+                 getattr(getattr(request.state, "request_scope", None), "workspace_id", None))
                 or "none",
             )
             if "client_authority_token" in locals():

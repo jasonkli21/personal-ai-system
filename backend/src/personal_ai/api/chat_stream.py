@@ -10,6 +10,7 @@ from personal_ai.api.schemas import (
     SSEResponseDelta,
     SSEResponseError,
 )
+from personal_ai.auth.application_clients import external_conversation_namespace
 from personal_ai.services.chat.events import (
     TurnCompleted,
     TurnDelta,
@@ -53,16 +54,30 @@ def sse_frames(events: AsyncIterator[TurnEvent]) -> SSEFrameStream:
     return SSEFrameStream(events)
 
 
+def conversation_message_for_response(message):
+    """Keep retained grant identities inside the isolated service."""
+    attribution = message.attribution
+    if external_conversation_namespace() and attribution and attribution.source_snapshots:
+        return message.model_copy(update={
+            "attribution": attribution.model_copy(update={"source_snapshots": ()}),
+        })
+    return message
+
+
 def _serialize_event(event: TurnEvent) -> str:
     if isinstance(event, TurnMessageCreated):
-        name, payload = "message.created", SSEMessageCreated(message=event.message)
+        name, payload = (
+            "message.created", SSEMessageCreated(message=conversation_message_for_response(event.message))
+        )
     elif isinstance(event, TurnDelta):
         name, payload = (
             "response.delta",
             SSEResponseDelta(message_id=event.message_id, delta=event.delta),
         )
     elif isinstance(event, TurnCompleted):
-        name, payload = "response.completed", SSEResponseCompleted(message=event.message)
+        name, payload = (
+            "response.completed", SSEResponseCompleted(message=conversation_message_for_response(event.message))
+        )
     elif isinstance(event, TurnFailed):
         name, payload = (
             "response.error",

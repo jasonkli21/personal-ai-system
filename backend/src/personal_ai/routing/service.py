@@ -917,6 +917,32 @@ class RoutingDecisionService:
         """Claim once. Receipt validation never substitutes for direct current checks."""
         return self._claim(owner_id=owner_id, scope=scope, permit=permit, operation=operation)
 
+    def cancel_unclaimed(self, *, owner_id, scope, permit):
+        """Release a direct reservation only while its exact permit is unclaimed."""
+        permit = DispatchPermit.model_validate(permit.model_dump())
+        with self.observations.transaction(owner_id=owner_id) as connection:
+            record = self.observations.lock_root(
+                connection, owner_id=owner_id, scope=scope, decision_id=permit.decision_id,
+            )
+            if (
+                record.status != "authorized"
+                or record.events[-1].permit != permit
+                or (record.decision.request.run_id or "").startswith(ISOLATED_RUN_PREFIX)
+                or record.decision.request.requirements.execution_mode != "STRICT_FREE"
+                or self.usage is None
+            ):
+                raise RoutingFinalizationError("routing_permit_not_cancellable")
+            now = self.observations.current_time(connection)
+            self.usage.cancel_unclaimed_in_transaction(
+                connection, permit, root_id=None, paid=False, now=now,
+            )
+            self.observations.append_in_transaction(
+                connection, scope=scope, record=record, event=RoutingEvent(
+                    kind="failed", occurred_at=now, reason="inference_definitive_no_send",
+                    attempt_id=permit.attempt_id,
+                ),
+            )
+
     def _claim(self, *, owner_id, scope, permit, operation, admission=None):
         permit = DispatchPermit.model_validate(permit.model_dump())
         with self.observations.transaction(owner_id=owner_id) as c:

@@ -33,8 +33,9 @@ def manual_import_is_reusable(
 
 
 def source_snapshots_for_message(message: Message) -> tuple[ContextSourceSnapshot, ...]:
-    """Return the payload-free source authorities retained on a completed turn."""
+    """Return payload-free authorities retained on a prepared or completed turn."""
     snapshots = (
+        *message.prepared_source_snapshots,
         *((message.attribution.source_snapshots) if message.attribution else ()),
         *((message.execution.source_snapshots) if message.execution else ()),
     )

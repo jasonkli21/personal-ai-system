@@ -11,7 +11,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationEr
 SCHEMA = "app-context-v1"
 MAX_MESSAGE = 8192
 MAX_STRING = 2048
-Kind = Literal["itinerary_leg", "workout"]
+Kind = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{1,39}$")]
 Operation = Literal["describe", "search", "fetch"]
 Sensitivity = Literal["public", "personal", "sensitive", "restricted"]
 OpaqueID = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")]

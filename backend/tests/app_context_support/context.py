@@ -60,7 +60,7 @@ def permission_dependency(result):
     )
 
 
-def context_item(result):
+def context_item(result, *, payload_type=None):
     record, grant = result.value, result.grant
     dependency = permission_dependency(result)
     return ContextItem(
@@ -76,7 +76,7 @@ def context_item(result):
             for field, label in result.field_sensitivity
         ),
         permission_dependencies=(dependency,),
-        payload=PAYLOADS[grant.kind].model_validate(record.content_projection),
+        payload=(payload_type or PAYLOADS[grant.kind]).model_validate(record.content_projection),
     )
 
 

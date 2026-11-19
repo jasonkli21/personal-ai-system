@@ -6,8 +6,10 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from personal_ai.auth.scope import ApplicationScopedRecord
+from personal_ai.contracts.context_references import ContextSourceSnapshot
 from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
 
 MAX_MESSAGE_CONTENT_CHARS = 20_000
@@ -52,6 +54,9 @@ class Conversation(TimestampedRecord):
     context_preparation_id: UUID | None = Field(default=None, exclude=True)
     context_preparation_started_at: datetime | None = Field(default=None, exclude=True)
     persistence_revision: int = Field(default=0, exclude=True, ge=0)
+    external_client_namespace: SkipJsonSchema[str | None] = Field(
+        default=None, exclude=True, pattern=r"^[a-f0-9]{64}$"
+    )
     title: str = Field(min_length=1, max_length=200)
     created_at: datetime
     updated_at: datetime
@@ -78,6 +83,9 @@ class Message(TimestampedRecord):
     execution: TurnReservation | None = None
     # Deterministic continuation intent, shared by automatic and external retries.
     continuation_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    prepared_source_snapshots: SkipJsonSchema[tuple[ContextSourceSnapshot, ...]] = Field(
+        default=(), exclude=True, max_length=512
+    )
 
     @model_validator(mode="after")
     def client_failure_facts_are_labeled(self):

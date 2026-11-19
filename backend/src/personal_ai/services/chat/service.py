@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator, Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from time import monotonic
 from uuid import UUID, uuid4, uuid5
 
@@ -15,6 +16,7 @@ import anyio
 
 from personal_ai.applications.contracts import ApplicationContextRequest, ContextSensitivity
 from personal_ai.auth.application_clients import (
+    external_conversation_namespace,
     is_external_client_request,
     require_current_client_authority,
 )
@@ -79,6 +81,7 @@ from personal_ai.services.chat.streaming import (
 from personal_ai.services.chat.streaming import (
     unfinished_continuation_user as _unfinished_continuation_user,
 )
+from personal_ai.services.conversations import authorized_conversation
 from personal_ai.storage import ConversationConflictError, ResourceNotFoundError
 from personal_ai.storage.async_io import io_call
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
@@ -155,7 +158,13 @@ class ChatTurnService:
         self._stale_stream_after_seconds = stale_stream_after_seconds
 
     def _active(self, conversation_id: UUID) -> list[Message]:
-        self._conversations.get(owner_id=self._owner_id, conversation_id=conversation_id)
+        authorized_conversation(
+            self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
+        )
+        if external_conversation_namespace():
+            self._require_prepared_authority(self._messages.list_active(
+                owner_id=self._owner_id, conversation_id=conversation_id
+            ))
         self._recover_stale_turn(conversation_id)
         active = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
@@ -362,10 +371,13 @@ class ChatTurnService:
         if self._application_context is None:
             raise ContextPreparationError("application_context_required")
         context = context_assembler or self._context
-        self._conversations.get(owner_id=self._owner_id, conversation_id=conversation_id)
+        authorized_conversation(
+            self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
+        )
         active = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
         )
+        self._require_prepared_authority(active)
         history = active
         if candidate_message_ids is not None:
             from personal_ai.context.contracts import complete_turns
@@ -417,7 +429,31 @@ class ChatTurnService:
             message.id for message in history
         }:
             raise ContextPreparationError("continuation_source_policy_denied")
+        if external_conversation_namespace():
+            preview = self._new_message(
+                conversation_id=conversation_id, role=MessageRole.USER, content=content,
+                status=MessageStatus.COMPLETED, now=datetime.now(UTC),
+                parent_message_id=history[-1].id if history else None,
+            )
+            assembled = context.assemble(
+                history, preview, refresh=False, application_context=self._application_context,
+                context_plan=plan, deadline=monotonic() + context.settings.request_timeout_seconds,
+            )
+            self._require_prepared_authority(active)
+            if not source_snapshots_current(
+                (item.authority_snapshot() for item in assembled.source_items),
+                context.permission_revalidator, now=datetime.now(UTC),
+            ):
+                raise ContextPreparationError("context_source_authority_changed")
+            require_current_client_authority()
         return plan, len(history)
+
+    def _require_prepared_authority(self, messages: Sequence[Message]) -> None:
+        if external_conversation_namespace() and not source_snapshots_current(
+            (snapshot for message in messages for snapshot in source_snapshots_for_message(message)),
+            self._context.permission_revalidator, now=datetime.now(UTC),
+        ):
+            raise ContextPreparationError("context_source_authority_changed")
 
     def continue_turn(
         self, conversation_id: UUID, request: ContinuationRequest, *, _fixture_selection=None,
@@ -467,8 +503,8 @@ class ChatTurnService:
         intent_digest = request.intent_digest
         request_id = str(request.idempotency_key)
         if reasoning is not None:
-            conversation = self._conversations.get(
-                owner_id=self._owner_id, conversation_id=conversation_id,
+            conversation = authorized_conversation(
+                self._conversations, owner_id=self._owner_id, conversation_id=conversation_id,
             )
             if (conversation.application_id, conversation.workspace_id) != (
                 scope.application_id, scope.workspace_id,
@@ -480,6 +516,7 @@ class ChatTurnService:
         except ResourceNotFoundError:
             existing_assistant = None
         if existing_assistant is not None:
+            self._require_prepared_authority((existing_assistant,))
             if existing_assistant.continuation_digest != intent_digest:
                 raise ConversationConflictError("idempotency_input_changed")
             if existing_assistant.status is MessageStatus.COMPLETED:
@@ -500,6 +537,7 @@ class ChatTurnService:
             observation = TurnObservation(resolve(reasoning), started, request_id)
         if active is None:
             active = self._active(conversation_id)
+        self._require_prepared_authority(active)
         user_id = uuid5(identity, "user")
         try:
             user = self.get_message(conversation_id, user_id)
@@ -532,7 +570,7 @@ class ChatTurnService:
                 or active[-1].id != user.id
             ):
                 raise ConversationConflictError("idempotency_input_changed_or_turn_not_resumable")
-            if reasoning is not None:
+            if reasoning is not None or external_conversation_namespace():
                 raise ConversationConflictError("continuation_exists_inspect_canonical_state")
             already_persisted = True
             supersede_from = None
@@ -552,6 +590,7 @@ class ChatTurnService:
             continuation_digest=intent_digest,
             user_already_persisted=already_persisted,
             reasoning=observation,
+            excluded_source_classes=frozenset(request.excluded_source_classes),
         )
 
     def send(
@@ -861,7 +900,7 @@ class ChatTurnService:
                     Event.CONTEXT, State.OK, input_tokens=assembled.budget.selected_total,
                     units="selected_budget",
                     source_count=len(assembled.source_items),
-                    source_refs=(
+                    source_refs=() if external_conversation_namespace() else (
                         tuple(item.item_id for item in assembled.source_items[:32])
                         + assembled.selected_message_ids[:32]
                     ),
@@ -947,6 +986,8 @@ class ChatTurnService:
                 message_id=assistant_id,
                 continuation_digest=continuation_digest,
             )
+            if external_conversation_namespace():
+                assistant = assistant.model_copy(update={"prepared_source_snapshots": unique_snapshots})
             if preparation_hook is not None:
                 assistant = preparation_hook(assistant, assembled, inference_context, post_active)
             persisted_assistant = self._messages.prepare_message_turn(
@@ -1076,6 +1117,9 @@ class ChatTurnService:
                 yield TurnMessageCreated(message)
             def revalidate_send():
                 require_current_client_authority()
+                if external_conversation_namespace():
+                    authorize_base_disclosure(self._application_context)
+                    remaining(turn.deadline)
                 if reasoning is not None:
                     if not self._context.settings.reasoning_enabled:
                         raise ContextPreparationError("reasoning_disabled")
@@ -1103,9 +1147,17 @@ class ChatTurnService:
                 extra["reasoning"] = reasoning
             with (
                 bind_usage_task(
-                    "chat_generation", request_id=turn.request_id if reasoning else None,
+                    "chat_generation",
+                    request_id=(str(turn.assistant.id) if external_conversation_namespace()
+                                else turn.request_id if reasoning else None),
                 ),
-                bind_disclosure_guard(revalidate_send),
+                bind_disclosure_guard(
+                    revalidate_send,
+                    source_references=tuple(sorted({
+                        sha256(snapshot.model_dump_json().encode()).hexdigest()
+                        for snapshot in turn.source_snapshots
+                    })) if external_conversation_namespace() else (),
+                ),
                 observe_usage(reasoning.record if reasoning else None),
             ):
                 provider_iterator = self._llm.stream_events(
@@ -1185,6 +1237,7 @@ class ChatTurnService:
                     update={
                         "status": MessageStatus.COMPLETED,
                         "content": content,
+                        "prepared_source_snapshots": (),
                         "model": generation_metadata.identity.model_id,
                         "attribution": TurnAttribution(
                             fact_source="server_observed",
@@ -1266,17 +1319,20 @@ class ChatTurnService:
                 )
             raise
         except ContextPreparationError as error:
-            event = await self._error_event(turn.assistant, error.code, "")
+            event = await self._stream_error(turn, error.code, "")
             terminal = True
-            yield replace(event, reasoning=_reasoning_result(reasoning, stop="policy_denied")) if reasoning else event
+            if event is not None:
+                yield replace(event, reasoning=_reasoning_result(reasoning, stop="policy_denied")) if reasoning else event
         except LLMError as error:
             logger.warning(
                 "Chat stream failed request_id=%s error_class=%s",
                 turn.request_id,
                 type(error).__name__,
             )
-            event = await self._error_event(turn.assistant, error.code, "" if turn.source_snapshots else "".join(parts))
+            event = await self._stream_error(turn, error.code, "" if turn.source_snapshots else "".join(parts))
             terminal = True
+            if event is None:
+                return
             if reasoning:
                 usage = generation_metadata.usage if generation_metadata else None
                 stop = None
@@ -1295,11 +1351,21 @@ class ChatTurnService:
             logger.error(
                 "Chat stream failed request_id=%s error_class=UnexpectedError", turn.request_id
             )
-            event = await self._error_event(turn.assistant, "llm_unavailable", "" if turn.source_snapshots else "".join(parts))
+            event = await self._stream_error(turn, "llm_unavailable", "" if turn.source_snapshots else "".join(parts))
             terminal = True
-            yield replace(event, reasoning=_reasoning_result(
-                reasoning, stop="internal_failure", generation_metadata=generation_metadata,
-            )) if reasoning else event
+            if event is not None:
+                yield replace(event, reasoning=_reasoning_result(
+                    reasoning, stop="internal_failure", generation_metadata=generation_metadata,
+                )) if reasoning else event
+
+    async def _stream_error(self, turn: _PreparedTurn, code: str, content: str) -> TurnFailed | None:
+        event = await self._error_event(turn.assistant, code, content)
+        if external_conversation_namespace():
+            try:
+                await self._require_output_authority(turn.source_snapshots)
+            except ContextPreparationError:
+                return None
+        return event
 
     async def _error_event(self, assistant: Message, code: str, content: str) -> TurnFailed:
         failed = await self._fail(assistant, code, content)
@@ -1384,37 +1450,21 @@ class ChatTurnService:
         async def replay():
             snapshots = source_snapshots_for_message(assistant)
             user = self.get_message(conversation_id, uuid5(assistant.id, "user"))
-            for message in (user, assistant):
-                try:
+            try:
+                for message in (user, assistant):
                     await self._require_output_authority(snapshots, message=assistant)
-                except ContextPreparationError as error:
+                    yield TurnMessageCreated(message)
+                await self._require_output_authority(snapshots, message=assistant)
+                yield TurnDelta(message_id=assistant.id, delta=assistant.content)
+                await self._require_output_authority(snapshots, message=assistant)
+                yield TurnCompleted(message=assistant, reasoning=reasoning)
+            except ContextPreparationError as error:
+                if not external_conversation_namespace():
                     yield TurnFailed(
                         message_id=assistant.id,
                         code=error.code,
                         message="The response could not be completed. Please retry.",
                     )
-                    return
-                yield TurnMessageCreated(message)
-            try:
-                await self._require_output_authority(snapshots, message=assistant)
-            except ContextPreparationError as error:
-                yield TurnFailed(
-                    message_id=assistant.id,
-                    code=error.code,
-                    message="The response could not be completed. Please retry.",
-                )
-                return
-            yield TurnDelta(message_id=assistant.id, delta=assistant.content)
-            try:
-                await self._require_output_authority(snapshots, message=assistant)
-            except ContextPreparationError as error:
-                yield TurnFailed(
-                    message_id=assistant.id,
-                    code=error.code,
-                    message="The response could not be completed. Please retry.",
-                )
-                return
-            yield TurnCompleted(message=assistant, reasoning=reasoning)
 
         return replay()
 

@@ -10,7 +10,7 @@ import anyio
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
-from personal_ai.api.chat_stream import sse_frames
+from personal_ai.api.chat_stream import conversation_message_for_response, sse_frames
 from personal_ai.api.dependencies import (
     get_chat_turn_service,
     get_context_assembler,
@@ -96,7 +96,9 @@ def get_conversation(
     conversation, messages = service.get_conversation(
         conversation_id, permission_revalidator=permission_revalidator
     )
-    return ConversationDetailResponse(conversation=conversation, messages=messages)
+    return ConversationDetailResponse(
+        conversation=conversation, messages=[conversation_message_for_response(item) for item in messages]
+    )
 
 
 @router.get(
@@ -106,9 +108,12 @@ def continuation_status(
     conversation_id: UUID,
     idempotency_key: UUID,
     service: Annotated[ConversationService, Depends(get_conversation_service)],
+    permission_revalidator: Annotated[object, Depends(get_context_permission_revalidator)],
 ) -> ContinuationStatusResponse:
     return ContinuationStatusResponse.model_validate(
-        service.continuation_status(conversation_id, idempotency_key)
+        service.continuation_status(
+            conversation_id, idempotency_key, permission_revalidator=permission_revalidator
+        )
     )
 
 

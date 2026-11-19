@@ -63,6 +63,7 @@ class Installation:
     epoch: int
     expires_at: datetime
     enabled: bool = True
+    registered_schema: SourceSchema | None = None
 
     @property
     def revision(self):
@@ -70,7 +71,7 @@ class Installation:
 
     @property
     def schema(self):
-        return SCHEMAS[self.binding.application_id]
+        return self.registered_schema or SCHEMAS[self.binding.application_id]
 
     def envelope(self):
         return {
@@ -80,12 +81,13 @@ class Installation:
 
 
 class Installations:
-    def __init__(self, operator, clock, source_ids):
+    def __init__(self, operator, clock, source_ids, *, schemas=None):
         self._operator = operator
         self._clock = clock
         self._source_ids = iter(source_ids)
         self._by_id = {}
         self._sources = {}
+        self._schemas = dict(SCHEMAS if schemas is None else schemas)
         self._lock = Lock()
         self.counts = Counter()
 
@@ -103,7 +105,7 @@ class Installations:
         binding = None
         if isinstance(request, (Install, Update)):
             binding = checked(Binding, request.model_dump(exclude={"operation", "expected_revision"}))
-            schema = SCHEMAS.get(binding.application_id)
+            schema = self._schemas.get(binding.application_id)
             if schema is None or schema.projection_schema_id != binding.projection_schema_id:
                 raise ProtocolError("invalid_request")
         with self._lock:
@@ -114,7 +116,10 @@ class Installations:
                 source_id = next(self._source_ids, None)
                 if source_id is None or source_id in self._sources:
                     raise ProtocolError("source_unavailable")
-                current = Installation(binding, source_id, 1, self._clock() + timedelta(hours=1))
+                current = Installation(
+                    binding, source_id, 1, self._clock() + timedelta(hours=1),
+                    registered_schema=schema,
+                )
             else:
                 if current is None:
                     raise ProtocolError("unavailable")
@@ -125,6 +130,7 @@ class Installations:
                 current = replace(
                     current, binding=binding or current.binding, epoch=current.epoch + 1,
                     enabled=isinstance(request, Update),
+                    registered_schema=schema if binding is not None else current.registered_schema,
                 )
             self._by_id[request.installation_id] = current
             self._sources[current.source_id] = current
@@ -366,6 +372,29 @@ class FixtureSource:
             if ref is not None and (key in self._hidden or key not in self._versions):
                 raise ProtocolError("unavailable")
             return self._watermarks.get(partition, "w0"), self._versions.get(key)
+
+    def attest_record(self, raw, delegation):
+        """Check current source rights and a bounded, opaque record revision."""
+        claims = self.delegations.authenticate(delegation, self.service)
+        data = decode(raw)
+        if not hmac.compare_digest(claims.request_digest, digest(data)):
+            raise ProtocolError("unauthenticated")
+        request = checked(Fetch, data)
+        install = self.installations.active(request.source_id)
+        with self._lock:
+            partition = self._namespace(install, request, claims)
+            self.authorize(claims, install)
+            self.delegations.consume(claims)
+            self.counts["check_source_revision"] += 1
+            for ref in self._records.get(partition, {}):
+                version = self._versions[partition, ref]
+                if (
+                    (partition, ref) not in self._hidden
+                    and request.source_revision == version.revision
+                    and digest(record_id(partition, ref, version.revision)) == request.record_ref
+                ):
+                    return self._watermarks[partition], version
+            raise ProtocolError("stale_dependency")
 
     def exchange(self, raw, delegation):
         self.counts["exchange"] += 1

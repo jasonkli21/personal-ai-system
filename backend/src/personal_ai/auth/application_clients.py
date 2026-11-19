@@ -10,6 +10,7 @@ import re
 import time
 from collections.abc import Callable
 from contextvars import ContextVar
+from hashlib import sha256
 from pathlib import Path
 from typing import Literal
 
@@ -124,14 +125,32 @@ def external_operation_allowed(method: str, path: str) -> bool:
 _request_authority: ContextVar[Callable[[], None] | None] = ContextVar(
     "external_request_authority", default=None
 )
+_conversation_namespace: ContextVar[str | None] = ContextVar(
+    "external_conversation_namespace", default=None
+)
 
 
-def bind_client_authority(authority):
-    return _request_authority.set(authority)
+def bind_client_authority(authority, namespace=None):
+    return _request_authority.set(authority), _conversation_namespace.set(namespace)
 
 
 def reset_client_authority(token):
-    _request_authority.reset(token)
+    authority, namespace = token
+    _request_authority.reset(authority)
+    _conversation_namespace.reset(namespace)
+
+
+def client_binding_namespace(principal, application_id):
+    """Stable opaque partition for one exact verified client binding."""
+    import json
+
+    binding = json.dumps((principal.issuer, principal.audience, principal.authorized_party,
+                          application_id), separators=(",", ":"))
+    return sha256(binding.encode()).hexdigest()
+
+
+def external_conversation_namespace() -> str | None:
+    return _conversation_namespace.get()
 
 
 def is_external_client_request() -> bool:

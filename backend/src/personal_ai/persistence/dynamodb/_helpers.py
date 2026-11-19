@@ -92,9 +92,12 @@ def _authorized(item: dict[str, Any], owner_id: str, scope: ApplicationScope) ->
 
 
 def _conversation_payload(conversation: Conversation) -> dict[str, Any]:
-    return conversation.model_dump(
+    payload = conversation.model_dump(
         mode="json", exclude={"context_preparation_id", "context_preparation_started_at"}
     )
+    if conversation.external_client_namespace is not None:
+        payload["external_client_namespace"] = conversation.external_client_namespace
+    return payload
 
 
 def _metadata_item(
@@ -258,7 +261,12 @@ def _message_locator(message: Message, scope: ApplicationScope):
 
 
 def _message_payload(message: Message):
-    return message.model_dump(mode="json")
+    payload = message.model_dump(mode="json")
+    if message.prepared_source_snapshots:
+        payload["prepared_source_snapshots"] = [
+            snapshot.model_dump(mode="json") for snapshot in message.prepared_source_snapshots
+        ]
+    return payload
 
 
 def _message_from_item(item):

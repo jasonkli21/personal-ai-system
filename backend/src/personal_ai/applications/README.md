@@ -16,3 +16,5 @@ This package owns typed application manifests and deterministic composition of a
 ## Entry points and verification
 
 Start with `contracts.py` and `registry.py`. Focused tests cover application composition, request scope, and production middleware. See [system architecture](../../../../docs/architecture.md) and [the API contract](../../../../docs/api-contract.md).
+
+The default-off shared application fixture combines application and context contributions with operator-owned OAuth bindings. Its integration guide describes required and optional workspaces, source and recipient grants, and recovery of the original request. [Shared application service](../../../../docs/context-inference-integration/shared-application-service.md)

@@ -41,13 +41,22 @@ class InMemoryConversationRepository:
             return conversation
 
     def list(self, *, owner_id: str, limit: int = 50) -> list[Conversation]:
+        return self._list(owner_id, limit, None)
+
+    def list_for_external_client(self, *, owner_id: str, client_namespace: str, limit: int = 50):
+        return self._list(owner_id, limit, client_namespace)
+
+    def _list(self, owner_id, limit, client_namespace):
         if limit < 1:
             return []
         with self._lock:
             return sorted(
                 (
                     item for item in self._conversations.values()
-                    if item.owner_id == owner_id and scope_matches(item)
+                    if (
+                        item.owner_id == owner_id and scope_matches(item)
+                        and item.external_client_namespace == client_namespace
+                    )
                 ),
                 key=lambda item: (item.updated_at, str(item.id)),
                 reverse=True,

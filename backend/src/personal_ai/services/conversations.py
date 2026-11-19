@@ -7,6 +7,7 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.auth.application_clients import (
+    external_conversation_namespace,
     is_external_client_request,
     require_current_client_authority,
 )
@@ -15,7 +16,11 @@ from personal_ai.context.authority import source_snapshots_current
 from personal_ai.context.history import source_snapshots_for_message
 from personal_ai.contracts.execution import continuation_message_id
 from personal_ai.entities import Conversation, Message, MessageRole
-from personal_ai.storage.errors import ConversationConflictError, ResourceNotFoundError
+from personal_ai.storage.errors import (
+    ConversationConflictError,
+    ResourceNotFoundError,
+    StorageUnavailableError,
+)
 from personal_ai.storage.repositories import ConversationRepository, MessageRepository
 
 DEFAULT_CONVERSATION_TITLE = "New conversation"
@@ -23,6 +28,14 @@ DEFAULT_CONVERSATION_TITLE = "New conversation"
 
 class ExternalHistoryDisclosureDenied(Exception):
     """Current source authority cannot be proven for external conversation history."""
+
+
+def authorized_conversation(repository, *, owner_id, conversation_id):
+    require_current_client_authority()
+    record = repository.get(owner_id=owner_id, conversation_id=conversation_id)
+    if record.external_client_namespace != external_conversation_namespace():
+        raise ResourceNotFoundError("conversation not found")
+    return record
 
 
 class ConversationService:
@@ -61,6 +74,8 @@ class ConversationService:
         cleaned_title = title.strip() if title else ""
         normalized_title = cleaned_title or DEFAULT_CONVERSATION_TITLE
         conversation_id = uuid4()
+        client_namespace = external_conversation_namespace()
+        require_current_client_authority()
         if idempotency_key is not None:
             scope = self._application_context.scope if self._application_context else None
             scope_value = "\0".join(
@@ -71,12 +86,14 @@ class ConversationService:
                     str(idempotency_key),
                 )
             )
+            if client_namespace is not None:
+                scope_value += f"\0{client_namespace}"
             conversation_id = uuid5(
                 NAMESPACE_URL, f"personal-ai-conversation-create-v1\0{scope_value}"
             )
             try:
-                existing = self._conversations.get(
-                    owner_id=self._owner_id, conversation_id=conversation_id
+                existing = authorized_conversation(
+                    self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
                 )
             except ResourceNotFoundError:
                 existing = None
@@ -90,14 +107,17 @@ class ConversationService:
             title=normalized_title,
             created_at=now,
             updated_at=now,
+            external_client_namespace=client_namespace,
         )
         try:
-            return self._conversations.create(conversation)
+            created = self._conversations.create(conversation)
+            require_current_client_authority()
+            return created
         except ConversationConflictError:
             if idempotency_key is None:
                 raise
-            existing = self._conversations.get(
-                owner_id=self._owner_id, conversation_id=conversation_id
+            existing = authorized_conversation(
+                self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
             )
             if existing.title != normalized_title:
                 raise ConversationConflictError("idempotency_input_changed") from None
@@ -105,14 +125,26 @@ class ConversationService:
 
     def list_conversations(self) -> list[Conversation]:
         """Return the current owner's conversations in repository-defined order."""
-        return self._conversations.list(owner_id=self._owner_id)
+        client_namespace = external_conversation_namespace()
+        if client_namespace is None:
+            conversations = self._conversations.list(owner_id=self._owner_id)
+        else:
+            list_scoped = getattr(self._conversations, "list_for_external_client", None)
+            if list_scoped is None:
+                raise StorageUnavailableError("client-scoped conversation listing unavailable")
+            conversations = list_scoped(owner_id=self._owner_id, client_namespace=client_namespace)
+        require_current_client_authority()
+        return [
+            item for item in conversations
+            if item.external_client_namespace == client_namespace
+        ]
 
     def get_conversation(
         self, conversation_id: UUID, *, permission_revalidator=None
     ) -> tuple[Conversation, list[Message]]:
         """Return a conversation and only its active message path."""
-        conversation = self._conversations.get(
-            owner_id=self._owner_id, conversation_id=conversation_id
+        conversation = authorized_conversation(
+            self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
         )
         messages = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
@@ -144,24 +176,28 @@ class ConversationService:
                 # Old external output with no provenance cannot be classified as
                 # profile-free, so quarantine it from new external responses.
                 raise ExternalHistoryDisclosureDenied
-            profile_snapshots = tuple(
+            protected_snapshots = tuple(
                 snapshot
-                for message in assistant_messages
+                for message in (messages if external_conversation_namespace() else assistant_messages)
                 for snapshot in source_snapshots_for_message(message)
-                if snapshot.provider_id == "global_profile"
+                if external_conversation_namespace()
+                or snapshot.provider_id == "global_profile"
                 or "global_profile" in snapshot.source_classes
             )
-            if profile_snapshots and not source_snapshots_current(
-                profile_snapshots,
+            if protected_snapshots and not source_snapshots_current(
+                protected_snapshots,
                 permission_revalidator,
                 now=datetime.now(UTC),
             ):
                 raise ExternalHistoryDisclosureDenied
+            require_current_client_authority()
         return conversation, messages
 
-    def continuation_status(self, conversation_id: UUID, key: UUID) -> dict:
+    def continuation_status(self, conversation_id: UUID, key: UUID, *, permission_revalidator=None) -> dict:
         """Observe canonical messages only; no recovery mutation or provider work."""
-        self._conversations.get(owner_id=self._owner_id, conversation_id=conversation_id)
+        authorized_conversation(
+            self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
+        )
         scope = self._application_context.scope if self._application_context else ApplicationScope()
         identity = continuation_message_id(conversation_id, self._owner_id, scope, key)
         try:
@@ -176,8 +212,15 @@ class ConversationService:
                     message_id=uuid5(identity, "user"),
                 )
             except ResourceNotFoundError:
+                require_current_client_authority()
                 return {"state": "not_found", "message_id": None}
+            require_current_client_authority()
             return {"state": "unknown", "message_id": None}
+        if external_conversation_namespace() and not source_snapshots_current(
+            source_snapshots_for_message(message), permission_revalidator, now=datetime.now(UTC)
+        ):
+            raise ExternalHistoryDisclosureDenied
+        require_current_client_authority()
         state = {"completed": "completed", "streaming": "in_progress"}.get(
             message.status.value, "unknown"
         )

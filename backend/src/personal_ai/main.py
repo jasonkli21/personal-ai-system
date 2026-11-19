@@ -232,6 +232,7 @@ async def context_preparation_error(_: Request, error: ContextPreparationError) 
         if error.code.startswith("context_")
         or error.code
         in {
+            "application_launch_scope_mismatch",
             "continuation_source_policy_denied",
             "continuation_source_not_active_completed",
         }
