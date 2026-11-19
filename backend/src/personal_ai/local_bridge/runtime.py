@@ -393,19 +393,48 @@ class LocalChatGPTBridge:
             raise BridgeDenied("bridge_admission_denied")
 
     async def execute(self, package, proof, *, origin, authorization):
-        session = self._require_dispatch(package, proof, origin=origin, authorization=authorization)
         plan = proof.claims.application_plan is not None
         worker = sync_call if plan else anyio.to_thread.run_sync
         messages = package.chat_messages()
         serialize(messages, package.model_id)
         send_started = False
         try:
-            duration = min(
-                package.timeout_seconds,
-                proof.claims.expires_at - self.clock(),
-                session.expires_at - self.clock(),
+            loop = asyncio.get_running_loop()
+            if plan:
+                authorization_deadline = loop.time() + max(
+                    0.0,
+                    min(
+                        package.timeout_seconds,
+                        proof.claims.expires_at - self.clock(),
+                    ),
+                )
+                async with asyncio.timeout_at(authorization_deadline):
+                    session = await sync_call(
+                        partial(
+                            self._require_dispatch,
+                            package,
+                            proof,
+                            origin=origin,
+                            authorization=authorization,
+                        )
+                    )
+            else:
+                # Preserve the standalone v1 admission order and behavior.
+                session = self._require_dispatch(
+                    package, proof, origin=origin, authorization=authorization
+                )
+                authorization_deadline = loop.time() + max(
+                    0.0,
+                    min(
+                        package.timeout_seconds,
+                        proof.claims.expires_at - self.clock(),
+                    ),
+                )
+            authorization_deadline = min(
+                authorization_deadline,
+                loop.time() + max(0.0, session.expires_at - self.clock()),
             )
-            async with asyncio.timeout(duration):
+            async with asyncio.timeout_at(authorization_deadline):
                 snapshot = await worker(
                     partial(
                         self.lifecycle.snapshot,
@@ -424,7 +453,20 @@ class LocalChatGPTBridge:
                 if package.model_id not in {m.slug for m in models}:
                     raise BridgeDenied("bridge_model_unavailable")
                 # Expiry and caller authority are rechecked before the durable pre-send claim.
-                self._require_dispatch(package, proof, origin=origin, authorization=authorization)
+                if plan:
+                    await sync_call(
+                        partial(
+                            self._require_dispatch,
+                            package,
+                            proof,
+                            origin=origin,
+                            authorization=authorization,
+                        )
+                    )
+                else:
+                    self._require_dispatch(
+                        package, proof, origin=origin, authorization=authorization
+                    )
 
                 def authorize_send(state, registration):
                     self._require_dispatch(

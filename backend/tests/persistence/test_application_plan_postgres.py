@@ -2,11 +2,13 @@
 
 # ruff: noqa: F811 - pytest imports fixtures by their parameter names
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -44,36 +46,100 @@ class PlanWitness:
 
     def __init__(self, path, database, *, initialize=True):
         self.path = path
+        self.claims_path = path.with_name(path.name + ".claims")
         self.database = database
         if initialize:
-            self.write({"epoch": str(uuid4()), "claims": {}, "owner_fence": None})
+            self.write({"epoch": str(uuid4()), "owner_fence": None})
         self.epoch = self.read()["epoch"]
 
     def read(self):
         return json.loads(self.path.read_text())
 
     def write(self, data):
-        pending = self.path.with_suffix(".pending")
-        pending.write_text(json.dumps(data))
+        pending = self.path.with_name(self.path.name + f".{uuid4().hex}.pending")
+        with pending.open("x") as output:
+            output.write(json.dumps(data))
+            output.flush()
+            os.fsync(output.fileno())
         pending.replace(self.path)
+        self._sync_directory(self.path.parent)
 
     def record_claim(self, root, owner, attempt, payload):
-        data = self.read()
-        data["claims"][str(root)] = [owner, str(attempt), payload]
-        self.write(data)
+        record = {
+            "epoch": self.epoch,
+            "owner": owner,
+            "root": str(root),
+            "attempt": str(attempt),
+            "payload": payload,
+        }
+        self.claims_path.mkdir(parents=True, exist_ok=True)
+        claim_path = self._claim_path(root, owner, self.claims_path)
+        pending = self.claims_path / f".{claim_path.name}.{uuid4().hex}.pending"
+        with pending.open("x") as output:
+            output.write(json.dumps(record, sort_keys=True))
+            output.flush()
+            os.fsync(output.fileno())
+        try:
+            os.link(pending, claim_path)
+        except FileExistsError:
+            if json.loads(claim_path.read_text()) != record:
+                raise RuntimeError("plan_claim_witness_conflict") from None
+        finally:
+            pending.unlink(missing_ok=True)
+        self._sync_directory(self.claims_path)
+        if json.loads(claim_path.read_text()) != record:
+            raise RuntimeError("plan_claim_witness_unverified")
+
+    @staticmethod
+    def _sync_directory(directory):
+        descriptor = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    @staticmethod
+    def _claim_path(root, owner, directory):
+        identity = hashlib.sha256(json.dumps([str(root), owner]).encode()).hexdigest()
+        return directory / f"{identity}.json"
+
+    def claim_current(self, root, owner, attempt, payload):
+        try:
+            metadata = self.read()
+            claim_path = self._claim_path(root, owner, self.claims_path)
+            expected = {
+                "epoch": self.epoch,
+                "owner": owner,
+                "root": str(root),
+                "attempt": str(attempt),
+                "payload": payload,
+            }
+            return metadata["epoch"] == self.epoch and json.loads(
+                claim_path.read_text()
+            ) == expected
+        except Exception:  # noqa: BLE001 - missing or inaccessible witness quarantines
+            return False
 
     def current(self):
         try:
             data = self.read()
             if data["epoch"] != self.epoch:
                 return False
-            for root, (owner, attempt, payload) in data["claims"].items():
+            for path in sorted(self.claims_path.glob("*.json")):
+                record = json.loads(path.read_text())
+                if (
+                    set(record) != {"epoch", "owner", "root", "attempt", "payload"}
+                    or record["epoch"] != self.epoch
+                    or self._claim_path(record["root"], record["owner"], self.claims_path)
+                    != path
+                ):
+                    return False
                 if query(
                     self.database,
                     "SELECT state,attempt_id::text,payload_sha256 FROM inference_route_roots "
                     "WHERE root_id=%s AND owner_id=%s",
-                    (root, owner),
-                ) != [("fenced", attempt, payload)]:
+                    (record["root"], record["owner"]),
+                ) != [("fenced", record["attempt"], record["payload"])]:
                     return False
             owner = data["owner_fence"]
             return owner is None or query(
@@ -91,6 +157,7 @@ def native_attempts(database, witness, cls=PlanAttempts):
         PostgresInferencePolicy(database),
         recovery_current=witness.current,
         record_claim=witness.record_claim,
+        claim_current=witness.claim_current,
     )
 
 
@@ -147,8 +214,31 @@ def test_native_ambiguous_plan_fence_and_owner_deletion_survive_restore_boundary
         assert len(target.provider.sends()) == 1 and host.generation.sends == []
 
 
+def claim_in_process():
+    """A child process commits one exact root and records its independent claim."""
+    data = json.loads(sys.stdin.readline())
+    start = Path(data["start"])
+    deadline = time.monotonic() + 5
+    while not start.exists() and time.monotonic() < deadline:
+        time.sleep(0.005)
+    if not start.exists():
+        raise RuntimeError("claim_start_barrier_timeout")
+    database = PostgresDatabase(data["dsn"], environment="test", min_size=1, max_size=2)
+    witness = PlanWitness(Path(data["witness"]), database, initialize=False)
+    preview = SimpleNamespace(
+        target=SimpleNamespace(scope=SimpleNamespace(owner_id=data["owner"])),
+        dispatch=SimpleNamespace(attempt_id=UUID(data["attempt"])),
+        package=SimpleNamespace(fingerprint=data["payload"]),
+        root_id=UUID(data["root"]),
+        confirmation=data["confirmation"],
+        expires_at=datetime.fromisoformat(data["expires_at"]),
+    )
+    native_attempts(database, witness).claim(preview)
+    database.close()
+
+
 def claim_then_exit():
-    """A second OS process commits the exact root and exits before PAS signs."""
+    """A child process commits the exact root and exits before PAS signs."""
     data = json.load(sys.stdin)
     database = PostgresDatabase(data["dsn"], environment="test", min_size=1, max_size=2)
     witness = PlanWitness(Path(data["witness"]), database, initialize=False)
@@ -219,6 +309,100 @@ def test_worker_loss_after_native_claim_preserves_original_key_and_prevents_rese
     assert status(host, target, cid, payload).json()["state"] == "unknown"
     assert plan_http(host, target, cid, "continue", payload).status_code == 409
     assert target.local_payloads == target.provider.sends() == host.generation.sends == []
+
+
+def test_concurrent_native_claim_witnesses_survive_restore(
+    plan_factory,
+    shared_db,
+    isolated_postgres_dsn,
+    tmp_path,
+):
+    witness = PlanWitness(tmp_path / "concurrent-witness.json", shared_db)
+
+    def wire(fixture):
+        fixture.host.directory.native = PostgresPrincipalDirectory(shared_db)
+        return native_attempts(shared_db, witness)
+
+    host = plan_factory(attempts=wire)
+    target = travel(host)
+    owner = target.principal.owner_id
+    previews = [
+        SimpleNamespace(
+            target=SimpleNamespace(scope=SimpleNamespace(owner_id=owner)),
+            dispatch=SimpleNamespace(attempt_id=uuid4()),
+            package=SimpleNamespace(
+                fingerprint=hashlib.sha256(f"payload-{index}".encode()).hexdigest()
+            ),
+            root_id=uuid4(),
+            confirmation=hashlib.sha256(f"confirmation-{index}".encode()).hexdigest(),
+            expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        )
+        for index in range(2)
+    ]
+
+    with snapshot_database(shared_db, isolated_postgres_dsn) as older:
+        start = tmp_path / "claims-start"
+        processes = []
+        for preview in previews:
+            data = {
+                "dsn": isolated_postgres_dsn,
+                "witness": str(witness.path),
+                "start": str(start),
+                "owner": owner,
+                "root": str(preview.root_id),
+                "attempt": str(preview.dispatch.attempt_id),
+                "payload": preview.package.fingerprint,
+                "confirmation": preview.confirmation,
+                "expires_at": preview.expires_at.isoformat(),
+            }
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "from tests.persistence.test_application_plan_postgres import claim_in_process; claim_in_process()",
+                ],
+                cwd=Path(__file__).resolve().parents[2],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            process.stdin.write(json.dumps(data) + "\n")
+            process.stdin.flush()
+            processes.append(process)
+        start.touch()
+        for process in processes:
+            stdout, stderr = process.communicate(timeout=12)
+            assert process.returncode == 0, f"{stdout}\n{stderr}"
+
+        attempts = native_attempts(shared_db, witness)
+        assert witness.current()
+        assert all(attempts.current(preview) for preview in previews)
+
+        missing_path = witness._claim_path(
+            previews[0].root_id, owner, witness.claims_path
+        )
+        missing_path.unlink()
+        # A global scan of the remaining witness is consistent, but the exact
+        # missing claim cannot authorize this offer.
+        assert witness.current()
+        assert not attempts.current(previews[0])
+        witness.record_claim(
+            previews[0].root_id,
+            owner,
+            previews[0].dispatch.attempt_id,
+            previews[0].package.fingerprint,
+        )
+        assert attempts.current(previews[0])
+
+        witness.database = older
+        restored = native_attempts(older, witness)
+        assert not witness.current()
+        assert not any(restored.current(preview) for preview in previews)
+        with pytest.raises(ContextPreparationError, match=NO_AI):
+            restored.claim(previews[0])
+        assert query(older, "SELECT root_id FROM inference_route_roots") == []
+        assert target.provider.sends() == target.local_payloads == host.generation.sends == []
 
 
 def independent_database(dsn):

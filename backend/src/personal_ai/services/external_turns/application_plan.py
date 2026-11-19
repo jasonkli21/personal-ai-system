@@ -13,7 +13,7 @@ from hashlib import sha256
 from threading import Lock
 from time import monotonic
 from typing import Literal
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -36,6 +36,7 @@ from personal_ai.storage.errors import ConversationConflictError
 
 NO_AI = "context_no_ai_route"
 MAX_PREVIEWS = 16
+MAX_PREVIEWS_PER_CLIENT = 4
 MAX_PREVIEW_SECONDS = 45
 MAX_PAYLOAD_BYTES = 8192
 MAX_CONTEXT_BYTES = 8192
@@ -102,14 +103,23 @@ class PlanPreview:
         )
 
 
+@dataclass(frozen=True)
+class _PreviewReservation:
+    client: tuple[str, str]
+    token: UUID
+
+
 class PlanAttempts:
     """One-shot plan offer on the existing transactional routing-root store."""
 
-    def __init__(self, observations, roots, *, recovery_current, record_claim):
+    def __init__(
+        self, observations, roots, *, recovery_current, record_claim, claim_current,
+    ):
         self.observations = observations
         self.roots = roots
         self.recovery_current = recovery_current
         self.record_claim = record_claim
+        self.claim_current = claim_current
 
     def claim(self, preview):
         owner = preview.target.scope.owner_id
@@ -149,6 +159,12 @@ class PlanAttempts:
             now = self.observations.current_time(connection)
             return (
                 self.recovery_current() is True
+                and self.claim_current(
+                    preview.root_id,
+                    owner,
+                    preview.dispatch.attempt_id,
+                    preview.package.fingerprint,
+                ) is True
                 and now < preview.expires_at
                 and self.roots.root(connection, preview.root_id, owner)
                 == (
@@ -170,6 +186,7 @@ class ApplicationPlanService:
         self.attempts = attempts
         self.clock = clock or (lambda: datetime.now(UTC))
         self._previews = {}
+        self._reservations = {}
         self._lock = Lock()
 
     def current_target(self):
@@ -223,153 +240,207 @@ class ApplicationPlanService:
         )
         key = self._key(target, conversation_id, request.idempotency_key)
         started = monotonic()
+        reservation = self._reserve_preview(key, target)
+        try:
+            pending_user_id = uuid5(assistant_id, "user")
 
-        def prepare_sources(plan, application_context, deadline):
-            selections = plan.selections
-            if (
-                len(selections) != 2
-                or {item.provider_id for item in selections}
-                != {target.source_provider_id, "ai_memory"}
-                or any(item.max_results != 1 for item in selections)
-                or sum(item.max_bytes for item in selections) > MAX_CONTEXT_BYTES
-                or sum(item.max_tokens for item in selections) > MAX_CONTEXT_TOKENS
+            def prepare_sources(plan, application_context, deadline):
+                selections = plan.selections
+                if (
+                    len(selections) != 2
+                    or {item.provider_id for item in selections}
+                    != {target.source_provider_id, "ai_memory"}
+                    or any(item.max_results != 1 for item in selections)
+                    or sum(item.max_bytes for item in selections) > MAX_CONTEXT_BYTES
+                    or sum(item.max_tokens for item in selections) > MAX_CONTEXT_TOKENS
+                ):
+                    raise ContextPreparationError(NO_AI)
+                return self.memory.retrieve(application_context, deadline)
+
+            context = chat.preview_bound_context(
+                conversation_id,
+                request.content,
+                assembler=assembler,
+                prepare_sources=prepare_sources,
+                user_id=pending_user_id,
+            )
+            assembled = context.assembled
+            manifest = assembled.manifest
+            if manifest is None:
+                raise ContextPreparationError(NO_AI)
+            selected_ids = set(assembled.selected_message_ids)
+            if pending_user_id not in selected_ids:
+                raise ContextPreparationError(NO_AI)
+            prior_message_count = len(selected_ids - {pending_user_id})
+            if prior_message_count % 2 or prior_message_count > MAX_CONTEXT_TOKENS * 2:
+                raise ContextPreparationError(NO_AI)
+            prior_turn_count = prior_message_count // 2
+            included = {
+                (item.provider_id, item.source_id, item.item_id)
+                for item in manifest.items
+                if item.injected
+            }
+            items = tuple(
+                item
+                for item in assembled.source_items
+                if (item.provider_id, item.source_id, item.item_id) in included
+            )
+            if {item.provider_id for item in items} != {target.source_provider_id, "ai_memory"} or (
+                len(items) != 2
+                or sum(
+                    len((item.disclosed_payload or item.payload).model_dump_json().encode())
+                    for item in items
+                )
+                > MAX_CONTEXT_BYTES
+                or assembled.budget.source_tokens > MAX_CONTEXT_TOKENS
+                or monotonic() >= started + assembler.settings.request_timeout_seconds
             ):
                 raise ContextPreparationError(NO_AI)
-            return self.memory.retrieve(application_context, deadline)
-
-        context = chat.preview_bound_context(
-            conversation_id,
-            request.content,
-            assembler=assembler,
-            prepare_sources=prepare_sources,
-            user_id=uuid5(assistant_id, "user"),
-        )
-        assembled = context.assembled
-        manifest = assembled.manifest
-        if manifest is None:
-            raise ContextPreparationError(NO_AI)
-        included = {
-            (item.provider_id, item.source_id, item.item_id)
-            for item in manifest.items
-            if item.injected
-        }
-        items = tuple(
-            item
-            for item in assembled.source_items
-            if (item.provider_id, item.source_id, item.item_id) in included
-        )
-        if {item.provider_id for item in items} != {target.source_provider_id, "ai_memory"} or (
-            len(items) != 2
-            or sum(
-                len((item.disclosed_payload or item.payload).model_dump_json().encode())
-                for item in items
+            snapshots = tuple(item.authority_snapshot() for item in items)
+            if {
+                snapshot.source_version for snapshot in snapshots if snapshot.provider_id == "ai_memory"
+            } != {"application-plan-memory:v1"} or not any(
+                snapshot.source_version.startswith("shared-source:application-plan:")
+                for snapshot in snapshots
+            ):
+                raise ContextPreparationError(NO_AI)
+            now = self.clock()
+            expires_at = min(
+                now + timedelta(seconds=MAX_PREVIEW_SECONDS),
+                *(snapshot.expires_at for snapshot in snapshots if snapshot.expires_at is not None),
             )
-            > MAX_CONTEXT_BYTES
-            or assembled.budget.source_tokens > MAX_CONTEXT_TOKENS
-            or monotonic() >= started + assembler.settings.request_timeout_seconds
-        ):
-            raise ContextPreparationError(NO_AI)
-        snapshots = tuple(item.authority_snapshot() for item in items)
-        if {
-            snapshot.source_version for snapshot in snapshots if snapshot.provider_id == "ai_memory"
-        } != {"application-plan-memory:v1"} or not any(
-            snapshot.source_version.startswith("shared-source:application-plan:")
-            for snapshot in snapshots
-        ):
-            raise ContextPreparationError(NO_AI)
-        now = self.clock()
-        expires_at = min(
-            now + timedelta(seconds=MAX_PREVIEW_SECONDS),
-            *(snapshot.expires_at for snapshot in snapshots if snapshot.expires_at is not None),
-        )
-        messages = tuple(
-            PreparedMessage(role=message.role, content=message.content)
-            for message in assembled.messages
-        )
-        inference = context.inference
-        output_limit = min(MAX_OUTPUT_BYTES, assembler.settings.max_response_tokens)
-        package = PreparedExecution(
-            application_id=target.scope.application_id,
-            workspace_id=target.scope.workspace_id,
-            owner_id=target.scope.owner_id,
-            conversation_id=conversation_id,
-            reservation_id=assistant_id,
-            branch_digest=context.branch_digest,
-            source_authority_digest=digest(
-                [
+            messages = tuple(
+                PreparedMessage(role=message.role, content=message.content)
+                for message in assembled.messages
+            )
+            inference = context.inference
+            output_limit = min(MAX_OUTPUT_BYTES, assembler.settings.max_response_tokens)
+            package = PreparedExecution(
+                application_id=target.scope.application_id,
+                workspace_id=target.scope.workspace_id,
+                owner_id=target.scope.owner_id,
+                conversation_id=conversation_id,
+                reservation_id=assistant_id,
+                branch_digest=context.branch_digest,
+                source_authority_digest=digest(
                     [
-                        item.observed_at.isoformat() if item.observed_at else None,
-                        snapshot.model_dump(mode="json"),
+                        [
+                            item.observed_at.isoformat() if item.observed_at else None,
+                            snapshot.model_dump(mode="json"),
+                        ]
+                        for item, snapshot in zip(items, snapshots)
                     ]
-                    for item, snapshot in zip(items, snapshots)
-                ]
-            ),
-            provider_id=target.provider_id,
-            model_id=target.model,
-            execution_profile=target.profile,
-            connection_id=target.connection_id,
-            connection_revision=target.connection_revision,
-            messages=messages,
-            effective_sensitivity=inference.effective_sensitivity,
-            maximum_sensitivity=inference.maximum_sensitivity,
-            policy_version=inference.policy_version,
-            max_output_bytes=output_limit,
-            max_output_chars=output_limit,
-            timeout_seconds=max(1, int(assembler.settings.request_timeout_seconds)),
-        )
-        payload = target.serialize_payload(package)
-        if (
-            type(payload) is not bytes
-            or not 0 < len(payload) <= MAX_PAYLOAD_BYTES
-            or len(package.canonical()) > MAX_PAYLOAD_BYTES
-        ):
-            raise ContextPreparationError(NO_AI)
-        root_id = uuid5(assistant_id, "application-plan-routing-root")
-        preview = PlanPreview(
-            context,
-            target,
-            package,
-            ApplicationPlanDispatch(
-                scope=target.scope,
-                attempt_id=uuid5(root_id, "foreground"),
-                intent_sha256=self._intent(request, target),
-                provider_payload_sha256=sha256(payload).hexdigest(),
-            ),
-            snapshots,
-            root_id,
-            request.idempotency_key,
-            expires_at,
-        )
-        self._require_current(preview, assembler.permission_revalidator)
+                ),
+                provider_id=target.provider_id,
+                model_id=target.model,
+                execution_profile=target.profile,
+                connection_id=target.connection_id,
+                connection_revision=target.connection_revision,
+                messages=messages,
+                effective_sensitivity=inference.effective_sensitivity,
+                maximum_sensitivity=inference.maximum_sensitivity,
+                policy_version=inference.policy_version,
+                max_output_bytes=output_limit,
+                max_output_chars=output_limit,
+                timeout_seconds=max(1, int(assembler.settings.request_timeout_seconds)),
+            )
+            payload = target.serialize_payload(package)
+            if (
+                type(payload) is not bytes
+                or not 0 < len(payload) <= MAX_PAYLOAD_BYTES
+                or len(package.canonical()) > MAX_PAYLOAD_BYTES
+            ):
+                raise ContextPreparationError(NO_AI)
+            root_id = uuid5(assistant_id, "application-plan-routing-root")
+            preview = PlanPreview(
+                context,
+                target,
+                package,
+                ApplicationPlanDispatch(
+                    scope=target.scope,
+                    attempt_id=uuid5(root_id, "foreground"),
+                    intent_sha256=self._intent(request, target),
+                    provider_payload_sha256=sha256(payload).hexdigest(),
+                ),
+                snapshots,
+                root_id,
+                request.idempotency_key,
+                expires_at,
+            )
+            self._require_current(preview, assembler.permission_revalidator)
+            selection = {
+                "confirmation": preview.confirmation,
+                "destination": {
+                    "application": target.scope.application_id,
+                    "provider": "ChatGPT",
+                    "model": target.model,
+                    "runtime": target.scope.local_recipient,
+                    "recipient": target.scope.model_recipient,
+                },
+                "purpose": "foreground_application_plan",
+                "selected_context": [
+                    {"category": "conversation_history", "turns": prior_turn_count},
+                    *(
+                        {
+                            "category": item.source_class,
+                            "fields": sorted(
+                                (item.disclosed_payload or item.payload).model_dump(exclude_none=True)
+                            ),
+                        }
+                        for item in items
+                    ),
+                ],
+                "input_tokens_estimated": assembled.budget.selected_total,
+                "expires_at": expires_at,
+            }
+            self._publish_preview(key, reservation, preview)
+            return selection
+        finally:
+            self._release_preview_reservation(key, reservation)
+
+    def _reserve_preview(self, key, target):
+        now = self.clock()
+        client = (target.scope.owner_id, target.scope.client_namespace)
         with self._lock:
             self._previews = {
-                k: entry for k, entry in self._previews.items() if now < entry.expires_at
+                existing: preview
+                for existing, preview in self._previews.items()
+                if now < preview.expires_at
             }
-            if key not in self._previews and len(self._previews) >= MAX_PREVIEWS:
+            if key in self._reservations:
+                raise ContextPreparationError(NO_AI)
+            occupied = set(self._previews) | set(self._reservations)
+            if key not in occupied:
+                if len(occupied) >= MAX_PREVIEWS:
+                    raise ContextPreparationError(NO_AI)
+                client_keys = {
+                    existing
+                    for existing, preview in self._previews.items()
+                    if (preview.target.scope.owner_id, preview.target.scope.client_namespace)
+                    == client
+                }
+                client_keys.update(
+                    existing
+                    for existing, reservation in self._reservations.items()
+                    if reservation.client == client
+                )
+                if len(client_keys) >= MAX_PREVIEWS_PER_CLIENT:
+                    raise ContextPreparationError(NO_AI)
+            reservation = _PreviewReservation(client, uuid4())
+            self._reservations[key] = reservation
+            return reservation
+
+    def _publish_preview(self, key, reservation, preview):
+        with self._lock:
+            if self._reservations.get(key) != reservation:
                 raise ContextPreparationError(NO_AI)
             self._previews[key] = preview
-        return {
-            "confirmation": preview.confirmation,
-            "destination": {
-                "application": target.scope.application_id,
-                "provider": "ChatGPT",
-                "model": target.model,
-                "runtime": target.scope.local_recipient,
-                "recipient": target.scope.model_recipient,
-            },
-            "purpose": "foreground_application_plan",
-            "selected_context": [
-                {
-                    "category": item.source_class,
-                    "fields": sorted(
-                        (item.disclosed_payload or item.payload).model_dump(exclude_none=True)
-                    ),
-                }
-                for item in items
-            ],
-            "input_tokens_estimated": assembled.budget.selected_total,
-            "expires_at": expires_at,
-        }
+            self._reservations.pop(key, None)
+
+    def _release_preview_reservation(self, key, reservation):
+        with self._lock:
+            if self._reservations.get(key) == reservation:
+                self._reservations.pop(key, None)
 
     def continue_turn(self, chat, assembler, conversation_id, incoming):
         target = self.current_target()

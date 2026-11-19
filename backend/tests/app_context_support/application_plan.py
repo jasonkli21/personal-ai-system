@@ -136,6 +136,7 @@ class ApplicationPlanFixture:
                 self.roots,
                 recovery_current=self.recovery_current,
                 record_claim=self.record_claim,
+                claim_current=self.claim_current,
             )
         )
         self.authority = repository
@@ -163,6 +164,10 @@ class ApplicationPlanFixture:
     def record_claim(self, root, owner, attempt, payload):
         with self.roots.lock:
             self.claim_witness[root, owner] = attempt, payload
+
+    def claim_current(self, root, owner, attempt, payload):
+        with self.roots.lock:
+            return self.claim_witness.get((root, owner)) == (attempt, payload)
 
     def recovery_current(self):
         with self.roots.lock:

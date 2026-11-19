@@ -10,7 +10,7 @@ from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from threading import Event
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -114,6 +114,380 @@ def assert_delivery(target, included, excluded):
             assert marker.encode() not in payload
 
 
+def test_automatic_history_requires_its_own_recipient(plan_factory):
+    host = plan_factory()
+    target = travel(host)
+    outputs = iter(
+        (
+            ("EMPTY FOLLOWUP ANSWER", "success"),
+            ("ORDINARY HISTORY ANSWER", "success"),
+            ("POPULATED FOLLOWUP ANSWER", "success"),
+        )
+    )
+    host.generation.transport = lambda _payload: next(outputs)
+
+    empty_conversation = create(host, target)
+    original = confirmed(host, target, empty_conversation)
+    assert "event: response.completed" in plan_http(
+        host, target, empty_conversation, "continue", original
+    ).text
+    assert len(target.provider.sends()) == 1
+
+    empty_followup = post(
+        host,
+        target,
+        empty_conversation,
+        "continue",
+        automatic_body(content="Continue with the next step."),
+    )
+    assert "event: response.completed" in empty_followup.text
+    empty_input = host.generation.sends[-1][3]
+    assert b"A streamed answer" not in empty_input
+    assert TRAVEL_MEMORY.encode() not in empty_input
+
+    replay = plan_http(host, target, empty_conversation, "continue", original)
+    assert "event: response.completed" in replay.text
+    assert len(target.provider.sends()) == 1
+    assert len(target.local_payloads) == 1
+
+    populated_conversation = create(host, target)
+    ordinary = post(
+        host,
+        target,
+        populated_conversation,
+        "continue",
+        automatic_body(content="Please say hello."),
+    )
+    assert "event: response.completed" in ordinary.text
+    assert "ORDINARY HISTORY ANSWER" in ordinary.text
+    proposal = confirmed(host, target, populated_conversation)
+    assert "event: response.completed" in plan_http(
+        host, target, populated_conversation, "continue", proposal
+    ).text
+    assert len(target.provider.sends()) == 2
+
+    populated_followup = post(
+        host,
+        target,
+        populated_conversation,
+        "continue",
+        automatic_body(content="Use the still-authorized conversation."),
+    )
+    assert "event: response.completed" in populated_followup.text
+    populated_input = host.generation.sends[-1][3]
+    assert b"ORDINARY HISTORY ANSWER" in populated_input
+    assert b"A streamed answer" not in populated_input
+    assert TRAVEL_MEMORY.encode() not in populated_input
+    assert len(target.provider.sends()) == 2
+
+    memory_revoked_conversation = create(host, target)
+    memory_plan = confirmed(host, target, memory_revoked_conversation)
+    assert "event: response.completed" in plan_http(
+        host, target, memory_revoked_conversation, "continue", memory_plan
+    ).text
+    assert len(target.provider.sends()) == 3
+    host.plan.disclosures.pop(target.plan.scope)
+    sends_before_memory_denial = len(host.generation.sends)
+    memory_followup = post(
+        host,
+        target,
+        memory_revoked_conversation,
+        "continue",
+        automatic_body(content="Please say hello again."),
+    )
+    assert memory_followup.is_error
+    assert len(host.generation.sends) == sends_before_memory_denial == 3
+
+    host.plan.share_memory(target, target.memory)
+    revoked_conversation = create(host, target)
+    revoked_plan = confirmed(host, target, revoked_conversation)
+    assert "event: response.completed" in plan_http(
+        host, target, revoked_conversation, "continue", revoked_plan
+    ).text
+    assert len(target.provider.sends()) == 4
+
+    revision = target.source_grant_revision
+    for recipient in (target.plan.scope.local_recipient, target.plan.scope.model_recipient):
+        revision = host.control(
+            target.control,
+            target.app,
+            target.workspace,
+            target.token,
+            operation="revoke",
+            expected_revision=revision,
+            recipient=recipient,
+        )
+    host.plan.disclosures.pop(target.plan.scope)
+    sends_before_denial = len(host.generation.sends)
+    revoked_followup = post(
+        host,
+        target,
+        revoked_conversation,
+        "continue",
+        automatic_body(content="Continue after the old plan authority was revoked."),
+    )
+    assert revoked_followup.is_error
+    assert len(host.generation.sends) == sends_before_denial == 3
+    assert len(target.provider.sends()) == 4
+
+
+def test_plan_preview_accounts_for_selected_history(plan_factory):
+    host = plan_factory()
+    target = travel(host)
+    host.generation.transport = lambda _payload: ("SOURCE FREE ANSWER", "success")
+
+    conversation = create(host, target)
+    prior_prompt = "SOURCE FREE PRIOR PROMPT"
+    ordinary = post(
+        host,
+        target,
+        conversation,
+        "continue",
+        automatic_body(content=prior_prompt),
+    )
+    assert "event: response.completed" in ordinary.text
+    assert "SOURCE FREE ANSWER" in ordinary.text
+
+    request = plan_request()
+    selection = preview(host, target, conversation, request)
+    history_item = next(
+        row for row in selection["selected_context"]
+        if row["category"] == "conversation_history"
+    )
+    assert history_item == {"category": "conversation_history", "turns": 1}
+    assert prior_prompt not in json.dumps(selection)
+    assert "SOURCE FREE ANSWER" not in json.dumps(selection)
+    key = host.plan.service._key(
+        target.plan, UUID(conversation), UUID(request["idempotency_key"])
+    )
+    package = host.plan.service._previews[key].package
+    assert any(prior_prompt in message.content for message in package.messages)
+    assert any("SOURCE FREE ANSWER" in message.content for message in package.messages)
+    assert target.local_payloads == target.provider.sends() == []
+
+    confirmed_request = plan_request(
+        request["idempotency_key"], selection["confirmation"], content=request["content"]
+    )
+    assert "event: response.completed" in plan_http(
+        host, target, conversation, "continue", confirmed_request
+    ).text
+    assert len(target.local_payloads) == len(target.provider.sends()) == 1
+
+    empty_conversation = create(host, target)
+    empty_request = plan_request()
+    empty_selection = preview(host, target, empty_conversation, empty_request)
+    assert next(
+        row for row in empty_selection["selected_context"]
+        if row["category"] == "conversation_history"
+    ) == {"category": "conversation_history", "turns": 0}
+
+    sourced_conversation = create(host, target)
+    first = confirmed(host, target, sourced_conversation)
+    assert "event: response.completed" in plan_http(
+        host, target, sourced_conversation, "continue", first
+    ).text
+    next_request = plan_request(content="Summarize my app records using my saved preference again.")
+    excluded_selection = preview(host, target, sourced_conversation, next_request)
+    assert next(
+        row for row in excluded_selection["selected_context"]
+        if row["category"] == "conversation_history"
+    ) == {"category": "conversation_history", "turns": 0}
+
+
+def test_pending_previews_leave_capacity_for_another_client(plan_factory, monkeypatch):
+    from personal_ai.context.providers import ContextPreparationError
+    from personal_ai.services.external_turns.application_plan import MAX_PREVIEWS_PER_CLIENT
+
+    host = plan_factory()
+    first = travel(host)
+    second = host.plan.onboard(
+        provision(host, FITNESS_APP, B, grant=False),
+        memory_content=FITNESS_MEMORY,
+    )
+    first_conversation = create(host, first)
+    second_conversation = create(host, second)
+
+    for index in range(MAX_PREVIEWS_PER_CLIENT):
+        response = plan_http(
+            host,
+            first,
+            first_conversation,
+            "context-preview",
+            plan_request(),
+        )
+        assert response.status_code == 200, response.text
+
+    first_source = host.sources[first.app.source]
+    first_reads = len(first_source.lookup_paths)
+    memory_reads = 0
+    original_retrieve = host.plan.memory.retrieve
+
+    def count_memory_read(*args, **kwargs):
+        nonlocal memory_reads
+        memory_reads += 1
+        return original_retrieve(*args, **kwargs)
+
+    monkeypatch.setattr(host.plan.memory, "retrieve", count_memory_read)
+    first_memory_reads = memory_reads
+    denied = plan_http(
+        host,
+        first,
+        first_conversation,
+        "context-preview",
+        plan_request(),
+    )
+    assert denied.is_error
+    assert len(first_source.lookup_paths) == first_reads
+    assert memory_reads == first_memory_reads
+
+    request = plan_request()
+    original_check = host.plan.service._require_current
+    fail_once = True
+
+    def fail_current_once(preview, permissions):
+        nonlocal fail_once
+        if fail_once:
+            fail_once = False
+            raise ContextPreparationError("context_no_ai_route")
+        return original_check(preview, permissions)
+
+    monkeypatch.setattr(host.plan.service, "_require_current", fail_current_once)
+    failed = plan_http(
+        host, second, second_conversation, "context-preview", request
+    )
+    assert failed.is_error
+    assert not host.plan.service._reservations
+    monkeypatch.setattr(host.plan.service, "_require_current", original_check)
+
+    preview(host, second, second_conversation, request)
+    for index in range(MAX_PREVIEWS_PER_CLIENT - 1):
+        assert plan_http(
+            host,
+            second,
+            second_conversation,
+            "context-preview",
+            plan_request(),
+        ).status_code == 200
+    second_source = host.sources[second.app.source]
+    second_reads = len(second_source.lookup_paths)
+    second_memory_reads = memory_reads
+    blocked = plan_http(
+        host,
+        second,
+        second_conversation,
+        "context-preview",
+        plan_request(),
+    )
+    assert blocked.is_error
+    assert len(second_source.lookup_paths) == second_reads
+    assert memory_reads == second_memory_reads
+
+    from dataclasses import replace
+    from datetime import timedelta
+
+    now = host.plan.service.clock()
+    with host.plan.service._lock:
+        host.plan.service._previews = {
+            key: replace(entry, expires_at=now - timedelta(seconds=1))
+            for key, entry in host.plan.service._previews.items()
+        }
+    replacement_request = plan_request()
+    replacement = preview(host, second, second_conversation, replacement_request)
+    confirmed_request = plan_request(
+        replacement_request["idempotency_key"],
+        replacement["confirmation"],
+        content=replacement_request["content"],
+    )
+    response = plan_http(
+        host, second, second_conversation, "continue", confirmed_request
+    )
+    assert "event: response.completed" in response.text
+    assert len(second.provider.sends()) == 1
+    assert first.provider.sends() == []
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("blocked_check", [1, 2])
+async def test_slow_plan_admission_preserves_other_client_progress(
+    plan_factory, monkeypatch, blocked_check,
+):
+    import httpx
+
+    host = plan_factory()
+    first = travel(host)
+    second = host.plan.onboard(
+        provision(host, FITNESS_APP, B, grant=False),
+        memory_content=FITNESS_MEMORY,
+    )
+    first_conversation = create(host, first)
+    second_conversation = create(host, second)
+    first_request = confirmed(host, first, first_conversation)
+    second_request = confirmed(host, second, second_conversation)
+    entered, release = Event(), Event()
+    original_check = first.bridge._require_dispatch
+    checks = 0
+
+    def hold_admission(*args, **kwargs):
+        nonlocal checks
+        checks += 1
+        if checks == blocked_check:
+            entered.set()
+            assert release.wait(8)
+        return original_check(*args, **kwargs)
+
+    monkeypatch.setattr(first.bridge, "_require_dispatch", hold_admission)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=host.app), base_url="https://shared.invalid"
+    ) as client:
+        pending = asyncio.create_task(
+            client.post(
+                f"/v1/conversations/{first_conversation}/continue",
+                headers={**first.headers, PRIVATE_HEADER.decode(): "1"},
+                json=first_request,
+            )
+        )
+        try:
+            assert await asyncio.to_thread(entered.wait, 3)
+            second_result = await client.post(
+                f"/v1/conversations/{second_conversation}/continue",
+                headers={**second.headers, PRIVATE_HEADER.decode(): "1"},
+                json=second_request,
+            )
+            assert "event: response.completed" in second_result.text
+            assert len(second.provider.sends()) == 1
+
+            pending.cancel()
+            await asyncio.sleep(0.05)
+            assert not pending.done()
+            denied = await client.post(
+                f"/v1/conversations/{first_conversation}/context-preview",
+                headers={**first.headers, PRIVATE_HEADER.decode(): "1"},
+                json=plan_request(),
+            )
+            assert denied.status_code == 429
+            assert first.provider.sends() == []
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+
+        released = await client.post(
+            f"/v1/conversations/{first_conversation}/context-preview",
+            headers={**first.headers, PRIVATE_HEADER.decode(): "1"},
+            json=plan_request(),
+        )
+        assert released.status_code == 200
+
+    assert first.provider.sends() == []
+    assert len(second.provider.sends()) == 1
+
+
 def test_two_owners_and_three_independent_app_registrations(plan_factory, caplog):
     import personal_ai_sdk
 
@@ -147,6 +521,7 @@ def test_two_owners_and_three_independent_app_registrations(plan_factory, caplog
         assert {row["category"] for row in selection["selected_context"]} == {
             "domain_current",
             "ai_memory",
+            "conversation_history",
         }
         assert all(value not in json.dumps(selection) for value in (SECRET_TITLE, memory))
         assert target.local_payloads == target.provider.sends() == []

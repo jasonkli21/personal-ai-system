@@ -25,7 +25,12 @@ from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.authority import source_snapshots_current
 from personal_ai.context.authorization import authorize_base_disclosure, make_inference_context
-from personal_ai.context.contracts import AssembledContext, ContextError, fingerprint
+from personal_ai.context.contracts import (
+    AssembledContext,
+    ContextError,
+    complete_turns,
+    fingerprint,
+)
 from personal_ai.context.deadline import remaining
 from personal_ai.context.history import (
     conversation_context_messages,
@@ -420,13 +425,11 @@ class ChatTurnService:
         active = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
         )
-        self._require_prepared_authority(active)
-        history = active
+        history = self._history_for_new_recipient(active, include_all_sourced=bound_preview is not None)
+        self._require_prepared_authority(history)
         if candidate_message_ids is not None:
-            from personal_ai.context.contracts import complete_turns
-
             requested = set(candidate_message_ids)
-            eligible = complete_turns(active)
+            eligible = complete_turns(history)
             if requested - {message.id for turn in eligible for message in turn}:
                 raise ContextPreparationError("continuation_source_not_active_completed")
             history = [
@@ -476,14 +479,6 @@ class ChatTurnService:
             deadline = monotonic() + context.settings.request_timeout_seconds
             retrieval = None
             if bound_preview is not None:
-                from personal_ai.context.contracts import complete_turns
-
-                # A previous sourced answer has its own destination grants. The
-                # opt-in lane only reuses ordinary complete conversation history.
-                history = [
-                    message for pair in complete_turns(history)
-                    if not source_snapshots_for_message(pair[1]) for message in pair
-                ]
                 prepare_sources, user_id = bound_preview
                 retrieval = prepare_sources(plan, self._application_context, deadline)
             preview = self._new_message(
@@ -496,7 +491,7 @@ class ChatTurnService:
                 history, preview, refresh=False, application_context=self._application_context,
                 context_plan=plan, deadline=deadline, retrieval=retrieval,
             )
-            self._require_prepared_authority(active)
+            self._require_prepared_authority(history)
             if not source_snapshots_current(
                 (item.authority_snapshot() for item in assembled.source_items),
                 context.permission_revalidator, now=datetime.now(UTC),
@@ -520,6 +515,43 @@ class ChatTurnService:
             self._context.permission_revalidator, now=datetime.now(UTC),
         ):
             raise ContextPreparationError("context_source_authority_changed")
+
+    @staticmethod
+    def _history_for_new_recipient(
+        messages: Sequence[Message], *, include_all_sourced: bool = False,
+    ) -> list[Message]:
+        """Keep plan-derived turns out of destinations without their own grant.
+
+        Plan history is removed before it can affect counting, summary selection,
+        or assembly. Its inherited permission dependencies are checked as well as
+        the source version so a derived summary cannot make it appear ordinary.
+        The confirmed plan lane keeps its existing rule of excluding every sourced
+        pair; original-key replay bypasses new-context preparation entirely.
+        """
+        excluded: set[UUID] = set()
+        for user, assistant in complete_turns(messages):
+            snapshots = tuple(
+                snapshot
+                for message in (user, assistant)
+                for snapshot in source_snapshots_for_message(message)
+            )
+            if include_all_sourced:
+                derived = bool(snapshots)
+            else:
+                derived = any(
+                    snapshot.source_version == "application-plan-memory:v1"
+                    or snapshot.source_version.startswith("shared-source:application-plan:")
+                    or any(
+                        dependency.permission_id.startswith(
+                            ("application-plan-memory:", "shared-source:application-plan:")
+                        )
+                        for dependency in snapshot.permission_dependencies
+                    )
+                    for snapshot in snapshots
+                )
+            if derived:
+                excluded.update((user.id, assistant.id))
+        return [message for message in messages if message.id not in excluded]
 
     def replay_bound_turn(self, conversation_id, request, *, intent_digest):
         if not external_conversation_namespace() or self._application_context is None:
@@ -862,9 +894,9 @@ class ChatTurnService:
                 conversation_id=user.conversation_id,
             )
             history_for_context = post_active[:-1] if reasoning is None else ()
+            if confirmed_local is None:
+                history_for_context = self._history_for_new_recipient(history_for_context)
             if reasoning is None and candidate_message_ids is not None:
-                from personal_ai.context.contracts import complete_turns
-
                 requested = set(candidate_message_ids)
                 eligible = complete_turns(history_for_context)
                 if requested - {m.id for pair in eligible for m in pair}:
@@ -937,7 +969,7 @@ class ChatTurnService:
                 retrieval = self._memory_retriever.retrieve(
                     self._owner_id,
                     user.content,
-                    post_active,
+                    [*history_for_context, post_active[-1]],
                     timeout=min(
                         memory_selection_timeout,
                         self._context.settings.memory_timeout_seconds,
@@ -1210,14 +1242,25 @@ class ChatTurnService:
         terminal = False
         reasoning = turn.reasoning
         generation_metadata: GenerationMetadata | None = None
+
+        def require_current_source_authority():
+            require_current_client_authority()
+            if not source_snapshots_current(
+                turn.source_snapshots,
+                self._context.permission_revalidator,
+                now=datetime.now(UTC),
+            ):
+                raise ContextPreparationError("context_source_authority_changed")
+
         try:
             # Keep creation events inside the protected lifecycle. A disconnect
             # while sending either event must fail the already-persisted turn.
             for message in turn.created:
                 await self._require_output_authority(turn.source_snapshots)
                 yield TurnMessageCreated(message)
+
             def revalidate_send():
-                require_current_client_authority()
+                require_current_source_authority()
                 if external_conversation_namespace():
                     authorize_base_disclosure(self._application_context)
                     remaining(turn.deadline)
@@ -1226,11 +1269,6 @@ class ChatTurnService:
                         raise ContextPreparationError("reasoning_disabled")
                     authorize_base_disclosure(self._application_context)
                     remaining(turn.deadline)
-                if not source_snapshots_current(
-                    turn.source_snapshots, self._context.permission_revalidator,
-                    now=datetime.now(UTC),
-                ):
-                    raise ContextPreparationError("context_source_authority_changed")
                 if turn.local:
                     active = self._messages.list_active(
                         owner_id=self._owner_id, conversation_id=turn.assistant.conversation_id,
@@ -1238,13 +1276,7 @@ class ChatTurnService:
                     if not active or active[-1] != turn.assistant:
                         raise ContextPreparationError("context_source_authority_changed")
 
-            await io_call(require_current_client_authority)
-            if not source_snapshots_current(
-                turn.source_snapshots,
-                self._context.permission_revalidator,
-                now=datetime.now(UTC),
-            ):
-                raise ContextPreparationError("context_source_authority_changed")
+            await io_call(require_current_source_authority)
             events: asyncio.Queue[GenerationEvent | Exception | None] = asyncio.Queue(maxsize=1)
             demand = asyncio.Semaphore(0)
             output_limit = self._context.settings.max_response_tokens
@@ -1326,13 +1358,7 @@ class ChatTurnService:
             fixture = fixture_attempt.get()
             if fixture is not None:
                 fixture.accept(generation_metadata, turn.request_id)
-            await io_call(require_current_client_authority)
-            if not source_snapshots_current(
-                turn.source_snapshots,
-                self._context.permission_revalidator,
-                now=datetime.now(UTC),
-            ):
-                raise ContextPreparationError("context_source_authority_changed")
+            await io_call(require_current_source_authority)
             completed = await io_call(
                 self._messages.update_status,
                 owner_id=self._owner_id,
