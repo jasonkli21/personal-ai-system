@@ -1,6 +1,6 @@
 # Personal AI SDK for Python
 
-Provisional `personal-ai-sdk==0.1.0` supports Python 3.11+ with no runtime
+Provisional `personal-ai-sdk==0.2.0` supports Python 3.11+ with no runtime
 dependencies and the external [consumer contract v1.2.0](../../docs/platform-independence/consumer-v1.md).
 Use an operator-confirmed v1.2 or later v1 release. The constructor checks that
 configured version locally. The host contract version is independent. HTTPS is
@@ -80,3 +80,5 @@ under that epoch. A restarted client can pass the journaled
 requires an uncertain outcome for the old run. The client has no automatic
 POST retries and durable receipts expose metadata only. Install evidence
 comes from `make synthetic-reasoning-install-check`.
+
+The opt-in `ApplicationPlan` extension targets the versioned private synthetic host. See the [private profile and journal example](../../docs/platform-independence/private-application-inference-v1.md).

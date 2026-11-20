@@ -1,6 +1,6 @@
 # User-owned application inference
 
-The private fixture enables a foreground ChatGPT plan turn for an enrolled application. It uses the consumer SDK's create, preview, continue and original-key status methods. The fixture selects a separate request shape with `choice.mode = "user_owned_plan"`. It expects no confirmation for preview and an exact preview confirmation for continuation. Both requests arrive through the normal identity and application-client checks. The published consumer 1.2 contract retains automatic execution. The ordinary API and the standalone bridge cannot mount this fixture.
+The isolated host admits a foreground ChatGPT plan turn for an enrolled application. The SDK's `ApplicationPlan` extension uses explicit versioned preview and continue routes. Conversation create, original-key status and reauthorized detail use the existing consumer operations. The app selects `choice.mode = "user_owned_plan"` and submits the exact expiring confirmation on continue. The ordinary API and standalone bridge omit this profile. [Private contract and installation](../platform-independence/private-application-inference-v1.md)
 
 ## Authorization sequence
 

@@ -95,6 +95,17 @@ SAFE_CODES = frozenset(
         "conversation_busy",
         "conversation_source_authority_changed",
         "validation_error",
+        "context_no_ai_route",
+        "context_source_authority_changed",
+        "context_client_authority_changed",
+        "context_message_too_large",
+        "context_capacity_exceeded",
+        "context_budget_invalid",
+        "application_workspace_required",
+        "application_workspace_unsupported",
+        "rate_limit_exceeded",
+        "daily_budget_exceeded",
+        "provider_disabled",
         "authentication_unavailable",
         "application_client_policy_unavailable",
         "workspace_authority_unavailable",
@@ -124,7 +135,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def sse_events(chunks: Iterable[bytes]):
+def sse_events(chunks: Iterable[bytes], *, strict_json=False):
     """Strict UTF-8, fragmented CRLF/LF frames, bounded event and total size."""
     decoder = codecs.getincrementaldecoder("utf-8")("strict")
     buffer, total = "", 0
@@ -147,7 +158,11 @@ def sse_events(chunks: Iterable[bytes]):
                     elif line.startswith("data:"):
                         data.append(line[5:].removeprefix(" "))
                 if data:
-                    yield event, json.loads("\n".join(data))
+                    payload = "\n".join(data)
+                    yield event, (
+                        json.loads(payload, object_pairs_hook=_unique_object)
+                        if strict_json else json.loads(payload)
+                    )
                 elif event in {
                     "message.created",
                     "response.delta",
@@ -166,13 +181,22 @@ def sse_events(chunks: Iterable[bytes]):
 
 
 def read_completion(
-    chunks: Iterable[bytes], provisional: Callable[[str], None] | None = None
+    chunks: Iterable[bytes],
+    provisional: Callable[[str], None] | None = None,
+    *,
+    max_output_bytes: int | None = None,
 ) -> CompletedMessage:
     completed, assistant_id, text, user_id = None, None, "", None
-    for event, data in sse_events(chunks):
+    strict = max_output_bytes is not None
+    for event, data in sse_events(chunks, strict_json=strict):
         if completed is not None:
             raise UncertainTurn("data_after_terminal")
         if not isinstance(data, dict):
+            raise UncertainTurn("invalid_event")
+        if strict and (
+            (event in {"message.created", "response.completed"} and set(data) != {"message"})
+            or (event == "response.delta" and set(data) != {"message_id", "delta"})
+        ):
             raise UncertainTurn("invalid_event")
         if event == "message.created":
             message = data.get("message", {})
@@ -203,7 +227,9 @@ def read_completion(
             ):
                 raise UncertainTurn("invalid_delta")
             text += delta
-            if len(text) > 20000:
+            if len(text) > 20000 or (
+                max_output_bytes is not None and len(text.encode("utf-8")) > max_output_bytes
+            ):
                 raise UncertainTurn("output_too_large")
             if provisional is not None:
                 provisional(delta)
@@ -220,6 +246,10 @@ def read_completion(
                 or not isinstance(content, str)
                 or len(content) > 20000
                 or not content.strip()
+                or (
+                    max_output_bytes is not None
+                    and (len(content.encode("utf-8")) > max_output_bytes or (text and text != content))
+                )
             ):
                 raise UncertainTurn("invalid_terminal")
         else:
@@ -227,6 +257,13 @@ def read_completion(
     if completed is None:
         raise UncertainTurn("terminal_missing")
     return cast(CompletedMessage, completed)
+
+
+def _unique_object(pairs):
+    result = dict(pairs)
+    if len(result) != len(pairs):
+        raise ValueError("duplicate property")
+    return result
 
 
 class Client:
@@ -346,13 +383,24 @@ class Client:
         *,
         max_body=131072,
         max_response=4_000_000,
+        strict_response=False,
     ) -> JsonObject:
         try:
             with self._request(method, path, body, max_body=max_body) as response:
+                if strict_response and (
+                    response.status != 200
+                    or response.headers.get_content_type() != "application/json"
+                ):
+                    raise UncertainTurn("unexpected_response_type")
                 raw = response.read(max_response + 1)
                 if len(raw) > max_response:
                     raise UncertainTurn("response_too_large")
-                value = json.loads(raw)
+                if strict_response and response.length not in (0, None):
+                    raise UncertainTurn("truncated_response")
+                value = (
+                    json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object)
+                    if strict_response else json.loads(raw)
+                )
                 if not isinstance(value, dict):
                     raise UncertainTurn("invalid_json_response")
                 return value
@@ -414,12 +462,18 @@ class Client:
         )
 
     def status(self, conversation_id: Identity, key: Identity) -> ContinuationStatus:
+        return self._status(conversation_id, key)
+
+    def _status(self, conversation_id: Identity, key: Identity, *, strict_response=False):
         value = self._json(
-            "GET", _conversation(conversation_id) + "/continuations/" + _id(key)
+            "GET", _conversation(conversation_id) + "/continuations/" + _id(key),
+            strict_response=strict_response,
+            max_response=8192 if strict_response else 4_000_000,
         )
         state, message_id = value.get("state"), value.get("message_id")
         if (
-            state not in ("not_found", "in_progress", "unknown", "completed")
+            (strict_response and set(value) != {"state", "message_id"})
+            or state not in ("not_found", "in_progress", "unknown", "completed")
             or "message_id" not in value
             or (message_id is not None and not isinstance(message_id, str))
             or (state == "completed" and not message_id)
@@ -442,18 +496,32 @@ class Client:
         """Send once. Treat deltas as provisional and reconcile by original key."""
         key = _id(body["idempotency_key"])
         path = _conversation(conversation_id) + "/continue"
+        return self._continue_at(path, conversation_id, key, body, provisional)
+
+    def _continue_at(
+        self, path, conversation_id, key, body, provisional, *, max_output_bytes=None
+    ) -> CompletedMessage:
+        strict_response = max_output_bytes is not None
         # HTTP errors before SSE are distinct from an unconfirmed 200 stream.
         with self._request("POST", path, body) as response:
             try:
-                if response.headers.get_content_type() != "text/event-stream":
+                if response.headers.get_content_type() != "text/event-stream" or (
+                    strict_response and response.status != 200
+                ):
                     raise UncertainTurn("unexpected_response_type")
                 completed = read_completion(
-                    iter(lambda: response.read1(4096), b""), provisional
+                    iter(lambda: response.read1(4096), b""), provisional,
+                    max_output_bytes=max_output_bytes,
                 )
+                if strict_response and response.length not in (0, None):
+                    raise UncertainTurn("truncated_response")
             except (OSError, ValueError, http.client.HTTPException):
                 raise UncertainTurn("stream_unknown; reconcile original key") from None
         try:
-            status = self.status(conversation_id, key)
+            status = (
+                self._status(conversation_id, key, strict_response=True)
+                if strict_response else self.status(conversation_id, key)
+            )
         except APIError:
             raise UncertainTurn("canonical_status_unavailable") from None
         if status["state"] != "completed" or status["message_id"] != completed["id"]:

@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private application inference profile v1",
+  "$comment": "Private synthetic composition only. Validate operation bodies by their named definitions.",
+  "x-profile": "application-plan/v1",
+  "x-consumer-version": "1.2.0",
+  "x-operations": {
+    "preview": {
+      "method": "POST",
+      "path": "/private/application-plan/v1/conversations/{id}/context-preview",
+      "request": "#/$defs/previewRequest",
+      "response": "#/$defs/previewResult",
+      "success": 200,
+      "accept": "application/json"
+    },
+    "continue": {
+      "method": "POST",
+      "path": "/private/application-plan/v1/conversations/{id}/continue",
+      "request": "#/$defs/continueRequest",
+      "success": 200,
+      "accept": "text/event-stream",
+      "events": ["message.created", "response.delta", "response.completed", "response.error"]
+    }
+  },
+  "x-request-headers": {
+    "required": ["Authorization", "X-Application-ID", "Content-Type", "Accept"],
+    "conditional": ["X-Workspace-ID"],
+    "optional": ["X-Request-ID"],
+    "rejected": ["X-User-ID-Token", "X-User-Delegation", "X-Owner-ID", "X-Acting-User-ID", "X-Client-Context", "X-Client-Capabilities"],
+    "legacy-marker": "X-PAS-User-Plan has no selection or authorization effect."
+  },
+  "x-bounds": {
+    "body_bytes": 131072,
+    "body_read_seconds": 10,
+    "preview_response_bytes": 8192,
+    "error_response_bytes": 65536,
+    "sse_event_bytes": 262144,
+    "sse_total_bytes": 2000000,
+    "projected_context_bytes": 8192,
+    "projected_context_estimated_tokens": 3072,
+    "assembly_estimated_tokens": 10240,
+    "source_exchange_bytes": 4096,
+    "source_exchange_estimated_tokens": 256,
+    "source_exchange_seconds": 2,
+    "memory_text_bytes": 1024,
+    "memory_projection_bytes": 4096,
+    "prepared_package_bytes": 8192,
+    "provider_request_bytes": 8192,
+    "synthetic_output_bytes": 100,
+    "synthetic_output_characters": 100,
+    "pending_preview_limit": 16,
+    "pending_preview_limit_per_owner_client": 4,
+    "preview_lifetime_seconds": 45,
+    "turn_seconds": 5,
+    "worker_slots": 2,
+    "worker_slots_per_client": 1
+  },
+  "x-profile-errors": {
+    "400": ["application_scope_invalid", "request_scope_invalid", "application_workspace_required", "application_workspace_unsupported"],
+    "401": ["authentication_required", "invalid_identity"],
+    "403": ["application_client_denied", "client_identity_override_denied", "client_operation_denied", "workspace_not_authorized", "access_denied", "origin_denied"],
+    "404": ["not_found", "application_not_registered"],
+    "408": ["request_body_timeout"],
+    "409": ["conversation_conflict", "conversation_busy", "conversation_source_authority_changed"],
+    "413": ["request_body_too_large"],
+    "422": ["validation_error", "context_no_ai_route", "context_source_authority_changed", "context_client_authority_changed", "context_message_too_large"],
+    "429": ["rate_limit_exceeded", "daily_budget_exceeded", "context_capacity_exceeded"],
+    "503": ["authentication_unavailable", "application_client_policy_unavailable", "workspace_authority_unavailable", "storage_unavailable", "context_budget_invalid", "provider_disabled"]
+  },
+  "$defs": {
+    "id": {"type": "string", "format": "uuid"},
+    "confirmation": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "content": {"type": "string", "minLength": 1, "maxLength": 20000},
+    "previewRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotency_key", "content", "choice"],
+      "properties": {
+        "idempotency_key": {"$ref": "#/$defs/id"},
+        "content": {"$ref": "#/$defs/content"},
+        "choice": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {"mode": {"const": "user_owned_plan"}}
+        }
+      }
+    },
+    "continueRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotency_key", "content", "choice"],
+      "properties": {
+        "idempotency_key": {"$ref": "#/$defs/id"},
+        "content": {"$ref": "#/$defs/content"},
+        "choice": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "confirmation"],
+          "properties": {
+            "mode": {"const": "user_owned_plan"},
+            "confirmation": {"$ref": "#/$defs/confirmation"}
+          }
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application", "provider", "model", "runtime", "recipient"],
+      "properties": {
+        "application": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{1,40}$"},
+        "provider": {"const": "ChatGPT"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 200},
+        "runtime": {"type": "string", "minLength": 1, "maxLength": 160},
+        "recipient": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "turns"],
+      "properties": {
+        "category": {"const": "conversation_history"},
+        "turns": {"type": "integer", "minimum": 0, "maximum": 3072}
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "fields"],
+      "properties": {
+        "category": {"enum": ["domain_current", "ai_memory"]},
+        "fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      },
+      "if": {"properties": {"category": {"const": "ai_memory"}}},
+      "then": {"properties": {"fields": {"const": ["content"]}}}
+    },
+    "previewResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation", "destination", "purpose", "selected_context", "input_tokens_estimated", "expires_at"],
+      "properties": {
+        "confirmation": {"$ref": "#/$defs/confirmation"},
+        "destination": {"$ref": "#/$defs/destination"},
+        "purpose": {"const": "foreground_application_plan"},
+        "selected_context": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [{"$ref": "#/$defs/history"}],
+          "items": {"$ref": "#/$defs/projection"},
+          "contains": {"properties": {"category": {"const": "ai_memory"}}},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        "input_tokens_estimated": {"type": "integer", "minimum": 1, "maximum": 10240},
+        "expires_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+            "message": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  },
+  "x-samples": [
+    {
+      "name": "preview",
+      "definition": "previewRequest",
+      "valid": true,
+      "body": {"idempotency_key": "00000000-0000-4000-8000-000000000002", "content": "Summarize this fixture.", "choice": {"mode": "user_owned_plan"}}
+    },
+    {
+      "name": "preview metadata",
+      "definition": "previewResult",
+      "valid": true,
+      "body": {
+        "confirmation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "destination": {"application": "reading", "provider": "ChatGPT", "model": "synthetic-model", "runtime": "synthetic-runtime", "recipient": "synthetic-recipient"},
+        "purpose": "foreground_application_plan",
+        "selected_context": [{"category": "conversation_history", "turns": 1}, {"category": "domain_current", "fields": ["label"]}, {"category": "ai_memory", "fields": ["content"]}],
+        "input_tokens_estimated": 230,
+        "expires_at": "2030-01-02T09:00:45Z"
+      }
+    },
+    {
+      "name": "confirmed continuation",
+      "definition": "continueRequest",
+      "valid": true,
+      "body": {"idempotency_key": "00000000-0000-4000-8000-000000000002", "content": "Summarize this fixture.", "choice": {"mode": "user_owned_plan", "confirmation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+    },
+    {
+      "name": "preview confirmation null",
+      "definition": "previewRequest",
+      "valid": false,
+      "status": 422,
+      "body": {"idempotency_key": "00000000-0000-4000-8000-000000000002", "content": "Summarize this fixture.", "choice": {"mode": "user_owned_plan", "confirmation": null}}
+    },
+    {
+      "name": "caller-supplied authority",
+      "definition": "previewRequest",
+      "valid": false,
+      "status": 422,
+      "body": {"idempotency_key": "00000000-0000-4000-8000-000000000002", "content": "Summarize this fixture.", "choice": {"mode": "user_owned_plan"}, "owner_id": "owner-example"}
+    },
+    {
+      "name": "malformed confirmation",
+      "definition": "continueRequest",
+      "valid": false,
+      "status": 422,
+      "body": {"idempotency_key": "00000000-0000-4000-8000-000000000002", "content": "Summarize this fixture.", "choice": {"mode": "user_owned_plan", "confirmation": "invalid"}}
+    },
+    {
+      "name": "authority changed",
+      "definition": "error",
+      "valid": true,
+      "status": 422,
+      "body": {"error": {"code": "context_source_authority_changed", "message": "Context preparation could not complete."}}
+    }
+  ]
+}

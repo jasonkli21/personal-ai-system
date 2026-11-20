@@ -13,7 +13,7 @@ Code, executable contracts, migrations, and tests → dated verification/review 
 | Architecture and boundaries | [Architecture](architecture.md), [current state](current-state.md) |
 | Core startup and API | [API contract](api-contract.md), `backend/src/personal_ai/` |
 | SDK, Checklist and MCP | [Capability inventory](harness-excellence/README.md), [MCP source adapter](../adapters/mcp_source/README.md) |
-| HTTP consumers and reference apps | [Consumer contract](platform-independence/consumer-v1.md), [reference apps](../reference-apps/README.md), [Reading Logbook](../examples/reading-logbook/README.md) |
+| HTTP consumers and reference apps | [Consumer contract](platform-independence/consumer-v1.md), [private inference profile](platform-independence/private-application-inference-v1.md), [reference apps](../reference-apps/README.md), [Reading Logbook](../examples/reading-logbook/README.md) |
 | Inference and routing | [LLM README](../backend/src/personal_ai/llm/README.md), [routing README](../backend/src/personal_ai/routing/README.md) |
 | Application context and inference integration design | [Architecture and draft contracts](context-inference-integration/README.md) |
 | Synthetic ChatGPT-facing context MCP | [Outbound adapter](../adapters/mcp_context/README.md), [ChatGPT read contract](context-inference-integration/chatgpt-integration-boundaries.md#read-direction-chatgpt-to-pas-protected-mcp) |

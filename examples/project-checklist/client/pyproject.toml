@@ -9,7 +9,7 @@ description = "Independent project checklist and Personal AI HTTP client"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-dependencies = ["personal-ai-sdk==0.1.0"]
+dependencies = ["personal-ai-sdk>=0.1.0,<0.3"]
 
 [project.scripts]
 project-checklist = "project_checklist.cli:main"

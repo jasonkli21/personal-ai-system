@@ -17,6 +17,7 @@ from unittest.mock import patch
 from release_artifacts import (
     ROOT,
     SDK_FILES,
+    SDK_VERSION_FILES,
     clean_env,
     digest,
     inspect_wheel,
@@ -220,7 +221,7 @@ class ArtifactTest(unittest.TestCase):
         site = next((target / "lib").glob("python*/site-packages"))
         sdk = site / "personal_ai_sdk"
         sdk.mkdir()
-        for name in SDK_FILES:
+        for name in SDK_VERSION_FILES["0.2.0"]:
             (sdk / name).write_bytes((ROOT / "sdk/python/src/personal_ai_sdk" / name).read_bytes())
         probe = self.root / "unrelated.py"
         probe.write_bytes((ROOT / "backend/scripts/source_free_sdk_probe.py").read_bytes())

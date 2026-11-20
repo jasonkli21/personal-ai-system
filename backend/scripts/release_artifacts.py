@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MAX_WHEEL = 2_000_000
 SDK_FILES = {"__init__.py", "client.py", "py.typed", "synthetic_reasoning.py"}
+SDK_VERSION_FILES = {"0.1.0": SDK_FILES, "0.2.0": SDK_FILES | {"application_plan.py"}}
 
 
 def digest(raw):
@@ -46,8 +47,15 @@ def inspect_wheel(path, expected_digest):
         names = archive.namelist()
         if len(names) != len(set(names)) or len(names) > 32:
             raise ValueError("wheel_inventory")
-        prefix = "personal_ai_sdk-0.1.0.dist-info/"
-        allowed = {"personal_ai_sdk/" + name for name in SDK_FILES} | {
+        versions = [
+            version for version in SDK_VERSION_FILES
+            if f"personal_ai_sdk-{version}.dist-info/METADATA" in names
+        ]
+        if len(versions) != 1:
+            raise ValueError("wheel_hooks_or_modules")
+        version = versions[0]
+        prefix = f"personal_ai_sdk-{version}.dist-info/"
+        allowed = {"personal_ai_sdk/" + name for name in SDK_VERSION_FILES[version]} | {
             prefix + name for name in ("METADATA", "WHEEL", "RECORD", "licenses/LICENSE")
         }
         if set(names) != allowed:
@@ -60,7 +68,7 @@ def inspect_wheel(path, expected_digest):
         message = BytesParser().parsebytes(archive.read(prefix + "METADATA"))
         if (
             message.get_all("Name") != ["personal-ai-sdk"]
-            or message.get_all("Version") != ["0.1.0"]
+            or message.get_all("Version") != [version]
             or message.get_all("Requires-Dist")
             or message.get_all("License-Expression") != ["Apache-2.0"]
         ):
@@ -70,7 +78,7 @@ def inspect_wheel(path, expected_digest):
             raise ValueError("wheel_license")
         return {
             "name": "personal-ai-sdk",
-            "version": "0.1.0",
+            "version": version,
             "sha256": digest(raw),
             "license": "Apache-2.0",
             "runtime_dependencies": [],
@@ -309,12 +317,14 @@ def install(wheel, pins, uv, *, expected_source, expected_tool_digests):
         trust["schema"] != "sdk-origin-v1"
         or trust["filename"] != wheel.name
         or trust["name"] != "personal-ai-sdk"
-        or trust["version"] != "0.1.0"
+        or trust["version"] not in tuple(SDK_VERSION_FILES)
         or not isinstance(trust["origin"], str)
         or not 1 <= len(trust["origin"]) <= 256
     ):
         raise ValueError("operator_pins")
     inspection = inspect_wheel(wheel, trust["sha256"])
+    if inspection["version"] != trust["version"]:
+        raise ValueError("operator_pins")
     uv = str(Path(uv).resolve(strict=True))
     closed(trust["tools"], "uv_sha256 python_sha256")
     if trust["tools"] != {
@@ -351,11 +361,9 @@ def install(wheel, pins, uv, *, expected_source, expected_tool_digests):
         site = next((target / "lib").glob("python*/site-packages"))
         actual = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
         expected = set(inspection["members"])
+        prefix_path = f"personal_ai_sdk-{inspection['version']}.dist-info/"
         permitted = expected | {
-            "personal_ai_sdk-0.1.0.dist-info/INSTALLER",
-            "personal_ai_sdk-0.1.0.dist-info/REQUESTED",
-            "personal_ai_sdk-0.1.0.dist-info/direct_url.json",
-            "personal_ai_sdk-0.1.0.dist-info/uv_cache.json",
+            prefix_path + name for name in ("INSTALLER", "REQUESTED", "direct_url.json", "uv_cache.json")
         }
         if actual - permitted:
             raise ValueError("installed_hooks_or_dependency_leak")

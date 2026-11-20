@@ -1,0 +1,182 @@
+{
+  "schema": "private-application-inference-verification-v1",
+  "base": "f059b8223e441db40a0844017d610e9b32d0d8f0",
+  "result_revision": {
+    "git_path": "docs/context-inference-integration/evidence/2026-11-21-private-application-inference.md",
+    "select": "commit-introducing-path"
+  },
+  "authorization": {
+    "implementation": "maintainer_authorized",
+    "entry_re_review": "maintainer_waived"
+  },
+  "acceptance": {
+    "E1": "independent_acceptance_unverified",
+    "E2": "not_run",
+    "E3": "no_go"
+  },
+  "rows": [
+    {
+      "id": "A01",
+      "tier": "E0",
+      "outcome": "waived",
+      "witnesses": [
+        "docs/current-state.md",
+        "docs/context-inference-integration/evidence/2026-11-21-private-application-inference.md"
+      ],
+      "expected": "Independent combined E1 decision at the repaired base covering R1, R2, R4 and R5.",
+      "observed": "No decision located. Maintainer authorized implementation without the prerequisite re-review. R3 remains tracked under E2."
+    },
+    {
+      "id": "A02",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_private_routes_absent_and_new_extension_refuses_old_server",
+        "backend/tests/test_private_application_plan_http.py::test_private_profile_denials_precede_protected_reads"
+      ],
+      "expected": "Ordinary and standalone factories omit both private routes. Legacy selection header grants nothing.",
+      "observed": "Default and standalone requests returned 404. Ordinary plan body with legacy marker returned 422. Unsupported path returned 404. Zero physical sends."
+    },
+    {
+      "id": "A03",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_private_profile_denials_precede_protected_reads",
+        "backend/tests/test_shared_application_service.py::test_identity_and_operation_denials_precede_source_reads_or_writes"
+      ],
+      "expected": "Deny invalid or forwarded identity and substituted client/owner/workspace before protected reads.",
+      "observed": "Denied requests left the exact source counters unchanged. Zero packages and sends."
+    },
+    {
+      "id": "A04",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_installed_profile_three_contributions_and_foreign_owner",
+        "backend/tests/test_application_plan_inference.py::test_aggregate_context_budget_and_single_external_projection"
+      ],
+      "expected": "Each authorized preview assembles one bounded projection and one memory with one search and one fetch.",
+      "observed": "Each of three apps performed two source exchanges on preview and zero more on continue and authorized replay. Frozen local and provider bytes matched their digests."
+    },
+    {
+      "id": "A05",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_application_plan_inference.py::test_plan_preview_accounts_for_selected_history",
+        "backend/tests/test_application_plan_inference.py::test_two_owners_and_three_independent_app_registrations",
+        "docs/platform-independence/private-application-inference-v1.schema.json"
+      ],
+      "expected": "Metadata describes selected context, destination, purpose, expiry and estimate. Preview releases no package and sends nothing.",
+      "observed": "Exact history count matched the frozen context. Category, field, byte and digest checks passed. No source values or message text in preview tested."
+    },
+    {
+      "id": "A06",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_application_plan_inference.py::test_current_rights_at_each_disclosure_boundary",
+        "backend/tests/test_application_plan_inference.py::test_revocation_after_a_delta_blocks_subsequent_output_and_replay",
+        "backend/tests/test_application_plan_inference.py::test_regrant_cannot_revive_a_preview_and_public_loopback_refuses_the_app_runtime",
+        "backend/tests/test_application_plan_inference.py::test_automatic_history_requires_its_own_recipient"
+      ],
+      "expected": "Revalidate each distinct permission at release, physical send and output. Keep automatic history recipient-isolated.",
+      "observed": "Revocation before release gave 0 packages/0 sends; after release, 1/0. Midstream revocation stopped further deltas and stored detail/replay. Regrant did not revive confirmation."
+    },
+    {
+      "id": "A07",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_application_plan_inference.py::test_foreground_confirmation_and_pas_scope_are_exact",
+        "backend/tests/test_application_plan_inference.py::test_runtime_binding_and_signed_payload_fail_closed",
+        "backend/tests/test_application_plan_inference.py::test_unconsumed_preview_cannot_dispatch_after_expiry_or_branch_advance",
+        "backend/tests/test_application_plan_inference.py::test_automatic_history_requires_its_own_recipient"
+      ],
+      "expected": "Exact confirmation, identity, branch, expiry, bytes and signed claim bind the attempt.",
+      "observed": "Stale, substituted and expired attempts sent 0. Completed authorized replay after branch advance sent 0 additional requests."
+    },
+    {
+      "id": "A08",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_lost_create_and_continue_recover_under_original_binding",
+        "backend/tests/test_application_plan_inference.py::test_same_key_race_and_replay_keep_one_transport_and_opaque_foreign_status",
+        "backend/tests/test_application_plan_inference.py::test_interrupted_stream_restart_and_older_local_state_retain_physical_fence"
+      ],
+      "expected": "Persist original inputs, recover create by original key and reconcile ambiguous continue using GET only. Maintain at most one send.",
+      "observed": "Lost create recovered exactly one conversation. Lost continuation response reconciled by status and detail only. One release and physical fake send. Interrupted local receipt recovery retained the fence."
+    },
+    {
+      "id": "A09",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_application_plan_inference.py::test_pending_previews_leave_capacity_for_another_client",
+        "backend/tests/test_application_plan_inference.py::test_slow_plan_admission_preserves_other_client_progress",
+        "backend/tests/test_shared_application_service.py::test_cancelled_response_keeps_physical_slot_until_worker_really_exits"
+      ],
+      "expected": "Reserve per owner/client and globally before source work. Hold active slots through cancellation.",
+      "observed": "Other client completed while authority work was blocked. Admission denied further work for blocked client until worker exit."
+    },
+    {
+      "id": "A10",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_installed_profile_rejects_malformed_response_and_request",
+        "backend/tests/test_private_application_plan_http.py::test_installed_profile_three_contributions_and_foreign_owner",
+        "make sdk-install-check"
+      ],
+      "expected": "Exercise independent wheel and sdist installations, typed wire failure and bounded egress.",
+      "observed": "Both distributions passed the socket suite. Invalid request stayed local. Wrong MIME, excess bytes, duplicate JSON and truncated SSE were rejected. One external DNS attempt per run was denied before resolution."
+    },
+    {
+      "id": "A11",
+      "tier": "E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_installed_profile_three_contributions_and_foreign_owner"
+      ],
+      "expected": "Travel, Fitness and Reading use one SDK and enrollment path with two owners.",
+      "observed": "Each distribution observed three releases and three fake sends across the three apps. Same-app foreign owner received opaque status and detail with zero releases or sends."
+    },
+    {
+      "id": "A12",
+      "tier": "E0/E1",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/test_private_application_plan_http.py::test_legacy_wheel_retains_automatic_consumer_path",
+        "backend/tests/test_private_application_plan_http.py::test_private_routes_absent_and_new_extension_refuses_old_server",
+        "docs/context-inference-integration/evidence/2026-11-21-private-application-inference.md"
+      ],
+      "expected": "Pin the 0.1.0 wheel and v1 dispatch reader. Keep consumer 1.2.0 automatic behavior and deny fallback from the private profile.",
+      "observed": "Old wheel completed ordinary automatic flow. New extension failed closed against the old route map and the actual pinned base server. Legacy dispatch canonical bytes matched and old reader rejected v2. Focused legacy, strict-free, standalone and Travel controls passed."
+    },
+    {
+      "id": "A13",
+      "tier": "E2",
+      "outcome": "pass",
+      "witnesses": [
+        "backend/tests/persistence/test_application_plan_postgres.py::test_native_ambiguous_plan_fence_and_owner_deletion_survive_restore_boundary",
+        "backend/tests/persistence/test_application_plan_postgres.py::test_worker_loss_after_native_claim_preserves_original_key_and_prevents_resend",
+        "backend/tests/persistence/test_application_plan_postgres.py::test_concurrent_native_claim_witnesses_survive_restore"
+      ],
+      "expected": "Classify native persistence separately and report an unavailable DSN accurately.",
+      "observed": "The three PostgreSQL cases collected and skipped. There were zero native passes. File-backed local send fences are E1 observations."
+    },
+    {
+      "id": "A14",
+      "tier": "E0/E1",
+      "outcome": "partial",
+      "witnesses": [
+        "docs/context-inference-integration/evidence/2026-11-21-private-application-inference.md",
+        "docs/platform-independence/private-application-inference-v1.md"
+      ],
+      "expected": "Record the precise revision, checks, rollback and scope. Obtain a separate independent result decision.",
+      "observed": "Implementer evidence and rollback are recorded. The independent result disposition remains unverified under the maintainer-authorized delivery. E3 remains NO_GO."
+    }
+  ]
+}

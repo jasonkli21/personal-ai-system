@@ -1,6 +1,5 @@
 """Isolated consumer composition. The regular API and loopback factories never mount it."""
 
-import json
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import replace
@@ -10,12 +9,10 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from fastapi import Depends, Request
-from fastapi.routing import APIRoute
-from starlette.routing import Match
+from fastapi import Depends
 
 from personal_ai.api import dependencies as deps
-from personal_ai.api.routes import _request_id, _sse_response
+from personal_ai.api.private_application_plan import PROFILE_PREFIX, mount_application_plan
 from personal_ai.auth.application_clients import client_binding_namespace
 from personal_ai.auth.dispatch_grants import (
     ApplicationPlanScope,
@@ -48,32 +45,20 @@ from personal_ai.memory.contracts import Memory, MemoryCandidate, identity, norm
 from personal_ai.memory.dependencies import MemoryPermissionRevalidator
 from personal_ai.memory.lifecycle.repositories import InMemoryMemoryLifecycleRepository
 from personal_ai.memory.repositories import InMemoryMemoryRepository
-from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.external_turns.application_plan import (
     MAX_CONTEXT_TOKENS,
     ApplicationPlanService,
     PlanAttempts,
-    PlanContinuation,
     PlanTarget,
 )
 from personal_ai.services.external_turns.plan_memory import ApplicationPlanMemory, MemoryDisclosure
-from personal_ai.storage.async_io import sync_call
 from tests.test_chatgpt_bridge_transport import ProviderFixture
 from tests.test_chatgpt_local_lifecycle import FakeOAuth
 
 from .shared import RUNTIME, plan_source_recipients
 
 MODEL = "account-visible-model"
-PRIVATE_HEADER = b"x-pas-user-plan"
 PROMPT = "Summarize my app records using my saved preference."
-
-
-class PlanSelectionRoute(APIRoute):
-    def matches(self, scope):
-        result = super().matches(scope)
-        if (PRIVATE_HEADER, b"1") not in scope.get("headers", ()):
-            return Match.NONE, {}
-        return result
 
 
 class MemoryRoots:
@@ -257,43 +242,22 @@ class ApplicationPlanFixture:
                 context_planner=ContextPlanner(rules, max_total_tokens=MAX_CONTEXT_TOKENS),
             )
 
-        async def preview(
-            conversation_id: UUID,
-            incoming: PlanContinuation,
-            chat: Annotated[ChatTurnService, Depends(deps.get_chat_turn_service)],
-            assembler: Annotated[ContextAssembler, Depends(plan_assembler)],
-        ):
-            target = await sync_call(service.current_target)
+        @contextmanager
+        def preview_recipients(target):
             token = plan_source_recipients.set(
                 (target.scope.local_recipient, target.scope.model_recipient)
             )
             try:
-                return await sync_call(service.preview, chat, assembler, conversation_id, incoming)
+                yield
             finally:
                 plan_source_recipients.reset(token)
 
-        async def continue_turn(
-            conversation_id: UUID,
-            incoming: PlanContinuation,
-            request: Request,
-            chat: Annotated[ChatTurnService, Depends(deps.get_chat_turn_service)],
-            assembler: Annotated[ContextAssembler, Depends(plan_assembler)],
-        ):
-            stream = await sync_call(
-                service.continue_turn, chat, assembler, conversation_id, incoming
-            )
-            return _sse_response(stream, request_id=_request_id(request))
-
-        host.app.router.routes[0:0] = [
-            PlanSelectionRoute(
-                "/v1/conversations/{conversation_id}/" + suffix,
-                handler,
-                methods=["POST"],
-                include_in_schema=False,
-                dependency_overrides_provider=host.app,
-            )
-            for suffix, handler in (("context-preview", preview), ("continue", continue_turn))
-        ]
+        mount_application_plan(
+            host.app,
+            service=service,
+            assembler_dependency=plan_assembler,
+            preview_recipient_scope=preview_recipients,
+        )
 
     def onboard(self, target, *, memory_content, model=MODEL, gate=True, source_grants=True):
         host = self.host
@@ -527,22 +491,7 @@ def plan_request(key=None, confirmation=None, *, content=PROMPT):
 
 def plan_http(host, target, cid, action, payload):
     return host.http.post(
-        f"/v1/conversations/{cid}/{action}",
-        headers={**target.headers, PRIVATE_HEADER.decode(): "1"},
+        f"{PROFILE_PREFIX}/{cid}/{action}",
+        headers=target.headers,
         json=payload,
     )
-
-
-def opt_in_sdk(client):
-    original = client._opener.open
-
-    def open_http(request, **options):
-        if (
-            request.data
-            and json.loads(request.data).get("choice", {}).get("mode") == "user_owned_plan"
-        ):
-            request.add_header(PRIVATE_HEADER.decode(), "1")
-        return original(request, **options)
-
-    client._opener.open = open_http
-    return client

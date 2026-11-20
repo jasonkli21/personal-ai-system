@@ -7,29 +7,27 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from datetime import timedelta
 from hashlib import sha256
-from pathlib import Path
 from threading import Event
 from uuid import UUID, uuid4
 
 import pytest
 
+from personal_ai.api.private_application_plan import PROFILE_PREFIX
 from personal_ai.llm.chatgpt.responses import serialize
 from personal_ai.local_bridge.store import LocalStoreError, ProtectedLocalStore
 from personal_ai.memory.contracts import normalize
 from personal_ai.memory.lifecycle.contracts import MemoryLifecycleState
 from personal_ai.services.external_turns import application_plan
 from tests.app_context_support.application_plan import (
-    PRIVATE_HEADER,
     ApplicationPlanFixture,
-    opt_in_sdk,
     plan_http,
     plan_request,
 )
 from tests.app_context_support.shared import FITNESS_APP, READING_APP, TRAVEL_APP
 from tests.app_context_support.shared_inference import RoutedGeneration
 from tests.test_shared_application_service import (
-    SDK_SITE,
     SECRET_TITLE,
     SITE,
     A,
@@ -38,7 +36,6 @@ from tests.test_shared_application_service import (
     headers,
     post,
     provision,
-    sdk_client,
     shared_factory,  # noqa: F401 - pytest fixture
     status,
 )
@@ -447,16 +444,16 @@ async def test_slow_plan_admission_preserves_other_client_progress(
     ) as client:
         pending = asyncio.create_task(
             client.post(
-                f"/v1/conversations/{first_conversation}/continue",
-                headers={**first.headers, PRIVATE_HEADER.decode(): "1"},
+                f"{PROFILE_PREFIX}/{first_conversation}/continue",
+                headers=first.headers,
                 json=first_request,
             )
         )
         try:
             assert await asyncio.to_thread(entered.wait, 3)
             second_result = await client.post(
-                f"/v1/conversations/{second_conversation}/continue",
-                headers={**second.headers, PRIVATE_HEADER.decode(): "1"},
+                f"{PROFILE_PREFIX}/{second_conversation}/continue",
+                headers=second.headers,
                 json=second_request,
             )
             assert "event: response.completed" in second_result.text
@@ -466,8 +463,8 @@ async def test_slow_plan_admission_preserves_other_client_progress(
             await asyncio.sleep(0.05)
             assert not pending.done()
             denied = await client.post(
-                f"/v1/conversations/{first_conversation}/context-preview",
-                headers={**first.headers, PRIVATE_HEADER.decode(): "1"},
+                f"{PROFILE_PREFIX}/{first_conversation}/context-preview",
+                headers=first.headers,
                 json=plan_request(),
             )
             assert denied.status_code == 429
@@ -478,8 +475,8 @@ async def test_slow_plan_admission_preserves_other_client_progress(
             await pending
 
         released = await client.post(
-            f"/v1/conversations/{first_conversation}/context-preview",
-            headers={**first.headers, PRIVATE_HEADER.decode(): "1"},
+            f"{PROFILE_PREFIX}/{first_conversation}/context-preview",
+            headers=first.headers,
             json=plan_request(),
         )
         assert released.status_code == 200
@@ -489,10 +486,6 @@ async def test_slow_plan_admission_preserves_other_client_progress(
 
 
 def test_two_owners_and_three_independent_app_registrations(plan_factory, caplog):
-    import personal_ai_sdk
-
-    if SDK_SITE:
-        assert Path(personal_ai_sdk.__file__).resolve().is_relative_to(Path(SDK_SITE).resolve())
     caplog.set_level(logging.INFO)
     host = plan_factory(selected=(TRAVEL_APP, FITNESS_APP, READING_APP))
     trip = travel(host)
@@ -511,11 +504,9 @@ def test_two_owners_and_three_independent_app_registrations(plan_factory, caplog
         (workout, "duration_minutes", FITNESS_MEMORY),
         (book, BOOK_LABEL, READING_MEMORY),
     ):
-        client, _ = sdk_client(host, target)
-        client = opt_in_sdk(client)
-        cid = client.create("Application plan test", uuid4())["id"]
+        cid = create(host, target, title="Application plan test")
         request = plan_request()
-        selection = client.preview(cid, request)
+        selection = preview(host, target, cid, request)
         assert selection["purpose"] == "foreground_application_plan"
         assert selection["destination"]["application"] == target.app.app
         assert {row["category"] for row in selection["selected_context"]} == {
@@ -526,10 +517,11 @@ def test_two_owners_and_three_independent_app_registrations(plan_factory, caplog
         assert all(value not in json.dumps(selection) for value in (SECRET_TITLE, memory))
         assert target.local_payloads == target.provider.sends() == []
         body = plan_request(request["idempotency_key"], selection["confirmation"])
-        complete = client.continue_turn(cid, body)
-        assert complete["content"] == "A streamed answer"
-        assert client.status(cid, body["idempotency_key"])["state"] == "completed"
-        assert client.continue_turn(cid, body) == complete
+        response = plan_http(host, target, cid, "continue", body)
+        assert "event: response.completed" in response.text and "A streamed answer" in response.text
+        assert status(host, target, cid, body).json()["state"] == "completed"
+        replay = plan_http(host, target, cid, "continue", body)
+        assert "event: response.completed" in replay.text and "A streamed answer" in replay.text
         assert_delivery(
             target,
             (source, memory),
@@ -627,6 +619,24 @@ def replace_target(target, **updates):
     from types import SimpleNamespace
 
     return SimpleNamespace(**(vars(target) | updates))
+
+
+@pytest.mark.parametrize("change", ["expiry", "branch"])
+def test_unconsumed_preview_cannot_dispatch_after_expiry_or_branch_advance(plan_factory, change):
+    host = plan_factory()
+    target = travel(host)
+    cid = create(host, target)
+    payload = confirmed(host, target, cid)
+    if change == "expiry":
+        now = host.plan.service.clock() + timedelta(seconds=46)
+        host.plan.service.clock = lambda: now
+    else:
+        advanced = post(host, target, cid, "continue", automatic_body(content="Say hello."))
+        assert "event: response.completed" in advanced.text
+    result = plan_http(host, target, cid, "continue", payload)
+    assert result.status_code in {409, 422}
+    assert not host.plan.roots.rows
+    assert target.local_payloads == target.provider.sends() == []
 
 
 @pytest.mark.parametrize(
@@ -933,7 +943,7 @@ def test_interrupted_stream_restart_and_older_local_state_retain_physical_fence(
         async def send(_message):
             pass
 
-        path = f"/v1/conversations/{cid}/continue"
+        path = f"{PROFILE_PREFIX}/{cid}/continue"
         await tap(
             {
                 "type": "http",
@@ -948,7 +958,6 @@ def test_interrupted_stream_restart_and_older_local_state_retain_physical_fence(
                 "client": ("127.0.0.1", 1001),
                 "headers": [(k.lower().encode(), v.encode()) for k, v in target.headers.items()]
                 + [
-                    (PRIVATE_HEADER, b"1"),
                     (b"content-type", b"application/json"),
                 ],
             },
@@ -1096,9 +1105,9 @@ def test_revocation_after_a_delta_blocks_subsequent_output_and_replay(plan_facto
             base_url="https://shared.invalid",
         ) as client:
             return await client.post(
-                f"/v1/conversations/{cid}/continue",
+                f"{PROFILE_PREFIX}/{cid}/continue",
                 json=payload,
-                headers={**target.headers, PRIVATE_HEADER.decode(): "1"},
+                headers=target.headers,
             )
 
     response = asyncio.run(request())

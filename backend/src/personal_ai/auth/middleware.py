@@ -294,6 +294,23 @@ async def authenticate_request(request: Request) -> Response | None:
         settings.app_environment == "test"
         and getattr(request.app.state, "isolate_external_conversations", False)
     )
+    private_application_plan = any(
+        route.matches(request.scope)[0] == Match.FULL
+        for route in getattr(request.app.state, "private_application_plan_routes", ())
+    )
+    if private_application_plan and not isolated_conversations:
+        return _error(404, "not_found", "The requested resource was not found.")
+    if private_application_plan and (
+        len(request.headers.getlist("authorization")) > 1
+        or len(request.headers.getlist("x-application-id")) != 1
+        or len(request.headers.getlist("x-workspace-id")) > 1
+        or "x-client-context" in request.headers
+        or "x-client-capabilities" in request.headers
+    ):
+        return _error(
+            400, "request_scope_invalid", "The request scope is invalid.",
+            request=request, correlation_id=correlation_id,
+        )
     if request.url.path not in PUBLIC_PATHS:
         if isolated_conversations and any(
             name in request.headers for name in ("x-user-id-token", "x-user-delegation")
@@ -457,7 +474,9 @@ async def authenticate_request(request: Request) -> Response | None:
                         request=request,
                         correlation_id=correlation_id,
                     )
-                if not external_operation_allowed(request.method, request.url.path):
+                if not private_application_plan and not external_operation_allowed(
+                    request.method, request.url.path
+                ):
                     return _error(
                         403,
                         "client_operation_denied",

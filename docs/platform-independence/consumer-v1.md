@@ -174,3 +174,7 @@ The optional [synthetic reasoning protocol](../reasoning-engine/synthetic-previe
 is separately negotiated on a disposable loopback process. It uses the same
 SDK distribution and does not change the provisional consumer v1.2.0
 deployment contract or OpenAPI surface.
+
+## Private application inference
+
+The [private application inference profile](private-application-inference-v1.md) adds an opt-in SDK extension for the isolated synthetic host. The consumer operations and published OpenAPI subset retain their existing schemas.
