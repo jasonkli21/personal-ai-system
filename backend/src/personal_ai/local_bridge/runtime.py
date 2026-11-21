@@ -402,7 +402,7 @@ class LocalChatGPTBridge:
     async def _execute(self, package, proof, *, origin, authorization, foreground_root=None):
         """The in-process fixture can pin one approved local root and retain its fence."""
         plan = proof.claims.application_plan is not None
-        retain_fence = plan or foreground_root is not None
+        retain_fence = plan or proof.claims.routing_root is not None
         worker = sync_call if plan else anyio.to_thread.run_sync
         require_dispatch = partial(
             self._require_dispatch,
