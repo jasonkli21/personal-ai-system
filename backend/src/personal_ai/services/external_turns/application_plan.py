@@ -6,14 +6,14 @@ memory authorities. Normal API startup does not compose this service.
 
 import hmac
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from threading import Lock
 from time import monotonic
-from typing import Literal
+from typing import Literal, Protocol
 from uuid import UUID, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,11 +22,16 @@ from personal_ai.auth.application_clients import (
     external_conversation_namespace,
     require_current_client_authority,
 )
-from personal_ai.auth.dispatch_grants import ApplicationPlanDispatch, ApplicationPlanScope
+from personal_ai.auth.dispatch_grants import (
+    ApplicationPlanDispatch,
+    ApplicationPlanScope,
+    SignedDispatchGrant,
+)
 from personal_ai.auth.scope import current_request_scope
 from personal_ai.context.authority import source_snapshots_current
 from personal_ai.context.providers import ContextPreparationError
 from personal_ai.contracts.execution import ContinuationRequest, continuation_message_id
+from personal_ai.llm.client import GenerationEvent
 from personal_ai.llm.disclosure import revalidate_disclosure
 from personal_ai.llm.external import ExecutionProfileIdentity, PreparedExecution, PreparedMessage
 from personal_ai.local_bridge.application_plan import PairedApplicationRuntime
@@ -82,10 +87,17 @@ class PlanContinuation(BaseModel):
         return ContinuationRequest(content=self.content, idempotency_key=self.idempotency_key)
 
 
+class PlanDelivery(Protocol):
+    def deliver(
+        self, proof: SignedDispatchGrant, profile: ExecutionProfileIdentity,
+        release: Callable[[], PreparedExecution],
+    ) -> AsyncIterator[GenerationEvent]: ...
+
+
 @dataclass(frozen=True, repr=False)
 class PlanTarget:
     scope: ApplicationPlanScope
-    runtime: PairedApplicationRuntime
+    runtime: PlanDelivery
     caller_id: UUID
     connection_id: UUID
     connection_revision: int
@@ -197,11 +209,15 @@ class PlanAttempts:
 
 
 class ApplicationPlanService:
-    def __init__(self, *, signer, target_for_request, memory, attempts, clock=None):
+    def __init__(
+        self, *, signer, target_for_request, memory, attempts, clock=None,
+        delivery_type: type[PlanDelivery] = PairedApplicationRuntime,
+    ):
         self.signer = signer
         self.target_for_request = target_for_request
         self.memory = memory
         self.attempts = attempts
+        self._delivery_type = delivery_type
         self.clock = clock or (lambda: datetime.now(UTC))
         self._previews = {}
         self._reservations = {}
@@ -216,7 +232,7 @@ class ApplicationPlanService:
         target = self.target_for_request(scope, client)
         if (
             target is None
-            or type(target.runtime) is not PairedApplicationRuntime
+            or type(target.runtime) is not self._delivery_type
             or (
                 target.scope.owner_id,
                 target.scope.actor_id,
@@ -511,6 +527,13 @@ class ApplicationPlanService:
 
     def authorize(self, *, root_id, package, claims, installation, session):
         """Injected synchronous current authority used under the local send-start lock."""
+        return self.authorize_delivery(
+            root_id=root_id, package=package, claims=claims,
+            scope=installation.scope, caller_id=session.caller_id,
+        )
+
+    def authorize_delivery(self, *, root_id, package, claims, scope, caller_id):
+        """Revalidate a bound delivery using only the owning request's live authority."""
         active = _active.get()
         if active is None:
             return False
@@ -519,8 +542,8 @@ class ApplicationPlanService:
             root_id != preview.root_id
             or claims.application_plan != preview.dispatch
             or claims.package_hash != preview.package.fingerprint
-            or session.caller_id != preview.target.caller_id
-            or installation.scope != preview.target.scope
+            or caller_id != preview.target.caller_id
+            or scope != preview.target.scope
             or (package is not None and package.fingerprint != preview.package.fingerprint)
         ):
             return False

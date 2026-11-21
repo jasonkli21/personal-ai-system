@@ -61,6 +61,91 @@ MODEL = "account-visible-model"
 PROMPT = "Summarize my app records using my saved preference."
 
 
+def build_local_runtime(
+    store, *, actor, namespace, owner_id, application_id, workspace_id, label,
+    issuer, key_id, public_key, root_authority, model, gate,
+):
+    connection_id = uuid4()
+    now = int(datetime.now(UTC).timestamp())
+    credentials = Credentials(
+        access_token="fake-plan-access-" + label,
+        refresh_token="fake-plan-refresh-" + label,
+        id_token="fake-plan-id-" + label,
+        scopes=tuple(REQUIRED_USAGE_SCOPES),
+        expires_at=now + 3600,
+    )
+    registration = Registration(
+        connection_id=str(connection_id),
+        client_id="oaiapp_" + application_id,
+        issuer=ISSUER,
+        subject="plan-subject-" + label,
+        credentials=credentials,
+        state="connected",
+        revision=1,
+    )
+    with store.transaction() as tx:
+        tx.state.registrations[str(connection_id)] = registration
+        tx.save()
+        installation = LocalChatInstallation(
+            scope=LocalChatScope(
+                owner_id=owner_id, actor_id=actor, workspace_id=None
+            ),
+            origin="http://127.0.0.1:49321",
+            host_id=tx.state.host_id,
+            runtime_id=UUID(tx.state.runtime_id),
+            signer_key_id="app-plan",
+            connection_id=connection_id,
+            connection_revision=1,
+            client_id=registration.client_id,
+            account_issuer=registration.issuer,
+            account_subject=registration.subject,
+        )
+    scope = ApplicationPlanScope(
+        application_id=application_id,
+        workspace_id=workspace_id,
+        owner_id=owner_id,
+        actor_id=actor,
+        client_namespace=namespace,
+        runtime_id=installation.runtime_id,
+        registration_binding=installation.registration_binding,
+        local_recipient=f"local:{installation.runtime_id}",
+        model_recipient=f"openai-responses:{installation.registration_binding}",
+    )
+    installation = replace(installation, scope=scope)
+    provider = ProviderFixture()
+    compatibility = CompatibilityGate(
+        connection_id=installation.connection_id,
+        client_id=registration.client_id,
+        distribution="local_personal",
+        compatibility_reference="fixture-eligibility",
+        plan_only_reference="fixture-no-credits",
+        execution_profile=CHATGPT_PLAN_PROFILE,
+        model_id=model,
+        plan_only_verified=gate,
+        verified_at=now,
+        valid_until=now + 300,
+        data_use={
+            "status": "approved",
+            "max_sensitivity": "sensitive",
+            "policy_reference": "fixture-privacy",
+        },
+    )
+    bridge = LocalChatGPTBridge(
+        CredentialLifecycle(store, FakeOAuth()),
+        provider.provider,
+        DispatchGrantVerifier(
+            issuer=issuer,
+            keys={key_id: public_key},
+            audience=installation.runtime_id,
+        ),
+        installation=installation,
+        gates=(compatibility,),
+        root_authority=root_authority,
+    )
+    session = bridge.approve_pairing(installation.origin, str(connection_id))
+    return bridge, session, provider
+
+
 class MemoryRoots:
     def __init__(self):
         self.rows = {}
@@ -89,8 +174,11 @@ class MemoryRoots:
 
 
 class ApplicationPlanFixture:
-    def __init__(self, host, runtime_directory, *, attempts: Callable | None = None):
+    def __init__(self, host, runtime_directory, *, attempts: Callable | None = None, delivery=None):
+        if delivery is not None and attempts is not None:
+            raise ValueError("independent delivery requires the coordinated fixture authorities")
         self.host, self.runtime_directory = host, runtime_directory
+        self.delivery = delivery
         self.targets = {}
         self.disclosures = {}
         self.disclosure_epochs = {}
@@ -132,6 +220,7 @@ class ApplicationPlanFixture:
             target_for_request=self.target_for,
             memory=self.memory,
             attempts=repository,
+            delivery_type=delivery.runtime_type if delivery is not None else PairedApplicationRuntime,
         )
         prior_recovery = host.directory.recovery_current
         host.directory.recovery_current = lambda: prior_recovery() and repository.recovery_current()
@@ -264,90 +353,29 @@ class ApplicationPlanFixture:
         actor = f"{target.principal.issuer}|{target.principal.subject}"
         namespace = client_binding_namespace(host.identify(target.token), target.app.app)
         label = f"{target.app.app}-{target.principal.subject}"
-        connection_id = uuid4()
-        store = ProtectedLocalStore(self.runtime_directory / uuid4().hex)
-        now = int(datetime.now(UTC).timestamp())
-        credentials = Credentials(
-            access_token="fake-plan-access-" + label,
-            refresh_token="fake-plan-refresh-" + label,
-            id_token="fake-plan-id-" + label,
-            scopes=tuple(REQUIRED_USAGE_SCOPES),
-            expires_at=now + 3600,
-        )
-        registration = Registration(
-            connection_id=str(connection_id),
-            client_id="oaiapp_" + target.app.app,
-            issuer=ISSUER,
-            subject="plan-subject-" + label,
-            credentials=credentials,
-            state="connected",
-            revision=1,
-        )
-        with store.transaction() as tx:
-            tx.state.registrations[str(connection_id)] = registration
-            tx.save()
-            installation = LocalChatInstallation(
-                scope=LocalChatScope(
-                    owner_id=target.principal.owner_id, actor_id=actor, workspace_id=None
-                ),
-                origin="http://127.0.0.1:49321",
-                host_id=tx.state.host_id,
-                runtime_id=UUID(tx.state.runtime_id),
-                signer_key_id="app-plan",
-                connection_id=connection_id,
-                connection_revision=1,
-                client_id=registration.client_id,
-                account_issuer=registration.issuer,
-                account_subject=registration.subject,
+        binding = {
+            "actor": actor, "namespace": namespace, "owner_id": target.principal.owner_id,
+            "application_id": target.app.app, "workspace_id": target.workspace, "label": label,
+            "issuer": self.signer.issuer, "key_id": self.signer.key_id, "model": model, "gate": gate,
+        }
+        store_path = self.runtime_directory / uuid4().hex
+        if self.delivery is None:
+            store = ProtectedLocalStore(store_path)
+            bridge, session, provider = build_local_runtime(
+                store, public_key=self.private.public_key(), root_authority=self.service, **binding
             )
-        scope = ApplicationPlanScope(
-            application_id=target.app.app,
-            workspace_id=target.workspace,
-            owner_id=target.principal.owner_id,
-            actor_id=actor,
-            client_namespace=namespace,
-            runtime_id=installation.runtime_id,
-            registration_binding=installation.registration_binding,
-            local_recipient=f"local:{installation.runtime_id}",
-            model_recipient=f"openai-responses:{installation.registration_binding}",
-        )
-        installation = replace(installation, scope=scope)
-        provider = ProviderFixture()
-        compatibility = CompatibilityGate(
-            connection_id=installation.connection_id,
-            client_id=registration.client_id,
-            distribution="local_personal",
-            compatibility_reference="fixture-eligibility",
-            plan_only_reference="fixture-no-credits",
-            execution_profile=CHATGPT_PLAN_PROFILE,
-            model_id=model,
-            plan_only_verified=gate,
-            verified_at=now,
-            valid_until=now + 300,
-            data_use={
-                "status": "approved",
-                "max_sensitivity": "sensitive",
-                "policy_reference": "fixture-privacy",
-            },
-        )
-        bridge = LocalChatGPTBridge(
-            CredentialLifecycle(store, FakeOAuth()),
-            provider.provider,
-            DispatchGrantVerifier(
-                issuer=self.signer.issuer,
-                keys={self.signer.key_id: self.private.public_key()},
-                audience=installation.runtime_id,
-            ),
-            installation=installation,
-            gates=(compatibility,),
-            root_authority=self.service,
-        )
-        session = bridge.approve_pairing(installation.origin, str(connection_id))
-        runtime = PairedApplicationRuntime(bridge, session)
+            runtime = PairedApplicationRuntime(bridge, session)
+            scope = bridge.installation.scope
+            caller_id, connection_id = session.caller_id, session.connection_id
+        else:
+            runtime = self.delivery.open(
+                store_path, binding, self.private.public_key(), self.service,
+            )
+            scope, caller_id, connection_id = runtime.scope, runtime.caller_id, runtime.connection_id
         pairing = PlanTarget(
             scope=scope,
             runtime=runtime,
-            caller_id=session.caller_id,
+            caller_id=caller_id,
             connection_id=connection_id,
             connection_revision=1,
             profile=CHATGPT_PLAN_PROFILE,
@@ -383,11 +411,15 @@ class ApplicationPlanFixture:
                     expires_at=host.now + timedelta(minutes=2),
                 )
         memory = self.seed_memory(target, memory_content)
-        target.plan, target.store, target.provider = pairing, store, provider
-        target.bridge, target.session, target.memory = bridge, session, memory
+        target.plan, target.memory = pairing, memory
+        if self.delivery is None:
+            target.store, target.provider = store, provider
+            target.bridge, target.session = bridge, session
         self.share_memory(target, memory)
         target.source_grant_revision = revision if source_grants else None
         target.local_payloads, target.proofs = [], []
+        if self.delivery is not None:
+            return target
         original_execute = bridge.execute
 
         def record_delivery(package, proof, **options):

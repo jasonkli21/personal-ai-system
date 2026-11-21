@@ -168,6 +168,8 @@ def test_native_ambiguous_plan_fence_and_owner_deletion_survive_restore_boundary
     tmp_path,
 ):
     witness = PlanWitness(tmp_path / "outside-db.json", shared_db)
+    older_witness_path = tmp_path / "older-witness.json"
+    older_witness_path.write_bytes(witness.path.read_bytes())
 
     def wire(fixture):
         fixture.host.directory.native = PostgresPrincipalDirectory(shared_db)
@@ -208,7 +210,21 @@ def test_native_ambiguous_plan_fence_and_owner_deletion_survive_restore_boundary
         assert not witness.current()
         assert status(host, target, cid, payload).status_code == 403
         assert plan_http(host, target, cid, "continue", payload).status_code == 403
+
+        # The stale database and a stale witness can agree after joint restore.
+        # The independently retained claim and owner tombstone still govern
+        # continuity for the restored generation.
+        stale = PlanWitness(older_witness_path, older, initialize=False)
+        assert stale.current()
+        restored = native_attempts(older, stale)
+        restored.recovery_current = lambda: stale.current() and witness.current()
+        host.plan.service.attempts = restored
+        assert not restored.recovery_current()
+        assert status(host, target, cid, payload).status_code == 403
+
+        # Loss of the independent copy never promotes the stale agreement.
         witness.path.unlink()
+        assert not restored.recovery_current()
         assert status(host, target, cid, payload).status_code == 403
         assert query(older, "SELECT root_id FROM inference_route_roots") == []
         assert len(target.provider.sends()) == 1 and host.generation.sends == []
@@ -250,15 +266,21 @@ def claim_then_exit():
         confirmation=data["confirmation"],
         expires_at=datetime.fromisoformat(data["expires_at"]),
     )
-    native_attempts(database, witness).claim(preview)
+    attempts = native_attempts(database, witness)
+    if not data["write_witness"]:
+        # The root transaction has committed when the witness callback begins.
+        attempts.record_claim = lambda *_: os._exit(38)
+    attempts.claim(preview)
     os._exit(37)
 
 
+@pytest.mark.parametrize("write_witness", [True, False], ids=["after-witness", "before-witness"])
 def test_worker_loss_after_native_claim_preserves_original_key_and_prevents_resend(
     plan_factory,
     shared_db,
     isolated_postgres_dsn,
     tmp_path,
+    write_witness,
 ):
     witness = PlanWitness(tmp_path / "claim-witness.json", shared_db)
     recorded = []
@@ -274,6 +296,7 @@ def test_worker_loss_after_native_claim_preserves_original_key_and_prevents_rese
                 "root": str(preview.root_id),
                 "confirmation": preview.confirmation,
                 "expires_at": preview.expires_at.isoformat(),
+                "write_witness": write_witness,
             }
             process = subprocess.run(
                 [
@@ -288,7 +311,7 @@ def test_worker_loss_after_native_claim_preserves_original_key_and_prevents_rese
                 timeout=6,
                 check=False,
             )
-            assert process.returncode == 37, process.stderr
+            assert process.returncode == (37 if write_witness else 38), process.stderr
             recorded.append(preview)
             raise ContextPreparationError(NO_AI)
 
@@ -301,7 +324,8 @@ def test_worker_loss_after_native_claim_preserves_original_key_and_prevents_rese
     assert witness.current()
     with independent_database(isolated_postgres_dsn) as other:
         restarted = native_attempts(other, witness)
-        assert restarted.current(recorded[0])
+        assert restarted.current(recorded[0]) is write_witness
+        assert query(other, "SELECT state FROM inference_route_roots") == [("fenced",)]
         with pytest.raises(
             ConversationConflictError, match="continuation_exists_inspect_canonical_state"
         ):

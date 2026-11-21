@@ -52,9 +52,11 @@ BOOK_LABEL = "Borrowed book"
 
 @pytest.fixture
 def plan_factory(shared_factory, tmp_path):
-    def create(*, selected=(TRAVEL_APP, FITNESS_APP), attempts=None, **options):
+    def create(*, selected=(TRAVEL_APP, FITNESS_APP), attempts=None, delivery=None, **options):
         def configure(host):
-            host.plan = ApplicationPlanFixture(host, tmp_path, attempts=attempts)
+            host.plan = ApplicationPlanFixture(host, tmp_path, attempts=attempts, delivery=delivery)
+            if delivery is not None:
+                delivery.bind_host(host)
             return RoutedGeneration(host.counter)
 
         return shared_factory(
