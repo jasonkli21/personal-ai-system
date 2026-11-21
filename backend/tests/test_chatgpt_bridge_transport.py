@@ -1296,6 +1296,31 @@ def test_rooted_v1_grant_keeps_fence_after_receipt_snapshot_restore(tmp_path):
     assert len(provider.sends()) == 1
 
 
+def test_rooted_v1_grant_keeps_fence_after_receipt_only_rollback(tmp_path):
+    bridge, provider, session, package, _proof, private = bridge_fixture(tmp_path)
+    root_id = uuid4()
+
+    class CurrentRoot:
+        def authorize(self, **_kwargs):
+            return True
+
+    bridge.root_authority = CurrentRoot()
+    proof = sign_for_bridge(bridge, session, package, private, routing_root=root_id)
+    assert run_bridge(bridge, session, package, proof)[-1].metadata.status == "success"
+    assert len(provider.sends()) == 1
+
+    # Roll back only the replaceable receipt; registration and clock remain intact.
+    with bridge.lifecycle.store.transaction() as tx:
+        del tx.state.receipts[package.dispatch_identity]
+    resigned = sign_for_bridge(
+        bridge, session, package, private, routing_root=root_id,
+        now=int(time.time()) + 1,
+    )
+    with pytest.raises(LocalStoreError):
+        run_bridge(bridge, session, package, resigned)
+    assert len(provider.sends()) == 1
+
+
 def test_simultaneous_dispatch_has_one_provider_effect(tmp_path):
     bridge, provider, session, package, proof, _ = bridge_fixture(tmp_path)
 
