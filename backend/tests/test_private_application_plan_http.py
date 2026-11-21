@@ -146,8 +146,6 @@ def test_installed_profile_three_contributions_and_foreign_owner(plan_factory, l
         APIError,
         ApplicationPlan,
         CapabilityUnavailable,
-        Client,
-        UncertainTurn,
     )
 
     host = plan_factory(selected=(TRAVEL_APP, FITNESS_APP, READING_APP))
@@ -164,7 +162,7 @@ def test_installed_profile_three_contributions_and_foreign_owner(plan_factory, l
         provision(host, TRAVEL_APP, B, grant=False),
         memory_content=FITNESS_MEMORY,
     )
-    with listen(host.app) as (origin, denied):
+    with listen(host.app) as (origin, _):
         assert version("personal-ai-sdk") == "0.2.0"
         for target in (trip, workout, book):
             client = client_for(origin, target)
@@ -207,24 +205,49 @@ def test_installed_profile_three_contributions_and_foreign_owner(plan_factory, l
             assert_delivery(target, (str(target.data[target.app.fields[0]]),), (SECRET_TITLE,))
             assert target.token not in caplog.text
 
+    print("PRIVATE_PROFILE counters: 3 packages, 3 sends, 0 foreign disclosures")
+
+
+def test_private_profile_listener_denies_external_dns(listen):
+    from personal_ai_sdk import Client, UncertainTurn
+
+    async def no_requests(scope, receive, send):
+        raise AssertionError("denial probe reached the application")
+
+    with listen(no_requests) as (_, denied):
         with pytest.raises(UncertainTurn):
             Client("https://egress-self-test.invalid", "synthetic", application="reading").list()
         assert denied == ["socket.getaddrinfo"]
         denied.clear()
-    print("PRIVATE_PROFILE counters: 3 packages, 3 sends, 0 foreign disclosures, 1 egress denial")
+    print("PRIVATE_PROFILE_DENIED_DNS_ATTEMPTS=1")
 
 
-def test_lost_create_and_continue_recover_under_original_binding(plan_factory, listen, tmp_path):
-    from personal_ai_sdk import ApplicationPlan, UncertainTurn
+@pytest.mark.parametrize("continue_status", [200, 429])
+def test_lost_create_and_continue_recover_under_original_binding(
+    plan_factory, listen, tmp_path, continue_status,
+):
+    from personal_ai_sdk import APIError, ApplicationPlan, UncertainTurn
 
     host = plan_factory()
     target = travel(host)
     lose = {"/v1/conversations": True, "continue": True}
     received = []
+    hide_status = True
+
+    async def reply(send, status, media=b"application/json", body=b""):
+        await send(
+            {"type": "http.response.start", "status": status, "headers": [(b"content-type", media)]}
+        )
+        await send({"type": "http.response.body", "body": body})
 
     async def interrupt(scope, receive, send):
+        nonlocal hide_status
         path = scope["path"]
         received.append((scope["method"], path))
+        if scope["method"] == "GET" and "/continuations/" in path and hide_status:
+            hide_status = False
+            await reply(send, 200, body=b'{"state":"not_found","message_id":null}')
+            return
         key = "continue" if path.endswith("/continue") else path
         if scope["method"] != "POST" or not lose.pop(key, False):
             await host.app(scope, receive, send)
@@ -235,36 +258,55 @@ def test_lost_create_and_continue_recover_under_original_binding(plan_factory, l
 
         await host.app(scope, receive, discard)
         media = b"text/event-stream" if key == "continue" else b"application/json"
-        await send(
-            {"type": "http.response.start", "status": 200, "headers": [(b"content-type", media)]}
-        )
-        await send({"type": "http.response.body", "body": b""})
+        await reply(send, continue_status if key == "continue" else 200, media)
 
     journal_path = tmp_path / "caller.json"
 
     def persist(journal):
-        with journal_path.open("w", encoding="utf-8") as stream:
-            os.chmod(journal_path, 0o600)
+        pending = journal_path.with_suffix(".pending")
+        fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(journal, stream)
             stream.flush()
             os.fsync(stream.fileno())
+        pending.replace(journal_path)
+        directory = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
 
     with listen(interrupt) as (origin, _):
-        caller = client_for(origin, target)
-        journal = {
+        binding = {
             "target": origin,
             "application": target.app.app,
             "workspace": target.workspace,
-            "actor": target.principal.subject,
-            "client": target.app.app + "-client",
+            "owner": target.plan.scope.owner_id,
+            "actor": target.plan.scope.actor_id,
+            "client": target.plan.scope.client_namespace,
+        }
+
+        def bound_client(journal):
+            if any(journal.get(field) != value for field, value in binding.items()):
+                raise ValueError("journal_binding_changed")
+            return client_for(journal["target"], target)
+
+        journal = {
+            **binding,
             "create_key": str(uuid4()),
             "title": "Recoverable conversation",
         }
+        caller = bound_client(journal)
         persist(journal)
         with pytest.raises(UncertainTurn):
             caller.create(journal["title"], journal["create_key"])
         journal = json.loads(journal_path.read_text())
-        caller = client_for(origin, target)
+        before_recovery = list(received)
+        for field in binding:
+            with pytest.raises(ValueError, match="journal_binding_changed"):
+                bound_client(journal | {field: "foreign"})
+        assert received == before_recovery
+        caller = bound_client(journal)
         cid = caller.create(journal["title"], journal["create_key"])["id"]
         assert len(caller.list()["conversations"]) == 1
         request = plan_request()
@@ -273,21 +315,29 @@ def test_lost_create_and_continue_recover_under_original_binding(plan_factory, l
         preview = ApplicationPlan(caller).preview(cid, request)
         journal["continuation"] = plan_request(request["idempotency_key"], preview["confirmation"])
         persist(journal)
-        with pytest.raises(UncertainTurn):
+        with pytest.raises(APIError if continue_status == 429 else UncertainTurn) as interrupted:
             ApplicationPlan(caller).continue_turn(cid, journal["continuation"])
+        if continue_status == 429:
+            assert interrupted.value.status == 429
         journal = json.loads(journal_path.read_text())
         assert target.token not in journal_path.read_text()
-        caller = client_for(journal["target"], target)
-        key = journal["continuation"]["idempotency_key"]
+        caller = bound_client(journal)
+        key = journal["preview"]["idempotency_key"]
+        assert key == journal["continuation"]["idempotency_key"]
+        assert caller.status(journal["conversation_id"], key)["state"] == "not_found"
         status = caller.status(journal["conversation_id"], key)
         assert status["state"] == "completed"
         message = next(
             msg for msg in caller.detail(cid)["messages"] if msg["id"] == status["message_id"]
         )
-        assert message["content"] == "A streamed answer"
-        assert received[-2:] == [
+        assert message["status"] == "completed" and message["content"] == "A streamed answer"
+        assert received[-3:] == [
+            ("GET", f"/v1/conversations/{cid}/continuations/{key}"),
             ("GET", f"/v1/conversations/{cid}/continuations/{key}"),
             ("GET", f"/v1/conversations/{cid}"),
+        ]
+        assert [path.rsplit("/", 1)[-1] for method, path in received if method == "POST"] == [
+            "conversations", "conversations", "context-preview", "continue",
         ]
     assert len(target.local_payloads) == len(target.provider.sends()) == 1
 

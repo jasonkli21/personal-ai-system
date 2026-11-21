@@ -305,7 +305,7 @@ class LocalChatGPTBridge:
             raise BridgeDenied("bridge_connection_changed")
         return models
 
-    def _require_dispatch(self, package, proof, *, origin, authorization):
+    def _require_dispatch(self, package, proof, *, origin, authorization, foreground_root=None):
         self._require_offline_transport()
         session = self.authorize(origin, authorization)
         if (
@@ -317,6 +317,10 @@ class LocalChatGPTBridge:
         now = int(self.clock())
         claims = self.verifier.verify(proof, package, caller_id=session.caller_id, now=now)
         scope = self.installation.scope
+        if foreground_root is not None and (
+            not isinstance(scope, LocalChatScope) or claims.routing_root != foreground_root
+        ):
+            raise BridgeDenied("bridge_admission_denied")
         if isinstance(scope, ApplicationPlanScope):
             self._require_application_plan(claims)
             payload = serialize(package.chat_messages(), package.model_id)
@@ -392,9 +396,22 @@ class LocalChatGPTBridge:
         if not allowed:
             raise BridgeDenied("bridge_admission_denied")
 
-    async def execute(self, package, proof, *, origin, authorization):
+    def execute(self, package, proof, *, origin, authorization):
+        return self._execute(package, proof, origin=origin, authorization=authorization)
+
+    async def _execute(self, package, proof, *, origin, authorization, foreground_root=None):
+        """The in-process fixture can pin one approved local root and retain its fence."""
         plan = proof.claims.application_plan is not None
+        retain_fence = plan or foreground_root is not None
         worker = sync_call if plan else anyio.to_thread.run_sync
+        require_dispatch = partial(
+            self._require_dispatch,
+            package,
+            proof,
+            origin=origin,
+            authorization=authorization,
+            foreground_root=foreground_root,
+        )
         messages = package.chat_messages()
         serialize(messages, package.model_id)
         send_started = False
@@ -409,20 +426,10 @@ class LocalChatGPTBridge:
                     ),
                 )
                 async with asyncio.timeout_at(authorization_deadline):
-                    session = await sync_call(
-                        partial(
-                            self._require_dispatch,
-                            package,
-                            proof,
-                            origin=origin,
-                            authorization=authorization,
-                        )
-                    )
+                    session = await sync_call(require_dispatch)
             else:
                 # Preserve the standalone v1 admission order and behavior.
-                session = self._require_dispatch(
-                    package, proof, origin=origin, authorization=authorization
-                )
+                session = require_dispatch()
                 authorization_deadline = loop.time() + max(
                     0.0,
                     min(
@@ -435,6 +442,14 @@ class LocalChatGPTBridge:
                 loop.time() + max(0.0, session.expires_at - self.clock()),
             )
             async with asyncio.timeout_at(authorization_deadline):
+                if foreground_root is not None:
+                    def require_registration():
+                        with self.lifecycle.store.transaction() as tx:
+                            self.installation.require_registration(
+                                tx.state, tx.state.registrations.get(str(session.connection_id))
+                            )
+
+                    await worker(require_registration)
                 snapshot = await worker(
                     partial(
                         self.lifecycle.snapshot,
@@ -454,29 +469,20 @@ class LocalChatGPTBridge:
                     raise BridgeDenied("bridge_model_unavailable")
                 # Expiry and caller authority are rechecked before the durable pre-send claim.
                 if plan:
-                    await sync_call(
-                        partial(
-                            self._require_dispatch,
-                            package,
-                            proof,
-                            origin=origin,
-                            authorization=authorization,
-                        )
-                    )
+                    await sync_call(require_dispatch)
                 else:
-                    self._require_dispatch(
-                        package, proof, origin=origin, authorization=authorization
-                    )
+                    require_dispatch()
 
                 def authorize_send(state, registration):
-                    self._require_dispatch(
-                        package, proof, origin=origin, authorization=authorization
-                    )
+                    require_dispatch()
                     self.installation.require_registration(state, registration)
                     if (
                         registration.credentials.access_token != snapshot.access_token
                         or registration.credentials.expires_at <= self.clock()
-                        or (plan and self.clock() >= min(proof.claims.expires_at, session.expires_at))
+                        or (
+                            retain_fence
+                            and self.clock() >= min(proof.claims.expires_at, session.expires_at)
+                        )
                     ):
                         raise BridgeDenied("bridge_connection_changed")
 
@@ -503,7 +509,7 @@ class LocalChatGPTBridge:
                             expires_at=min(proof.claims.expires_at, session.expires_at),
                             now=int(self.clock()),
                             authorize=authorize_send,
-                            **({"retain_fence": True} if plan else {}),
+                            retain_fence=retain_fence,
                         )
                     except BaseException:
                         store.release_pre_send(identity, fingerprint, claim)
@@ -530,7 +536,7 @@ class LocalChatGPTBridge:
                             raise BridgeDenied("bridge_connection_changed")
                         if self.clock() >= min(proof.claims.expires_at, session.expires_at):
                             raise BridgeDenied("bridge_authorization_expired")
-                        if plan:
+                        if retain_fence:
                             await worker(
                                 self._authorize_root, proof.claims.routing_root,
                                 package, proof.claims, session,

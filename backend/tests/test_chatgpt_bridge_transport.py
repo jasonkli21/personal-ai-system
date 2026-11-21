@@ -3,8 +3,10 @@
 import asyncio
 import json
 import multiprocessing
+import os
 import time
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -212,10 +214,16 @@ def sign_for_bridge(bridge, session, package, private, **claims):
     return signed_grant(package, private, **claims)
 
 
-def run_bridge(bridge, session, package, proof):
+FOREGROUND_PROMPT = "Reply with the word blue."
+
+
+def run_bridge(bridge, session, package, proof, *, foreground_root=None):
+    execute = bridge.execute
+    if foreground_root is not None:
+        execute = partial(bridge._execute, foreground_root=foreground_root)
     return asyncio.run(
         collect(
-            bridge.execute(
+            execute(
                 package, proof, origin=session.origin, authorization=session.authorization
             )
         )
@@ -1335,6 +1343,252 @@ def test_repaired_processes_and_restart_share_one_physical_post(tmp_path):
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, resigned)
     assert not provider.sends()
+
+
+@pytest.fixture
+def foreground_attempt(tmp_path):
+    bridge, provider, session, package, _, private = bridge_fixture(tmp_path)
+    package = PreparedExecution.model_validate(
+        package.model_dump() | {"messages": [{"role": "user", "content": FOREGROUND_PROMPT}]}
+    )
+    root = uuid4()
+    proof = sign_for_bridge(bridge, session, package, private, routing_root=root)
+
+    class RootAuthority:
+        def authorize(self, **request):
+            return request == {
+                "root_id": root,
+                "package": package,
+                "claims": proof.claims,
+                "installation": bridge.installation,
+                "session": session,
+            }
+
+    bridge.root_authority = RootAuthority()
+    return bridge, provider, session, package, proof, root
+
+
+@pytest.mark.parametrize("edge,code", [
+    ("429", "bridge_transport_unknown"),
+    ("timeout", "bridge_timeout_unknown"),
+    ("drop", "bridge_transport_unknown"),
+    ("lost", "bridge_terminal_missing"),
+    ("duplicate", "bridge_protocol_invalid"),
+    ("oversized", "bridge_protocol_invalid"),
+    ("wrong-model", "bridge_protocol_invalid"),
+    ("settle", "receipt_write_failed"),
+    ("disconnect", "bridge_connection_changed"),
+    ("echo", "bridge_credential_echo"),
+    ("cancel", None),
+])
+def test_foreground_send_uncertainty_survives_receipt_rollback(
+    foreground_attempt, monkeypatch, caplog, edge, code,
+):
+    bridge, provider, session, package, proof, root = foreground_attempt
+    store = bridge.lifecycle.store
+    state = store.directory / "state.json"
+    before = state.read_bytes()
+    identity, fingerprint = package.dispatch_identity, package.fingerprint
+    fence = store.directory / "send-fences" / identity
+    caller = {"origin": session.origin, "authorization": session.authorization}
+    if edge == "429":
+        provider.status = 429
+    elif edge == "lost":
+        provider.events = [created(), delta()]
+    elif edge == "duplicate":
+        provider.events = [created(), created()]
+    elif edge == "oversized":
+        provider.raw = b"data: " + b"x" * 262145 + b"\n\n"
+    elif edge == "wrong-model":
+        provider.events[-1] = completed(model="other-model")
+    elif edge == "echo":
+        provider.events = [created(), delta("synthetic-"), delta("access")]
+    elif edge == "cancel":
+        provider.stream = SlowStream()
+    elif edge == "settle":
+        def fail_to_settle(*args):
+            raise LocalStoreError("receipt_write_failed")
+
+        monkeypatch.setattr(store, "settle", fail_to_settle)
+
+    def observe(request):
+        response = provider.handle(request)
+        if request.method == "POST":
+            assert fence.is_file()
+            if edge == "timeout":
+                raise TimeoutError
+            if edge == "drop":
+                raise httpx.RemoteProtocolError("synthetic disconnect")
+            if edge == "disconnect":
+                bridge.lifecycle.oauth.revoke_confirmed = False
+                disconnected = bridge.lifecycle.disconnect(str(session.connection_id))
+                assert disconnected.remote_revocation == "unconfirmed"
+        return response
+
+    monkeypatch.setattr(bridge.provider.transport, "handler", observe)
+    seen = []
+
+    async def dispatch():
+        stream = bridge._execute(package, proof, foreground_root=root, **caller)
+        try:
+            async for event in stream:
+                seen.append(event)
+                if edge == "cancel":
+                    break
+        finally:
+            await stream.aclose()
+
+    if edge in {"settle", "disconnect", "echo"}:
+        with pytest.raises((BridgeDenied, LocalStoreError), match=code):
+            asyncio.run(dispatch())
+    else:
+        asyncio.run(dispatch())
+        if edge == "cancel":
+            assert provider.stream.closed and [event.kind for event in seen] == ["delta"]
+        else:
+            assert seen[-1].metadata.error_code == code
+    assert all(event.kind != "terminal" or event.metadata.status != "success" for event in seen)
+    assert "synthetic-access" not in caplog.text + repr(seen) + fence.read_text()
+    assert asyncio.run(bridge.reconcile(identity, fingerprint, **caller)).status == "unknown"
+    if edge == "disconnect":
+        # Preserve the disconnected registration rather than restoring the whole state.
+        with store.transaction() as tx:
+            del tx.state.receipts[identity]
+            tx.save()
+        failure, denial = BridgeDenied, "bridge_connection_changed"
+    else:
+        state.write_bytes(before)
+        failure, denial = LocalStoreError, "dispatch_already_claimed"
+    bridge.lifecycle.store = ProtectedLocalStore(store.directory)
+    assert asyncio.run(bridge.reconcile(identity, fingerprint, **caller)).status == "unknown"
+    with pytest.raises(failure, match=denial):
+        run_bridge(bridge, session, package, proof, foreground_root=root)
+    assert len(provider.sends()) == 1
+
+
+@pytest.mark.parametrize("change", ["root", "authority", "scopes", "host", "transport"])
+def test_foreground_admission_denies_before_snapshot(foreground_attempt, monkeypatch, change):
+    bridge, provider, session, package, proof, root = foreground_attempt
+    if change == "root":
+        root = uuid4()
+    elif change == "authority":
+        bridge.root_authority = None
+    elif change == "transport":
+        bridge.provider = ChatGPTResponses(transport=httpx.AsyncHTTPTransport())
+    else:
+        with bridge.lifecycle.store.transaction() as tx:
+            if change == "scopes":
+                tx.state.registrations[str(session.connection_id)].credentials.scopes = ("openid",)
+            else:
+                tx.state.host_id = str(uuid4())
+            tx.save()
+
+    def unexpected_snapshot(*args, **kwargs):
+        pytest.fail("snapshot reached after denial")
+
+    monkeypatch.setattr(bridge.lifecycle, "snapshot", unexpected_snapshot)
+    oauth_before = list(bridge.lifecycle.oauth.calls)
+    with pytest.raises(BridgeDenied):
+        run_bridge(bridge, session, package, proof, foreground_root=root)
+    assert not provider.requests and bridge.lifecycle.oauth.calls == oauth_before
+
+
+@pytest.mark.parametrize("edge", ["race", "before_fence", "after_fence"])
+def test_foreground_process_fence_survives_receipt_rollback(tmp_path, foreground_attempt, edge):
+    bridge, provider, session, package, proof, root = foreground_attempt
+    store = bridge.lifecycle.store
+    state = store.directory / "state.json"
+    before = state.read_bytes()
+    identity, fingerprint = package.dispatch_identity, package.fingerprint
+    fence = store.directory / "send-fences" / identity
+    posts = tmp_path / "mock-posts"
+    origin = {"origin": session.origin, "authorization": session.authorization}
+    context = multiprocessing.get_context("fork")
+    barrier = context.Barrier(2) if edge == "race" else None
+    results = context.Queue()
+
+    def observe(request):
+        if request.method == "POST":
+            assert fence.is_file()
+            fd = os.open(posts, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
+            try:
+                os.write(fd, b"POST\n")
+            finally:
+                os.close(fd)
+        return provider.handle(request)
+
+    def dispatch():
+        return run_bridge(bridge, session, package, proof, foreground_root=root)
+
+    def worker():
+        bridge.lifecycle.store = ProtectedLocalStore(store.directory)
+        if barrier is not None:
+            barrier.wait(timeout=15)
+        else:
+            persist = bridge.lifecycle.store._persist_send_fence
+
+            def interrupt(*args):
+                if edge == "after_fence":
+                    persist(*args)
+                os._exit(73)
+
+            bridge.lifecycle.store._persist_send_fence = interrupt
+        try:
+            results.put(dispatch()[-1].metadata.status)
+        except LocalStoreError as error:
+            results.put(error.code)
+
+    bridge.provider.transport.handler = observe
+    workers = [context.Process(target=worker) for _ in range(2 if barrier else 1)]
+    for process in workers:
+        process.start()
+    for process in workers:
+        process.join(timeout=20)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=5)
+        assert process.exitcode == (0 if barrier else 73)
+
+    bridge.lifecycle.store = ProtectedLocalStore(store.directory)
+    if edge == "race":
+        assert sorted(results.get(timeout=2) for _ in workers) == [
+            "dispatch_already_claimed", "success",
+        ]
+        assert asyncio.run(bridge.reconcile(identity, fingerprint, **origin)).status == "success"
+        for _ in range(2):
+            asyncio.run(bridge.acknowledge(identity, fingerprint, **origin))
+        bridge.lifecycle.store.maintain(now=proof.claims.expires_at + 86401)
+        assert identity not in json.loads(state.read_bytes())["receipts"]
+        assert posts.read_bytes() == b"POST\n"
+    else:
+        assert not posts.exists()
+        if edge == "before_fence":
+            assert not fence.exists()
+            assert asyncio.run(bridge.reconcile(identity, fingerprint, **origin)).status == "not_sent"
+            assert dispatch()[-1].metadata.status == "success"
+            assert posts.read_bytes() == b"POST\n"
+        else:
+            assert fence.is_file()
+
+    state.write_bytes(before)
+    bridge.lifecycle.store = ProtectedLocalStore(store.directory)
+    bridge.clock = lambda: proof.claims.issued_at  # Simulate a still-valid older clock.
+    for _ in range(2):
+        assert asyncio.run(bridge.reconcile(identity, fingerprint, **origin)).status == "unknown"
+        with pytest.raises(LocalStoreError, match="dispatch_receipt_not_found"):
+            asyncio.run(bridge.acknowledge(identity, fingerprint, **origin))
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        dispatch()
+    conflicting = package.model_copy(update={"max_output_bytes": package.max_output_bytes - 1})
+    assert conflicting.dispatch_identity == identity and conflicting.fingerprint != fingerprint
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
+        bridge.lifecycle.store.claim(
+            identity, conflicting.fingerprint, str(session.connection_id),
+            session.connection_revision, proof.claims.expires_at, origin=session.origin,
+        )
+    assert (posts.read_bytes() if posts.exists() else b"") == (
+        b"" if edge == "after_fence" else b"POST\n"
+    )
 
 
 def test_credential_echo_across_delta_boundaries_cannot_escape_local_guard(tmp_path):

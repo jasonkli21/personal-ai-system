@@ -20,6 +20,8 @@ from personal_ai.entities.turn_execution import TurnAttribution, TurnReservation
 from personal_ai.llm.chatgpt.responses import ChatGPTResponses
 from personal_ai.llm.client import ExternalCompletion
 from personal_ai.llm.external import CHATGPT_PLAN_PROFILE
+from personal_ai.local_bridge.runtime import BridgeDenied
+from personal_ai.local_bridge.store import LocalStoreError, ProtectedLocalStore
 from personal_ai.routing.registry import EndpointRegistry
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.external_turns import (
@@ -34,7 +36,13 @@ from personal_ai.services.external_turns.authority import (
 from personal_ai.settings import Settings
 from personal_ai.storage import InMemoryConversationRepository, InMemoryMessageRepository
 from personal_ai.storage.errors import ConversationConflictError
-from tests.test_chatgpt_bridge_transport import bridge_fixture, created, delta, run_bridge
+from tests.test_chatgpt_bridge_transport import (
+    FOREGROUND_PROMPT,
+    bridge_fixture,
+    created,
+    delta,
+    run_bridge,
+)
 from tests.test_chatgpt_oauth import OAuthFixture
 from tests.test_external_turns import profile
 
@@ -362,15 +370,21 @@ def test_issuer_rechecks_inherited_application_provenance_before_signing(local_t
         (None, "owner_policy", False),
         (None, "route_grant", False),
         (None, "consent", False),
+        (None, "before_fence", False),
+        (None, "quarantine", False),
+        (None, "unconfirmed", False),
         (None, None, True),
         ("consent", None, False),
         ("program", None, False),
         ("account", None, False),
         ("included_only", None, False),
+        ("weekly_cap", None, False),
+        ("quota", None, False),
+        ("credit_risk", None, False),
     ],
 )
 def test_policy_offer_fences_before_publication_and_stays_local(
-    local_turn, missing, revoked_fact, hidden_model
+    local_turn, missing, revoked_fact, hidden_model, monkeypatch, caplog
 ):
     from contextlib import ExitStack
 
@@ -391,7 +405,15 @@ def test_policy_offer_fences_before_publication_and_stays_local(
     from tests.test_routing_decision_lifecycle import MemoryRepository, task
     from tests.test_routing_decision_lifecycle import request as route_request
 
-    issuer, cid, continuation, bridge, provider, session, fallback = local_turn
+    issuer, _, continuation, bridge, provider, session, fallback = local_turn
+    cid, now = uuid4(), datetime.now(UTC)
+    issuer.authority.conversations.create(
+        Conversation(
+            id=cid, owner_id=issuer.context.scope.owner_id, title="Public fixture",
+            created_at=now, updated_at=now,
+        )
+    )
+    continuation = continuation.model_copy(update={"content": FOREGROUND_PROMPT})
     registered = issuer.registry.profiles[0].model_copy(
         update={
             "model_id": continuation.choice.model_id,
@@ -402,6 +424,8 @@ def test_policy_offer_fences_before_publication_and_stays_local(
     issuer.registry = EndpointRegistry([registered])
     exact = binding(registered, "subscription")
     prepared = issuer.prepare(cid, continuation)
+    assert not prepared.reservation.source_snapshots
+    assert not prepared.reservation.selected_memory_ids
     document = continuation.model_dump(mode="json")
     for key in ("federation_context", "launch_context", "retrieval_context"):
         document.pop(key)
@@ -426,7 +450,7 @@ def test_policy_offer_fences_before_publication_and_stays_local(
                 missing != "consent",
                 missing != "program",
                 missing != "account",
-                missing != "included_only",
+                missing not in {"included_only", "weekly_cap", "quota", "credit_risk"},
             )
             return self.offer_evidence
 
@@ -477,6 +501,10 @@ def test_policy_offer_fences_before_publication_and_stays_local(
             coordinator.prepare(**kwargs)
     assert not provider.requests
 
+    owner_confirmed = False
+    installation_current = revoked_fact != "quarantine"
+    paired_session = session
+
     class CurrentRootAuthority:
         def authorize(self, *, root_id, package, claims, installation, session):
             now = datetime.now(UTC)
@@ -486,7 +514,11 @@ def test_policy_offer_fences_before_publication_and_stays_local(
                 return False
             evidence = local_authority.offer_evidence
             return (
-                evidence is not None
+                owner_confirmed
+                and installation_current
+                and session == paired_session
+                and claims == grant.claims
+                and evidence is not None
                 and evidence.matches(
                     local_authority.admission, package, continuation.choice
                 )
@@ -509,6 +541,28 @@ def test_policy_offer_fences_before_publication_and_stays_local(
 
     root_authority = CurrentRootAuthority()
     bridge.root_authority = root_authority
+    def dispatch():
+        return run_bridge(
+            bridge, session, prepared.connected_package, grant,
+            foreground_root=grant.claims.routing_root,
+        )
+
+    snapshots = []
+    snapshot = bridge.lifecycle.snapshot
+    oauth = bridge.lifecycle.oauth
+    oauth_before = list(oauth.calls)
+
+    def count_snapshot(*args, **kwargs):
+        snapshots.append("snapshot")
+        return snapshot(*args, **kwargs)
+
+    monkeypatch.setattr(bridge.lifecycle, "snapshot", count_snapshot)
+    with pytest.raises(BridgeDenied, match="admission_denied"):
+        dispatch()
+    assert not snapshots and not provider.requests and oauth.calls == oauth_before
+    if revoked_fact == "unconfirmed":
+        return
+    owner_confirmed = True
     if revoked_fact == "owner_policy":
         with ExitStack() as stack:
             stack.callback(reset_request_scope, bind_request_scope(issuer.context.scope))
@@ -526,31 +580,84 @@ def test_policy_offer_fences_before_publication_and_stays_local(
         local_authority.offer_evidence = replace(
             local_authority.offer_evidence, owner_plan_consent=False
         )
-    if revoked_fact is not None:
-        from personal_ai.local_bridge.runtime import BridgeDenied
+    if revoked_fact == "before_fence":
+        mark = bridge.lifecycle.store.mark_send_started
 
+        def revoke_before_fence(*args, **kwargs):
+            nonlocal owner_confirmed
+            owner_confirmed = False
+            return mark(*args, **kwargs)
+
+        monkeypatch.setattr(bridge.lifecycle.store, "mark_send_started", revoke_before_fence)
+
+    if revoked_fact is not None:
         with pytest.raises(BridgeDenied, match="admission_denied"):
-            run_bridge(bridge, session, prepared.connected_package, grant)
-        assert not provider.requests
+            dispatch()
+        expected = ["GET"] if revoked_fact == "before_fence" else []
+        assert [req.method for req in provider.requests] == expected
+        assert len(snapshots) == len(expected) and oauth.calls == oauth_before
         assert root[4] == "fenced"
         with bridge.lifecycle.store.transaction() as tx:
             assert prepared.connected_package.dispatch_identity not in tx.state.receipts
         return
 
     if hidden_model:
-        from personal_ai.local_bridge.runtime import BridgeDenied
-
         provider.catalog = []
         with pytest.raises(BridgeDenied, match="model_unavailable"):
-            run_bridge(bridge, session, prepared.connected_package, grant)
+            dispatch()
         assert [req.method for req in provider.requests] == ["GET"]
         return
 
-    events = run_bridge(bridge, session, prepared.connected_package, grant)
-    assert events[-1].metadata.status == "success"
-    from personal_ai.local_bridge.store import LocalStoreError
+    package = prepared.connected_package
+    assert grant.claims.schema_version == 1 and grant.claims.application_plan is None
+    assert grant.claims.key_id == bridge.installation.signer_key_id
+    store = bridge.lifecycle.store
+    state = store.directory / "state.json"
+    fence = store.directory / "send-fences" / package.dispatch_identity
+    before = state.read_bytes()
+    send = provider.handle
 
+    def after_fence(request):
+        if request.method == "POST":
+            assert fence.is_file()
+            assert json.loads(state.read_bytes())["receipts"][package.dispatch_identity][
+                "status"
+            ] == "send_started"
+        return send(request)
+
+    monkeypatch.setattr(bridge.provider.transport, "handler", after_fence)
+    events = dispatch()
+    assert events[-1].metadata.status == "success"
+    get, post = provider.requests
+    assert str(get.url) == "https://api.openai.com/v1/models"
+    assert str(post.url) == "https://api.openai.com/v1/responses"
+    body = json.loads(post.content)
+    assert set(body) == {"input", "model", "store", "stream"}
+    assert body["store"] is False and body["stream"] is True
+    assert body["model"] == continuation.choice.model_id
+    assert [item for item in body["input"] if item["role"] != "developer"] == [
+        {"role": "user", "content": FOREGROUND_PROMPT}
+    ]
+    assert "previous synthetic" not in post.content.decode()
+    recorded = state.read_text() + fence.read_text() + caplog.text
+    assert FOREGROUND_PROMPT not in recorded and "A streamed answer" not in recorded
+    # The state file also contains credentials by design. Inspect the receipt separately.
+    receipt = json.loads(state.read_bytes())["receipts"][package.dispatch_identity]
+    assert receipt["status"] == "success"
+    for secret in ("synthetic-access", "synthetic-refresh", session.authorization):
+        assert secret not in json.dumps(receipt) + fence.read_text() + caplog.text
+    assert len(snapshots) == 1 and oauth.calls == oauth_before
+    text = "".join(event.delta for event in events if event.kind == "delta")
+    message = issuer.finalize(
+        cid, prepared.message_id, prepared.reservation.package_fingerprint,
+        ExternalCompletion(text, events[-1].metadata.provenance, events[-1].metadata),
+    )
+    assert message.execution.state == "completed" and message.content == text
+
+    # Roll back only receipts, with the independent fence still present.
+    state.write_bytes(before)
+    bridge.lifecycle.store = ProtectedLocalStore(store.directory)
     with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
-        run_bridge(bridge, session, prepared.connected_package, grant)
+        dispatch()
     assert [req.method for req in provider.requests] == ["GET", "POST", "GET"]
     assert not fallback
