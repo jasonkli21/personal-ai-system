@@ -7,8 +7,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 
 from personal_ai.api import dependencies as deps
 from personal_ai.api.routes import _request_id, _sse_response
@@ -19,6 +18,7 @@ from personal_ai.services.external_turns.application_plan import (
     ApplicationPlanService,
     PlanContinuation,
     PlanTarget,
+    encode_preview_response,
 )
 from personal_ai.storage.async_io import sync_call
 
@@ -78,10 +78,10 @@ def mount_application_plan(
         target = await sync_call(service.current_target)
         with preview_recipient_scope(target):
             selection = await sync_call(service.preview, chat, assembler, conversation_id, incoming)
-        response = JSONResponse(jsonable_encoder(selection))
-        if len(response.body) > MAX_PREVIEW_BYTES:
+        response_body = encode_preview_response(selection)
+        if len(response_body) > MAX_PREVIEW_BYTES:
             raise ContextPreparationError("context_no_ai_route")
-        return response
+        return Response(response_body, media_type="application/json", headers={"cache-control": "no-store"})
 
     async def continue_turn(
         conversation_id: UUID,

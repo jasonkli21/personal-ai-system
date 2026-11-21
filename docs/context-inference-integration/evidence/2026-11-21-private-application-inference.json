@@ -18,13 +18,13 @@
     {
       "id": "A01",
       "tier": "E0",
-      "outcome": "waived",
+      "outcome": "blocked",
       "witnesses": [
         "docs/current-state.md",
         "docs/context-inference-integration/evidence/2026-11-21-private-application-inference.md"
       ],
       "expected": "Independent combined E1 decision at the repaired base covering R1, R2, R4 and R5.",
-      "observed": "No decision located. Maintainer authorized implementation without the prerequisite re-review. R3 remains tracked under E2."
+      "observed": "No independent combined E1 decision located. Maintainer authorized implementation without prerequisite re-review; this authorization is not acceptance. R3 remains tracked under E2."
     },
     {
       "id": "A02",
@@ -158,14 +158,14 @@
     {
       "id": "A13",
       "tier": "E2",
-      "outcome": "pass",
+      "outcome": "not_run",
       "witnesses": [
         "backend/tests/persistence/test_application_plan_postgres.py::test_native_ambiguous_plan_fence_and_owner_deletion_survive_restore_boundary",
         "backend/tests/persistence/test_application_plan_postgres.py::test_worker_loss_after_native_claim_preserves_original_key_and_prevents_resend",
         "backend/tests/persistence/test_application_plan_postgres.py::test_concurrent_native_claim_witnesses_survive_restore"
       ],
       "expected": "Classify native persistence separately and report an unavailable DSN accurately.",
-      "observed": "The three PostgreSQL cases collected and skipped. There were zero native passes. File-backed local send fences are E1 observations."
+      "observed": "PERSISTENCE_TEST_POSTGRES_DSN is unavailable. Three named PostgreSQL cases were collected and skipped; 0 native cases executed and 0 native passes. E2 remains not_run. File-backed local send fences are E1 observations."
     },
     {
       "id": "A14",
@@ -178,5 +178,22 @@
       "expected": "Record the precise revision, checks, rollback and scope. Obtain a separate independent result decision.",
       "observed": "Implementer evidence and rollback are recorded. The independent result disposition remains unverified under the maintainer-authorized delivery. E3 remains NO_GO."
     }
-  ]
+  ],
+  "correction": {
+    "date": "2026-11-21",
+    "corrects": "Initial A13 outcome incorrectly labeled pass despite skipped native cases.",
+    "provenance": "Transparent erratum; original observed text and witness list retained in git history.",
+    "effective_outcome": "not_run",
+    "reason": "PERSISTENCE_TEST_POSTGRES_DSN unavailable; 3 cases collected and skipped; 0 executed native passes.",
+    "scope": [
+      "test_native_ambiguous_plan_fence_and_owner_deletion_survive_restore_boundary",
+      "test_worker_loss_after_native_claim_preserves_original_key_and_prevents_resend",
+      "test_concurrent_native_claim_witnesses_survive_restore"
+    ],
+    "acceptance_unchanged": {
+      "E1": "independent_acceptance_unverified",
+      "E2": "not_run",
+      "E3": "no_go"
+    }
+  }
 }

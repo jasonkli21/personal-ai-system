@@ -5,6 +5,7 @@ memory authorities. Normal API startup does not compose this service.
 """
 
 import hmac
+import json
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -39,9 +40,26 @@ MAX_PREVIEWS = 16
 MAX_PREVIEWS_PER_CLIENT = 4
 MAX_PREVIEW_SECONDS = 45
 MAX_PAYLOAD_BYTES = 8192
+MAX_PREVIEW_RESPONSE_BYTES = 8192
 MAX_CONTEXT_BYTES = 8192
 MAX_CONTEXT_TOKENS = 3072
 MAX_OUTPUT_BYTES = 100
+
+
+def encode_preview_response(value):
+    """Encode the exact bounded JSON representation used by the private route."""
+    def encode_datetime(item):
+        if isinstance(item, datetime):
+            return item.isoformat()
+        raise TypeError("preview contains a non-JSON value")
+
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        default=encode_datetime,
+    ).encode("utf-8")
 
 _active = ContextVar("current_application_plan_attempt", default=None)
 
@@ -393,6 +411,12 @@ class ApplicationPlanService:
                 "input_tokens_estimated": assembled.budget.selected_total,
                 "expires_at": expires_at,
             }
+            try:
+                encoded_selection = encode_preview_response(selection)
+            except (TypeError, ValueError, OverflowError):
+                raise ContextPreparationError(NO_AI) from None
+            if len(encoded_selection) > MAX_PREVIEW_RESPONSE_BYTES:
+                raise ContextPreparationError(NO_AI)
             self._publish_preview(key, reservation, preview)
             return selection
         finally:

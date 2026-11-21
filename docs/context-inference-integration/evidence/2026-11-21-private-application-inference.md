@@ -74,3 +74,9 @@ SHARED_SERVICE_SDK_SITE="$sdk_site" \
 The native cases concern PostgreSQL routing roots and owner tombstones, an independent worker process, and the separate claim witness. The local file fence exercised by E1 leaves native multi-store recovery unverified. Paid-accounting mismatch evidence remains separately attributable to the pinned base. The check suite issued no real provider requests, credential exchanges, billing operations, deployment or package publication.
 
 A separate reviewer can reproduce the exact range above and inspect the machine ledger, authorization changes, no-fallback controls, and provider and output counters. On rollback, disable the private composition and preserve unknown receipts, routing roots, claim witnesses, revocation epochs and caller journals. The earlier Phase 5 and 5.5 combined verdict is unchanged.
+
+## 21 November 2026 correction
+
+This dated correction supersedes the initial A13 machine outcome without rewriting the historical execution narrative above. A13 is effectively `not_run`: `PERSISTENCE_TEST_POSTGRES_DSN` was unavailable, all three named PostgreSQL cases were collected and skipped, and zero native cases were executed or passed. E2 remains `not_run`. The maintainer waiver in A01 is an implementation authorization fact; no independent prerequisite decision was made, so A01 is `blocked` for acceptance purposes. E1 remains `independent_acceptance_unverified` and E3 remains `no_go`. The machine ledger records this correction and its exact case scope.
+
+The preview response-size check now runs in the service before publishing a preview. The HTTP adapter uses the same deterministic JSON encoder and retains its 8,192-byte defense-in-depth cap. Oversized or non-serializable metadata therefore fails while the reservation is pending, before a confirmation can be published.
