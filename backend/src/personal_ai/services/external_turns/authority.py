@@ -13,8 +13,8 @@ from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.dispatch_grants import LocalChatScope
 from personal_ai.auth.scope import WorkspaceAuthorizer
 from personal_ai.context.authority import (
-    permission_dependencies_current,
     source_snapshot_authority_complete,
+    source_snapshots_current,
 )
 from personal_ai.context.history import source_snapshots_for_message
 from personal_ai.contracts.context_references import ContextSourceSnapshot
@@ -179,14 +179,7 @@ class PrincipalBoundExternalTurnAuthority:
                 or (snapshot.expires_at is not None and now >= snapshot.expires_at)
             ):
                 raise ConversationConflictError("external_source_scope_or_expiry_invalid")
-        dependencies = tuple(
-            dict.fromkeys(
-                dependency
-                for snapshot in source_snapshots
-                for dependency in snapshot.permission_dependencies
-            )
-        )
-        if not permission_dependencies_current(dependencies, self.permission_revalidator):
+        if not source_snapshots_current(source_snapshots, self.permission_revalidator, now=now):
             raise ConversationConflictError("external_source_permission_revoked")
         source_digests = [_authority_model_dump(snapshot) for snapshot in source_snapshots]
 

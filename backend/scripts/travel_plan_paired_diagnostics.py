@@ -5,6 +5,7 @@ for unavailable dependencies. It does not publish a preview or establish paired
 conformance. See the dated paired preview evidence for scope and reproduction.
 """
 
+import __future__
 import ast
 import asyncio
 import json
@@ -32,6 +33,7 @@ from personal_ai.auth.dispatch_grants import ApplicationPlanScope
 from personal_ai.auth.scope import RequestScope, bind_request_scope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.adapters import MemoryContextProviderFactory
+from personal_ai.context.contracts import ContextError
 from personal_ai.context.planner import ContextPlanner, ContextPlanningRule
 from personal_ai.context.providers import ContextPreparationError, ContextProviderCoordinator
 from personal_ai.context.tokens import EstimatedTokenCounter
@@ -146,7 +148,7 @@ def run():
     return principal, registry, service, assembler, chat
 
 
-def source_with_overrides(path, overrides, removed_imports):
+def source_with_overrides(path, overrides, removed_imports, *, delayed_annotations=False):
     path = Path(__file__).resolve().parents[1] / "src/personal_ai" / path
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     tree.body = [
@@ -159,12 +161,15 @@ def source_with_overrides(path, overrides, removed_imports):
         )
     )]
     namespace = {"__name__": path.stem, **overrides}
-    exec(compile(tree, str(path), "exec"), namespace)
+    flags = __future__.annotations.compiler_flag if delayed_annotations else 0
+    exec(compile(tree, str(path), "exec", flags=flags), namespace)
     return namespace
 
 
-async def http_probe():
+async def http_probe(configure=None):
     principal, registry, service, assembler, chat = run()
+    if configure is not None:
+        assembler, verify_previews = configure(principal, service, assembler, chat)
     token_key = Ed25519PrivateKey.generate()
 
     class InvalidToken(ValueError):
@@ -230,6 +235,10 @@ async def http_probe():
 
     @app.exception_handler(ContextPreparationError)
     async def preparation_denied(_request, exc):
+        return JSONResponse({"code": exc.code}, status_code=422 if exc.code.startswith("context_") else 503)
+
+    @app.exception_handler(ContextError)
+    async def assembly_denied(_request, exc):
         return JSONResponse({"code": exc.code}, status_code=422)
 
     @app.exception_handler(ResourceNotFoundError)
@@ -265,17 +274,20 @@ async def http_probe():
         ) as client:
             headers = {"x-application-id": "travel",
                        "authorization": "Bearer " + bearer(principal.authorized_party)}
-            async def preview(n, *, caller=headers, extra=None):
+            async def preview(n, *, caller=headers, extra=None, action="context-preview"):
                 return await client.post(
-                    f"{route['PROFILE_PREFIX']}/{UUID(int=n)}/context-preview",
+                    f"{route['PROFILE_PREFIX']}/{UUID(int=n)}/{action}",
                     headers=caller,
                     json={"content": "Summarize my trip using my saved preference.",
                           "idempotency_key": str(UUID(int=201)),
                           "choice": {"mode": "user_owned_plan"}, **(extra or {})},
                 )
-            results = await asyncio.gather(*(preview(n) for n in (101, 102, 101, 102)))
-            assert all(r.status_code == 422 and r.json() == {"code": "context_no_ai_route"}
-                       for r in results), [(r.status_code, r.text) for r in results]
+            if configure is None:
+                results = await asyncio.gather(*(preview(n) for n in (101, 102, 101, 102)))
+                assert all(r.status_code == 422 and r.json() == {"code": "context_no_ai_route"}
+                           for r in results), [(r.status_code, r.text) for r in results]
+            else:
+                await verify_previews(preview)
             assert (await preview(999)).status_code == 404
             assert (await preview(101, caller=headers | {
                 "authorization": "Bearer " + bearer("wrong-client"),
@@ -285,8 +297,10 @@ async def http_probe():
             })).status_code == 401
             assert (await preview(101, caller=headers | {"x-user-id-token": "forwarded"})).status_code == 401
             assert (await preview(101, extra={"entity_refs": []})).status_code == 422
-    assert not service._previews and not service._reservations
-    print("Reduced PAS ASGI application reproduced four 422 context_no_ai_route responses.")
+    assert not service._reservations
+    if configure is None:
+        assert not service._previews
+        print("Reduced PAS ASGI application reproduced four 422 context_no_ai_route responses.")
     print("Missing conversation 404, wrong azp 403, wrong audience/forwarded bearer 401, extra field 422.")
 
 

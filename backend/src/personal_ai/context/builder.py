@@ -11,7 +11,10 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from personal_ai.context.authority import permission_dependencies_current
+from personal_ai.context.authority import (
+    application_plan_source_current,
+    permission_dependencies_current,
+)
 from personal_ai.context.contracts import ContextError, TokenCount, TokenCounter
 from personal_ai.context.providers import (
     ContextAuthority,
@@ -25,7 +28,11 @@ from personal_ai.contracts.context_categories import (
     CONTEXT_SOURCE_CLASSES,
     ContextSourceClass,
 )
-from personal_ai.contracts.context_references import ContextDependencyVersion
+from personal_ai.contracts.context_references import (
+    APPLICATION_PLAN_SOURCE_ITEM_PREFIX,
+    ContextDependencyVersion,
+    ContextSourceSnapshot,
+)
 from personal_ai.llm.client import ChatMessage
 from personal_ai.llm.errors import LLMError
 
@@ -114,6 +121,7 @@ class ContextBuildItem(BaseModel):
     permission_dependencies: tuple[ContextPermissionDependency, ...] = Field(
         default=(), max_length=16
     )
+    application_plan_snapshot: ContextSourceSnapshot | None = Field(default=None, exclude=True)
     represented_item_ids: tuple[str, ...] = Field(default=(), max_length=32)
     atomic_group_id: str | None = Field(default=None, min_length=1, max_length=200)
     required: bool = False
@@ -194,6 +202,12 @@ class ContextBuildItem(BaseModel):
             source_refs=item.source_refs,
             expires_at=item.expires_at,
             permission_dependencies=item.permission_dependencies,
+            application_plan_snapshot=(
+                item.authority_snapshot()
+                if item.application_plan_authority is not None
+                or item.item_id.startswith(APPLICATION_PLAN_SOURCE_ITEM_PREFIX)
+                else None
+            ),
             represented_item_ids=item.represented_item_ids,
             atomic_group_id=atomic_group_id,
             required=required,
@@ -505,7 +519,13 @@ class ContextBuilder:
                 if item.expires_at is not None and item.expires_at <= now:
                     reason = "expired"
                     break
-                if item.permission_dependencies:
+                if item.application_plan_snapshot is not None:
+                    if not application_plan_source_current(
+                        item.application_plan_snapshot, self.permission_revalidator, now=now,
+                    ):
+                        reason = "permission_revoked"
+                        break
+                elif item.permission_dependencies:
                     if self.permission_revalidator is None:
                         reason = "permission_unverified"
                         break
@@ -870,8 +890,12 @@ class ContextBuilder:
         ):
             raise ContextError("context_source_unavailable")
         if any(
-            not permission_dependencies_current(
-                item.permission_dependencies, self.permission_revalidator
+            not (
+                application_plan_source_current(
+                    item.application_plan_snapshot, self.permission_revalidator, now=final_now,
+                ) if item.application_plan_snapshot is not None else permission_dependencies_current(
+                    item.permission_dependencies, self.permission_revalidator,
+                )
             )
             for item, _, _ in included
         ):

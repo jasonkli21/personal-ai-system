@@ -23,7 +23,10 @@ from personal_ai.auth.application_clients import (
 )
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
-from personal_ai.context.authority import source_snapshots_current
+from personal_ai.context.authority import (
+    source_snapshot_is_application_plan,
+    source_snapshots_current,
+)
 from personal_ai.context.authorization import authorize_base_disclosure, make_inference_context
 from personal_ai.context.contracts import (
     AssembledContext,
@@ -386,7 +389,10 @@ class ChatTurnService:
             external_lane=False,
         )
 
-    def preview_bound_context(self, conversation_id, content, *, assembler, prepare_sources, user_id):
+    def preview_bound_context(
+        self, conversation_id, content, *, assembler, prepare_sources, user_id,
+        plan_source_selections=(),
+    ):
         from personal_ai.context.tokens import EstimatedTokenCounter
 
         if (
@@ -397,6 +403,7 @@ class ChatTurnService:
             raise ContextPreparationError("external_context_requires_local_preparation")
         return self._preview_context(
             conversation_id, content, context_assembler=assembler,
+            explicit_context_selections=plan_source_selections,
             external_lane=False, bound_preview=(prepare_sources, user_id),
         )
 
@@ -419,9 +426,17 @@ class ChatTurnService:
         if self._application_context is None:
             raise ContextPreparationError("application_context_required")
         context = context_assembler or self._context
-        authorized_conversation(
+        conversation = authorized_conversation(
             self._conversations, owner_id=self._owner_id, conversation_id=conversation_id
         )
+        scope = self._application_context.scope
+        if (
+            bound_preview is not None and explicit_context_selections
+            and (conversation.id, conversation.owner_id, conversation.application_id,
+                 conversation.workspace_id)
+            != (conversation_id, scope.owner_id, scope.application_id, scope.workspace_id)
+        ):
+            raise ContextPreparationError("context_source_scope_mismatch")
         active = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
         )
@@ -539,7 +554,8 @@ class ChatTurnService:
                 derived = bool(snapshots)
             else:
                 derived = any(
-                    snapshot.source_version == "application-plan-memory:v1"
+                    source_snapshot_is_application_plan(snapshot)
+                    or snapshot.source_version == "application-plan-memory:v1"
                     or snapshot.source_version.startswith("shared-source:application-plan:")
                     or any(
                         dependency.permission_id.startswith(
@@ -1617,7 +1633,8 @@ class ChatTurnService:
         ):
             raise ContextPreparationError("context_source_authority_changed")
         if not is_external_client_request() and not any(
-            snapshot.provider_id in {"global_profile", "retrieval_context"}
+            source_snapshot_is_application_plan(snapshot)
+            or snapshot.provider_id in {"global_profile", "retrieval_context"}
             or "global_profile" in snapshot.source_classes
             or any(dep.permission_id.startswith("retrieval_context:")
                    for dep in snapshot.permission_dependencies)

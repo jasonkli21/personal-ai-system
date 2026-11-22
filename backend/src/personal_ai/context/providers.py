@@ -24,6 +24,7 @@ from personal_ai.applications.contracts import (
 from personal_ai.auth.scope import ApplicationScope, RequestScope
 from personal_ai.contracts.context_categories import ContextSourceClass
 from personal_ai.contracts.context_references import (
+    ApplicationPlanSourceAuthority,
     ContextAuthorityReference,
     ContextEntityReference,
     ContextPermissionDependency,
@@ -86,6 +87,7 @@ class ContextItem(BaseModel, Generic[PayloadT]):
         default=(), max_length=16
     )
     federation: FederationProvenance | None = None
+    application_plan_authority: ApplicationPlanSourceAuthority | None = Field(default=None, exclude=True)
     selected_operation: ContextOperation | None = Field(default=None, exclude=True)
     field_sensitivity: tuple[ContextFieldSensitivity, ...] = Field(default=(), max_length=32)
     payload: PayloadT
@@ -93,13 +95,17 @@ class ContextItem(BaseModel, Generic[PayloadT]):
 
     def authority_snapshot(self) -> ContextSourceSnapshot:
         payload = (self.disclosed_payload or self.payload).model_dump(mode="json")
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=self.application_plan_authority is None,
+        ).encode()
         return ContextSourceSnapshot(
             provider_id=self.provider_id, source_id=self.source_id, source_version=self.source_version,
             item_id=self.item_id,
             source_classes=tuple(dict.fromkeys((self.source_class, *self.inherited_source_classes))),
             owner_id=self.owner_id, application_id=self.application_id,
             workspace_id=self.workspace_id, operation=self.selected_operation,
-            content_fingerprint=hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            content_fingerprint=hashlib.sha256(encoded).hexdigest(),
             source_refs=tuple(
                 ContextAuthorityReference(
                     kind=reference.kind,
@@ -112,6 +118,7 @@ class ContextItem(BaseModel, Generic[PayloadT]):
             ),
             permission_dependencies=self.permission_dependencies, expires_at=self.expires_at,
             federation=self.federation,
+            application_plan_authority=self.application_plan_authority,
         )
 
     @field_validator("payload", mode="before")

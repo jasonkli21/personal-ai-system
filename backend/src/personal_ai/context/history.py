@@ -8,6 +8,10 @@ from hashlib import sha256
 from typing import TYPE_CHECKING
 
 from personal_ai.applications.contracts import ContextSensitivity, ManualImportReusePolicy
+from personal_ai.context.authority import (
+    source_snapshot_authority_complete,
+    source_snapshot_is_application_plan,
+)
 from personal_ai.contracts.context_categories import ContextSourceClass
 from personal_ai.contracts.context_references import (
     ContextPermissionDependency,
@@ -200,11 +204,13 @@ def conversation_context_messages(
         if not manual_import_is_reusable(message, manual_import_reuse):
             exclude_turn(message, "source_policy_denied")
             continue
+        snapshots = source_snapshots_for_message(message)
+        if any(source_snapshot_is_application_plan(snapshot) for snapshot in snapshots):
+            exclude_turn(message, "source_policy_denied")
+            continue
         if not check_source_permissions:
             continue
-        from personal_ai.context.authority import source_snapshot_authority_complete
-
-        for snapshot in source_snapshots_for_message(message):
+        for snapshot in snapshots:
             if not source_snapshot_authority_complete(snapshot):
                 exclude_turn(message, "source_permission_unverified")
                 break

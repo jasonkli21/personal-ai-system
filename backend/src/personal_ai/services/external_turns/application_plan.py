@@ -27,9 +27,14 @@ from personal_ai.auth.dispatch_grants import (
     ApplicationPlanScope,
     SignedDispatchGrant,
 )
-from personal_ai.auth.scope import current_request_scope
-from personal_ai.context.authority import source_snapshots_current
-from personal_ai.context.providers import ContextPreparationError
+from personal_ai.auth.scope import ApplicationScope, current_request_scope, current_verified_principal
+from personal_ai.context.authority import (
+    application_plan_source_binding,
+    source_snapshot_is_application_plan,
+    source_snapshots_current,
+)
+from personal_ai.context.providers import ContextPreparationError, ContextSelection
+from personal_ai.contracts.context_references import ApplicationPlanSourceBinding
 from personal_ai.contracts.execution import ContinuationRequest, continuation_message_id
 from personal_ai.llm.client import GenerationEvent
 from personal_ai.llm.disclosure import revalidate_disclosure
@@ -94,6 +99,14 @@ class PlanDelivery(Protocol):
     ) -> AsyncIterator[GenerationEvent]: ...
 
 
+@dataclass(frozen=True)
+class BoundPlanSource:
+    """The operator-installed source selection on an isolated preview-only target."""
+
+    target_id: str
+    selection: ContextSelection
+
+
 @dataclass(frozen=True, repr=False)
 class PlanTarget:
     scope: ApplicationPlanScope
@@ -106,6 +119,39 @@ class PlanTarget:
     serialize_payload: Callable[[PreparedExecution], bytes]
     model: str
     source_provider_id: str
+    preview_source: BoundPlanSource | None = None
+
+    def preview_binding(self, principal, conversation_id):
+        source = self.preview_source
+        if source is None:
+            return None
+        if (
+            principal is None
+            or not principal.authenticated
+            or principal.owner_id != self.scope.owner_id
+            or f"{principal.issuer}|{principal.subject}" != self.scope.actor_id
+            or source.selection.provider_id != self.source_provider_id
+        ):
+            raise ContextPreparationError(NO_AI)
+        return ApplicationPlanSourceBinding(
+            target_id=source.target_id,
+            conversation_id=conversation_id,
+            scope=ApplicationScope(
+                application_id=self.scope.application_id, workspace_id=self.scope.workspace_id,
+            ),
+            owner_id=principal.owner_id,
+            human_issuer=principal.issuer,
+            human_subject=principal.subject,
+            client_namespace=self.scope.client_namespace,
+            runtime_recipient=self.scope.local_recipient,
+            model_recipient=self.scope.model_recipient,
+            target_fingerprint=digest([
+                self.scope.model_dump(mode="json"), str(self.caller_id),
+                str(self.connection_id), self.connection_revision,
+                self.profile.model_dump(mode="json"), self.provider_id, self.model,
+                self.source_provider_id,
+            ]),
+        )
 
 
 @dataclass(frozen=True, repr=False)
@@ -264,8 +310,15 @@ class ApplicationPlanService:
     def preview(self, chat, assembler, conversation_id, incoming):
         if incoming.choice.confirmation is not None:
             raise ContextPreparationError(NO_AI)
-        request = incoming.request()
         target = self.current_target()
+        binding = target.preview_binding(current_verified_principal(), conversation_id)
+        token = application_plan_source_binding.set(binding)
+        try:
+            return self._preview(chat, assembler, conversation_id, incoming.request(), target, binding)
+        finally:
+            application_plan_source_binding.reset(token)
+
+    def _preview(self, chat, assembler, conversation_id, request, target, binding):
         assistant_id = continuation_message_id(
             conversation_id,
             target.scope.owner_id,
@@ -297,6 +350,7 @@ class ApplicationPlanService:
                 assembler=assembler,
                 prepare_sources=prepare_sources,
                 user_id=pending_user_id,
+                plan_source_selections=(target.preview_source.selection,) if binding else (),
             )
             assembled = context.assembled
             manifest = assembled.manifest
@@ -331,17 +385,26 @@ class ApplicationPlanService:
             ):
                 raise ContextPreparationError(NO_AI)
             snapshots = tuple(item.authority_snapshot() for item in items)
-            if {
-                snapshot.source_version for snapshot in snapshots if snapshot.provider_id == "ai_memory"
-            } != {"application-plan-memory:v1"} or not any(
-                snapshot.source_version.startswith("shared-source:application-plan:")
-                for snapshot in snapshots
+            domain = next(snapshot for snapshot in snapshots if snapshot.provider_id != "ai_memory")
+            memory = next(snapshot for snapshot in snapshots if snapshot.provider_id == "ai_memory")
+            authority = domain.application_plan_authority
+            if memory.source_version != "application-plan-memory:v1" or (
+                binding is None and (
+                    authority is not None
+                    or not domain.source_version.startswith("shared-source:application-plan:")
+                )
+            ) or (
+                binding is not None and (
+                    authority is None or authority.binding != binding
+                    or authority.fields != target.preview_source.selection.fields
+                )
             ):
                 raise ContextPreparationError(NO_AI)
             now = self.clock()
             expires_at = min(
                 now + timedelta(seconds=MAX_PREVIEW_SECONDS),
                 *(snapshot.expires_at for snapshot in snapshots if snapshot.expires_at is not None),
+                *((authority.expires_at,) if authority is not None else ()),
             )
             messages = tuple(
                 PreparedMessage(role=message.role, content=message.content)
@@ -402,6 +465,11 @@ class ApplicationPlanService:
                 expires_at,
             )
             self._require_current(preview, assembler.permission_revalidator)
+            if binding is not None and (
+                self.clock() >= preview.expires_at
+                or monotonic() >= started + assembler.settings.request_timeout_seconds
+            ):
+                raise ContextPreparationError(NO_AI)
             selection = {
                 "confirmation": preview.confirmation,
                 "destination": {
@@ -484,6 +552,8 @@ class ApplicationPlanService:
 
     def continue_turn(self, chat, assembler, conversation_id, incoming):
         target = self.current_target()
+        if target.preview_source is not None:
+            raise ContextPreparationError(NO_AI)
         request = incoming.request()
         confirmation = incoming.choice.confirmation
         if confirmation is None:
@@ -500,6 +570,7 @@ class ApplicationPlanService:
                 preview is None
                 or not hmac.compare_digest(preview.confirmation, confirmation)
                 or intent != preview.dispatch.intent_sha256
+                or any(source_snapshot_is_application_plan(snapshot) for snapshot in preview.snapshots)
             ):
                 raise ConversationConflictError("application_plan_confirmation_required")
             self._previews.pop(key)

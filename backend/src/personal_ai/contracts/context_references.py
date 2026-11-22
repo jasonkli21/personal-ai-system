@@ -8,6 +8,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.contracts.context_categories import ContextSourceClass
@@ -154,11 +155,99 @@ class ContextAuthorityReference(BaseModel):
         return value
 
 
+class ApplicationPlanSourceBinding(BaseModel):
+    """The verified private conversation and its registered preview destination."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    lane: Literal["user_owned_plan"] = "user_owned_plan"
+    target_id: str = Field(min_length=1, max_length=200)
+    conversation_id: UUID
+    scope: ApplicationScope
+    owner_id: str = Field(min_length=1, max_length=200)
+    human_issuer: str = Field(min_length=1, max_length=256)
+    human_subject: str = Field(min_length=1, max_length=255)
+    client_namespace: str = Field(pattern=r"^[0-9a-f]{64}$")
+    runtime_recipient: str = Field(min_length=1, max_length=160)
+    model_recipient: str = Field(min_length=1, max_length=160)
+    target_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+PlanSourceGrantPurpose = Literal["source-read", "runtime-handoff", "inference-disclosure"]
+APPLICATION_PLAN_SOURCE_ITEM_PREFIX = "application-plan-source:"
+SourceSensitivity = Literal["public", "personal", "sensitive", "restricted", "unknown"]
+
+
+class ApplicationPlanSourceGrant(BaseModel):
+    """One independently revocable grant for the exact bound projection."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    binding: ApplicationPlanSourceBinding
+    purpose: PlanSourceGrantPurpose
+    recipient: str = Field(min_length=1, max_length=200)
+    fields: tuple[str, ...] = Field(min_length=1, max_length=32)
+    version: str = Field(min_length=1, max_length=100)
+    expires_at: datetime
+
+    @model_validator(mode="after")
+    def aware_expiry(self):
+        if self.expires_at.utcoffset() is None:
+            raise ValueError("timestamp_requires_timezone")
+        return self
+
+
+class ApplicationPlanSourceAuthority(BaseModel):
+    """Private authority retained separately from an unchanged domain projection."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    binding: ApplicationPlanSourceBinding
+    fields: tuple[str, ...] = Field(min_length=1, max_length=32)
+    source_id: str = Field(min_length=1, max_length=200)
+    item_id: str = Field(min_length=1, max_length=200)
+    source_version: str = Field(min_length=1, max_length=100)
+    source_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_sensitivity: SourceSensitivity
+    field_sensitivities: tuple[tuple[str, SourceSensitivity], ...] = Field(min_length=1, max_length=32)
+    observed_at: datetime
+    grants: tuple[ApplicationPlanSourceGrant, ApplicationPlanSourceGrant, ApplicationPlanSourceGrant]
+
+    @model_validator(mode="after")
+    def exact_grants(self):
+        if self.observed_at.utcoffset() is None:
+            raise ValueError("timestamp_requires_timezone")
+        recipients = {
+            "source-read": self.binding.target_id,
+            "runtime-handoff": self.binding.runtime_recipient,
+            "inference-disclosure": self.binding.model_recipient,
+        }
+        if (
+            len(set(self.fields)) != len(self.fields)
+            or {name for name, _label in self.field_sensitivities} != set(self.fields)
+            or len(self.field_sensitivities) != len(self.fields)
+            or not self.item_id.startswith(APPLICATION_PLAN_SOURCE_ITEM_PREFIX)
+        ) or {
+            grant.purpose: grant.recipient for grant in self.grants
+        } != recipients or any(
+            grant.binding != self.binding or grant.fields != self.fields for grant in self.grants
+        ):
+            raise ValueError("application_plan_source_grants_invalid")
+        return self
+
+    @property
+    def expires_at(self) -> datetime:
+        return min(grant.expires_at for grant in self.grants)
+
+
 class ContextSourceSnapshot(BaseModel):
     """Payload-free frozen identity for final authority rechecks, not a source store."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     federation: FederationProvenance | None = None
+    # Internal persistence can round-trip this authority. Public response schemas
+    # only describe snapshots that may be released from the ordinary API.
+    application_plan_authority: SkipJsonSchema[ApplicationPlanSourceAuthority | None] = None
     provider_id: str = Field(min_length=1, max_length=81)
     source_id: str = Field(min_length=1, max_length=200)
     source_version: str = Field(min_length=1, max_length=100)
@@ -178,8 +267,9 @@ class ContextSourceSnapshot(BaseModel):
     @model_serializer(mode="wrap")
     def preserve_legacy_snapshot_shape(self, handler):
         payload = handler(self)
-        if self.federation is None:
-            payload.pop("federation", None)
+        for field in ("federation", "application_plan_authority"):
+            if getattr(self, field) is None:
+                payload.pop(field, None)
         return payload
 
     @model_validator(mode="after")

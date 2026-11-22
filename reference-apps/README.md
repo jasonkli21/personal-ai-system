@@ -66,6 +66,18 @@ fixture is packaged with identical bytes to the historical test fixture. The
 `make domain-eval` and `make itinerary-proposal-eval` targets require the optional
 reference distribution to be installed in the active environment.
 
+## Isolated Travel private preview
+
+An isolated PAS preview composition can install `TravelPlanSource.contribution()`
+in its context runtime for the registered Travel provider. Supply an explicit
+HTTP transport, independent service bearer supplier and Ed25519 user-delegation
+signer for the pinned Travel source. Configure the target's `preview_source`
+with `TravelPlanSource.selection()`, and supply separate current grant readers
+for the scoped read, runtime recipient and model recipient. Each grant binds
+the registered private conversation and the two exact trip fields. The PAS
+application-plan memory authority grants its own canonical memory separately.
+The resulting target is preview-only. [Paired preview evidence](../docs/context-inference-integration/evidence/2026-11-22-travel-private-preview-candidate.md)
+
 Frontend Travel/Shopping links/pages/proxies retain literal-true server gates
 `DECISION_ENABLED`, `TRAVEL_ENABLED`, `SHOPPING_ENABLED` (plus inspection gates).
 Keep them off in the core profile; backend authorization remains authoritative.

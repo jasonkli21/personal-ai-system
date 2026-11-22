@@ -12,7 +12,7 @@ from personal_ai.auth.application_clients import (
     require_current_client_authority,
 )
 from personal_ai.auth.scope import ApplicationScope
-from personal_ai.context.authority import source_snapshots_current
+from personal_ai.context.authority import source_snapshot_is_application_plan, source_snapshots_current
 from personal_ai.context.history import source_snapshots_for_message
 from personal_ai.contracts.execution import continuation_message_id
 from personal_ai.entities import Conversation, Message, MessageRole
@@ -149,14 +149,15 @@ class ConversationService:
         messages = self._messages.list_active(
             owner_id=self._owner_id, conversation_id=conversation_id
         )
-        retrieval_snapshots = tuple(
+        restricted_snapshots = tuple(
             snapshot for message in messages for snapshot in source_snapshots_for_message(message)
-            if snapshot.provider_id == "retrieval_context"
+            if source_snapshot_is_application_plan(snapshot)
+            or snapshot.provider_id == "retrieval_context"
             or any(dep.permission_id.startswith("retrieval_context:")
                    for dep in snapshot.permission_dependencies)
         )
-        if retrieval_snapshots and not source_snapshots_current(
-            retrieval_snapshots, permission_revalidator, now=datetime.now(UTC),
+        if restricted_snapshots and not source_snapshots_current(
+            restricted_snapshots, permission_revalidator, now=datetime.now(UTC),
         ):
             raise ExternalHistoryDisclosureDenied
         if is_external_client_request():

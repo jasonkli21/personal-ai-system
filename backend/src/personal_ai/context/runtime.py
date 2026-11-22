@@ -87,6 +87,13 @@ class ContextPermissionRevalidatorRegistry:
                 return bool(validator.is_current(dependency))
         return False
 
+    def is_application_plan_source_current(self, snapshot) -> bool:
+        for validator in self.validators:
+            supports = getattr(validator, "supports_application_plan_source", None)
+            if callable(supports) and supports(snapshot):
+                return validator.is_application_plan_source_current(snapshot) is True
+        return False
+
 
 class ContextRuntimeRegistry:
     """Keep executable adapters separate from application capability authorization."""
