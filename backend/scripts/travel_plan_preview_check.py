@@ -204,6 +204,13 @@ def build_travel_source(db, travel_checkout, principal, signing_key, calls):
         app, settings=SimpleNamespace(deployment_mode="local", personal_ai_plan_enabled=True),
         trust=trust, sessions=lambda: db, verify_service=verify_service,
     )
+    disabled_app = FastAPI()
+    route["mount_private_plan_source"](
+        disabled_app,
+        settings=SimpleNamespace(deployment_mode="local", personal_ai_plan_enabled=False),
+        trust=trust, sessions=lambda: db, verify_service=verify_service,
+    )
+    assert PRIVATE_PLAN_SOURCE_PATH not in {entry.path for entry in disabled_app.routes}
 
     def transport(request):
         async def send():
@@ -287,18 +294,36 @@ def configured_pair(db, travel_checkout):
 
         async def verify_previews(preview):
             for index in (0, 1, 0, 1):
+                started_at = datetime.now(UTC)
                 result = await preview(101 + index)
                 assert result.status_code == 200, (result.status_code, result.text)
                 assert result.headers["cache-control"] == "no-store"
+                inventory = result.json()
+                assert 0 < len(result.content) <= 8192
+                assert inventory["destination"] == {
+                    "application": target.scope.application_id,
+                    "provider": "ChatGPT",
+                    "model": target.model,
+                    "runtime": target.scope.local_recipient,
+                    "recipient": target.scope.model_recipient,
+                }
                 assert TITLES[0] not in result.text and TITLES[1] not in result.text
-                assert MEMORY not in result.text and result.json()["selected_context"] == [
+                assert MEMORY not in result.text and inventory["selected_context"] == [
                     {"category": "conversation_history", "turns": 0},
                     {"category": "ai_memory", "fields": ["content"]},
                     {"category": "domain_current", "fields": ["trip_revision", "trip_title"]},
                 ], result.json()
                 prepared = next(p for p in service._previews.values()
                                 if p.package.conversation_id == UUID(int=101 + index))
-                serialized = prepared.package.canonical().decode()
+                assert inventory["confirmation"] == prepared.confirmation
+                assert datetime.fromisoformat(inventory["expires_at"]) == prepared.expires_at
+                assert started_at < prepared.expires_at <= datetime.now(UTC) + timedelta(seconds=45)
+                assert prepared.package.workspace_id is None
+                assert prepared.package.application_id == "travel"
+                assert prepared.package.max_output_bytes == prepared.package.max_output_chars == 100
+                canonical = prepared.package.canonical()
+                assert 0 < len(canonical) <= 8192
+                serialized = canonical.decode()
                 assert TITLES[index] in serialized and TITLES[1 - index] not in serialized
                 assert MEMORY in serialized
                 snapshot = next(s for s in prepared.snapshots if s.provider_id == source.spec.provider_id)
@@ -327,6 +352,8 @@ def configured_pair(db, travel_checkout):
             assert all(r.status_code == 200 and r.headers["cache-control"] == "no-store" for _, r in calls)
             verifies = [(body, result) for body, result in calls if body["operation"] == "verify"]
             assert len(verifies) == 16
+            assert all(b["workspace_id"] is None and b["destination_application_id"] == "travel"
+                       and 0 < len(r.content) <= 4096 for b, r in calls)
             assert all(result.json()["items"][0]["payload"] == {
                 "trip_revision": int(body["expected_source_version"]),
             } for body, result in verifies)
@@ -339,11 +366,24 @@ def configured_pair(db, travel_checkout):
                 assert (await preview(101)).status_code == 422 and len(calls) == before
                 grants[purpose][conversation_a] = grants[purpose][conversation_b]
                 assert (await preview(101)).status_code == 422 and len(calls) == before
+                grants[purpose][conversation_a] = saved.model_copy(
+                    update={"expires_at": datetime.now(UTC) - timedelta(seconds=1)}
+                )
+                assert (await preview(101)).status_code == 422 and len(calls) == before
                 grants[purpose][conversation_a] = saved
 
             saved_memory = disclosures[target.scope]
             disclosures[target.scope] = saved_memory[:1]
             before = len(calls)
+            assert (await preview(101)).status_code == 422 and len(calls) == before
+            disclosures[target.scope] = (
+                saved_memory[0],
+                replace(saved_memory[1], expires_at=datetime.now(UTC) - timedelta(seconds=1)),
+            )
+            assert (await preview(101)).status_code == 422 and len(calls) == before
+            disclosures[target.scope] = tuple(
+                replace(grant, memory_id=UUID(int=999)) for grant in saved_memory
+            )
             assert (await preview(101)).status_code == 422 and len(calls) == before
             disclosures[target.scope] = saved_memory
 
@@ -357,6 +397,17 @@ def configured_pair(db, travel_checkout):
 
             client._transport.handler = mutate_current
             assert (await preview(101)).status_code == 503
+            client._transport.handler = original_transport
+
+            def oversize_current(request):
+                response = original_transport(request)
+                over_limit = response.content.ljust(4097, b" ")
+                return httpx.Response(200, headers=response.headers, content=over_limit)
+
+            client._transport.handler = oversize_current
+            oversized = await preview(101)
+            assert oversized.status_code == 503
+            assert all(value not in oversized.text for value in (*TITLES, MEMORY))
             client._transport.handler = original_transport
 
             def change_revision(request):
@@ -404,8 +455,9 @@ def configured_pair(db, travel_checkout):
             reuse = chat._application_context.definition.context_policy.sidecar.manual_import_reuse
             assert not conversation_context_messages((user, answer), manual_import_reuse=reuse)
             assert not chat._history_for_new_recipient((user, answer))
-            print("Paired reduced preview passed A/B/A/B, recipient and memory denials,"
-                  " malformed revision, stale and revoked Travel authority, and no continuation.")
+            print("Paired reduced preview passed A/B/A/B, destination, expiry and size checks,"
+                  " grant and memory denials, malformed/oversized source, stale and revoked Travel"
+                  " authority, default-off Travel mount, and no continuation.")
 
         return assembler, verify_previews
 
