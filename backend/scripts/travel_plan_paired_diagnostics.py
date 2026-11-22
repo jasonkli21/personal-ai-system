@@ -6,6 +6,7 @@ conformance. See the dated paired preview evidence for scope and reproduction.
 """
 
 import __future__
+
 import ast
 import asyncio
 import json
@@ -24,6 +25,13 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from personal_ai_reference_apps.applications import _reference_metadata
+from personal_ai_reference_apps.context.travel import (
+    TRAVEL_CONTEXT_PROVIDER_ID,
+    TravelContextProvider,
+    travel_context_planning_rules,
+)
+from personal_ai_reference_apps.domains.travel.module import TravelModule
 
 from personal_ai.applications.contracts import ApplicationContextRequest
 from personal_ai.applications.registry import ApplicationRegistry
@@ -41,16 +49,13 @@ from personal_ai.entities import Conversation
 from personal_ai.local_bridge.application_plan import PairedApplicationRuntime
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.external_turns.application_plan import (
-    ApplicationPlanService, PlanContinuation, PlanTarget
+    ApplicationPlanService,
+    PlanContinuation,
+    PlanTarget,
 )
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.errors import ResourceNotFoundError
 from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMessageRepository
-from personal_ai_reference_apps.applications import _reference_metadata
-from personal_ai_reference_apps.domains.travel.module import TravelModule
-from personal_ai_reference_apps.context.travel import (
-    TRAVEL_CONTEXT_PROVIDER_ID, TravelContextProvider, travel_context_planning_rules
-)
 
 
 def run():
@@ -162,7 +167,8 @@ def source_with_overrides(path, overrides, removed_imports, *, delayed_annotatio
     )]
     namespace = {"__name__": path.stem, **overrides}
     flags = __future__.annotations.compiler_flag if delayed_annotations else 0
-    exec(compile(tree, str(path), "exec", flags=flags), namespace)
+    # Execute selected definitions from the explicitly supplied local checkout.
+    exec(compile(tree, str(path), "exec", flags=flags), namespace)  # noqa: S102
     return namespace
 
 
@@ -305,11 +311,11 @@ async def http_probe(configure=None):
 
 
 def reverse_hop():
+    from personal_travel.api.schemas.private_plan import PrivatePlanSourceRequest
+    from personal_travel.auth.private_plan import PrivatePlanTrust, authenticate_private_plan_source
     from starlette.datastructures import Headers
 
     from personal_ai.auth.delegation import delegated_user_assertion
-    from personal_travel.api.schemas.private_plan import PrivatePlanSourceRequest
-    from personal_travel.auth.private_plan import PrivatePlanTrust, authenticate_private_plan_source
 
     now = int(time.time())
     principal = AuthenticatedPrincipal(

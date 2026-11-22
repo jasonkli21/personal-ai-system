@@ -174,7 +174,10 @@ class MemoryRoots:
 
 
 class ApplicationPlanFixture:
-    def __init__(self, host, runtime_directory, *, attempts: Callable | None = None, delivery=None):
+    def __init__(
+        self, host, runtime_directory, *, attempts: Callable | None = None, delivery=None,
+        memory_repositories=None, travel_receipt_key=None,
+    ):
         if delivery is not None and attempts is not None:
             raise ValueError("independent delivery requires the coordinated fixture authorities")
         self.host, self.runtime_directory = host, runtime_directory
@@ -184,8 +187,11 @@ class ApplicationPlanFixture:
         self.disclosure_epochs = {}
         self.recovery_available = True
         self.settings = host.settings
-        self.memories = InMemoryMemoryRepository(host.messages)
-        self.lifecycle = InMemoryMemoryLifecycleRepository(self.memories, host.messages)
+        if memory_repositories is None:
+            self.memories = InMemoryMemoryRepository(host.messages)
+            self.lifecycle = InMemoryMemoryLifecycleRepository(self.memories, host.messages)
+        else:
+            self.memories, self.lifecycle = memory_repositories(host.messages)
         reader = MemoryPermissionRevalidator(
             self.settings,
             self.memories,
@@ -233,7 +239,7 @@ class ApplicationPlanFixture:
                 ),
             }
         )
-        self.mount()
+        self.mount(travel_receipt_key=travel_receipt_key)
 
     def record_claim(self, root, owner, attempt, payload):
         with self.roots.lock:
@@ -289,7 +295,7 @@ class ApplicationPlanFixture:
             for recipient in (scope.local_recipient, scope.model_recipient)
         )
 
-    def mount(self):
+    def mount(self, *, travel_receipt_key=None):
         host = self.host
         service = self.service
         channel_tokens = MAX_CONTEXT_TOKENS // 2
@@ -346,6 +352,7 @@ class ApplicationPlanFixture:
             service=service,
             assembler_dependency=plan_assembler,
             preview_recipient_scope=preview_recipients,
+            travel_receipt_key=travel_receipt_key,
         )
 
     def onboard(self, target, *, memory_content, model=MODEL, gate=True, source_grants=True):

@@ -18,24 +18,35 @@ import httpx
 import jwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI
+from personal_ai_reference_apps.context.travel_plan import (
+    CURRENT_FIELDS,
+    TravelPlanSource,
+    TravelPlanSourceClient,
+)
+from travel_plan_contract_probe import travel_app
+from travel_plan_paired_diagnostics import http_probe, source_with_overrides
 
 from personal_ai.auth.application_clients import client_binding_namespace
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context import ContextAssembler
 from personal_ai.context.adapters import MemoryContextProviderFactory
-from personal_ai.context.authority import source_snapshot_authority_complete, source_snapshots_current
+from personal_ai.context.authority import (
+    source_snapshot_authority_complete,
+    source_snapshots_current,
+)
 from personal_ai.context.contracts import fingerprint
 from personal_ai.context.history import conversation_context_messages
 from personal_ai.context.providers import ContextProviderCoordinator
-from personal_ai.context.runtime import ContextPermissionRevalidatorRegistry, compose_context_runtime
-from personal_ai.contracts.context_references import ApplicationPlanSourceGrant, ContextSourceSnapshot
+from personal_ai.context.runtime import (
+    ContextPermissionRevalidatorRegistry,
+    compose_context_runtime,
+)
+from personal_ai.contracts.context_references import (
+    ApplicationPlanSourceGrant,
+    ContextSourceSnapshot,
+)
 from personal_ai.entities import Conversation, Message
 from personal_ai.llm.external import CHATGPT_PLAN_PROFILE
-from personal_ai_reference_apps.context.travel_plan import CURRENT_FIELDS, TravelPlanSource
-from personal_ai_reference_apps.context.travel_plan import TravelPlanSourceClient
-
-from travel_plan_contract_probe import travel_app
-from travel_plan_paired_diagnostics import http_probe, source_with_overrides
 
 TRIPS = (UUID(int=201), UUID(int=202))
 TITLES = ("Fabricated trip A", "Fabricated trip B · Ålesund")
@@ -63,7 +74,10 @@ def build_memory(chat, service, settings, principal):
     from personal_ai.memory.dependencies import MemoryPermissionRevalidator
     from personal_ai.memory.lifecycle.repositories import InMemoryMemoryLifecycleRepository
     from personal_ai.memory.repositories import InMemoryMemoryRepository
-    from personal_ai.services.external_turns.plan_memory import ApplicationPlanMemory, MemoryDisclosure
+    from personal_ai.services.external_turns.plan_memory import (
+        ApplicationPlanMemory,
+        MemoryDisclosure,
+    )
 
     now = datetime.now(UTC)
     conversations, messages = chat._conversations, chat._messages
@@ -108,7 +122,9 @@ def build_memory(chat, service, settings, principal):
 
 def build_travel_source(db, travel_checkout, principal, signing_key, calls):
     from personal_travel.api.schemas.private_plan import (
-        PRIVATE_PLAN_SOURCE_MAX_BYTES, PRIVATE_PLAN_SOURCE_PATH, PrivatePlanSourceRequest,
+        PRIVATE_PLAN_SOURCE_MAX_BYTES,
+        PRIVATE_PLAN_SOURCE_PATH,
+        PrivatePlanSourceRequest,
     )
     from personal_travel.auth.private_plan import PrivatePlanTrust, authenticate_private_plan_source
     from personal_travel.services.errors import DomainError, not_found

@@ -12,7 +12,10 @@ from personal_ai.auth.application_clients import (
     require_current_client_authority,
 )
 from personal_ai.auth.scope import ApplicationScope
-from personal_ai.context.authority import source_snapshot_is_application_plan, source_snapshots_current
+from personal_ai.context.authority import (
+    source_snapshot_is_application_plan,
+    source_snapshots_current,
+)
 from personal_ai.context.history import source_snapshots_for_message
 from personal_ai.contracts.execution import continuation_message_id
 from personal_ai.entities import Conversation, Message, MessageRole

@@ -27,7 +27,11 @@ from personal_ai.auth.dispatch_grants import (
     ApplicationPlanScope,
     SignedDispatchGrant,
 )
-from personal_ai.auth.scope import ApplicationScope, current_request_scope, current_verified_principal
+from personal_ai.auth.scope import (
+    ApplicationScope,
+    current_request_scope,
+    current_verified_principal,
+)
 from personal_ai.context.authority import (
     application_plan_source_binding,
     source_snapshot_is_application_plan,
@@ -308,9 +312,17 @@ class ApplicationPlanService:
         )
 
     def preview(self, chat, assembler, conversation_id, incoming):
+        selection, _ = self.preview_with_source_revision(chat, assembler, conversation_id, incoming)
+        return selection
+
+    def preview_with_source_revision(
+        self, chat, assembler, conversation_id, incoming, *, expected_target=None
+    ):
         if incoming.choice.confirmation is not None:
             raise ContextPreparationError(NO_AI)
         target = self.current_target()
+        if expected_target is not None and target is not expected_target:
+            raise ContextPreparationError(NO_AI)
         binding = target.preview_binding(current_verified_principal(), conversation_id)
         token = application_plan_source_binding.set(binding)
         try:
@@ -502,7 +514,7 @@ class ApplicationPlanService:
             if len(encoded_selection) > MAX_PREVIEW_RESPONSE_BYTES:
                 raise ContextPreparationError(NO_AI)
             self._publish_preview(key, reservation, preview)
-            return selection
+            return selection, domain.source_version if binding is not None else None
         finally:
             self._release_preview_reservation(key, reservation)
 

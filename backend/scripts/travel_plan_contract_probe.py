@@ -60,7 +60,8 @@ def execute(name, nodes, **bindings):
     scope.update(bindings)
     future = ast.parse("from __future__ import annotations").body
     code = ast.fix_missing_locations(ast.Module(body=[*future, *nodes], type_ignores=[]))
-    exec(compile(code, name, "exec"), scope)
+    # Execute selected definitions from the explicitly supplied local checkout.
+    exec(compile(code, name, "exec"), scope)  # noqa: S102
     return module
 
 
@@ -232,7 +233,9 @@ async def reverse_ingress_probe(repo):
     # The generated wire helper is dependency-independent. Only execute it after
     # comparing the checkout bytes with the pinned source.
     wire_path = repo / relative
-    pinned = subprocess.check_output(["git", "-C", str(repo), "show", f"{TRAVEL}:{relative}"])
+    pinned = await asyncio.to_thread(
+        subprocess.check_output, ["git", "-C", str(repo), "show", f"{TRAVEL}:{relative}"]
+    )
     assert wire_path.read_bytes() == pinned
     wire = runpy.run_path(str(wire_path))
     auth = execute(
