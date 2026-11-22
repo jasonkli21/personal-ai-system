@@ -1266,8 +1266,10 @@ def test_unknown_send_outcome_remains_fenced_across_runtime_restart_and_resigned
 
 
 def test_rooted_v1_grant_keeps_fence_after_receipt_snapshot_restore(tmp_path):
-    bridge, provider, session, package, _proof, private = bridge_fixture(tmp_path)
+    bridge, provider, session, package, initial_proof, private = bridge_fixture(tmp_path)
     root_id = uuid4()
+    current_time = initial_proof.claims.issued_at
+    bridge.clock = lambda: current_time
 
     class CurrentRoot:
         def authorize(self, **_kwargs):
@@ -1275,7 +1277,7 @@ def test_rooted_v1_grant_keeps_fence_after_receipt_snapshot_restore(tmp_path):
 
     bridge.root_authority = CurrentRoot()
     proof = sign_for_bridge(
-        bridge, session, package, private, routing_root=root_id
+        bridge, session, package, private, routing_root=root_id, now=current_time
     )
     store = bridge.lifecycle.store
     state_path = store.directory / "state.json"
@@ -1287,18 +1289,21 @@ def test_rooted_v1_grant_keeps_fence_after_receipt_snapshot_restore(tmp_path):
     state_path.write_bytes(receipt_snapshot)
     store = ProtectedLocalStore(store.directory)
     bridge.lifecycle.store = store
+    current_time += 1
     resigned = sign_for_bridge(
         bridge, session, package, private, routing_root=root_id,
-        now=int(time.time()) + 1,
+        now=current_time,
     )
-    with pytest.raises(LocalStoreError):
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, resigned)
     assert len(provider.sends()) == 1
 
 
 def test_rooted_v1_grant_keeps_fence_after_receipt_only_rollback(tmp_path):
-    bridge, provider, session, package, _proof, private = bridge_fixture(tmp_path)
+    bridge, provider, session, package, initial_proof, private = bridge_fixture(tmp_path)
     root_id = uuid4()
+    current_time = initial_proof.claims.issued_at
+    bridge.clock = lambda: current_time
 
     class CurrentRoot:
         def authorize(self, **_kwargs):
@@ -1312,11 +1317,12 @@ def test_rooted_v1_grant_keeps_fence_after_receipt_only_rollback(tmp_path):
     # Roll back only the replaceable receipt; registration and clock remain intact.
     with bridge.lifecycle.store.transaction() as tx:
         del tx.state.receipts[package.dispatch_identity]
+    current_time += 1
     resigned = sign_for_bridge(
         bridge, session, package, private, routing_root=root_id,
-        now=int(time.time()) + 1,
+        now=current_time,
     )
-    with pytest.raises(LocalStoreError):
+    with pytest.raises(LocalStoreError, match="dispatch_already_claimed"):
         run_bridge(bridge, session, package, resigned)
     assert len(provider.sends()) == 1
 

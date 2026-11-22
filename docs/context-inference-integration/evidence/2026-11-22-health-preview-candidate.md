@@ -38,3 +38,25 @@ plus PAS PostgreSQL owner mapping, canonical memory and memory lifecycle.
 Conversation, branch, enrollment, permissions, receipt signer, preview cache
 and runtime are fixture state. Hosted authority and durable independent restore
 remain release dependencies.
+
+## Independent review remediation
+
+The isolated bound-receipt composition uses the same lookup-only principal
+mode for ingress and later client authority checks. Native regressions remove
+or revoke the actor mapping after ingress during create, preview and GET.
+Each path denies before callback or receipt. The mapping tests also inspect
+the native namespace and bootstrap audit inventory.
+
+Preview publication and original-key GET check source and PAS memory
+dependencies, branch, operation authority and expiry again after attestation.
+The metadata-only preview retains the attested bytes and payload-free
+authority snapshots. It does not construct a prepared runtime execution or
+invoke the provider serializer. Travel receipts and source-free execution
+keep their existing confirmation calculation. Deterministic paired tests
+mutate each final authority boundary and distinguish PAS withholding a result
+from Health rejecting a signed result during adoption.
+
+The paired preview's checks are application-level checks. They do not
+serialize independent source writers, establish hosted authorization, or
+verify independent Health and PAS store rollback. Those remain release gates
+alongside the existing dispatch and provider eligibility holds.

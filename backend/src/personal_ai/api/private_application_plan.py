@@ -22,8 +22,8 @@ from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.conversations import ConversationService
 from personal_ai.services.external_turns.application_plan import (
     ApplicationPlanService,
+    BoundPreviewMetadata,
     PlanContinuation,
-    PlanPreview,
     PlanTarget,
     encode_preview_response,
 )
@@ -35,12 +35,20 @@ MAX_RECEIPT_BYTES = 8192
 RECEIPT_HEADER = "x-application-plan-receipt"
 
 
+class BoundReceiptAttestor(Protocol):
+    def __call__(
+        self, conversation: UUID, body: bytes, frozen: BoundPreviewMetadata | None,
+    ) -> str: ...
+
+    def require_current(self) -> None: ...
+
+
 class BoundReceiptAuthority(Protocol):
     """An isolated host's transaction authority and response attestor."""
 
     def __call__(
         self, request: Request, target: PlanTarget, conversation_id: UUID | None, body: bytes,
-    ) -> Callable[[UUID, bytes, PlanPreview | None], str]: ...
+    ) -> BoundReceiptAttestor: ...
 
 
 def _checked_receipt(value: str) -> str:
@@ -193,6 +201,7 @@ def mount_application_plan(
             signature = _checked_receipt(
                 await sync_call(attestor, conversation.id, response_body, None)
             )
+            await sync_call(attestor.require_current)
         else:
             assert travel_receipt_key is not None
             signature = _signed_receipt(
@@ -220,13 +229,16 @@ def mount_application_plan(
         target = await sync_call(service.current_target)
         headers = {"cache-control": "no-store"}
         attest = None
+        require_current_operation = None
         attested_body = None
         if bound_receipts is not None:
             if target.preview_source is None:
                 raise ContextPreparationError("context_no_ai_route")
             attestor = await sync_call(bound_receipts, request, target, conversation_id, raw)
 
-            def attest(body: bytes, frozen: PlanPreview) -> None:
+            require_current_operation = attestor.require_current
+
+            def attest(body: bytes, frozen: BoundPreviewMetadata) -> None:
                 nonlocal attested_body
                 headers[RECEIPT_HEADER] = _checked_receipt(attestor(conversation_id, body, frozen))
                 attested_body = body
@@ -240,6 +252,7 @@ def mount_application_plan(
                 incoming,
                 expected_target=target,
                 attest=attest,
+                require_current_operation=require_current_operation,
             )
         response_body = (
             attested_body if attested_body is not None else encode_preview_response(selection)
@@ -281,6 +294,7 @@ def mount_application_plan(
                 original_key,
                 expected_target=target,
                 attest=attestor,
+                require_current_operation=attestor.require_current,
             )
         if result is None:
             return Response(status_code=404, headers={"cache-control": "no-store"})

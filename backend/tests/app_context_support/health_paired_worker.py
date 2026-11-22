@@ -3,7 +3,8 @@
 import json
 import os
 import sys
-from dataclasses import asdict
+from contextlib import contextmanager
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from socketserver import TCPServer
@@ -25,6 +26,7 @@ from health_api.application.r5_health_caller import (
     bind_r5_preview_request,
     observe_r5_preview,
     r5_create_request,
+    require_current_r5_preview_request,
     reserve_r5_operation_keys,
 )
 from health_api.application.r5_health_source import (
@@ -43,10 +45,16 @@ from health_api.integrations.personal_ai_context_auth import (
     PersonalAIContextAuthorizationError,
     PersonalAIContextIdentityVerifier,
 )
-from health_api.persistence.models import ProviderIdentity, R5PreviewWireBinding, User
+from health_api.integrations.personal_ai_preview_receipt import canonical_digest
+from health_api.persistence.models import (
+    ProviderIdentity,
+    R5PreviewReservation,
+    R5PreviewWireBinding,
+    User,
+)
 from health_loopback_proof import PROOF_HEADER, TRANSACTION_HEADER, sign, verify
 from health_step2_worker import ISSUER, SYNTHETIC_PREFERENCE
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
@@ -278,6 +286,44 @@ def main():
             R5HealthSelection(profile.id, profile.revision),
         )
 
+    def revoke_source():
+        with sessions() as session, session.begin():
+            update_profile_item(
+                session, owner.id, authority.selection.object_id, authority.selection.revision,
+                {"cross_domain_use_allowed": False},
+            )
+
+    @contextmanager
+    def mutate_after_wire_commit(change):
+        def track_write(execute_state):
+            if (
+                execute_state.is_insert
+                and execute_state.statement.table.name == R5PreviewWireBinding.__tablename__
+            ):
+                execute_state.session.info["preview_wire_write"] = True
+
+        def after_commit(session):
+            if not session.info.pop("preview_wire_write", False):
+                return
+            if change == "source":
+                revoke_source()
+            if change == "intent":
+                active["intent_revoked"] = True
+
+        event.listen(sessions, "do_orm_execute", track_write)
+        event.listen(sessions, "after_commit", after_commit)
+        try:
+            yield
+        finally:
+            event.remove(sessions, "after_commit", after_commit)
+            event.remove(sessions, "do_orm_execute", track_write)
+
+    def current_intent(original, values):
+        supplied = not {"create", "preview"} <= values.keys() or (
+            str(original.create), str(original.preview)
+        ) == (values["create"], values["preview"])
+        return supplied and values.get("witness", True) and not active.get("intent_revoked")
+
     def get_context(values):
         target = R5VerifiedCallerTarget(
             values["pas_owner"],
@@ -289,12 +335,24 @@ def main():
             values["policy_epoch"],
         )
         assert values["actor"] == f"https://accounts.google.com|{subject}"
+
+        def reauthorize():
+            live = current()
+            if live is None:
+                return None
+            current_target = (
+                replace(target, recipient_digest="0" * 64)
+                if values.get("recipient_changed")
+                else target
+            )
+            return live, current_target
+
         return {
             "intent_id": UUID(values["intent"]),
             "source_request": values["profile_request"].encode(),
             "authority": authority,
             "target": target,
-            "reauthorize": lambda: (live, target) if (live := current()) is not None else None,
+            "reauthorize": reauthorize,
         }
 
     reply(
@@ -324,9 +382,11 @@ def main():
             elif operation == "reserve":
                 context = get_context(values)
                 context["request"] = context.pop("source_request")
-                original = reserve_r5_operation_keys(
-                    sessions, settings, **context, current_intent=lambda _: True
-                )
+                with mutate_after_wire_commit(values.get("commit_change")):
+                    original = reserve_r5_operation_keys(
+                        sessions, settings, **context,
+                        current_intent=lambda keys, supplied=values: current_intent(keys, supplied),
+                    )
                 with sessions() as session:
                     wire = session.get(R5PreviewWireBinding, original.create)
                     assert wire is not None
@@ -357,6 +417,21 @@ def main():
                     )
                 else:
                     reply({"ok": True})
+            elif operation == "authorize_preview":
+                original = R5OriginalKeys(UUID(values["create"]), UUID(values["preview"]))
+                request = json.loads(values["body"])
+                conversation_id = UUID(values["conversation"])
+                if request["idempotency_key"] != str(original.preview) or (
+                    values["path"] != f"/private/application-plan/v1/conversations/"
+                    f"{conversation_id}/context-preview"
+                ):
+                    raise R5PreviewUnavailable
+                require_current_r5_preview_request(
+                    sessions, settings, **get_context(values), original=original,
+                    conversation_id=conversation_id, request_digest=canonical_digest(request),
+                    current_intent=lambda keys, supplied=values: current_intent(keys, supplied),
+                )
+                reply({"ok": True})
             elif operation == "finish":
                 active = None
                 reply({"ok": True})
@@ -369,22 +444,34 @@ def main():
                     )
                 }
                 if operation == "bind_preview":
-                    conversation, digest = bind_r5_preview_request(
-                        sessions,
-                        settings,
-                        **context,
-                        original=original,
-                        receipt_keys=keys,
-                        create_response=values["body"].encode(),
-                        create_receipt=values["receipt"],
-                        request=values["request"],
-                        current_intent=lambda pair, bound=original, live=values["witness"]: (
-                            pair == bound and live
-                        ),
-                    )
+                    with mutate_after_wire_commit(values.get("commit_change")):
+                        conversation, digest = bind_r5_preview_request(
+                            sessions,
+                            settings,
+                            **context,
+                            original=original,
+                            receipt_keys=keys,
+                            create_response=values["body"].encode(),
+                            create_receipt=values["receipt"],
+                            request=values["request"],
+                            current_intent=lambda keys, supplied=values: current_intent(keys, supplied),
+                        )
                     reply({"conversation": conversation, "digest": digest})
                 else:
                     epochs = R5PreviewEpochs(**values["epochs"])
+                    epoch_checks = 0
+
+                    def current_epochs(key, original_key=original.preview, supplied=values, snapshot=epochs):
+                        nonlocal epoch_checks
+                        if key != original_key or not supplied["witness"]:
+                            return None
+                        epoch_checks += 1
+                        if epoch_checks == 2:
+                            if supplied.get("mutate_epochs") == "source_grants":
+                                supplied["epochs"]["source_grants"]["source-read"] = "rotated"
+                            if supplied.get("mutate_epochs") == "destination":
+                                supplied["epochs"]["destination"]["model"] = "changed"
+                        return snapshot
 
                     def get_status(path, nonce=values["nonce"], scope=active):
                         scope["transaction"] = nonce
@@ -409,14 +496,7 @@ def main():
                             nonlocal revoked
                             revoked = True
                         if response.get("revoke_source"):
-                            with sessions() as session, session.begin():
-                                update_profile_item(
-                                    session,
-                                    owner.id,
-                                    authority.selection.object_id,
-                                    authority.selection.revision,
-                                    {"cross_domain_use_allowed": False},
-                                )
+                            revoke_source()
                         return response["status"], response["body"].encode(), response["receipt"]
 
                     result = observe_r5_preview(
@@ -427,9 +507,7 @@ def main():
                         receipt_keys=keys,
                         conversation_id=UUID(values["conversation"]),
                         request_digest=values["digest"],
-                        current_epochs=lambda key, bound=original.preview, live=values["witness"], snapshot=epochs: (
-                            snapshot if key == bound and live else None
-                        ),
+                        current_epochs=current_epochs,
                         get_status=get_status,
                     )
                     reply({"metadata": None if result is None else asdict(result)})
@@ -442,6 +520,24 @@ def main():
             elif operation == "forget":
                 active = None
                 lost = True
+                reply({"ok": True})
+            elif operation == "journal":
+                with sessions() as session:
+                    rows = session.scalars(
+                        select(R5PreviewReservation).where(
+                            R5PreviewReservation.owner_id == owner.id,
+                            R5PreviewReservation.intent_id == UUID(values["intent"]),
+                        )
+                    )
+                    reply({
+                        row.operation: {
+                            "key": row.original_key,
+                            "bound": session.get(R5PreviewWireBinding, row.original_key) is not None,
+                        }
+                        for row in rows
+                    })
+            elif operation == "revoke_selected_source":
+                revoke_source()
                 reply({"ok": True})
             elif operation == "counts":
                 reply({"protected_reads": protected_reads, "forbidden_network_attempts": attempts})

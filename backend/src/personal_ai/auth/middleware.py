@@ -306,6 +306,9 @@ async def authenticate_request(request: Request) -> Response | None:
         route.matches(request.scope)[0] == Match.FULL
         for route in getattr(request.app.state, "private_application_plan_routes", ())
     )
+    lookup_only_principal = private_application_plan and getattr(
+        request.app.state, "lookup_only_application_plan_principal", False
+    )
     if private_application_plan and not isolated_conversations:
         return _error(404, "not_found", "The requested resource was not found.")
     if private_application_plan and (
@@ -396,9 +399,7 @@ async def authenticate_request(request: Request) -> Response | None:
                         settings,
                         principal,
                         correlation_id,
-                        lookup_only=private_application_plan and getattr(
-                            request.app.state, "lookup_only_application_plan_principal", False
-                        ),
+                        lookup_only=lookup_only_principal,
                     )
                 )
             except IdentityMappingConflict:
@@ -601,7 +602,10 @@ async def authenticate_request(request: Request) -> Response | None:
             current_settings = _settings_for_request(request)
             if require_client_application(principal, current_settings, application_id) != external_lane:
                 raise ClientApplicationDenied
-            _ensure_active_principal(request, current_settings, principal, correlation_id)
+            _ensure_active_principal(
+                request, current_settings, principal, correlation_id,
+                lookup_only=lookup_only_principal,
+            )
             registry = application_registry_for(request)
             if registry.get(application_id) != application_definition and namespace is not None:
                 raise ClientApplicationDenied

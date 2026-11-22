@@ -2,6 +2,7 @@
 
 import base64
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -16,7 +17,7 @@ from personal_ai.api.private_application_plan import PROFILE_PREFIX
 from personal_ai.auth.application_clients import require_current_client_authority
 from personal_ai.auth.scope import current_verified_principal
 from personal_ai.context.providers import ContextPreparationError
-from personal_ai.services.external_turns.application_plan import PlanPreview, PlanTarget
+from personal_ai.services.external_turns.application_plan import BoundPreviewMetadata, PlanTarget
 from tests.app_context_support.health_preview import (
     CATEGORY,
     DENIED,
@@ -144,6 +145,15 @@ def receipt_fields(operation, conversation, body, now):
     }
 
 
+@dataclass(frozen=True)
+class ReceiptAttestor:
+    sign: Callable[[UUID, bytes, BoundPreviewMetadata | None], str]
+    require_current: Callable[[], None]
+
+    def __call__(self, conversation, body, frozen):
+        return self.sign(conversation, body, frozen)
+
+
 class ReceiptAuthority:
     """Private in-process state stands in for the unresolved live C1 hop."""
 
@@ -158,18 +168,17 @@ class ReceiptAuthority:
         self.creates = {}
         self.previews = {}
         self.lock = Lock()
+        self.clock = lambda: int(datetime.now(UTC).timestamp())
 
     def _require_current(self, operation, target):
         require_current_client_authority()
         principal = current_verified_principal()
         enrolled = operation.enrollment
         scope = target.scope
-        now = int(datetime.now(UTC).timestamp())
         if (
             principal is None
             or not principal.authenticated
             or principal.authenticated_at is None
-            or not now - 300 <= principal.authenticated_at <= now
             or principal.owner_id != enrolled.pas_owner_id
             or f"{principal.issuer}|{principal.subject}" != enrolled.actor
             or (scope.application_id, scope.workspace_id, scope.client_namespace)
@@ -177,6 +186,16 @@ class ReceiptAuthority:
             or target.preview_source
             != HealthSource.selection(enrolled.target_id, enrolled.selected)
             or self.current_enrollment(enrolled.enrollment_id) != enrolled
+            or (
+                operation.conversation_id is not None
+                and self.current_branch(enrolled.pas_owner_id, operation.conversation_id)
+                != operation.branch_digest
+            )
+        ):
+            raise ContextPreparationError(DENIED)
+        now = self.clock()
+        if (
+            not now - 300 <= principal.authenticated_at <= now
             or not 0 < operation.expires - now <= LIFETIME
         ):
             raise ContextPreparationError(DENIED)
@@ -248,18 +267,15 @@ class ReceiptAuthority:
                 if not observe:
                     self.previews[preview_key] = operation.intent
 
-        def attest(conversation, body, frozen: PlanPreview | None):
+        def require_current():
+            self._require_current(operation, target)
+
+        def attest(conversation, body, frozen: BoundPreviewMetadata | None):
             if observe and frozen is None:
                 raise ContextPreparationError(DENIED)
-            self._require_current(operation, target)
-            statement = receipt_fields(
-                operation, conversation, body, int(datetime.now(UTC).timestamp())
-            )
+            require_current()
+            statement = receipt_fields(operation, conversation, body, self.clock())
             if frozen is not None:
-                if self.current_branch(operation.enrollment.pas_owner_id, conversation) != (
-                    operation.branch_digest
-                ):
-                    raise ContextPreparationError(DENIED)
                 statement.update(self._preview_claims(operation, conversation, body, frozen))
                 statement["exp"] = min(statement["exp"], int(frozen.expires_at.timestamp()))
                 if statement["exp"] <= statement["iat"]:
@@ -274,7 +290,7 @@ class ReceiptAuthority:
                     self.creates[enrollment_key] = original, conversation
             return f"{encode(encoded)}.{encode(signature)}"
 
-        return attest
+        return ReceiptAttestor(attest, require_current)
 
     @staticmethod
     def _preview_claims(operation, conversation, body, frozen):
@@ -290,14 +306,14 @@ class ReceiptAuthority:
             or authority.binding.conversation_id != conversation
             or frozen.original_key != operation.key
             or source.source_version != str(operation.enrollment.selected.revision)
-            or frozen.context.branch_digest != operation.branch_digest
-            or frozen.context.inference.policy_version != operation.enrollment.policy_epoch
+            or frozen.branch_digest != operation.branch_digest
+            or frozen.policy_version != operation.enrollment.policy_epoch
             or len(manifest["selected_context"]) != 3
             or manifest["selected_context"][0]["turns"] < 1
         ):
             raise ContextPreparationError(DENIED)
         return {
-            "branch_digest": frozen.context.branch_digest,
+            "branch_digest": frozen.branch_digest,
             "actual_revision": int(source.source_version),
             "permission_version": source.permission_dependencies[0].version,
             "source_sensitivity": authority.source_sensitivity,

@@ -5,8 +5,8 @@ import json
 import os
 import subprocess
 from contextlib import ExitStack, contextmanager
-from dataclasses import replace
-from datetime import UTC, datetime
+from dataclasses import fields, replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from secrets import token_bytes
 from selectors import EVENT_READ, DefaultSelector
@@ -19,6 +19,8 @@ from fastapi.testclient import TestClient
 from personal_ai.api.private_application_plan import PROFILE_PREFIX, RECEIPT_HEADER
 from personal_ai.auth.scope import ApplicationScope, application_scope_context
 from personal_ai.memory.dependencies import memory_dependency
+from personal_ai.services.external_turns import application_plan
+from personal_ai.services.external_turns.application_plan import BoundPreviewMetadata
 from tests.app_context_support.application_plan import plan_request
 from tests.app_context_support.health_loopback_proof import (
     PROOF_HEADER,
@@ -116,6 +118,8 @@ class Pair:
         self.wrong_endpoint = None
         self.saved_callback = None
         self.callbacks = 0
+        self.preview_posts = 0
+        self.serializer_calls = 0
         self.transaction = None
         enrollment, installation = str(uuid4()), str(uuid4())
         self.host = setup_host(
@@ -142,6 +146,16 @@ class Pair:
                 **self.health["records"][0],
             },
         )
+        plan = self.host.target.plan
+
+        def count_serialization(package):
+            self.serializer_calls += 1
+            return plan.serialize_payload(package)
+
+        self.host.target.plan = replace(plan, serialize_payload=count_serialization)
+        self.host.fixture.targets[
+            plan.scope.owner_id, APP, None, plan.scope.client_namespace
+        ] = self.host.target.plan
         self.client = stack.enter_context(TestClient(self.host.app))
         enrollment_values = {
             "subject": subject,
@@ -185,7 +199,7 @@ class Pair:
             headers={PROOF_HEADER: proof, TRANSACTION_HEADER: self.transaction},
         )
 
-    def post(self, path, headers, body, *, send_proof=True):
+    def post(self, path, headers, body, *, send_proof=True, **authority_changes):
         if not send_proof:
             return self.client.post(path, headers=headers, content=body)
         nonce = headers[NONCE_HEADER]
@@ -194,6 +208,18 @@ class Pair:
         ]
         self.transaction = nonce
         try:
+            if path.endswith("/context-preview"):
+                current = self.send(
+                    "authorize_preview",
+                    **(self.receipt_values | authority_changes),
+                    conversation=str(self.conversation),
+                    body=body.decode(),
+                    path=path,
+                )
+                if current != {"ok": True}:
+                    assert current == {"denied": True}
+                    return None
+                self.preview_posts += 1
             return self.client.post(path, headers=headers | {PROOF_HEADER: proof}, content=body)
         finally:
             self.transaction = None
@@ -312,6 +338,7 @@ class Pair:
                 )
             finally:
                 self.transaction = None
+        self.last_observe = response
         wire = {
             "body": response.text,
             "receipt": response.headers.get(RECEIPT_HEADER),
@@ -326,7 +353,12 @@ class Pair:
             json=plan_request(UUID(self.original["preview"]), self.result.json()["confirmation"]),
         )
         assert denied.status_code == 422
-        assert not self.host.target.local_payloads and not self.host.target.provider.sends()
+        self.assert_no_execution()
+
+    def assert_no_execution(self):
+        assert self.serializer_calls == 0
+        assert not self.host.target.local_payloads
+        assert not self.host.target.provider.sends()
 
 
 def test_two_paired_workers_bind_actual_owner_and_original_key_status(
@@ -423,6 +455,12 @@ def test_two_paired_workers_bind_actual_owner_and_original_key_status(
         )
 
         assert first.observe()["metadata"]["source_sensitivity"] == "restricted"
+        for dependency in ("source_grants", "destination"):
+            posts = first.preview_posts
+            assert first.observe(mutate_epochs=dependency) == {"metadata": None}
+            assert first.last_observe.status_code == 200
+            assert first.preview_posts == posts
+            assert first.observe()["metadata"]["source_sensitivity"] == "restricted"
         assert second.observe()["metadata"]["history_turns"] == 1
         assert first.observe(response=second.result) == {"metadata": None}
         assert first.observe(response=first.result, change={"body": first.result.text + " "}) == {
@@ -455,7 +493,7 @@ def test_two_paired_workers_bind_actual_owner_and_original_key_status(
 
         print(
             "HEALTH_WORKERS=2 HEALTH_RECORDS=4 PAS_NATIVE_OWNERS=2 "
-            "PRIVATE_CONTINUE_HTTP=422,422 RUNTIME_HANDOFF_BYTES=0 FAKE_PROVIDER_POSTS=0"
+            "PRIVATE_CONTINUE_HTTP=422,422 SERIALIZER_CALLS=0 RUNTIME_HANDOFF_BYTES=0 FAKE_PROVIDER_POSTS=0"
         )
 
 
@@ -521,3 +559,228 @@ def test_pending_status_refuses_after_initiating_health_worker_dies(setup, monke
         denied = pair.client.get(status_path, headers=headers | {PROOF_HEADER: proof})
         assert denied.status_code == 422 and RECEIPT_HEADER not in denied.headers
         assert not pair.host.target.local_payloads and not pair.host.target.provider.sends()
+
+
+@pytest.mark.parametrize("stage", ["reserve", "bind_preview"])
+@pytest.mark.parametrize("change", ["source", "intent"])
+def test_health_post_commit_authority_changes_preserve_keys(
+    setup, monkeypatch, shared_db, stage, change,
+):
+    bearer = bearer_factory(monkeypatch, datetime.now(UTC))
+    subject = f"commit-{stage}-{change}"
+    with ExitStack() as stack:
+        worker = stack.enter_context(health_worker(subject))
+        pair = Pair(setup, stack, worker, bearer, subject, shared_db)
+        if stage == "reserve":
+            values = pair.values
+        else:
+            pair.reserve()
+            pair.create()
+            values = pair.receipt_values | pair.create_response
+        assert pair.send(stage, **values, commit_change=change) == {"denied": True}
+        saved = pair.send("journal", intent=values["intent"])
+        assert set(saved) == {"create", "preview"}
+        assert saved["create"]["bound"]
+        assert saved["preview"]["bound"] is (stage == "bind_preview")
+        assert saved["create"]["key"] != saved["preview"]["key"]
+        if stage == "bind_preview":
+            assert saved["create"]["key"] == pair.original["create"]
+            assert saved["preview"]["key"] == pair.original["preview"]
+            assert pair.send(stage, **values) == {"denied": True}
+        elif change == "intent":
+            retry = pair.send(stage, **values)
+            assert [retry[key] for key in ("create", "preview")] == [
+                saved[key]["key"] for key in ("create", "preview")
+            ]
+        else:
+            assert pair.send(stage, **values) == {"denied": True}
+        assert pair.send("journal", intent=values["intent"]) == saved
+        assert pair.preview_posts == 0
+        pair.assert_no_execution()
+
+
+@pytest.mark.parametrize("change", ["source", "recipient", "intent"])
+def test_health_rechecks_authority_at_outgoing_preview_boundary(
+    setup, monkeypatch, shared_db, change,
+):
+    bearer = bearer_factory(monkeypatch, datetime.now(UTC))
+    subject = f"before-preview-post-{change}"
+    with ExitStack() as stack:
+        worker = stack.enter_context(health_worker(subject))
+        pair = Pair(setup, stack, worker, bearer, subject, shared_db)
+        pair.reserve()
+        pair.create()
+        pair.bind()
+        saved = pair.send("journal", intent=pair.values["intent"])
+        operation, headers = pair._operation()
+        before = pair.callbacks
+        changes = {"recipient_changed": change == "recipient", "witness": change != "intent"}
+        if change == "source":
+            assert pair.send("revoke_selected_source") == {"ok": True}
+        assert pair.post(operation.path, headers, canonical(pair.preview_body), **changes) is None
+        assert pair.preview_posts == 0
+        assert pair.callbacks == before
+        assert pair.send("journal", intent=pair.values["intent"]) == saved
+        assert not pair.host.fixture.service._previews
+        pair.assert_no_execution()
+
+
+@pytest.mark.parametrize("method", ["create", "preview", "observe"])
+@pytest.mark.parametrize("mapping", ["missing", "revoked"])
+def test_pas_private_revalidation_uses_read_only_native_owner(
+    setup, monkeypatch, shared_db, method, mapping,
+):
+    bearer = bearer_factory(monkeypatch, datetime.now(UTC))
+    subject = f"revalidation-{method}-{mapping}"
+    with ExitStack() as stack:
+        worker = stack.enter_context(health_worker(subject))
+        pair = Pair(setup, stack, worker, bearer, subject, shared_db)
+        pair.reserve()
+        if method != "create":
+            pair.create()
+            pair.bind()
+        if method == "observe":
+            pair.preview()
+        directory = pair.host.directory
+        owner = pair.host.principal.owner_id
+        require_existing = directory.require_existing
+        ensure_active = directory.ensure_active
+        counts = {"lookup": 0, "bootstrap": 0}
+
+        def changed_after_ingress(principal):
+            require_existing(principal)
+            counts["lookup"] += 1
+            if counts["lookup"] == 1:
+                with shared_db.transaction() as connection:
+                    if mapping == "missing":
+                        connection.execute("DELETE FROM identity_mappings WHERE owner_id=%s", (owner,))
+                    else:
+                        connection.execute(
+                            "UPDATE identity_mappings SET status='revoked', "
+                            "payload=jsonb_set(payload, '{status}', to_jsonb(%s::text)) "
+                            "WHERE owner_id=%s",
+                            ("revoked", owner),
+                        )
+
+        def count_bootstrap(principal, *, correlation_id):
+            counts["bootstrap"] += 1
+            return ensure_active(principal, correlation_id=correlation_id)
+
+        def native_state():
+            with shared_db.connection() as connection:
+                return tuple(
+                    connection.execute(statement, (owner,)).fetchall()
+                    for statement in (
+                        "SELECT status, payload FROM identity_mappings WHERE owner_id=%s",
+                        "SELECT scope_id FROM scope_namespaces WHERE owner_id=%s ORDER BY scope_id",
+                        "SELECT record_id FROM audit_events WHERE owner_id=%s ORDER BY record_id",
+                    )
+                )
+
+        before = native_state()
+        monkeypatch.setattr(directory, "require_existing", changed_after_ingress)
+        monkeypatch.setattr(directory, "ensure_active", count_bootstrap)
+        protected_reads = pair.callbacks
+        if method == "create":
+            operation, headers = prepare(pair.host, pair.create_body)
+            response = pair.post(operation.path, headers, canonical(pair.create_body))
+        elif method == "preview":
+            operation, headers = pair._operation()
+            response = pair.post(operation.path, headers, canonical(pair.preview_body))
+        else:
+            assert pair.observe() == {"metadata": None}
+            response = pair.last_observe
+        assert response.status_code == 422, response.text
+        assert RECEIPT_HEADER not in response.headers
+        assert pair.callbacks == protected_reads
+        assert counts["bootstrap"] == 0
+        assert counts["lookup"] == 1
+        after = native_state()
+        assert after[1:] == before[1:]
+        assert [row[0] for row in after[0]] == ([] if mapping == "missing" else ["revoked"])
+        pair.assert_no_execution()
+
+
+@pytest.mark.parametrize("method", ["preview", "observe"])
+@pytest.mark.parametrize(
+    "change", ["source", "memory", "branch", "enrollment", "operation_expiry", "preview_expiry"]
+)
+def test_pas_bound_publication_requires_current_authority_after_signing(
+    setup, monkeypatch, shared_db, method, change,
+):
+    bearer = bearer_factory(monkeypatch, datetime.now(UTC))
+    subject = f"publication-{method}-{change}"
+    with ExitStack() as stack:
+        worker = stack.enter_context(health_worker(subject))
+        pair = Pair(setup, stack, worker, bearer, subject, shared_db)
+        pair.reserve()
+        pair.create()
+        pair.bind()
+        packages = []
+        make_package = application_plan.PreparedExecution
+
+        def count_package(**kwargs):
+            packages.append(kwargs)
+            return make_package(**kwargs)
+
+        monkeypatch.setattr(application_plan, "PreparedExecution", count_package)
+        if method == "observe":
+            pair.preview()
+            cache = tuple(pair.host.fixture.service._previews.values())
+            assert len(cache) == 1 and isinstance(cache[0], BoundPreviewMetadata)
+            assert {field.name for field in fields(cache[0])} == {
+                "binding", "branch_digest", "policy_version", "snapshots", "original_key",
+                "expires_at", "confirmation", "attested_body",
+            }
+            assert cache[0].attested_body == pair.result.content
+
+        authority = pair.host.authority
+        signing_key = authority.key
+        signed = []
+        check_snapshots = application_plan.source_snapshots_current
+        preview_clock = pair.host.fixture.service.clock
+        after_final_check = []
+
+        class SignThenChange:
+            def sign(self, statement):
+                signature = signing_key.sign(statement)
+                signed.append(statement)
+                if change == "source":
+                    pair.host.grants.pop((pair.conversation, "source-read"))
+                if change == "memory":
+                    pair.host.fixture.disclosures.clear()
+                return signature
+
+        def check_then_change(snapshots, permissions, *, now):
+            result = check_snapshots(snapshots, permissions, now=now)
+            if signed and not after_final_check:
+                after_final_check.append(result)
+                if change == "branch":
+                    authority.current_branch = lambda *_: "different branch"
+                if change == "enrollment":
+                    pair.host.current.clear()
+                if change == "operation_expiry":
+                    authority.clock = lambda: int(json.loads(signed[0])["iat"]) + 30
+                if change == "preview_expiry":
+                    pair.host.fixture.service.clock = lambda: preview_clock().replace(
+                        microsecond=0
+                    ) + timedelta(minutes=2)
+            return result
+
+        monkeypatch.setattr(authority, "key", SignThenChange())
+        monkeypatch.setattr(application_plan, "source_snapshots_current", check_then_change)
+        if method == "preview":
+            operation, headers = pair._operation()
+            response = pair.post(operation.path, headers, canonical(pair.preview_body))
+            assert not pair.host.fixture.service._previews
+        else:
+            assert pair.observe() == {"metadata": None}
+            response = pair.last_observe
+            assert tuple(pair.host.fixture.service._previews.values()) == cache
+        assert len(signed) == 1
+        assert after_final_check == [change not in {"source", "memory"}]
+        assert response.status_code == 422, response.text
+        assert RECEIPT_HEADER not in response.headers
+        assert "selected_context" not in response.json()
+        assert packages == []
+        pair.assert_no_execution()

@@ -8,7 +8,7 @@ import hmac
 import json
 from collections.abc import AsyncIterator, Callable
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from threading import Lock
@@ -38,7 +38,10 @@ from personal_ai.context.authority import (
     source_snapshots_current,
 )
 from personal_ai.context.providers import ContextPreparationError, ContextSelection
-from personal_ai.contracts.context_references import ApplicationPlanSourceBinding
+from personal_ai.contracts.context_references import (
+    ApplicationPlanSourceBinding,
+    ContextSourceSnapshot,
+)
 from personal_ai.contracts.execution import ContinuationRequest, continuation_message_id
 from personal_ai.llm.client import GenerationEvent
 from personal_ai.llm.disclosure import revalidate_disclosure
@@ -74,6 +77,16 @@ def encode_preview_response(value):
         separators=(",", ":"),
         default=encode_datetime,
     ).encode("utf-8")
+
+def _encode_bounded_preview(selection):
+    try:
+        body = encode_preview_response(selection)
+    except (TypeError, ValueError, OverflowError):
+        raise ContextPreparationError(NO_AI) from None
+    if len(body) > MAX_PREVIEW_RESPONSE_BYTES:
+        raise ContextPreparationError(NO_AI)
+    return body
+
 
 _active = ContextVar("current_application_plan_attempt", default=None)
 
@@ -168,7 +181,6 @@ class PlanPreview:
     root_id: UUID
     original_key: UUID
     expires_at: datetime
-    attested_body: bytes | None = None
 
     @property
     def confirmation(self):
@@ -182,6 +194,18 @@ class PlanPreview:
                 self.expires_at.isoformat(),
             ]
         )
+
+
+@dataclass(frozen=True, repr=False)
+class BoundPreviewMetadata:
+    binding: ApplicationPlanSourceBinding
+    branch_digest: str
+    policy_version: str
+    snapshots: tuple[ContextSourceSnapshot, ...]
+    original_key: UUID
+    expires_at: datetime
+    confirmation: str
+    attested_body: bytes
 
 
 @dataclass(frozen=True)
@@ -318,23 +342,32 @@ class ApplicationPlanService:
 
     def preview_with_source_revision(
         self, chat, assembler, conversation_id, incoming, *, expected_target=None,
-        attest: Callable[[bytes, PlanPreview], None] | None = None,
+        attest: Callable[[bytes, BoundPreviewMetadata], None] | None = None,
+        require_current_operation: Callable[[], None] | None = None,
     ):
         if incoming.choice.confirmation is not None:
             raise ContextPreparationError(NO_AI)
         target = self.current_target()
-        if expected_target is not None and target is not expected_target:
+        if (
+            (expected_target is not None and target is not expected_target)
+            or (attest is None) != (require_current_operation is None)
+            or (attest is not None and target.preview_source is None)
+        ):
             raise ContextPreparationError(NO_AI)
         binding = target.preview_binding(current_verified_principal(), conversation_id)
         token = application_plan_source_binding.set(binding)
         try:
             return self._preview(
-                chat, assembler, conversation_id, incoming.request(), target, binding, attest
+                chat, assembler, conversation_id, incoming.request(), target, binding,
+                attest, require_current_operation,
             )
         finally:
             application_plan_source_binding.reset(token)
 
-    def _preview(self, chat, assembler, conversation_id, request, target, binding, attest):
+    def _preview(
+        self, chat, assembler, conversation_id, request, target, binding,
+        attest, require_current_operation,
+    ):
         assistant_id = continuation_message_id(
             conversation_id,
             target.scope.owner_id,
@@ -422,72 +455,7 @@ class ApplicationPlanService:
                 *(snapshot.expires_at for snapshot in snapshots if snapshot.expires_at is not None),
                 *((authority.expires_at,) if authority is not None else ()),
             )
-            messages = tuple(
-                PreparedMessage(role=message.role, content=message.content)
-                for message in assembled.messages
-            )
-            inference = context.inference
-            output_limit = min(MAX_OUTPUT_BYTES, assembler.settings.max_response_tokens)
-            package = PreparedExecution(
-                application_id=target.scope.application_id,
-                workspace_id=target.scope.workspace_id,
-                owner_id=target.scope.owner_id,
-                conversation_id=conversation_id,
-                reservation_id=assistant_id,
-                branch_digest=context.branch_digest,
-                source_authority_digest=digest(
-                    [
-                        [
-                            item.observed_at.isoformat() if item.observed_at else None,
-                            snapshot.model_dump(mode="json"),
-                        ]
-                        for item, snapshot in zip(items, snapshots)
-                    ]
-                ),
-                provider_id=target.provider_id,
-                model_id=target.model,
-                execution_profile=target.profile,
-                connection_id=target.connection_id,
-                connection_revision=target.connection_revision,
-                messages=messages,
-                effective_sensitivity=inference.effective_sensitivity,
-                maximum_sensitivity=inference.maximum_sensitivity,
-                policy_version=inference.policy_version,
-                max_output_bytes=output_limit,
-                max_output_chars=output_limit,
-                timeout_seconds=max(1, int(assembler.settings.request_timeout_seconds)),
-            )
-            payload = target.serialize_payload(package)
-            if (
-                type(payload) is not bytes
-                or not 0 < len(payload) <= MAX_PAYLOAD_BYTES
-                or len(package.canonical()) > MAX_PAYLOAD_BYTES
-            ):
-                raise ContextPreparationError(NO_AI)
-            root_id = uuid5(assistant_id, "application-plan-routing-root")
-            preview = PlanPreview(
-                context,
-                target,
-                package,
-                ApplicationPlanDispatch(
-                    scope=target.scope,
-                    attempt_id=uuid5(root_id, "foreground"),
-                    intent_sha256=self._intent(request, target),
-                    provider_payload_sha256=sha256(payload).hexdigest(),
-                ),
-                snapshots,
-                root_id,
-                request.idempotency_key,
-                expires_at,
-            )
-            self._require_current(preview, assembler.permission_revalidator)
-            if binding is not None and (
-                self.clock() >= preview.expires_at
-                or monotonic() >= started + assembler.settings.request_timeout_seconds
-            ):
-                raise ContextPreparationError(NO_AI)
             selection = {
-                "confirmation": preview.confirmation,
                 "destination": {
                     "application": target.scope.application_id,
                     "provider": "ChatGPT",
@@ -511,41 +479,142 @@ class ApplicationPlanService:
                 "input_tokens_estimated": assembled.budget.selected_total,
                 "expires_at": expires_at,
             }
-            try:
-                encoded_selection = encode_preview_response(selection)
-            except (TypeError, ValueError, OverflowError):
-                raise ContextPreparationError(NO_AI) from None
-            if len(encoded_selection) > MAX_PREVIEW_RESPONSE_BYTES:
-                raise ContextPreparationError(NO_AI)
             if attest is not None:
-                preview = replace(preview, attested_body=encoded_selection)
-                attest(encoded_selection, preview)
-                if self.clock() >= preview.expires_at:
+                if binding is None or require_current_operation is None:
                     raise ContextPreparationError(NO_AI)
+                confirmation = digest([
+                    "bound-metadata-preview", binding.model_dump(mode="json"),
+                    self._intent(request, target), str(request.idempotency_key),
+                    context.branch_digest, context.inference.policy_version,
+                    [snapshot.model_dump(mode="json") for snapshot in snapshots],
+                    _encode_bounded_preview(selection).decode("utf-8"),
+                ])
+                selection = {"confirmation": confirmation, **selection}
+                body = _encode_bounded_preview(selection)
+                preview = BoundPreviewMetadata(
+                    binding, context.branch_digest, context.inference.policy_version,
+                    snapshots, request.idempotency_key, expires_at, confirmation, body,
+                )
+                self._require_current_bound_preview(
+                    preview, target, assembler.permission_revalidator, require_current_operation
+                )
+                attest(body, preview)
+                self._require_current_bound_preview(
+                    preview, target, assembler.permission_revalidator, require_current_operation
+                )
+                if monotonic() >= started + assembler.settings.request_timeout_seconds:
+                    raise ContextPreparationError(NO_AI)
+            else:
+                preview = self._execution_preview(
+                    assembler, context, items, snapshots, target, conversation_id, assistant_id,
+                    request, expires_at,
+                )
+                self._require_current(preview, assembler.permission_revalidator)
+                if binding is not None and (
+                    self.clock() >= preview.expires_at
+                    or monotonic() >= started + assembler.settings.request_timeout_seconds
+                ):
+                    raise ContextPreparationError(NO_AI)
+                selection = {"confirmation": preview.confirmation, **selection}
+                _encode_bounded_preview(selection)
             self._publish_preview(key, reservation, preview)
             return selection, domain.source_version if binding is not None else None
         finally:
             self._release_preview_reservation(key, reservation)
 
+    def _execution_preview(
+        self, assembler, context, items, snapshots, target, conversation_id, assistant_id,
+        request, expires_at,
+    ):
+        assembled = context.assembled
+        messages = tuple(
+            PreparedMessage(role=message.role, content=message.content)
+            for message in assembled.messages
+        )
+        inference = context.inference
+        output_limit = min(MAX_OUTPUT_BYTES, assembler.settings.max_response_tokens)
+        package = PreparedExecution(
+            application_id=target.scope.application_id,
+            workspace_id=target.scope.workspace_id,
+            owner_id=target.scope.owner_id,
+            conversation_id=conversation_id,
+            reservation_id=assistant_id,
+            branch_digest=context.branch_digest,
+            source_authority_digest=digest(
+                [
+                    [
+                        item.observed_at.isoformat() if item.observed_at else None,
+                        snapshot.model_dump(mode="json"),
+                    ]
+                    for item, snapshot in zip(items, snapshots)
+                ]
+            ),
+            provider_id=target.provider_id,
+            model_id=target.model,
+            execution_profile=target.profile,
+            connection_id=target.connection_id,
+            connection_revision=target.connection_revision,
+            messages=messages,
+            effective_sensitivity=inference.effective_sensitivity,
+            maximum_sensitivity=inference.maximum_sensitivity,
+            policy_version=inference.policy_version,
+            max_output_bytes=output_limit,
+            max_output_chars=output_limit,
+            timeout_seconds=max(1, int(assembler.settings.request_timeout_seconds)),
+        )
+        payload = target.serialize_payload(package)
+        if (
+            type(payload) is not bytes
+            or not 0 < len(payload) <= MAX_PAYLOAD_BYTES
+            or len(package.canonical()) > MAX_PAYLOAD_BYTES
+        ):
+            raise ContextPreparationError(NO_AI)
+        root_id = uuid5(assistant_id, "application-plan-routing-root")
+        return PlanPreview(
+            context,
+            target,
+            package,
+            ApplicationPlanDispatch(
+                scope=target.scope,
+                attempt_id=uuid5(root_id, "foreground"),
+                intent_sha256=self._intent(request, target),
+                provider_payload_sha256=sha256(payload).hexdigest(),
+            ),
+            snapshots,
+            root_id,
+            request.idempotency_key,
+            expires_at,
+        )
+
     def observe_bound_preview(
-        self, assembler, conversation_id, original_key, *, expected_target, attest
+        self, assembler, conversation_id, original_key, *, expected_target, attest,
+        require_current_operation,
     ):
         target = self.current_target()
         if target is not expected_target or target.preview_source is None:
             raise ContextPreparationError(NO_AI)
         key = self._key(target, conversation_id, original_key)
+        started = monotonic()
         with self._lock:
             preview = self._previews.get(key)
-            if preview is None or key in self._reservations or preview.attested_body is None:
+            if not isinstance(preview, BoundPreviewMetadata) or key in self._reservations:
                 return None
         binding = target.preview_binding(current_verified_principal(), conversation_id)
         token = application_plan_source_binding.set(binding)
         try:
-            self._require_current(preview, assembler.permission_revalidator)
+            self._require_current_bound_preview(
+                preview, target, assembler.permission_revalidator, require_current_operation
+            )
             receipt = attest(conversation_id, preview.attested_body, preview)
-            self._require_current(preview, assembler.permission_revalidator)
+            self._require_current_bound_preview(
+                preview, target, assembler.permission_revalidator, require_current_operation
+            )
             with self._lock:
-                if self._previews.get(key) is not preview or key in self._reservations:
+                if (
+                    self._previews.get(key) is not preview or key in self._reservations
+                    or self.clock() >= preview.expires_at
+                    or monotonic() >= started + assembler.settings.request_timeout_seconds
+                ):
                     raise ContextPreparationError(NO_AI)
             return preview.attested_body, receipt
         finally:
@@ -568,9 +637,8 @@ class ApplicationPlanService:
                     raise ContextPreparationError(NO_AI)
                 client_keys = {
                     existing
-                    for existing, preview in self._previews.items()
-                    if (preview.target.scope.owner_id, preview.target.scope.client_namespace)
-                    == client
+                    for existing in self._previews
+                    if (existing[0].owner_id, existing[0].client_namespace) == client
                 }
                 client_keys.update(
                     existing
@@ -585,7 +653,9 @@ class ApplicationPlanService:
 
     def _publish_preview(self, key, reservation, preview):
         with self._lock:
-            if self._reservations.get(key) != reservation:
+            if self._reservations.get(key) != reservation or (
+                isinstance(preview, BoundPreviewMetadata) and self.clock() >= preview.expires_at
+            ):
                 raise ContextPreparationError(NO_AI)
             self._previews[key] = preview
             self._reservations.pop(key, None)
@@ -612,7 +682,7 @@ class ApplicationPlanService:
         with self._lock:
             preview = self._previews.get(key)
             if (
-                preview is None
+                not isinstance(preview, PlanPreview)
                 or not hmac.compare_digest(preview.confirmation, confirmation)
                 or intent != preview.dispatch.intent_sha256
                 or any(source_snapshot_is_application_plan(snapshot) for snapshot in preview.snapshots)
@@ -633,6 +703,23 @@ class ApplicationPlanService:
                 package_fingerprint=preview.package.fingerprint,
             ),
         )
+
+    def _require_current_bound_preview(
+        self, preview, target, permissions, require_current_operation,
+    ):
+        if (
+            self.clock() >= preview.expires_at
+            or self.current_target() is not target
+            or target.preview_binding(
+                current_verified_principal(), preview.binding.conversation_id
+            ) != preview.binding
+            or not source_snapshots_current(preview.snapshots, permissions, now=self.clock())
+        ):
+            raise ContextPreparationError("context_source_authority_changed")
+        # The operation authority verifies the current branch and its own deadline.
+        require_current_operation()
+        if self.clock() >= preview.expires_at:
+            raise ContextPreparationError(NO_AI)
 
     def _require_current(self, preview, permissions):
         if self.current_target() != preview.target or (
