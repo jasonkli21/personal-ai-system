@@ -147,13 +147,16 @@ def receipt_fields(operation, conversation, body, now):
 class ReceiptAuthority:
     """Private in-process state stands in for the unresolved live C1 hop."""
 
-    def __init__(self, key: Ed25519PrivateKey, current_enrollment, current_branch):
+    def __init__(
+        self, key: Ed25519PrivateKey, current_enrollment, current_branch, verify_transaction=None
+    ):
         self.key = key
         self.current_enrollment = current_enrollment
         self.current_branch = current_branch
+        self.verify_transaction = verify_transaction
         self.pending = {}
         self.creates = {}
-        self.preview_keys = set()
+        self.previews = {}
         self.lock = Lock()
 
     def _require_current(self, operation, target):
@@ -185,22 +188,37 @@ class ReceiptAuthority:
         if len(nonces) != 1:
             raise ContextPreparationError(DENIED)
         # Only a capability deposited out of band by the synthetic initiating caller is accepted.
-        request_body = json.loads(raw, object_pairs_hook=unique)
+        observe = request.method == "GET"
+        request_body = None if observe else json.loads(raw, object_pairs_hook=unique)
         with self.lock:
             operation = self.pending.get(nonces[0])
-            if operation is None:
+            if operation is None or (
+                self.verify_transaction is not None
+                and not self.verify_transaction(request, raw, nonces[0])
+            ):
                 raise ContextPreparationError(DENIED)
             self._require_current(operation, target)
             binding = target.preview_binding(
                 current_verified_principal(), conversation_id or UUID(int=0)
             )
             if (
-                request.method != "POST"
-                or request.url.path != operation.path
-                or conversation_id != operation.conversation_id
-                or request_body.get("idempotency_key") != str(operation.key)
-                or digest(request_body) != operation.request_digest
+                conversation_id != operation.conversation_id
                 or binding.target_fingerprint != operation.frozen_target
+                or (
+                    observe and (
+                        operation.purpose != "preview"
+                        or raw
+                        or request.url.path != f"{operation.path}/{operation.key}"
+                    )
+                )
+                or (
+                    not observe and (
+                        request.method != "POST"
+                        or request.url.path != operation.path
+                        or request_body.get("idempotency_key") != str(operation.key)
+                        or digest(request_body) != operation.request_digest
+                    )
+                )
             ):
                 raise ContextPreparationError(DENIED)
             self.pending.pop(nonces[0])
@@ -220,12 +238,19 @@ class ReceiptAuthority:
                     or saved[0].frozen_target != operation.frozen_target
                     or saved[1] != operation.conversation_id
                     or operation.create_key == operation.key
-                    or preview_key in self.preview_keys
+                    or (
+                        self.previews.get(preview_key) != operation.intent
+                        if observe
+                        else preview_key in self.previews
+                    )
                 ):
                     raise ContextPreparationError(DENIED)
-                self.preview_keys.add(preview_key)
+                if not observe:
+                    self.previews[preview_key] = operation.intent
 
         def attest(conversation, body, frozen: PlanPreview | None):
+            if observe and frozen is None:
+                raise ContextPreparationError(DENIED)
             self._require_current(operation, target)
             statement = receipt_fields(
                 operation, conversation, body, int(datetime.now(UTC).timestamp())

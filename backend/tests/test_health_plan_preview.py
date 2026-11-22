@@ -42,6 +42,9 @@ from personal_ai.contracts.context_references import ApplicationPlanSourceGrant
 from personal_ai.entities import Message
 from personal_ai.main import create_app
 from personal_ai.memory.dependencies import memory_dependency
+from personal_ai.persistence.postgres.auth import PostgresPrincipalDirectory
+from personal_ai.persistence.postgres.lifecycle import PostgresMemoryLifecycleRepository
+from personal_ai.persistence.postgres.memory import PostgresMemoryRepository
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.settings import Settings, get_settings
 from personal_ai.storage.fake import InMemoryConversationRepository, InMemoryMessageRepository
@@ -70,6 +73,7 @@ from tests.app_context_support.health_receipts import (
     receipt_fields,
     verify_receipt,
 )
+from tests.persistence.test_local_persistence import _SourceGuard
 from tests.test_travel_plan_paired import EMAIL, bearer_factory
 
 APP = "health"
@@ -95,6 +99,9 @@ class ExistingOwners:
         self.recovery_current = lambda: True
 
     def ensure_active(self, principal, *, correlation_id):
+        self.require_existing(principal)
+
+    def require_existing(self, principal):
         self.lookup_count += 1
         if self.active.get(principal.owner_id) != (principal.issuer, principal.subject):
             raise IdentityMappingConflict
@@ -278,11 +285,16 @@ class HealthFixture:
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
-    def build(*, allow_restricted=True, reverse_transport=None, health_binding=None):
+    def build(
+        *, allow_restricted=True, reverse_transport=None, health_binding=None,
+        database=None, subject="fabricated-human", verify_transaction=None, bearer_override=None,
+    ):
         now = datetime.now(UTC)
-        settings = settings_for(tmp_path, now)
-        bearer = bearer_factory(monkeypatch, now)
-        token = bearer(AUDIENCE)
+        fixture_dir = tmp_path / uuid4().hex
+        fixture_dir.mkdir()
+        settings = settings_for(fixture_dir, now)
+        bearer = bearer_override or bearer_factory(monkeypatch, now)
+        token = bearer(AUDIENCE, subject=subject)
         principal = verification.principal_from_google_token(token, settings)
         namespace = client_binding_namespace(principal, APP)
         if health_binding is None:
@@ -317,14 +329,28 @@ def setup(tmp_path, monkeypatch):
                 include_state=True,
             )
 
-        authority = ReceiptAuthority(signing_key, current.get, current_branch)
+        def active_enrollment(enrollment_id):
+            enrolled = current.get(enrollment_id)
+            if enrolled is None:
+                return None
+            try:
+                directory.require_existing(principal)
+            except IdentityMappingConflict:
+                return None
+            if getattr(directory, "owner_is_fenced", lambda _: False)(principal.owner_id):
+                return None
+            return enrolled
+
+        authority = ReceiptAuthority(
+            signing_key, active_enrollment, current_branch, verify_transaction=verify_transaction
+        )
         reverse = HealthFixture(now, selected)
         grants = {}
         source = HealthSource(
             HealthSourceClient(httpx.MockTransport(reverse_transport or reverse.handle)),
             lambda binding: (
                 enrollment.selected
-                if current.get(enrollment.enrollment_id) == enrollment
+                if active_enrollment(enrollment.enrollment_id) == enrollment
                 and binding.target_id == enrollment.target_id
                 else None
             ),
@@ -339,7 +365,17 @@ def setup(tmp_path, monkeypatch):
             context_runtime_catalog=runtime,
             selected_contributions=(APP,),
         )
-        directory = ExistingOwners(principal)
+        memory_repositories = None
+        if database is None:
+            directory = ExistingOwners(principal)
+        else:
+            directory = PostgresPrincipalDirectory(database)
+            directory.ensure_active(principal, correlation_id="synthetic-existing-owner")
+            directory.recovery_current = lambda: True
+
+            def memory_repositories(messages):
+                memories = PostgresMemoryRepository(database, _SourceGuard(principal.owner_id))
+                return memories, PostgresMemoryLifecycleRepository(memories, messages, jobs=None)
         app.state.isolate_external_conversations = True
         app.state.external_conversation_access = lambda scope, client: (
             (scope.owner_id, scope.application_id, scope.workspace_id, client)
@@ -374,13 +410,15 @@ def setup(tmp_path, monkeypatch):
             permissions=source,
             identify=lambda token: verification.principal_from_google_token(token, settings),
         )
-        fixture = ApplicationPlanFixture(host, tmp_path, bound_receipts=authority)
+        fixture = ApplicationPlanFixture(
+            host, fixture_dir, bound_receipts=authority, memory_repositories=memory_repositories
+        )
         target = fixture.onboard(
             SimpleNamespace(
                 principal=principal,
                 app=SimpleNamespace(app=APP, source=PROVIDER),
                 token=token,
-                control=bearer("owner-control"),
+                control=bearer("owner-control", subject=subject),
                 workspace=None,
             ),
             memory_content=MEMORY,

@@ -242,6 +242,33 @@ class PostgresPrincipalDirectory:
         except Exception as error:
             raise IdentityDirectoryUnavailable from error
 
+    def require_existing(self, principal: AuthenticatedPrincipal) -> None:
+        """Check an enrolled principal without creating a namespace, mapping or audit."""
+        if not principal.authenticated:
+            raise IdentityMappingConflict
+        try:
+            scope_id = PostgresPayloadRepository.scope_id(principal.owner_id, _ACCOUNT_SCOPE)
+            with self.database.transaction() as connection:
+                row = connection.execute(
+                    "SELECT payload FROM identity_mappings WHERE scope_id=%s AND record_id=%s "
+                    "AND owner_id=%s AND status='active'",
+                    (scope_id, principal.owner_id, principal.owner_id),
+                ).fetchone()
+            if row is None or any(
+                row[0].get(key) != expected
+                for key, expected in (
+                    ("subject", principal.subject),
+                    ("issuer", principal.issuer),
+                    ("owner_id", principal.owner_id),
+                    ("status", "active"),
+                )
+            ):
+                raise IdentityMappingConflict
+        except IdentityMappingConflict:
+            raise
+        except Exception as error:
+            raise IdentityDirectoryUnavailable from error
+
     def owner_is_fenced(self, owner_id):
         from personal_ai.persistence.postgres.artifacts import PostgresArtifactMetadataRepository
 

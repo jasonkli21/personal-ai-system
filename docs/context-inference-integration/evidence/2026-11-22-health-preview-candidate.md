@@ -19,3 +19,22 @@ Two draft contract gaps prevent a direct product join. Health's reservation type
 Bound continue reaches the existing denial before replay and receives HTTP 422. The tests check zero runtime handoff bytes and zero fake provider POSTs. Scoped SDK and native Travel witnesses exercise compatibility separately. No integrated restore, native device, or external eligibility is established. Dispatch remains `BLOCKED_CONTRACT` and production remains `NO_GO`.
 
 Rollback omits the isolated composition. Future durable receipt adoption would require independent current-generation evidence after restore, with stale or ambiguous binding rows quarantined. Existing source locks remain release gates.
+
+## Paired follow-up
+
+The isolated composition now exposes an authenticated GET addressed by the
+original preview key. It uses the same attested metadata bytes and revalidates
+the source, recipient and memory snapshots around attestation. The exact
+registered client and existing owner are required. The worker fixture uses
+request-scoped, separate synthetic service proof and retains its synthetic
+Firebase token. The PAS and Health processes exercise the existing direct human
+verification and broad-read verification seams with synthetic providers. An
+unavailable worker, missing cached preview, changed dependency or crossed
+receipt cannot authorize recovery. The existing confirmation guard is
+unchanged.
+
+The native paired subset is Health owner mapping, profile, consent and journal
+plus PAS PostgreSQL owner mapping, canonical memory and memory lifecycle.
+Conversation, branch, enrollment, permissions, receipt signer, preview cache
+and runtime are fixture state. Hosted authority and durable independent restore
+remain release dependencies.

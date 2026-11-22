@@ -8,7 +8,7 @@ import hmac
 import json
 from collections.abc import AsyncIterator, Callable
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from threading import Lock
@@ -168,6 +168,7 @@ class PlanPreview:
     root_id: UUID
     original_key: UUID
     expires_at: datetime
+    attested_body: bytes | None = None
 
     @property
     def confirmation(self):
@@ -517,6 +518,7 @@ class ApplicationPlanService:
             if len(encoded_selection) > MAX_PREVIEW_RESPONSE_BYTES:
                 raise ContextPreparationError(NO_AI)
             if attest is not None:
+                preview = replace(preview, attested_body=encoded_selection)
                 attest(encoded_selection, preview)
                 if self.clock() >= preview.expires_at:
                     raise ContextPreparationError(NO_AI)
@@ -524,6 +526,30 @@ class ApplicationPlanService:
             return selection, domain.source_version if binding is not None else None
         finally:
             self._release_preview_reservation(key, reservation)
+
+    def observe_bound_preview(
+        self, assembler, conversation_id, original_key, *, expected_target, attest
+    ):
+        target = self.current_target()
+        if target is not expected_target or target.preview_source is None:
+            raise ContextPreparationError(NO_AI)
+        key = self._key(target, conversation_id, original_key)
+        with self._lock:
+            preview = self._previews.get(key)
+            if preview is None or key in self._reservations or preview.attested_body is None:
+                return None
+        binding = target.preview_binding(current_verified_principal(), conversation_id)
+        token = application_plan_source_binding.set(binding)
+        try:
+            self._require_current(preview, assembler.permission_revalidator)
+            receipt = attest(conversation_id, preview.attested_body, preview)
+            self._require_current(preview, assembler.permission_revalidator)
+            with self._lock:
+                if self._previews.get(key) is not preview or key in self._reservations:
+                    raise ContextPreparationError(NO_AI)
+            return preview.attested_body, receipt
+        finally:
+            application_plan_source_binding.reset(token)
 
     def _reserve_preview(self, key, target):
         now = self.clock()

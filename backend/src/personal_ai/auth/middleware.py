@@ -140,11 +140,19 @@ def _safeguards(request: Request, settings: Settings) -> SafeguardStore:
 _request_admission = RequestAdmission(_safeguards)
 
 
-def _ensure_active_principal(request, settings, principal, correlation_id) -> None:
+def _ensure_active_principal(
+    request, settings, principal, correlation_id, *, lookup_only=False
+) -> None:
     # Client construction may discover credentials, so it belongs in the same
     # worker thread as the first blocking persistence call.
     directory = _directory(request, settings)
-    directory.ensure_active(principal, correlation_id=correlation_id)
+    if lookup_only:
+        require_existing = getattr(directory, "require_existing", None)
+        if require_existing is None:
+            raise IdentityDirectoryUnavailable
+        require_existing(principal)
+    else:
+        directory.ensure_active(principal, correlation_id=correlation_id)
     is_fenced = getattr(directory, "owner_is_fenced", lambda owner_id: False)
     if not request.url.path.startswith("/v1/account/deletion") and is_fenced(principal.owner_id):
         raise IdentityMappingConflict
@@ -388,6 +396,9 @@ async def authenticate_request(request: Request) -> Response | None:
                         settings,
                         principal,
                         correlation_id,
+                        lookup_only=private_application_plan and getattr(
+                            request.app.state, "lookup_only_application_plan_principal", False
+                        ),
                     )
                 )
             except IdentityMappingConflict:

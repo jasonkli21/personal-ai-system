@@ -260,6 +260,37 @@ def mount_application_plan(
             )
         return Response(response_body, media_type="application/json", headers=headers)
 
+    async def observe(
+        conversation_id: UUID,
+        original_key: UUID,
+        request: Request,
+        assembler: Annotated[ContextAssembler, Depends(assembler_dependency)],
+    ):
+        if bound_receipts is None or request.url.query:
+            raise HTTPException(422, "validation_error")
+        async for chunk in request.stream():
+            if chunk:
+                raise HTTPException(422, "validation_error")
+        target = await sync_call(service.current_target)
+        attestor = await sync_call(bound_receipts, request, target, conversation_id, b"")
+        with preview_recipient_scope(target):
+            result = await sync_call(
+                service.observe_bound_preview,
+                assembler,
+                conversation_id,
+                original_key,
+                expected_target=target,
+                attest=attestor,
+            )
+        if result is None:
+            return Response(status_code=404, headers={"cache-control": "no-store"})
+        body, receipt = result
+        return Response(
+            body,
+            media_type="application/json",
+            headers={"cache-control": "no-store", RECEIPT_HEADER: _checked_receipt(receipt)},
+        )
+
     async def continue_turn(
         conversation_id: UUID,
         request: Request,
@@ -282,4 +313,13 @@ def mount_application_plan(
             include_in_schema=False,
         )
         routes.append(app.router.routes[-1])
+    if bound_receipts is not None:
+        app.add_api_route(
+            f"{PROFILE_PREFIX}/{{conversation_id}}/context-preview/{{original_key}}",
+            observe,
+            methods=["GET"],
+            include_in_schema=False,
+        )
+        routes.append(app.router.routes[-1])
+        app.state.lookup_only_application_plan_principal = True
     app.state.private_application_plan_routes = tuple(routes)
