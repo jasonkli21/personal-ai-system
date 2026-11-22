@@ -4,7 +4,7 @@ import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from hashlib import sha256
-from typing import Annotated
+from typing import Annotated, Protocol
 from uuid import UUID
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -23,6 +23,7 @@ from personal_ai.services.conversations import ConversationService
 from personal_ai.services.external_turns.application_plan import (
     ApplicationPlanService,
     PlanContinuation,
+    PlanPreview,
     PlanTarget,
     encode_preview_response,
 )
@@ -30,7 +31,22 @@ from personal_ai.storage.async_io import sync_call
 
 PROFILE_PREFIX = "/private/application-plan/v1/conversations"
 MAX_PREVIEW_BYTES = 8192
+MAX_RECEIPT_BYTES = 8192
 RECEIPT_HEADER = "x-application-plan-receipt"
+
+
+class BoundReceiptAuthority(Protocol):
+    """An isolated host's transaction authority and response attestor."""
+
+    def __call__(
+        self, request: Request, target: PlanTarget, conversation_id: UUID | None, body: bytes,
+    ) -> Callable[[UUID, bytes, PlanPreview | None], str]: ...
+
+
+def _checked_receipt(value: str) -> str:
+    if not value or len(value) > MAX_RECEIPT_BYTES or not value.isascii() or not value.isprintable():
+        raise ContextPreparationError("context_no_ai_route")
+    return value
 
 
 def _signed_receipt(
@@ -116,12 +132,14 @@ def mount_application_plan(
     assembler_dependency: Callable[..., ContextAssembler],
     preview_recipient_scope: Callable[[PlanTarget], AbstractContextManager[None]],
     travel_receipt_key: Ed25519PrivateKey | None = None,
+    bound_receipts: BoundReceiptAuthority | None = None,
 ) -> None:
     """Mount only on an explicitly isolated host before its middleware starts."""
     if (
         not getattr(app.state, "isolate_external_conversations", False)
         or getattr(app.state, "private_application_plan_routes", ())
         or app.middleware_stack is not None
+        or (travel_receipt_key is not None and bound_receipts is not None)
     ):
         raise ValueError("application_plan_requires_isolated_host")
 
@@ -129,7 +147,6 @@ def mount_application_plan(
         request: Request,
         conversations: Annotated[ConversationService, Depends(deps.get_conversation_service)],
     ):
-        assert travel_receipt_key is not None
         raw = await _json_body(request, max_bytes=4096)
         try:
             incoming = ExternalCreateConversationRequest.model_validate(
@@ -146,10 +163,16 @@ def mount_application_plan(
             principal is None
             or not principal.authenticated
             or target.preview_source is None
-            or target.scope.application_id != "travel"
+            or (travel_receipt_key is not None and target.scope.application_id != "travel")
+            or (bound_receipts is not None and incoming.idempotency_key is None)
             or target.scope.workspace_id is not None
         ):
             raise ContextPreparationError("context_no_ai_route")
+        attestor = (
+            await sync_call(bound_receipts, request, target, None, raw)
+            if bound_receipts is not None
+            else None
+        )
         conversation = await sync_call(
             conversations.create_conversation,
             title=incoming.title,
@@ -159,21 +182,27 @@ def mount_application_plan(
         if (
             target is not await sync_call(service.current_target)
             or conversation.owner_id != principal.owner_id
-            or conversation.application_id != "travel"
+            or conversation.application_id != target.scope.application_id
             or conversation.workspace_id is not None
             or conversation.external_client_namespace != target.scope.client_namespace
             or conversation.title != incoming.title.strip()
         ):
             raise ContextPreparationError("context_no_ai_route")
         response_body = encode_preview_response({"conversation_id": str(conversation.id)})
-        signature = _signed_receipt(
-            travel_receipt_key,
-            target=target,
-            operation="create",
-            conversation_id=conversation.id,
-            request_body=raw,
-            response_body=response_body,
-        )
+        if attestor is not None:
+            signature = _checked_receipt(
+                await sync_call(attestor, conversation.id, response_body, None)
+            )
+        else:
+            assert travel_receipt_key is not None
+            signature = _signed_receipt(
+                travel_receipt_key,
+                target=target,
+                operation="create",
+                conversation_id=conversation.id,
+                request_body=raw,
+                response_body=response_body,
+            )
         return Response(
             response_body,
             status_code=201,
@@ -189,6 +218,19 @@ def mount_application_plan(
     ):
         incoming, raw = await _intent(request, confirmed=False)
         target = await sync_call(service.current_target)
+        headers = {"cache-control": "no-store"}
+        attest = None
+        attested_body = None
+        if bound_receipts is not None:
+            if target.preview_source is None:
+                raise ContextPreparationError("context_no_ai_route")
+            attestor = await sync_call(bound_receipts, request, target, conversation_id, raw)
+
+            def attest(body: bytes, frozen: PlanPreview) -> None:
+                nonlocal attested_body
+                headers[RECEIPT_HEADER] = _checked_receipt(attestor(conversation_id, body, frozen))
+                attested_body = body
+
         with preview_recipient_scope(target):
             selection, source_revision = await sync_call(
                 service.preview_with_source_revision,
@@ -197,11 +239,13 @@ def mount_application_plan(
                 conversation_id,
                 incoming,
                 expected_target=target,
+                attest=attest,
             )
-        response_body = encode_preview_response(selection)
+        response_body = (
+            attested_body if attested_body is not None else encode_preview_response(selection)
+        )
         if len(response_body) > MAX_PREVIEW_BYTES:
             raise ContextPreparationError("context_no_ai_route")
-        headers = {"cache-control": "no-store"}
         if travel_receipt_key is not None and target.preview_source is not None:
             if target is not await sync_call(service.current_target):
                 raise ContextPreparationError("context_no_ai_route")
@@ -227,7 +271,7 @@ def mount_application_plan(
         return _sse_response(stream, request_id=_request_id(request))
 
     routes = []
-    if travel_receipt_key is not None:
+    if travel_receipt_key is not None or bound_receipts is not None:
         app.add_api_route(PROFILE_PREFIX, create, methods=["POST"], include_in_schema=False)
         routes.append(app.router.routes[-1])
     for suffix, handler in (("context-preview", preview), ("continue", continue_turn)):

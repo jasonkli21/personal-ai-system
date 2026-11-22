@@ -176,7 +176,7 @@ class MemoryRoots:
 class ApplicationPlanFixture:
     def __init__(
         self, host, runtime_directory, *, attempts: Callable | None = None, delivery=None,
-        memory_repositories=None, travel_receipt_key=None,
+        memory_repositories=None, travel_receipt_key=None, bound_receipts=None,
     ):
         if delivery is not None and attempts is not None:
             raise ValueError("independent delivery requires the coordinated fixture authorities")
@@ -239,7 +239,7 @@ class ApplicationPlanFixture:
                 ),
             }
         )
-        self.mount(travel_receipt_key=travel_receipt_key)
+        self.mount(travel_receipt_key=travel_receipt_key, bound_receipts=bound_receipts)
 
     def record_claim(self, root, owner, attempt, payload):
         with self.roots.lock:
@@ -295,7 +295,7 @@ class ApplicationPlanFixture:
             for recipient in (scope.local_recipient, scope.model_recipient)
         )
 
-    def mount(self, *, travel_receipt_key=None):
+    def mount(self, *, travel_receipt_key=None, bound_receipts=None):
         host = self.host
         service = self.service
         channel_tokens = MAX_CONTEXT_TOKENS // 2
@@ -353,9 +353,13 @@ class ApplicationPlanFixture:
             assembler_dependency=plan_assembler,
             preview_recipient_scope=preview_recipients,
             travel_receipt_key=travel_receipt_key,
+            bound_receipts=bound_receipts,
         )
 
-    def onboard(self, target, *, memory_content, model=MODEL, gate=True, source_grants=True):
+    def onboard(
+        self, target, *, memory_content, model=MODEL, gate=True, source_grants=True,
+        memory_application_id=None,
+    ):
         host = self.host
         actor = f"{target.principal.issuer}|{target.principal.subject}"
         namespace = client_binding_namespace(host.identify(target.token), target.app.app)
@@ -417,7 +421,7 @@ class ApplicationPlanFixture:
                     fields=fields,
                     expires_at=host.now + timedelta(minutes=2),
                 )
-        memory = self.seed_memory(target, memory_content)
+        memory = self.seed_memory(target, memory_content, application_id=memory_application_id)
         target.plan, target.memory = pairing, memory
         if self.delivery is None:
             target.store, target.provider = store, provider
@@ -437,18 +441,22 @@ class ApplicationPlanFixture:
         bridge.execute = record_delivery
         return target
 
-    def seed_memory(self, target, content):
-        scope = ApplicationScope(application_id=target.app.app, workspace_id=target.workspace)
+    def seed_memory(self, target, content, *, application_id=None):
+        scope = (
+            ApplicationScope(application_id=application_id)
+            if application_id is not None
+            else ApplicationScope(application_id=target.app.app, workspace_id=target.workspace)
+        )
         with application_scope_context(scope):
-            return self._seed_memory(target, content)
+            return self._seed_memory(target, content, scope)
 
-    def _seed_memory(self, target, content):
+    def _seed_memory(self, target, content, origin):
         now = self.host.now
         ids = uuid4(), uuid4(), uuid4()
         scope = {
             "owner_id": target.principal.owner_id,
-            "application_id": target.app.app,
-            "workspace_id": target.workspace,
+            "application_id": origin.application_id,
+            "workspace_id": origin.workspace_id,
         }
         self.host.conversations.create(
             Conversation(

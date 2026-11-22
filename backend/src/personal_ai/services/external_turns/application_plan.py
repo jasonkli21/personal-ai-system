@@ -316,7 +316,8 @@ class ApplicationPlanService:
         return selection
 
     def preview_with_source_revision(
-        self, chat, assembler, conversation_id, incoming, *, expected_target=None
+        self, chat, assembler, conversation_id, incoming, *, expected_target=None,
+        attest: Callable[[bytes, PlanPreview], None] | None = None,
     ):
         if incoming.choice.confirmation is not None:
             raise ContextPreparationError(NO_AI)
@@ -326,11 +327,13 @@ class ApplicationPlanService:
         binding = target.preview_binding(current_verified_principal(), conversation_id)
         token = application_plan_source_binding.set(binding)
         try:
-            return self._preview(chat, assembler, conversation_id, incoming.request(), target, binding)
+            return self._preview(
+                chat, assembler, conversation_id, incoming.request(), target, binding, attest
+            )
         finally:
             application_plan_source_binding.reset(token)
 
-    def _preview(self, chat, assembler, conversation_id, request, target, binding):
+    def _preview(self, chat, assembler, conversation_id, request, target, binding, attest):
         assistant_id = continuation_message_id(
             conversation_id,
             target.scope.owner_id,
@@ -513,6 +516,10 @@ class ApplicationPlanService:
                 raise ContextPreparationError(NO_AI) from None
             if len(encoded_selection) > MAX_PREVIEW_RESPONSE_BYTES:
                 raise ContextPreparationError(NO_AI)
+            if attest is not None:
+                attest(encoded_selection, preview)
+                if self.clock() >= preview.expires_at:
+                    raise ContextPreparationError(NO_AI)
             self._publish_preview(key, reservation, preview)
             return selection, domain.source_version if binding is not None else None
         finally:
