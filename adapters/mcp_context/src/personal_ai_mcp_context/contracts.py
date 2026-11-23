@@ -6,11 +6,13 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from personal_ai.auth.scope import ApplicationScope
+from starlette.requests import Request
 
 Operation = Literal["search", "fetch"]
 RECIPIENT = "chatgpt-mcp"
 PURPOSE = "answer-context"
 READ_SCOPE = "context:read"
+MAX_HITS = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +40,15 @@ VerifyAccess = Callable[[str], Awaitable[VerifiedAccess | None]]
 
 
 @dataclass(frozen=True, slots=True)
+class SourceInstallation:
+    """An exact host registration, suitable for explicitly allowing null workspace."""
+
+    application_id: str
+    source_id: str
+    installation_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class SourceBinding:
     """One current connection, installation and recipient grant selected by the host."""
 
@@ -58,6 +69,21 @@ class SourceBinding:
     purpose: str
     fields: tuple[str, ...]
     expires_at: datetime
+    installation_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BrowserPrincipal:
+    """Current human account from a separately authenticated browser session."""
+
+    issuer: str
+    subject: str
+    tenant: str
+    owner_id: str
+    acting_user_id: str | None
+
+
+VerifyBrowser = Callable[[Request], Awaitable[BrowserPrincipal | None]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +145,8 @@ class AuthorizedSourceReader(Protocol):
     Async calls must stop producing results on cancellation. If an implementation
     detaches synchronous work that cannot be physically cancelled, it must bound
     outstanding work and prevent late publication. Credentials stay in the verifier.
+    For a registered workspace-less installation, resolve verifies the current
+    domain owner and read/revalidate enforce that domain's record and field ACLs.
     """
 
     async def resolve(self, identity: Identity, operation: Operation) -> SourceBinding | None: ...

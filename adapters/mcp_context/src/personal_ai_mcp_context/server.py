@@ -1,12 +1,13 @@
 """An explicitly test-only, stateless MCP consumer of authorized PAS context."""
 
+import hmac
 import json
 import re
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from secrets import token_urlsafe
+from secrets import token_bytes, token_urlsafe
 from threading import BoundedSemaphore, Lock
 from time import monotonic
 from urllib.parse import urlsplit
@@ -25,29 +26,41 @@ from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse, Response
 
 from .contracts import (
+    MAX_HITS,
     PURPOSE,
     READ_SCOPE,
     RECIPIENT,
     AuthorizedSourceReader,
+    BrowserPrincipal,
     FetchedRecord,
     Identity,
     Operation,
     SearchPage,
     Selection,
     SourceBinding,
+    SourceInstallation,
     VerifiedAccess,
     VerifyAccess,
+    VerifyBrowser,
 )
 
 REVISION = "2026-07-28"
 MAX_BYTES = 8192
-MAX_HITS = 10
 DEADLINE_SECONDS = 2
 SELECTOR_TTL = timedelta(seconds=60)
 MAX_SELECTORS = 1024
 CALLS_PER_MINUTE = 30
 MAX_RATE_KEYS = 1024
 MAX_IN_FLIGHT = 8
+CITATION_RESOURCE_PATH = "/mcp-citations/v1"
+CITATION_VIEW_PATH = "/citations/v1/"
+_LOCATOR = re.compile(r"[0-9a-f]{64}")
+_BROWSER_HEADERS = {
+    "Cache-Control": "private, no-store",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+}
 _BEARER = re.compile(r"Bearer +([A-Za-z0-9._~+/-]+=*)", re.IGNORECASE | re.ASCII)
 _ID = {"type": "string", "minLength": 1, "maxLength": 200, "pattern": r"^[A-Za-z0-9_-]+$"}
 _STRING = {"type": "string"}
@@ -74,11 +87,14 @@ _OUTPUT = {
         fresh_until={"type": "string", "format": "date-time"},
     ),
 }
-_INPUT_VALIDATORS = {name: Draft202012Validator(schema) for name, schema in _INPUT.items()}
-_OUTPUT_VALIDATORS = {
-    name: Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
-    for name, schema in _OUTPUT.items()
+_URL = {"type": "string", "format": "uri", "pattern": r"^https://"}
+_CITATION_OUTPUT = {
+    "search": _object(results={
+        "type": "array", "maxItems": MAX_HITS, "items": _object(id=_ID, title=_STRING, url=_URL),
+    }),
+    "fetch": _object(id=_ID, title=_STRING, text=_STRING, url=_URL),
 }
+_INPUT_VALIDATORS = {name: Draft202012Validator(schema) for name, schema in _INPUT.items()}
 _SECURITY = [{"type": "oauth2", "scopes": [READ_SCOPE]}]
 _DESCRIPTIONS = {
     "search": "Find records in your connected application.",
@@ -91,6 +107,22 @@ class _Selector:
     identity: Identity
     binding: SourceBinding
     selection: Selection
+    title: str
+    locator: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _Citation:
+    identity: Identity
+    binding: SourceBinding
+    selection: Selection
+    title: str
+
+    def matches(self, principal):
+        return principal == BrowserPrincipal(
+            self.identity.issuer, self.identity.subject, self.binding.tenant,
+            self.binding.owner_id, self.binding.acting_user_id,
+        )
 
 
 class _State:
@@ -98,6 +130,7 @@ class _State:
         self._lock = Lock()
         self._rates = OrderedDict()
         self._selectors = OrderedDict()
+        self._citations = OrderedDict()
 
     def admit_call(self, identity):
         # Count across clients/connections for a verified issuer and subject.
@@ -124,15 +157,28 @@ class _State:
             if selector.selection.expires_at <= now:
                 del self._selectors[handle]
                 raise ValueError("unavailable")
-            return selector.selection
+            return selector
 
-    def publish(self, pending):
+    def citation(self, locator, now):
         with self._lock:
-            if self._selectors.keys() & pending.keys():
+            citation = self._citations.get(locator)
+            if citation is None or citation.selection.expires_at <= now:
+                raise ValueError("unavailable")
+            return citation
+
+    def publish(self, pending, citations):
+        with self._lock:
+            if self._selectors.keys() & pending.keys() or any(
+                self._citations[locator] != citations[locator]
+                for locator in self._citations.keys() & citations.keys()
+            ):
                 raise ValueError("unavailable")
             self._selectors.update(pending)
+            self._citations.update(citations)
             while len(self._selectors) > MAX_SELECTORS:
                 self._selectors.popitem(last=False)
+            while len(self._citations) > MAX_SELECTORS:
+                self._citations.popitem(last=False)
 
 
 class _OAuthDenied(Exception):
@@ -203,6 +249,9 @@ def context_mcp_app(
     enabled: bool = False,
     environment: str,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    workspace_less_sources: frozenset[SourceInstallation] = frozenset(),
+    verify_browser: VerifyBrowser | None = None,
+    process_count: int = 1,
 ):
     """Build a synthetic ASGI app with the host's verified identity and reader."""
     auth = AuthSettings(
@@ -222,6 +271,18 @@ def context_mcp_app(
             for url in (urlsplit(issuer), resource_url)
         )
         or not re.fullmatch(r"/[a-zA-Z0-9_/-]*[a-zA-Z0-9_-]", resource_url.path)
+        or type(process_count) is not int or process_count != 1
+        or not isinstance(workspace_less_sources, frozenset)
+        or any(
+            not isinstance(item, SourceInstallation)
+            or not all(isinstance(part, str) and part and part.strip() == part for part in (
+                item.application_id, item.source_id, item.installation_id,
+            ))
+            for item in workspace_less_sources
+        )
+        or (verify_browser is not None and not callable(verify_browser))
+        or (resource_url.path == CITATION_RESOURCE_PATH) != (verify_browser is not None)
+        or (verify_browser is not None and resource_url.netloc != resource_url.hostname)
     ):
         raise ValueError("mcp_unavailable")
 
@@ -231,6 +292,15 @@ def context_mcp_app(
     metadata_path = urlsplit(metadata_url).path
     state = _State()
     slots = BoundedSemaphore(MAX_IN_FLIGHT)
+    citation_key = token_bytes(32) if verify_browser is not None else None
+    output = _CITATION_OUTPUT if citation_key is not None else _OUTPUT
+    output_validators = {
+        name: Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+        for name, schema in output.items()
+    }
+
+    def citation_url(locator):
+        return f"{resource_origin}{CITATION_VIEW_PATH}{locator}"
 
     def challenge(error):
         parts = [f'resource_metadata="{metadata_url}"']
@@ -264,15 +334,71 @@ def context_mcp_app(
         binding = await reader.resolve(identity, operation)
         if (
             not isinstance(binding, SourceBinding) or binding.owner_id in {"", "local"}
-            or not binding.tenant or not binding.scope.workspace_id
+            or not binding.tenant
             or not binding.connection_id or binding.connection_generation < 1
             or not binding.source_id or not binding.installation_revision or binding.installation_epoch < 1
             or not binding.grant_id or binding.grant_version < 1 or binding.grant_epoch < 1
             or not binding.policy_version or binding.recipient != RECIPIENT or binding.purpose != PURPOSE
             or "title" not in binding.fields or binding.expires_at <= clock()
+            or (citation_key is not None and not binding.installation_id)
         ):
             raise ValueError("unavailable")
+        workspace = binding.scope.workspace_id
+        installation = SourceInstallation(
+            binding.scope.application_id, binding.source_id, binding.installation_id or "",
+        )
+        if installation in workspace_less_sources:
+            if workspace is not None or "workspace_id" not in binding.scope.model_fields_set:
+                raise ValueError("unavailable")
+        elif not isinstance(workspace, str) or not workspace or workspace.strip() != workspace:
+            raise ValueError("unavailable")
         return binding
+
+    async def browser_view(request):
+        denied = Response(status_code=404, headers=_BROWSER_HEADERS)
+        path = request.url.path
+        locator = path.removeprefix(CITATION_VIEW_PATH)
+        if (
+            request.method != "GET" or not _LOCATOR.fullmatch(locator)
+            or request.scope.get("raw_path", path.encode()) != path.encode()
+            or request.scope.get("query_string")
+        ):
+            return denied
+        deadline = monotonic() + DEADLINE_SECONDS
+        try:
+            with anyio.fail_after(DEADLINE_SECONDS):
+                principal = await verify_browser(request)
+                if not isinstance(principal, BrowserPrincipal):
+                    return denied
+                citation = state.citation(locator, clock())
+                if not citation.matches(principal):
+                    return denied
+                identity, binding, selected = citation.identity, citation.binding, citation.selection
+                if await resolve(identity, "fetch") != binding:
+                    return denied
+                budget = reader.budget(deadline)
+                budget.check()
+                read = await reader.read(identity, binding, selected, budget)
+                record = _exact_record(read.value, binding, selected, citation.title, clock())
+                raw = _json_bytes({"title": record.title, "text": record.text}, ascii_only=False)
+                budget.charge_bytes(raw)
+                budget.charge_tokens(raw)
+                if (
+                    len(raw) > MAX_BYTES or await resolve(identity, "fetch") != binding
+                    or await verify_browser(request) != principal
+                ):
+                    return denied
+                read.revalidate()
+                await anyio.lowlevel.checkpoint_if_cancelled()
+                budget.check()
+                if (
+                    clock() >= min(selected.expires_at, record.fresh_until, binding.expires_at)
+                    or state.citation(locator, clock()) != citation or monotonic() >= deadline
+                ):
+                    return denied
+                return Response(raw, media_type="application/json", headers=_BROWSER_HEADERS)
+        except Exception:  # noqa: BLE001 - browser denials reveal no binding or domain diagnostics
+            return denied
 
     def tool_error(oauth=None):
         return types.CallToolResult(
@@ -287,7 +413,7 @@ def context_mcp_app(
             tools=[
                 types.Tool(
                     name=name, description=_DESCRIPTIONS[name], input_schema=schema,
-                    output_schema=_OUTPUT[name], meta={"securitySchemes": _SECURITY},
+                    output_schema=output[name], meta={"securitySchemes": _SECURITY},
                     annotations=types.ToolAnnotations(
                         read_only_hint=True, destructive_hint=False, open_world_hint=False,
                     ),
@@ -334,13 +460,25 @@ def context_mcp_app(
                 budget.charge_bytes(request.raw)
                 budget.charge_tokens(request.raw)
                 binding = await resolve(identity, name)
-                selection = (
-                    argument if name == "search" else state.selection(argument, identity, binding, clock())
+                selector = (
+                    None if name == "search" else state.selection(argument, identity, binding, clock())
+                )
+                selection = argument if selector is None else selector.selection
+                citation = (
+                    state.citation(selector.locator, clock()) if selector is not None and selector.locator else None
                 )
                 budget.check()
                 read = await reader.read(identity, binding, selection, budget)
-                data, pending = _tool_output(read.value, argument, identity, binding, selection, clock())
-                _OUTPUT_VALIDATORS[name].validate(data)
+                pending = {}
+                citations = {}
+                if selector is None:
+                    data, pending, citations = _search_output(
+                        read.value, identity, binding, clock(), citation_key, citation_url,
+                    )
+                else:
+                    record = _exact_record(read.value, binding, selection, selector.title, clock())
+                    data = _fetch_output(record, argument, selector.locator, citation_url)
+                output_validators[name].validate(data)
                 result = types.CallToolResult(
                     content=[types.TextContent(type="text", text=_json_bytes(data, ascii_only=False).decode())],
                     structured_content=data,
@@ -358,16 +496,21 @@ def context_mcp_app(
                 if current_access.identity != identity:
                     raise ValueError("unavailable")
                 read.revalidate()
+                await anyio.lowlevel.checkpoint_if_cancelled()
                 valid_until = min([
                     binding.expires_at, current_access.expires_at,
                     *(selector.selection.expires_at for selector in pending.values()),
                 ])
                 if isinstance(selection, Selection):
                     valid_until = min(valid_until, selection.expires_at, read.value.fresh_until)
-                if clock() >= valid_until:
+                if clock() >= valid_until or (
+                    citation is not None and state.citation(selector.locator, clock()) != citation
+                ):
                     raise ValueError("unavailable")
                 budget.check()
-                state.publish(pending)
+                if monotonic() >= request.deadline:
+                    raise ValueError("unavailable")
+                state.publish(pending, citations)
                 return result
         except _OAuthDenied as error:
             return tool_error(error.error)
@@ -390,12 +533,22 @@ def context_mcp_app(
                 await self.app(scope, receive, send)
                 return
             request = Request(scope, receive)
+            is_citation = verify_browser is not None and scope["path"].startswith(CITATION_VIEW_PATH)
+            browser_headers = _BROWSER_HEADERS if is_citation else None
             if request.headers.getlist("host") != [resource_url.netloc]:
-                response = Response(status_code=421)
+                response = Response(status_code=421, headers=browser_headers)
             elif request.headers.getlist("origin") not in ([], [resource_origin]):
-                response = Response(status_code=403)
+                response = Response(status_code=403, headers=browser_headers)
             elif scope.get("scheme") != "https":
-                response = Response(status_code=400)
+                response = Response(status_code=400, headers=browser_headers)
+            elif is_citation:
+                if slots.acquire(blocking=False):
+                    try:
+                        response = await browser_view(request)
+                    finally:
+                        slots.release()
+                else:
+                    response = Response(status_code=404, headers=_BROWSER_HEADERS)
             elif scope["path"] == metadata_path:
                 await self.app(scope, receive, send)
                 return
@@ -472,6 +625,11 @@ def context_mcp_app(
 
             if isinstance(body, dict) and body.get("method") == "tools/call":
                 params = body.get("params")
+                if version == REVISION and isinstance(params, dict) and (
+                    body.keys() - {"jsonrpc", "id", "method", "params"}
+                    or params.keys() - {"name", "arguments", "_meta"}
+                ):
+                    return _rpc_error(types.INVALID_PARAMS, "Invalid tool arguments", body=body)
                 name = params.get("name") if isinstance(params, dict) else None
                 arguments = params.get("arguments") if isinstance(params, dict) else None
                 argument = next(iter(arguments.values())) if isinstance(arguments, dict) and len(arguments) == 1 else None
@@ -479,11 +637,23 @@ def context_mcp_app(
                     256 if name == "search" else 200
                 )
                 if (
-                    name in _INPUT and _INPUT_VALIDATORS[name].is_valid(arguments) and within_bytes
+                    version == REVISION and headers.get("mcp-method") == "tools/call"
+                    and isinstance(name, str) and headers.get("mcp-name") == name
+                    and type(body.get("id")) in {str, int} and body.get("jsonrpc") == "2.0"
+                    and name in _INPUT and _INPUT_VALIDATORS[name].is_valid(arguments) and within_bytes
                     and (name != "fetch" or re.fullmatch(r"[A-Za-z0-9_-]+", argument))
                 ):
+                    verdict = classify_inbound_request(
+                        body, headers=headers, supported_modern_versions=(REVISION,),
+                    )
                     try:
-                        linked = await reader.resolve(access.identity, name)
+                        with anyio.fail_after(max(0, deadline - monotonic())):
+                            linked = (
+                                await resolve(access.identity, name) if getattr(verdict, "code", None) is None
+                                else None
+                            )
+                    except TimeoutError:
+                        return Response(status_code=408)
                     except Exception:  # noqa: BLE001 - unlinked traffic has no subject bucket
                         linked = None
                     if linked is not None and not state.admit_call(access.identity):
@@ -519,34 +689,53 @@ def context_mcp_app(
     return app
 
 
-def _tool_output(value, argument, identity, binding, selection, now):
+def _search_output(value, identity, binding, now, citation_key, citation_url):
+    if not isinstance(value, SearchPage) or len(value.hits) > MAX_HITS or not value.watermark:
+        raise ValueError("unavailable")
     pending = {}
-    if isinstance(selection, str) and isinstance(value, SearchPage):
-        if len(value.hits) > MAX_HITS or not value.watermark:
+    citations = {}
+    results = []
+    seen = set()
+    for hit in value.hits:
+        fresh_until = min(binding.expires_at, hit.fresh_until)
+        if fresh_until <= now or not hit.record_ref or not hit.revision or hit.record_ref in seen:
             raise ValueError("unavailable")
-        results = []
-        for hit in value.hits:
-            expires = min(now + SELECTOR_TTL, binding.expires_at, hit.fresh_until)
-            if expires <= now or not hit.record_ref or not hit.revision:
-                raise ValueError("unavailable")
-            handle = token_urlsafe(24)
-            if handle in pending:
-                raise ValueError("unavailable")
-            pending[handle] = _Selector(
-                identity, binding, Selection(hit.record_ref, hit.revision, value.watermark, expires),
-            )
-            results.append({"id": handle, "title": hit.title})
-        return {"results": results}, pending
+        seen.add(hit.record_ref)
+        handle = token_urlsafe(24)
+        if handle in pending:
+            raise ValueError("unavailable")
+        locator = None
+        row = {"id": handle, "title": hit.title}
+        if citation_key is not None:
+            selected = Selection(hit.record_ref, hit.revision, value.watermark, fresh_until)
+            locator = hmac.digest(citation_key, repr((identity, binding, selected)).encode(), "sha256").hex()
+            citations[locator] = _Citation(identity, binding, selected, hit.title)
+            row["url"] = citation_url(locator)
+        pending[handle] = _Selector(
+            identity, binding, Selection(
+                hit.record_ref, hit.revision, value.watermark, min(now + SELECTOR_TTL, fresh_until),
+            ), hit.title, locator,
+        )
+        results.append(row)
+    return {"results": results}, pending, citations
 
+
+def _exact_record(value, binding, selection, title, now):
     if (
-        not isinstance(selection, Selection) or not isinstance(value, FetchedRecord)
-        or (value.record_ref, value.revision, value.watermark, value.source)
-        != (selection.record_ref, selection.revision, selection.watermark, binding.source_id)
+        not isinstance(value, FetchedRecord)
+        or (value.record_ref, value.revision, value.watermark, value.source, value.title)
+        != (selection.record_ref, selection.revision, selection.watermark, binding.source_id, title)
         or not value.observed_at <= now < value.fresh_until <= binding.expires_at
     ):
         raise ValueError("unavailable")
+    return value
+
+
+def _fetch_output(record, selector, locator, citation_url):
+    if locator is not None:
+        return {"id": selector, "title": record.title, "text": record.text, "url": citation_url(locator)}
     return {
-        "id": argument, "title": value.title, "text": value.text, "source": binding.source_id,
-        "revision": selection.revision, "observed_at": _utc(value.observed_at),
-        "fresh_until": _utc(value.fresh_until),
-    }, pending
+        "id": selector, "title": record.title, "text": record.text, "source": record.source,
+        "revision": record.revision, "observed_at": _utc(record.observed_at),
+        "fresh_until": _utc(record.fresh_until),
+    }

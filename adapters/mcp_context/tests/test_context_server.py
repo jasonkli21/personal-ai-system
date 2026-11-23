@@ -73,9 +73,9 @@ def headers(method="tools/list", *, version=REVISION, name=None):
     }
 
 
-async def rpc(client, method, params=None, **kwargs):
+async def rpc(client, method, params=None, *, resource=RESOURCE, **kwargs):
     return await client.post(
-        RESOURCE, json=frame(method, params=params),
+        resource, json=frame(method, params=params),
         headers=headers(method, name=(params or {}).get("name")) | kwargs,
     )
 
@@ -312,13 +312,50 @@ def test_direct_http_is_rejected(host):
             headers={"Authorization": f"Bearer {host.token()}"}, trust_env=False,
         ) as client:
             response = await client.post(
-                "/mcp", headers=headers("tools/call", name="search"),
+                "/mcp", headers=headers("tools/call", name="search") | {
+                    "forwarded": "for=10.1.2.3;proto=https",
+                    "x-forwarded-proto": "https",
+                    "x-authenticated-user": "subject-a",
+                },
                 json=frame("tools/call", params={"name": "search", "arguments": {"query": "Demo"}}),
             )
             assert response.status_code == 400
 
     asyncio.run(run())
     assert reads(host) == 0 and lookups(host) == []
+
+
+def test_malformed_tool_envelopes_never_resolve_source_authority(host, monkeypatch):
+    resolved = []
+    original = host.resolve
+
+    async def observe(identity, operation):
+        resolved.append(operation)
+        return await original(identity, operation)
+
+    monkeypatch.setattr(host, "resolve", observe)
+
+    async def run():
+        params = {"name": "search", "arguments": {"query": "Demo"}}
+        valid = frame("tools/call", params=params)
+        wire = headers("tools/call", name="search")
+        cases = (
+            (valid | {"id": []}, wire),
+            (valid | {"params": valid["params"] | {"name": []}}, wire),
+            (valid | {"params": valid["params"] | {"workspace": "trip-a"}}, wire),
+            (valid | {"workspace": "trip-a"}, wire),
+            (valid, wire | {"mcp-name": "fetch"}),
+            (frame("tools/call", version="2030-12-01", params=params), wire | {"mcp-protocol-version": "2030-12-01"}),
+        )
+        async with http(host, host.token()) as client:
+            for body, request_headers in cases:
+                response = await client.post(RESOURCE, headers=request_headers, json=body)
+                assert response.status_code < 500
+                if response.content:
+                    assert "result" not in response.json()
+
+    asyncio.run(run())
+    assert resolved == [] and reads(host) == 0 and lookups(host) == [] and host.budgets == []
 
 
 @pytest.mark.parametrize("mode,status", [

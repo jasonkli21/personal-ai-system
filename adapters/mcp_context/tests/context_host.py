@@ -3,6 +3,7 @@
 import asyncio
 import json
 import threading
+from contextvars import copy_context
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -14,6 +15,7 @@ from app_context_support.fixtures import FITNESS, TRAVEL, Composition
 from app_context_support.source import expiry
 from app_context_support.wire import Page, ProtocolError
 from personal_ai.applications.contracts import ApplicationContextRequest
+from personal_ai.auth.contracts import AuthenticatedPrincipal
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai.context.authorization import (
     apply_item_policy,
@@ -21,10 +23,12 @@ from personal_ai.context.authorization import (
 )
 from personal_ai.context.providers import ContextSelection
 from personal_ai_mcp_context.contracts import (
+    MAX_HITS,
     PURPOSE,
     READ_SCOPE,
     RECIPIENT,
     AuthorizedRead,
+    BrowserPrincipal,
     FetchedRecord,
     Identity,
     SearchHit,
@@ -32,13 +36,13 @@ from personal_ai_mcp_context.contracts import (
     SourceBinding,
     VerifiedAccess,
 )
-from personal_ai_mcp_context.server import MAX_HITS, context_mcp_app
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 ISSUER = "https://fixture-idp.invalid"
 RESOURCE = "https://context.example.invalid/mcp"
+CITATION_RESOURCE = "https://context.example.invalid/mcp-citations/v1"
 TRAVEL_CLIENT = "chatgpt-travel"
 FITNESS_CLIENT = "chatgpt-fitness"
 ALT_CLIENT = "chatgpt-alternate"
@@ -53,7 +57,7 @@ class Connection:
     generation: int
     tenant: str
     application: str
-    workspace: str
+    workspace: str | None
     source_id: str
     grant_id: str
 
@@ -81,6 +85,7 @@ class SyntheticHost:
         self.tenants = {(ISSUER, f"subject-{owner}"): f"tenant-{owner}" for owner in ("a", "b")}
         self.clients = set(CLIENTS)
         self.revocation_state = set()
+        self.browser_sessions = {}
         self.connections = {}
         self.budgets = []
         self.before_release = None
@@ -133,7 +138,7 @@ class SyntheticHost:
         account = (identity.issuer, identity.subject)
         principal = self.accounts.get(account)
         connections = self.connections.get(identity, ())
-        if principal is None or len(connections) != 1:
+        if not isinstance(principal, AuthenticatedPrincipal) or len(connections) != 1:
             raise ProtocolError("unavailable")
         connection = connections[0]
         if connection.tenant != self.tenants.get(account):
@@ -167,6 +172,7 @@ class SyntheticHost:
             install.source_id, install.revision, install.epoch, grant.id, grant.version, grant.epoch,
             self.pas.authority.policy_fingerprint(grant.app), grant.recipient, grant.purpose,
             grant.fields, min(install.expires_at, grant.expires_at),
+            installation_id=install.binding.installation_id,
         )
         return binding, principal, context, selection, intent, install
 
@@ -177,6 +183,18 @@ class SyntheticHost:
         budget = _SingleReadBudget(deadline, self.pas.counter)
         self.budgets.append(budget)
         return budget
+
+    def browser_session(self, identity, **changes):
+        binding = self._resolve(identity, "fetch")[0]
+        session = uuid4().hex
+        principal = BrowserPrincipal(
+            identity.issuer, identity.subject, binding.tenant, binding.owner_id, binding.acting_user_id,
+        )
+        self.browser_sessions[session] = replace(principal, **changes)
+        return session
+
+    async def verify_browser(self, request):
+        return self.browser_sessions.get(request.cookies.get("fixture-session"))
 
     async def read(self, identity, binding, selection, budget):
         operation = "search" if isinstance(selection, str) else "fetch"
@@ -204,7 +222,15 @@ class SyntheticHost:
                 # code. Keep the slot until that physical operation completes.
                 _SOURCE_WORKER_SLOTS.release()
 
-        read = await asyncio.to_thread(source_read)
+        try:
+            worker = asyncio.get_running_loop().run_in_executor(None, copy_context().run, source_read)
+        except RuntimeError:
+            _SOURCE_WORKER_SLOTS.release()
+            raise
+        # Keep the admitted job alive until it runs its physical release, even
+        # if the caller is cancelled before the executor starts the function.
+        worker.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+        read = await asyncio.shield(worker)
         value = read.value
 
         if isinstance(value, Page):
@@ -238,11 +264,16 @@ class SyntheticHost:
         return AuthorizedRead(projected, revalidate)
 
     def app(self, **kwargs):
+        from personal_ai_mcp_context.server import context_mcp_app
+
         return context_mcp_app(**({
             "issuer": ISSUER, "resource": RESOURCE, "approved_clients": CLIENTS,
             "verify_access": self.verify_access, "reader": self, "enabled": True,
             "environment": "test", "clock": lambda: self.pas.now,
         } | kwargs))
+
+    def citation_app(self, **kwargs):
+        return self.app(**({"resource": CITATION_RESOURCE, "verify_browser": self.verify_browser} | kwargs))
 
     def issuer_app(self):
         async def metadata(_request):
