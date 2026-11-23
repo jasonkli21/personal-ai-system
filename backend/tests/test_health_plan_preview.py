@@ -288,6 +288,7 @@ def setup(tmp_path, monkeypatch):
     def build(
         *, allow_restricted=True, reverse_transport=None, health_binding=None,
         database=None, subject="fabricated-human", verify_transaction=None, bearer_override=None,
+        runtime_options=None,
     ):
         now = datetime.now(UTC)
         fixture_dir = tmp_path / uuid4().hex
@@ -424,6 +425,7 @@ def setup(tmp_path, monkeypatch):
             memory_content=MEMORY,
             source_grants=False,
             memory_application_id="personal_ai",
+            **(runtime_options or {}),
         )
         target.plan = replace(
             target.plan, preview_source=source.selection(enrollment.target_id, selected)

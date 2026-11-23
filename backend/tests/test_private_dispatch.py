@@ -285,7 +285,7 @@ def inspect(host, client, path, **headers):
 
 
 def test_synthetic_canonical_completion_and_current_filtered_reads(setup, receiver, tmp_path):
-    host = setup()
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver()
     _, creates, gates, phases = install(host, transport, tmp_path)
     with TestClient(host.app) as client:
@@ -327,7 +327,7 @@ def test_synthetic_canonical_completion_and_current_filtered_reads(setup, receiv
 
 @pytest.mark.parametrize("outcome", ["disconnect", "wrong-attempt", "nonzero-usage"])
 def test_receiver_ambiguity_never_completes_or_sends_again(outcome, setup, receiver, tmp_path):
-    host = setup()
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver(outcome)
     _, creates, _, _ = install(host, transport, tmp_path)
     with TestClient(host.app) as client:
@@ -350,7 +350,7 @@ def test_receiver_ambiguity_never_completes_or_sends_again(outcome, setup, recei
 
 @pytest.mark.parametrize("failure", ["revoked", "lost-bytes", "root-commit", "fence-commit"])
 def test_denial_or_lost_commit_has_no_transport(failure, setup, receiver, tmp_path, monkeypatch):
-    host = setup()
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver()
     dispatch, creates, gates, _ = install(host, transport, tmp_path)
     with TestClient(host.app) as client:
@@ -386,7 +386,7 @@ def test_denial_or_lost_commit_has_no_transport(failure, setup, receiver, tmp_pa
 
 
 def test_duplicate_submit_one_winner_and_restore_gate(setup, receiver, tmp_path):
-    host = setup()
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver()
     dispatch, creates, gates, _ = install(host, transport, tmp_path)
     with TestClient(host.app) as client:
@@ -419,19 +419,22 @@ def test_duplicate_submit_one_winner_and_restore_gate(setup, receiver, tmp_path)
         assert not dispatch._packages and not arrivals.poll()
 
 
-@pytest.mark.parametrize("change", ["expiry", "memory", "received-then-revoked"])
+@pytest.mark.parametrize("change", ["expiry", "memory", "model", "received-then-revoked"])
 def test_source_and_memory_are_current_at_the_operation_boundary(
     change, setup, receiver, tmp_path,
 ):
-    host = setup()
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver()
     dispatch, creates, gates, _ = install(host, transport, tmp_path)
     with TestClient(host.app) as client:
         cid, post, get, body, envelope = pending(host, client, creates)
+        source_reads = tuple(host.reverse.calls)
         if change == "expiry":
             gates["clock_offset"] = envelope["claims"]["expires"] - dispatch.clock()
         elif change == "memory":
             host.fixture.disclosures.clear()
+        elif change == "model":
+            host.target.plan.runtime._bridge.gates.clear()
         else:
             def revoke(phase):
                 if phase == "disclose":
@@ -440,7 +443,7 @@ def test_source_and_memory_are_current_at_the_operation_boundary(
             gates["changed"] = revoke
         reply = send(host, client, post, body)
         assert reply.status_code == {
-            "expiry": 410, "memory": 404, "received-then-revoked": 503,
+            "expiry": 410, "memory": 404, "model": 404, "received-then-revoked": 503,
         }[change]
         assert reply.content == b""
         if change == "received-then-revoked":
@@ -457,13 +460,15 @@ def test_source_and_memory_are_current_at_the_operation_boundary(
             assert detail.status_code == 404 and detail.content == b""
         else:
             assert issued == []
+        if change == "model":
+            assert tuple(host.reverse.calls) == source_reads
         assert not arrivals.poll()
 
 
 def test_wrong_runtime_terminal_cannot_publish_receiver_result(
     setup, receiver, tmp_path, monkeypatch,
 ):
-    host = setup()
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver()
     dispatch, creates, _, _ = install(host, transport, tmp_path)
     deliver = RuntimeDispatch.deliver

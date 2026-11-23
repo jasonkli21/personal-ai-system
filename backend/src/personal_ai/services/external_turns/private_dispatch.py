@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock, Timer
@@ -82,8 +81,7 @@ class CurrentSource:
         nonce = str(uuid4())
         started = monotonic()
         try:
-            ctx = copy_context()
-            future = self._worker.submit(ctx.run, self._check, binding, phase, nonce)
+            future = self._worker.submit(self._check, binding, phase, nonce)
         except RuntimeError:
             self._slot.release()
             raise DispatchUnavailable from None
@@ -182,6 +180,10 @@ class PrivateDispatch:
             or registration.trust_current() is not True
         ):
             raise DispatchDenied
+        try:
+            registration.runtime.require_target(target)
+        except BridgeDenied:
+            raise DispatchDenied from None
         return registration
 
     @staticmethod
@@ -322,6 +324,12 @@ class PrivateDispatch:
         if self.registration() is not registration:
             raise DispatchDenied
         target = registration.target
+        if dependencies.effective_sensitivity is None:
+            raise DispatchDenied
+        try:
+            registration.runtime.require_target(target, dependencies.effective_sensitivity)
+        except BridgeDenied:
+            raise DispatchDenied from None
         conversation = UUID(binding.conversation)
         expected = target.preview_binding(self._principal(), conversation)
         if dependencies.binding != expected or registration.source_commitments(dependencies) != (
@@ -431,6 +439,7 @@ class PrivateDispatch:
                 signature=sign(self.release_key, release), release_payload=lambda: prepared.payload,
                 authorize=authorize, clock=self.clock,
                 mark_started=lambda: self.journal.mark_started(key),
+                sensitivity=dependencies.effective_sensitivity,
             )
             now = self.clock()
             terminal = self._terminal(registration, row, *result, now=now)

@@ -18,6 +18,7 @@ from uuid import UUID, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from personal_ai.applications.contracts import ContextSensitivity
 from personal_ai.auth.application_clients import (
     external_conversation_namespace,
     require_current_client_authority,
@@ -206,6 +207,7 @@ class BoundPreviewMetadata:
     expires_at: datetime
     confirmation: str
     attested_body: bytes
+    effective_sensitivity: ContextSensitivity | None = None
 
 
 @dataclass(frozen=True)
@@ -502,6 +504,7 @@ class ApplicationPlanService:
                 preview = BoundPreviewMetadata(
                     binding, context.branch_digest, context.inference.policy_version,
                     snapshots, request.idempotency_key, expires_at, confirmation, body,
+                    context.inference.effective_sensitivity if prepare_dispatch else None,
                 )
                 self._require_current_bound_preview(
                     preview, target, assembler.permission_revalidator, require_current_operation

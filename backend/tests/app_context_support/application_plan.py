@@ -63,7 +63,7 @@ PROMPT = "Summarize my app records using my saved preference."
 
 def build_local_runtime(
     store, *, actor, namespace, owner_id, application_id, workspace_id, label,
-    issuer, key_id, public_key, root_authority, model, gate,
+    issuer, key_id, public_key, root_authority, model, gate, maximum_sensitivity="sensitive",
 ):
     connection_id = uuid4()
     now = int(datetime.now(UTC).timestamp())
@@ -126,7 +126,7 @@ def build_local_runtime(
         valid_until=now + 300,
         data_use={
             "status": "approved",
-            "max_sensitivity": "sensitive",
+            "max_sensitivity": maximum_sensitivity,
             "policy_reference": "fixture-privacy",
         },
     )
@@ -359,7 +359,7 @@ class ApplicationPlanFixture:
 
     def onboard(
         self, target, *, memory_content, model=MODEL, gate=True, source_grants=True,
-        memory_application_id=None,
+        memory_application_id=None, maximum_sensitivity="sensitive",
     ):
         host = self.host
         actor = f"{target.principal.issuer}|{target.principal.subject}"
@@ -374,7 +374,8 @@ class ApplicationPlanFixture:
         if self.delivery is None:
             store = ProtectedLocalStore(store_path)
             bridge, session, provider = build_local_runtime(
-                store, public_key=self.private.public_key(), root_authority=self.service, **binding
+                store, public_key=self.private.public_key(), root_authority=self.service,
+                maximum_sensitivity=maximum_sensitivity, **binding,
             )
             runtime = PairedApplicationRuntime(bridge, session)
             scope = bridge.installation.scope

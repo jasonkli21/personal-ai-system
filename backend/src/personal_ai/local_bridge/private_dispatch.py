@@ -3,7 +3,7 @@
 import http.client
 import socket
 from dataclasses import dataclass
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
@@ -98,25 +98,41 @@ class RuntimeDispatch:
     terminal_kid: str
     terminal_key: Ed25519PrivateKey
 
-    def deliver(
-        self, *, target, binding: Binding, release: bytes, signature, release_payload,
-        authorize, clock, mark_started,
-    ):
+    def require_target(self, target, sensitivity="public"):
         paired = target.runtime
         bridge, session = paired._bridge, paired._session
-        destination = binding.destination
+        destination = self.destination
         if (
             type(self.receiver) is not LoopbackReceiver
-            or destination != self.destination
             or destination.runtime != str(bridge.installation.runtime_id)
             or destination.connection != str(bridge.installation.connection_id)
             or destination.revision != bridge.installation.connection_revision
             or destination.account != bridge.installation.registration_binding
             or target.scope != bridge.installation.scope
             or target.caller_id != session.caller_id
+            or target.model != destination.model
+            or target.connection_id != UUID(destination.connection)
+            or target.connection_revision != destination.revision
         ):
             raise BridgeDenied("bridge_admission_denied")
         bridge._require_offline_transport()
+        if bridge.authorize(session.origin, session.authorization) != session:
+            raise BridgeDenied("bridge_admission_denied")
+        bridge._gate(target.connection_id, target.profile, destination.model).require_binding(
+            target.connection_id, target.profile, destination.model, sensitivity,
+            now=int(bridge.clock()),
+        )
+
+    def deliver(
+        self, *, target, binding: Binding, release: bytes, signature, release_payload,
+        authorize, clock, mark_started, sensitivity,
+    ):
+        paired = target.runtime
+        bridge, session = paired._bridge, paired._session
+        destination = binding.destination
+        if destination != self.destination:
+            raise BridgeDenied("bridge_admission_denied")
+        self.require_target(target, sensitivity)
         claims = verify(
             self.release_key, signature, release, ReleaseClaims,
             issuer=self.pas_issuer, audience=self.issuer, kid=self.release_kid, now=clock(),
@@ -127,8 +143,7 @@ class RuntimeDispatch:
             raise BridgeDenied("bridge_admission_denied")
 
         def require_pairing():
-            if bridge.authorize(session.origin, session.authorization) != session:
-                raise BridgeDenied("bridge_admission_denied")
+            self.require_target(target, sensitivity)
             if clock() >= claims.expires:
                 raise BridgeDenied("bridge_admission_denied")
 
