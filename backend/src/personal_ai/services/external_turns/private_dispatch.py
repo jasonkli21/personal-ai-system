@@ -62,9 +62,9 @@ class CreateBinding:
 
 
 class CurrentSource:
-    """A registered in-process callback, with one bounded, non-queueing slot."""
+    """Exchange canonical binding bytes and a closed response with the registered source."""
 
-    def __init__(self, callback):
+    def __init__(self, callback: Callable[[bytes, str, str], dict[str, object]]):
         self._callback = callback
         self._slot = Lock()
         self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="private-source")
@@ -76,23 +76,27 @@ class CurrentSource:
             self._slot.release()
 
     def require(self, binding, phase, clock):
+        binding_bytes = canonical(binding)
         if not self._slot.acquire(blocking=False):
             raise DispatchUnavailable
         nonce = str(uuid4())
         started = monotonic()
         try:
-            future = self._worker.submit(self._check, binding, phase, nonce)
+            future = self._worker.submit(self._check, binding_bytes, phase, nonce)
         except RuntimeError:
             self._slot.release()
             raise DispatchUnavailable from None
         try:
-            response = Current.model_validate(future.result(timeout=1))
+            value = future.result(timeout=1)
+            if type(value) is not dict:
+                raise DispatchDenied
+            response = Current.model_validate(value)
         except (TimeoutError, OSError):
             raise DispatchUnavailable from None
         except Exception:  # noqa: BLE001 - untrusted witness failures deny
             raise DispatchDenied from None
         if (response.binding_sha256, response.phase, response.nonce) != (
-            wire_digest(canonical(binding)), phase, nonce,
+            wire_digest(binding_bytes), phase, nonce,
         ) or not response.current or clock() >= response.expires or monotonic() - started >= 1:
             raise DispatchDenied
 
@@ -142,12 +146,30 @@ class PrivateDispatch:
 
         preview_public = self.preview_key.public_key().public_bytes_raw()
         release_public = self.release_key.public_key().public_bytes_raw()
-        if preview_public == release_public or any(
-            entry.runtime.release_key.public_bytes_raw() != release_public
-            or entry.runtime.terminal_key.public_key().public_bytes_raw()
-            in {preview_public, release_public, entry.runtime.receiver.response_key.public_bytes_raw()}
-            for entry in self.registrations
-        ):
+        signing_keys = [preview_public, release_public]
+        runtime_ids = set()
+        terminal_roles = set()
+        targets = set()
+        for entry in self.registrations:
+            runtime = entry.runtime
+            terminal_role = (runtime.issuer, runtime.terminal_kid)
+            if (
+                type(runtime) is not RuntimeDispatch
+                or id(entry.target) in targets
+                or runtime.pas_issuer != issuer
+                or runtime.release_key.public_bytes_raw() != release_public
+                or runtime.destination.runtime in runtime_ids
+                or terminal_role in terminal_roles
+            ):
+                raise ValueError("dispatch runtime registration is misbound")
+            targets.add(id(entry.target))
+            runtime_ids.add(runtime.destination.runtime)
+            terminal_roles.add(terminal_role)
+            signing_keys.extend((
+                runtime.terminal_key.public_key().public_bytes_raw(),
+                runtime.receiver.response_key.public_bytes_raw(),
+            ))
+        if len(set(signing_keys)) != len(signing_keys):
             raise ValueError("dispatch roles require distinct pinned keys")
 
     def _continuity(self):
@@ -174,9 +196,7 @@ class PrivateDispatch:
         if (
             target.preview_source is None
             or target.scope.application_id not in {"travel", "health"}
-            or type(registration.runtime) is not RuntimeDispatch
             or type(target.runtime) is not PairedApplicationRuntime
-            or registration.runtime.pas_issuer != self.issuer
             or registration.trust_current() is not True
         ):
             raise DispatchDenied
@@ -239,7 +259,7 @@ class PrivateDispatch:
             registration.verified_preview_expiry(receipt, dependencies),
         )
         self._current(registration, binding, dependencies, "preview", chat, assembler)
-        if now >= expires:
+        if self.clock() >= expires:
             raise DispatchExpired
         payload = canonical({
             "messages": [
@@ -336,8 +356,7 @@ class PrivateDispatch:
             binding.source, binding.memory,
         ) or dependencies.branch_digest != binding.branch or dependencies.policy_version != binding.policy:
             raise DispatchDenied
-        token = application_plan_source_binding.set(expected)
-        try:
+        def require_dependencies():
             if not source_snapshots_current(
                 dependencies.snapshots, assembler.permission_revalidator,
                 now=datetime.fromtimestamp(self.clock(), UTC),
@@ -345,7 +364,18 @@ class PrivateDispatch:
                 conversation, expected_branch=binding.branch, expected_policy=binding.policy,
             ):
                 raise DispatchDenied
+
+        token = application_plan_source_binding.set(expected)
+        try:
+            require_dependencies()
             registration.current.require(binding, phase, self.clock)
+            if self.registration() is not registration:
+                raise DispatchDenied
+            try:
+                registration.runtime.require_target(target, dependencies.effective_sensitivity)
+            except BridgeDenied:
+                raise DispatchDenied from None
+            require_dependencies()
         except (ContextPreparationError, ResourceNotFoundError):
             raise DispatchDenied from None
         finally:
@@ -443,9 +473,15 @@ class PrivateDispatch:
             )
             now = self.clock()
             terminal = self._terminal(registration, row, *result, now=now)
+            def authorize_commit():
+                authorize("disclose")
+                committed_at = self.clock()
+                if committed_at >= terminal.expires:
+                    raise DispatchExpired
+                return committed_at
+
             self.journal.complete(
-                key, *result, committed_at=now, message_id=terminal.message_id,
-                authorize=lambda: authorize("disclose"),
+                key, *result, message_id=terminal.message_id, authorize=authorize_commit,
             )
         except (
             BridgeDenied, ContextPreparationError, ConversationConflictError, DispatchDenied,
@@ -492,6 +528,8 @@ class PrivateDispatch:
             raise DispatchUnavailable
         terminal = None
         if row.state == "completed":
+            if type(row.committed_at) is not int or not 0 <= row.committed_at <= self.clock():
+                raise DispatchUnavailable
             terminal = self._terminal(
                 registration, row, row.terminal, row.terminal_signature, row.result,
                 now=row.committed_at,
@@ -515,6 +553,10 @@ class PrivateDispatch:
             }
         encoded = canonical(result)
         self._current(registration, row.binding, dependencies, "disclose", chat, assembler)
+        if row.state in {"send_started", "completed"} and not self._fences_current(registration, row):
+            raise DispatchUnavailable
+        if self.journal.read(key) != row:
+            raise DispatchUnavailable
         return encoded, row.committed_at if terminal else None
 
     def _fences_current(self, registration, row):

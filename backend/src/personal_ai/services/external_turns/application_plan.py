@@ -464,14 +464,8 @@ class ApplicationPlanService:
                     "application": target.scope.application_id,
                     "provider": dispatch_destination.provider if dispatch_destination else "ChatGPT",
                     "model": dispatch_destination.model if dispatch_destination else target.model,
-                    "runtime": (
-                        dispatch_destination.runtime if dispatch_destination
-                        else target.scope.local_recipient
-                    ),
-                    "recipient": (
-                        dispatch_destination.account if dispatch_destination
-                        else target.scope.model_recipient
-                    ),
+                    "runtime": target.scope.local_recipient,
+                    "recipient": target.scope.model_recipient,
                 },
                 "purpose": "foreground_application_plan",
                 "selected_context": [

@@ -95,7 +95,7 @@ class SyntheticDispatchJournal:
                 """, (key,)).rowcount != 1:
                 raise ValueError("dispatch claim lost")
 
-    def complete(self, key, terminal, signature, result, *, committed_at, message_id, authorize):
+    def complete(self, key, terminal, signature, result, *, message_id, authorize):
         with self._connection(write=True) as db:
             row = self._read(db, key)
             if row is None or row.state not in {"send_started", "completed"}:
@@ -106,7 +106,7 @@ class SyntheticDispatchJournal:
                 ):
                     db.execute("UPDATE attempts SET state='quarantined' WHERE scope_key=?", (key,))
                 return
-            authorize()
+            committed_at = authorize()
             db.execute("INSERT INTO canonical_messages VALUES (?, ?, ?)", (message_id, key, result))
             db.execute("""
                 UPDATE attempts

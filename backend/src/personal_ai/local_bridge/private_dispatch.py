@@ -108,6 +108,11 @@ class RuntimeDispatch:
             or destination.connection != str(bridge.installation.connection_id)
             or destination.revision != bridge.installation.connection_revision
             or destination.account != bridge.installation.registration_binding
+            or destination.endpoint != "loopback-fixture"
+            # These are the recipient grant identities used by the assembler, bound
+            # by the pairing to the exact registered account and local runtime.
+            or target.scope.model_recipient != f"openai-responses:{destination.account}"
+            or target.scope.local_recipient != f"local:{destination.runtime}"
             or target.scope != bridge.installation.scope
             or target.caller_id != session.caller_id
             or target.model != destination.model

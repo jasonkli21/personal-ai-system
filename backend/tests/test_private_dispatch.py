@@ -8,16 +8,21 @@ import http.client
 import json
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Barrier
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from personal_ai.api.private_application_plan import PROFILE_PREFIX
+from personal_ai.api import dependencies as deps
+from personal_ai.api.private_application_plan import PROFILE_PREFIX, mount_application_plan
 from personal_ai.contracts.private_dispatch import (
     MEDIA_TYPE,
     ORIGINAL_KEY_HEADER,
@@ -25,7 +30,6 @@ from personal_ai.contracts.private_dispatch import (
     VERSION,
     Binding,
     Confirmation,
-    Current,
     PreviewClaims,
     TerminalClaims,
     canonical,
@@ -39,6 +43,7 @@ from personal_ai.services.external_turns.dispatch_journal import SyntheticDispat
 from personal_ai.services.external_turns.private_dispatch import (
     CreateBinding,
     CurrentSource,
+    DispatchDenied,
     DispatchRegistration,
     DispatchUnavailable,
     PrivateDispatch,
@@ -170,7 +175,7 @@ def receiver(monkeypatch):
         write.close()
 
 
-def install(host, transport, tmp_path):
+def install(host, transport, tmp_path, *, registered_receipts=False):
     from personal_ai.contracts.private_dispatch import Destination
 
     dependencies = {}
@@ -199,11 +204,13 @@ def install(host, transport, tmp_path):
         phases.append((phase, nonce))
         if callable(gates["changed"]):
             gates["changed"](phase)
-        return Current(
-            binding_sha256=wire_digest(canonical(binding)), phase=phase, nonce=nonce,
-            current=phase != gates["denied"] and bool(host.current),
-            expires=now() + 5,
-        )
+        # The other side owns its own wire reader and returns a plain object.
+        assert canonical(parse(binding, Binding)) == binding
+        return {
+            "binding_sha256": wire_digest(binding), "phase": phase, "nonce": nonce,
+            "current": phase != gates["denied"] and bool(host.current),
+            "expires": now() + 5,
+        }
 
     def commitments(frozen):
         dependencies[str(frozen.original_key)] = frozen
@@ -229,6 +236,7 @@ def install(host, transport, tmp_path):
         verified_preview_expiry=verify_legacy_header,
         load_dependencies=lambda binding: dependencies.get(binding.original_key),
         trust_current=lambda: True,
+        receipt_authority=host.authority if registered_receipts else None,
     )
     dispatch = PrivateDispatch(
         plans=host.fixture.service, journal=SyntheticDispatchJournal(tmp_path / "journal"),
@@ -239,7 +247,9 @@ def install(host, transport, tmp_path):
     for route in host.app.state.private_application_plan_routes:
         host.app.router.routes.remove(route)
     host.app.state.private_application_plan_routes = ()
-    host.fixture.mount(bound_receipts=host.authority, dispatch=dispatch)
+    host.fixture.mount(
+        bound_receipts=None if registered_receipts else host.authority, dispatch=dispatch,
+    )
     return dispatch, creates, gates, phases
 
 
@@ -265,7 +275,8 @@ def pending(host, client, creates):
     installation = host.target.plan.runtime._bridge.installation
     assert destination == {
         "application": "health", "provider": "fake", "model": "fake",
-        "runtime": str(installation.runtime_id), "recipient": installation.registration_binding,
+        "runtime": f"local:{installation.runtime_id}",
+        "recipient": f"openai-responses:{installation.registration_binding}",
     }
     request = canonical({
         "confirmation": wire_digest(canonical(envelope["claims"])),
@@ -284,13 +295,19 @@ def inspect(host, client, path, **headers):
     return client.get(path, headers={**host.headers, "accept": MEDIA_TYPE, **headers})
 
 
-def test_synthetic_canonical_completion_and_current_filtered_reads(setup, receiver, tmp_path):
+@pytest.mark.parametrize("registered_receipts", [False, True])
+def test_synthetic_canonical_completion_and_current_filtered_reads(
+    setup, receiver, tmp_path, registered_receipts,
+):
     host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
     transport, arrivals, issued = receiver()
-    _, creates, gates, phases = install(host, transport, tmp_path)
+    _, creates, gates, phases = install(
+        host, transport, tmp_path, registered_receipts=registered_receipts,
+    )
     with TestClient(host.app) as client:
         cid, post, get, body, envelope = pending(host, client, creates)
         assert inspect(host, client, get).json()["state"] == "unknown"
+        assert inspect(host, client, get, **{ORIGINAL_KEY_HEADER: str(uuid4())}).status_code == 404
         assert issued == [] and not arrivals.poll()
         altered = json.loads(body)
         altered["confirmation"] = "0" * 64
@@ -307,6 +324,15 @@ def test_synthetic_canonical_completion_and_current_filtered_reads(setup, receiv
         assert status.headers["x-pas-committed-at"].isdigit()
         detail_path = f"/v1/conversations/{cid}"
         original_key = parse(body, Confirmation).original_key
+        for malformed in (
+            {"accept": f"{MEDIA_TYPE}, application/json"},
+            {"accept": f"{MEDIA_TYPE};q=1"},
+            {"accept": "application/json"},
+        ):
+            denied = inspect(
+                host, client, detail_path, **({ORIGINAL_KEY_HEADER: original_key} | malformed)
+            )
+            assert denied.status_code == 404 and denied.content == b""
         detail = inspect(host, client, detail_path, **{ORIGINAL_KEY_HEADER: original_key})
         assert detail.json() == {
             "result": "ok", "message_id": status.json()["message_id"],
@@ -499,3 +525,140 @@ def test_normal_startup_never_mounts_dispatch_profile():
     app = create_app()
     assert not getattr(app.state, "private_application_plan_routes", ())
     assert not getattr(app.state, "private_dispatch_read_routes", ())
+
+
+@pytest.mark.parametrize("misbinding", ["recipient", "runtime", "endpoint"])
+def test_runtime_requires_destination_mapping_to_authorized_recipient(setup, tmp_path, misbinding):
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
+    receiver = LoopbackReceiver(1, Ed25519PrivateKey.generate().public_key())
+    dispatch, _, _, _ = install(host, receiver, tmp_path)
+    runtime = dispatch.registrations[0].runtime
+    if misbinding == "endpoint":
+        runtime = replace(runtime, destination=runtime.destination.model_copy(
+            update={"endpoint": "unregistered-loopback"},
+        ))
+        target = host.target.plan
+    else:
+        target = host.target.plan
+        attr = "model_recipient" if misbinding == "recipient" else "local_recipient"
+        target = replace(target, scope=target.scope.model_copy(update={attr: "wrong-grant"}))
+    from personal_ai.local_bridge.runtime import BridgeDenied
+
+    with pytest.raises(BridgeDenied):
+        runtime.require_target(target, "restricted")
+
+
+@pytest.mark.parametrize("misbinding", ["receiver-preview", "receiver-release", "cross-role",
+                                         "duplicate-registration"])
+def test_registration_rejects_signing_key_aliases(setup, tmp_path, misbinding):
+    host = setup(runtime_options={"model": "fake", "maximum_sensitivity": "restricted"})
+    receiver = LoopbackReceiver(1, Ed25519PrivateKey.generate().public_key())
+    dispatch, _, _, _ = install(host, receiver, tmp_path)
+    original = dispatch.registrations[0]
+    runtime = original.runtime
+    if misbinding == "cross-role":
+        altered = replace(
+            runtime, issuer="other-runtime", terminal_key=Ed25519PrivateKey.generate(),
+            destination=runtime.destination.model_copy(update={"runtime": str(uuid4())}),
+            receiver=replace(receiver, response_key=runtime.terminal_key.public_key()),
+        )
+        registrations = (original, replace(original, target=replace(original.target), runtime=altered))
+    elif misbinding == "duplicate-registration":
+        registrations = (original, original)
+    else:
+        reused = dispatch.preview_key if misbinding == "receiver-preview" else dispatch.release_key
+        altered = replace(runtime, receiver=replace(receiver, response_key=reused.public_key()))
+        registrations = (replace(original, runtime=altered),)
+    with pytest.raises(ValueError, match="roles|misbound"):
+        PrivateDispatch(
+            plans=dispatch.plans, journal=dispatch.journal, registrations=registrations,
+            issuer=dispatch.issuer, preview_kid=dispatch.preview_kid,
+            preview_key=dispatch.preview_key, release_key=dispatch.release_key,
+            continuity_current=lambda: True,
+        )
+
+
+def test_source_callback_requires_exact_wire_response():
+    raw = (Path(__file__).parent / "fixtures/private-dispatch-health.txt").read_bytes()
+    binding = parse(raw.splitlines()[2], Binding)
+
+    def source(binding_bytes, phase, nonce):
+        assert binding_bytes == raw.splitlines()[2]
+        return {
+            "binding_sha256": wire_digest(binding_bytes), "phase": phase, "nonce": nonce,
+            "current": True, "expires": 1001,
+        }
+
+    CurrentSource(source).require(binding, "preview", lambda: 1000)
+    with pytest.raises(DispatchDenied):
+        CurrentSource(lambda *values: source(*values) | {"extra": True}).require(
+            binding, "preview", lambda: 1000,
+        )
+
+
+def test_travel_dispatch_preview_attests_exact_original_receipt():
+    """Exercise the PAS vendor-media route with the native Travel receipt signer."""
+    cid, key = uuid4(), uuid4()
+    original_key = Ed25519PrivateKey.generate()
+    selected = b'{"purpose":"foreground_application_plan"}'
+    original_binding = SimpleNamespace(
+        scope=SimpleNamespace(application_id="travel", workspace_id=None),
+        target_id="fixture-travel", client_namespace="fixture-client",
+        owner_id="fixture-owner", human_issuer="fixture-human", human_subject="fixture-subject",
+    )
+    target = SimpleNamespace(
+        scope=original_binding.scope,
+        source_provider_id="travel",
+        preview_binding=lambda principal, conversation: original_binding if conversation == cid else None,
+    )
+    frozen = SimpleNamespace(snapshots=(SimpleNamespace(provider_id="travel", source_version="4"),))
+    envelope = canonical({"claims": {"purpose": "preview"}, "signature": "stand-in"})
+
+    def preview(_chat, _assembler, conversation, incoming, **hooks):
+        assert (conversation, incoming.idempotency_key) == (cid, key)
+        hooks["require_current_operation"]()
+        hooks["attest"](selected, frozen)
+        hooks["prepare_dispatch"](frozen, None)
+        return json.loads(selected), "4"
+
+    plans = SimpleNamespace(current_target=lambda: target, preview_with_source_revision=preview)
+    registration = SimpleNamespace(
+        target=target, receipt_authority=None, runtime=SimpleNamespace(destination="fixture-fake"),
+    )
+    headers_seen = []
+
+    def prepare_dispatch(_registration, _create, receipt, _frozen, _context, _chat, _assembler):
+        headers_seen.append(receipt)
+        return envelope
+
+    dispatch = SimpleNamespace(
+        plans=plans, registrations=(registration,), registration=lambda: registration,
+        begin_preview=lambda *_: object(), prepare=prepare_dispatch,
+    )
+    app = FastAPI()
+    app.state.isolate_external_conversations = True
+    app.dependency_overrides[deps.get_chat_turn_service] = lambda: None
+    mount_application_plan(
+        app, service=plans, assembler_dependency=lambda: None,
+        preview_recipient_scope=lambda _target: nullcontext(),
+        travel_receipt_key=original_key, dispatch=dispatch,
+    )
+    raw = canonical(plan_request(str(key)))
+    with TestClient(app) as client:
+        result = client.post(
+            f"{PROFILE_PREFIX}/{cid}/context-preview",
+            content=raw, headers={"content-type": MEDIA_TYPE, "accept": MEDIA_TYPE},
+        )
+    assert result.status_code == 200 and result.content == selected
+    assert result.headers["content-type"] == MEDIA_TYPE
+    assert result.headers[RECEIPT_HEADER].encode("ascii") == envelope
+    assert result.headers["x-application-plan-receipt"] == headers_seen[0]
+    original_key.public_key().verify(bytes.fromhex(headers_seen[0]), canonical({
+        "schema_version": "travel-application-plan-receipt-v1",
+        "operation": "preview", "target_id": "fixture-travel",
+        "client_namespace": "fixture-client", "application_id": "travel",
+        "workspace_id": None, "owner_id": "fixture-owner", "issuer": "fixture-human",
+        "subject": "fixture-subject", "conversation_id": str(cid),
+        "request_digest": wire_digest(raw), "response_digest": wire_digest(selected),
+        "source_revision": "4",
+    }))

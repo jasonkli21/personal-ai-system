@@ -50,7 +50,14 @@ RECEIPT_HEADER = "x-application-plan-receipt"
 
 class _DispatchReadRoute(APIRoute):
     def matches(self, scope):
-        if scope.get("type") != "http" or Headers(scope=scope).getlist("accept") != [MEDIA_TYPE]:
+        if scope.get("type") != "http":
+            return Match.NONE, {}
+        headers = Headers(scope=scope)
+        if ORIGINAL_KEY_HEADER not in headers and not any(
+            item.split(";", 1)[0].strip().lower() == MEDIA_TYPE
+            for value in headers.getlist("accept")
+            for item in value.split(",")
+        ):
             return Match.NONE, {}
         return super().matches(scope)
 
@@ -195,8 +202,13 @@ def mount_application_plan(
         or (travel_receipt_key is not None and bound_receipts is not None)
         or (dispatch is not None and (
             dispatch.plans is not service or (
-                bound_receipts is None
-                and any(registration.receipt_authority is None for registration in dispatch.registrations)
+                bound_receipts is None and any(
+                    registration.receipt_authority is None and (
+                        travel_receipt_key is None
+                        or registration.target.scope.application_id != "travel"
+                    )
+                    for registration in dispatch.registrations
+                )
             )
         ))
     ):
@@ -217,19 +229,30 @@ def mount_application_plan(
         except (ValueError, RecursionError):
             raise HTTPException(422, "validation_error") from None
         target = await sync_call(service.current_target)
+        authority = bound_receipts
+        if authority is None and dispatch is not None:
+            matching = [entry for entry in dispatch.registrations if entry.target is target]
+            if matching and matching[0].receipt_authority is not None:
+                try:
+                    registration = await sync_call(dispatch.registration)
+                except DispatchDenied as error:
+                    return _dispatch_response(error.status)
+                authority = registration.receipt_authority
         principal = current_verified_principal()
         if (
             principal is None
             or not principal.authenticated
             or target.preview_source is None
-            or (travel_receipt_key is not None and target.scope.application_id != "travel")
-            or (bound_receipts is not None and incoming.idempotency_key is None)
+            or (authority is None and (
+                travel_receipt_key is None or target.scope.application_id != "travel"
+            ))
+            or (authority is not None and incoming.idempotency_key is None)
             or target.scope.workspace_id is not None
         ):
             raise ContextPreparationError("context_no_ai_route")
         attestor = (
-            await sync_call(bound_receipts, request, target, None, raw)
-            if bound_receipts is not None
+            await sync_call(authority, request, target, None, raw)
+            if authority is not None
             else None
         )
         conversation = await sync_call(
@@ -315,13 +338,34 @@ def mount_application_plan(
                     )
                     attested_body = body
 
-                if negotiated:
-                    def prepare_dispatch(frozen, context):
-                        envelope = dispatch.prepare(
-                            registration, create_binding, headers[RECEIPT_HEADER], frozen,
-                            context, chat, assembler,
-                        )
-                        headers[DISPATCH_RECEIPT_HEADER] = envelope.decode("ascii")
+            elif negotiated and travel_receipt_key is not None:
+                def require_current_operation():
+                    require_current_client_authority()
+                    if service.current_target() is not target:
+                        raise ContextPreparationError("context_no_ai_route")
+
+                def attest(body: bytes, frozen: BoundPreviewMetadata) -> None:
+                    nonlocal attested_body
+                    domain = next(
+                        item for item in frozen.snapshots if item.provider_id == target.source_provider_id
+                    )
+                    headers[RECEIPT_HEADER] = _signed_receipt(
+                        travel_receipt_key, target=target, operation="preview",
+                        conversation_id=conversation_id, request_body=raw, response_body=body,
+                        source_revision=domain.source_version,
+                    )
+                    attested_body = body
+
+            if negotiated:
+                if attest is None:
+                    raise DispatchDenied
+
+                def prepare_dispatch(frozen, context):
+                    envelope = dispatch.prepare(
+                        registration, create_binding, headers[RECEIPT_HEADER], frozen,
+                        context, chat, assembler,
+                    )
+                    headers[DISPATCH_RECEIPT_HEADER] = envelope.decode("ascii")
 
             with preview_recipient_scope(target):
                 selection, source_revision = await sync_call(
@@ -423,7 +467,7 @@ def mount_application_plan(
 
     async def dispatch_read(conversation_id, original_key, request, chat, assembler, *, detail):
         try:
-            if request.url.query:
+            if request.url.query or request.headers.getlist("accept") != [MEDIA_TYPE]:
                 raise DispatchDenied
             _canonical_path(request, conversation_id, None if detail else original_key)
             async for chunk in request.stream():
@@ -447,6 +491,8 @@ def mount_application_plan(
         assembler: Annotated[ContextAssembler, Depends(assembler_dependency)],
     ):
         try:
+            if request.headers.getlist(ORIGINAL_KEY_HEADER):
+                raise ValueError
             conversation, original = UUID(conversation_id), UUID(original_key)
         except ValueError:
             return _dispatch_response(404)
@@ -468,7 +514,7 @@ def mount_application_plan(
         return await dispatch_read(conversation, original_key, request, chat, assembler, detail=True)
 
     routes = []
-    if travel_receipt_key is not None or bound_receipts is not None:
+    if travel_receipt_key is not None or bound_receipts is not None or dispatch is not None:
         app.add_api_route(PROFILE_PREFIX, create, methods=["POST"], include_in_schema=False)
         routes.append(app.router.routes[-1])
     for suffix, handler in (("context-preview", preview), ("continue", continue_turn)):
@@ -489,6 +535,8 @@ def mount_application_plan(
         routes.append(app.router.routes[-1])
         app.state.lookup_only_application_plan_principal = True
     if dispatch is not None:
+        if any(entry.receipt_authority is not None for entry in dispatch.registrations):
+            app.state.lookup_only_application_plan_principal = True
         app.state.private_dispatch_post_routes = tuple(
             route for route in routes if route.endpoint in (preview, continue_turn)
         )
