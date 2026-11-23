@@ -7,6 +7,7 @@ from dataclasses import replace
 from app_context_support.fixtures import FITNESS, SOURCES, TRAVEL
 from app_context_support.source import expiry, is_fresh, validate_projection
 from app_context_support.wire import ProtocolError, encode
+from context_host import ALT_CLIENT, ISSUER, TRAVEL_CLIENT, SyntheticHost
 from personal_ai.applications.registry import ApplicationRegistry
 from personal_ai_mcp_context.contracts import (
     MAX_HITS,
@@ -17,10 +18,12 @@ from personal_ai_mcp_context.contracts import (
     SearchPage,
     SourceInstallation,
 )
-from context_host import ALT_CLIENT, ISSUER, TRAVEL_CLIENT, SyntheticHost
 
-
-TRAVEL_INSTALLATION = SourceInstallation(TRAVEL, SOURCES[TRAVEL], f"install-{TRAVEL}")
+TRAVEL_INSTALLATIONS = frozenset(
+    SourceInstallation(tenant, TRAVEL, SOURCES[TRAVEL], f"install-{TRAVEL}")
+    for tenant in ("tenant-a", "tenant-b")
+)
+TRAVEL_INSTALLATION = next(item for item in TRAVEL_INSTALLATIONS if item.tenant == "tenant-a")
 
 
 class TravelRecords:
@@ -174,4 +177,4 @@ class WorkspaceLessHost(SyntheticHost):
         return AuthorizedRead(projected, revalidate)
 
     def app(self, **kwargs):
-        return super().app(**({"workspace_less_sources": frozenset({TRAVEL_INSTALLATION})} | kwargs))
+        return super().app(**({"workspace_less_sources": TRAVEL_INSTALLATIONS} | kwargs))

@@ -1,18 +1,41 @@
 import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
 
+import context_host
 import pytest
 from app_context_support.fences import side_effect_fence  # noqa: F401
 from app_context_support.fixtures import SOURCES, TRAVEL
+from context_host import SyntheticHost
+from context_workspace import WorkspaceLessHost as ProfileWorkspaceLessHost
 from personal_ai_mcp_context import server
-
-import context_host
-from test_context_profiles import publications, workspace_less  # noqa: F401
-from test_context_server import assert_denied, handle, host, http, rpc, tool  # noqa: F401
-
+from test_context_server import assert_denied, handle, http, rpc, tool
 
 pytestmark = pytest.mark.usefixtures("side_effect_fence")
+
+
+@pytest.fixture
+def host():
+    return SyntheticHost()
+
+
+@pytest.fixture
+def workspace_less():
+    return ProfileWorkspaceLessHost()
+
+
+@pytest.fixture
+def publications(monkeypatch):
+    published = []
+    original = server._State.publish
+
+    def observe(state, pending, citations):
+        original(state, pending, citations)
+        published.append((len(pending), len(citations)))
+
+    monkeypatch.setattr(server._State, "publish", observe)
+    return published
 
 
 def test_timed_out_synchronous_exchanges_keep_eight_worker_slots_until_exit(host, publications, monkeypatch):
@@ -54,13 +77,17 @@ def test_timed_out_synchronous_exchanges_keep_eight_worker_slots_until_exit(host
     monkeypatch.setattr(source, "exchange", blocked)
 
     async def run():
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=9))
         async with http(host, host.token()) as client:
             start = monotonic()
             requests = [
                 asyncio.create_task(tool(client, "search", {"query": "Demo"})) for _ in range(8)
             ]
             try:
-                assert await asyncio.to_thread(ready.wait, 1.5)
+                ready_deadline = monotonic() + 1.5
+                while not ready.is_set() and monotonic() < ready_deadline:
+                    await asyncio.sleep(0.01)
+                assert ready.is_set()
                 ninth = await rpc(client, "tools/call", {"name": "search", "arguments": {"query": "Demo"}})
                 assert ninth.status_code == 429 and ninth.content == b""
                 for response in await asyncio.wait_for(asyncio.gather(*requests), timeout=3):
@@ -75,7 +102,10 @@ def test_timed_out_synchronous_exchanges_keep_eight_worker_slots_until_exit(host
                 assert len(entered) == 8 and not publications
 
                 holds[0].set()
-                assert await asyncio.to_thread(first_slot_released.wait, 1)
+                release_deadline = monotonic() + 1
+                while not first_slot_released.is_set() and monotonic() < release_deadline:
+                    await asyncio.sleep(0.01)
+                assert first_slot_released.is_set()
                 assert timed_out < exited[0][1] <= slot_released[0]
                 result = await tool(client, "search", {"query": "Demo"}, **other)
                 assert result["structuredContent"]["results"][0]["title"] == "Demo shuttle B"

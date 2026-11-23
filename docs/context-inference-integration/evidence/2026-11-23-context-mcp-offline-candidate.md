@@ -64,6 +64,11 @@ suite must run against an unchanged lock to produce E1 observations.
 
 ## Acceptance matrix
 
+The following matrix preserves the original candidate dispositions. The author
+E1 source and wheel suite statuses for its collected witnesses are superseded by
+the remediation follow-up below; independent E1 acceptance and every external
+tier remain open.
+
 File prefixes are `server` for `adapters/mcp_context/tests/test_context_server.py`,
 `profiles` for `adapters/mcp_context/tests/test_context_profiles.py`, and `work`
 for `adapters/mcp_context/tests/test_context_work.py`. Entries identify the
@@ -129,3 +134,34 @@ Revoke the relevant connections and grants and invalidate the process-local
 bindings on restart. Rehearse live ingress, cache and revoke behavior only
 under separately approved operator work. The report records no client
 registration, deployment, live source, provider call or real credentials.
+
+## Remediation follow-up · 2026-11-23
+
+The author remediation fixes the two independent-review source and wheel failures:
+the citation SDK test now creates a fresh app for each one-shot MCP session
+manager lifespan, and the eight-worker saturation witness waits asynchronously
+without consuming a thread-pool slot. Its fixture gives the event loop nine
+executor workers so eight real synchronous source operations can reach the
+barrier; the production and assertion cap remains eight.
+
+Workspace-less `SourceInstallation` registration now includes the tenant in its
+exact identity. A same-app/source/installation registration for tenant A denies
+tenant B before any protected Travel lookup. Linked-subject rate admission now
+occurs after current binding resolution at MCP tool entry. A binding change
+after that point cannot erase its charge. Authenticated citation browser reads
+share the same issuer/subject budget and are charged after principal ownership
+and current-binding checks, before protected reads. Browser denial on exhaustion
+returns HTTP 429 with no body. Existing 8,192-byte serialization and per-read
+budget checks remain in force for both projections.
+
+| Command | Exit and observation |
+| --- | --- |
+| `/tmp/r7env/bin/python -m ruff check adapters/mcp_context` | 0. All checks passed. |
+| `make mcp-context-check MCP_ADAPTER_PYTHON=/tmp/r7env/bin/python` | 0. 139 passed; 0 blocked network attempts. Linux x86_64, CPython 3.12.14, locked MCP 2.3.0 environment. |
+| Offline wheel build, isolated target install, then `make mcp-context-check MCP_CONTEXT_IMPORT_PATH=/tmp/r7remediation-installed:backend/src MCP_ADAPTER_PYTHON=/tmp/r7env/bin/python` | 0. 139 passed; 0 blocked network attempts; tests imported the installed wheel. |
+| `make mcp-adapter-check MCP_ADAPTER_PYTHON=/tmp/r7env/bin/python` | 2. 11 failed, 33 passed. An archive of pinned base `07b43ece590634ecc290ee8ba2b5a99763206f30` reproduced the same 11 failures and 33 passes. The `/tmp` trust checks reject pytest temporary directories and the `/tmp/r7env` Python executable. The inbound adapter is unchanged. |
+
+These are author-run Linux offline E1 observations only. Independent acceptance,
+hosted macOS CI, Stage 0 and R-03 remain open. E2-N remains **NOT RUN**, E2-I
+remains **BLOCKED_UNVERIFIED**, and E3 remains **NO_GO**. No remote write was
+performed.

@@ -43,6 +43,7 @@ VerifyAccess = Callable[[str], Awaitable[VerifiedAccess | None]]
 class SourceInstallation:
     """An exact host registration, suitable for explicitly allowing null workspace."""
 
+    tenant: str
     application_id: str
     source_id: str
     installation_id: str

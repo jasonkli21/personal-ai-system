@@ -7,15 +7,26 @@ from urllib.parse import urlsplit
 import pytest
 from app_context_support.fences import side_effect_fence  # noqa: F401
 from app_context_support.fixtures import TRAVEL
+from context_host import ALT_CLIENT, CITATION_RESOURCE, FITNESS_CLIENT, ISSUER, RESOURCE
+from context_workspace import (
+    TRAVEL_INSTALLATION,
+    TRAVEL_INSTALLATIONS,
+    WorkspaceLessHost,
+)
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from personal_ai.auth.scope import ApplicationScope
 from personal_ai_mcp_context import server
-
-from context_host import ALT_CLIENT, CITATION_RESOURCE, FITNESS_CLIENT, ISSUER, RESOURCE
-from context_workspace import TRAVEL_INSTALLATION, WorkspaceLessHost
-from test_context_server import IDENTITY, assert_denied, assert_schema, handle, http, reads, rpc, tool
-
+from test_context_server import (
+    IDENTITY,
+    assert_denied,
+    assert_schema,
+    handle,
+    http,
+    reads,
+    rpc,
+    tool,
+)
 
 pytestmark = pytest.mark.usefixtures("side_effect_fence")
 _COOKIE = "fixture-session"
@@ -215,8 +226,7 @@ def test_citation_profile_uses_exact_audience_and_sdk_shapes(workspace_less, pub
         host.app(resource=RESOURCE, verify_browser=host.verify_browser)
 
     async def run():
-        app = host.citation_app()
-        async with http(host, host.token(), app=app) as wrong:
+        async with http(host, host.token(), app=host.citation_app()) as wrong:
             response = await rpc(wrong, "tools/list", resource=CITATION_RESOURCE)
             assert response.status_code == 401 and response.content == b""
             assert 'oauth-protected-resource/mcp-citations/v1"' in response.headers["www-authenticate"]
@@ -226,7 +236,7 @@ def test_citation_profile_uses_exact_audience_and_sdk_shapes(workspace_less, pub
             )
             assert metadata.json()["resource"] == CITATION_RESOURCE
         async with (
-            http(host, host.token(aud=CITATION_RESOURCE), app=app) as client,
+            http(host, host.token(aud=CITATION_RESOURCE), app=host.citation_app()) as client,
             Client(streamable_http_client(
                 CITATION_RESOURCE, http_client=client, terminate_on_close=False,
             ), cache=None) as mcp,
@@ -253,6 +263,21 @@ def test_citation_profile_uses_exact_audience_and_sdk_shapes(workspace_less, pub
     asyncio.run(run())
     assert publications == [(1, 1), (1, 1), (0, 0)]
     assert len(host.travel.lookup_paths) == 3
+
+
+def test_workspace_less_registration_is_tenant_bound(workspace_less):
+    host = workspace_less
+    only_tenant_a = frozenset(item for item in TRAVEL_INSTALLATIONS if item.tenant == "tenant-a")
+
+    async def run():
+        async with http(
+            host, host.token("b"), app=host.app(workspace_less_sources=only_tenant_a),
+        ) as client:
+            response = await tool(client, "search", {"query": "Demo"})
+            assert_denied(response)
+
+    asyncio.run(run())
+    assert host.travel.lookup_paths == []
 
 
 def test_browser_reauthenticates_and_checks_current_citation_grant(workspace_less, caplog):
@@ -298,6 +323,44 @@ def test_browser_reauthenticates_and_checks_current_citation_grant(workspace_les
 
     asyncio.run(run())
     assert "browser-canary" not in caplog.text and "Demo shuttle A" not in caplog.text
+
+
+def test_browser_views_share_the_linked_subject_call_budget(workspace_less, monkeypatch):
+    host = workspace_less
+    monkeypatch.setattr(server, "CALLS_PER_MINUTE", 1)
+
+    async def run():
+        session = host.browser_session(IDENTITY)
+        async with http(host, host.token(aud=CITATION_RESOURCE), app=host.citation_app()) as client:
+            item = await citable_search(client)
+            response = await client.get(item["url"], headers={"Cookie": f"{_COOKIE}={session}"})
+            assert response.status_code == 429 and response.content == b""
+            assert response.headers["cache-control"] == "private, no-store"
+            assert len(host.travel.lookup_paths) == 1
+
+    asyncio.run(run())
+
+
+def test_browser_projection_enforces_the_shared_serialization_cap(workspace_less):
+    host = workspace_less
+    records = host.travel.records["tenant-a", "owner-a"]
+    record = records["r02"]
+    values = dict(record.values)
+    values["platform"] = "\\" * 2200
+    records["r02"] = replace(record, values=tuple(values.items()))
+    identity = replace(IDENTITY, client_id=ALT_CLIENT)
+
+    async def run():
+        session = host.browser_session(identity)
+        async with http(
+            host, host.token(client=ALT_CLIENT, aud=CITATION_RESOURCE), app=host.citation_app(),
+        ) as client:
+            item = await citable_search(client, "Unshared")
+            response = await client.get(item["url"], headers={"Cookie": f"{_COOKIE}={session}"})
+            assert response.status_code == 404 and response.content == b""
+            assert len(host.travel.lookup_paths) == 2
+
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize("change", ["record", "acl", "grant", "session", "expired"])

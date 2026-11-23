@@ -807,6 +807,31 @@ def test_per_principal_rate_includes_failures_and_survives_client_change(host, m
     assert reads(host) == 2
 
 
+def test_linked_rate_charge_survives_binding_change_after_tool_entry(host, monkeypatch):
+    monkeypatch.setattr(server, "CALLS_PER_MINUTE", 1)
+    connection, = host.connections[IDENTITY]
+    original_read = host.read
+
+    async def change_binding_after_read(identity, binding, selection, budget):
+        authorized_read = await original_read(identity, binding, selection, budget)
+        host.connections[IDENTITY] = (replace(connection, generation=connection.generation + 1),)
+        return authorized_read
+
+    monkeypatch.setattr(host, "read", change_binding_after_read)
+
+    async def run():
+        async with http(host, host.token()) as client:
+            assert_denied(await tool(client, "search", {"query": "Demo"}))
+            host.connections[IDENTITY] = (connection,)
+            response = await rpc(
+                client, "tools/call", {"name": "search", "arguments": {"query": "Demo"}},
+            )
+            assert response.status_code == 429 and response.content == b""
+
+    asyncio.run(run())
+    assert reads(host) == 1
+
+
 def test_unlinked_subject_churn_does_not_consume_linked_rate_buckets(host, monkeypatch):
     monkeypatch.setattr(server, "MAX_RATE_KEYS", 2)
 

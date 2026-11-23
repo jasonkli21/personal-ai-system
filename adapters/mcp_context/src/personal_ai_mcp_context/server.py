@@ -190,12 +190,13 @@ class _FrameTooLarge(Exception):
     pass
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class _Request:
     access: VerifiedAccess
     token: str = field(repr=False)
     raw: bytes = field(repr=False)
     deadline: float
+    rate_limited: bool = False
 
 
 def _json_bytes(value, *, ascii_only=True):
@@ -345,7 +346,7 @@ def context_mcp_app(
             raise ValueError("unavailable")
         workspace = binding.scope.workspace_id
         installation = SourceInstallation(
-            binding.scope.application_id, binding.source_id, binding.installation_id or "",
+            binding.tenant, binding.scope.application_id, binding.source_id, binding.installation_id or "",
         )
         if installation in workspace_less_sources:
             if workspace is not None or "workspace_id" not in binding.scope.model_fields_set:
@@ -376,6 +377,8 @@ def context_mcp_app(
                 identity, binding, selected = citation.identity, citation.binding, citation.selection
                 if await resolve(identity, "fetch") != binding:
                     return denied
+                if not state.admit_call(identity):
+                    return Response(status_code=429, headers=_BROWSER_HEADERS)
                 budget = reader.budget(deadline)
                 budget.check()
                 read = await reader.read(identity, binding, selected, budget)
@@ -460,6 +463,9 @@ def context_mcp_app(
                 budget.charge_bytes(request.raw)
                 budget.charge_tokens(request.raw)
                 binding = await resolve(identity, name)
+                if not state.admit_call(identity):
+                    request.rate_limited = True
+                    return tool_error()
                 selector = (
                     None if name == "search" else state.selection(argument, identity, binding, clock())
                 )
@@ -630,36 +636,9 @@ def context_mcp_app(
                     or params.keys() - {"name", "arguments", "_meta"}
                 ):
                     return _rpc_error(types.INVALID_PARAMS, "Invalid tool arguments", body=body)
-                name = params.get("name") if isinstance(params, dict) else None
-                arguments = params.get("arguments") if isinstance(params, dict) else None
-                argument = next(iter(arguments.values())) if isinstance(arguments, dict) and len(arguments) == 1 else None
-                within_bytes = isinstance(argument, str) and len(argument.encode("utf-8")) <= (
-                    256 if name == "search" else 200
-                )
-                if (
-                    version == REVISION and headers.get("mcp-method") == "tools/call"
-                    and isinstance(name, str) and headers.get("mcp-name") == name
-                    and type(body.get("id")) in {str, int} and body.get("jsonrpc") == "2.0"
-                    and name in _INPUT and _INPUT_VALIDATORS[name].is_valid(arguments) and within_bytes
-                    and (name != "fetch" or re.fullmatch(r"[A-Za-z0-9_-]+", argument))
-                ):
-                    verdict = classify_inbound_request(
-                        body, headers=headers, supported_modern_versions=(REVISION,),
-                    )
-                    try:
-                        with anyio.fail_after(max(0, deadline - monotonic())):
-                            linked = (
-                                await resolve(access.identity, name) if getattr(verdict, "code", None) is None
-                                else None
-                            )
-                    except TimeoutError:
-                        return Response(status_code=408)
-                    except Exception:  # noqa: BLE001 - unlinked traffic has no subject bucket
-                        linked = None
-                    if linked is not None and not state.admit_call(access.identity):
-                        return Response(status_code=429)
 
-            state_values = {**scope.get("state", {}), "context_mcp": _Request(access, token, raw, deadline)}
+            context_request = _Request(access, token, raw, deadline)
+            state_values = {**scope.get("state", {}), "context_mcp": context_request}
 
             async def replay_body():
                 nonlocal raw
@@ -670,6 +649,15 @@ def context_mcp_app(
                 return message
 
             async def no_store(message):
+                if context_request.rate_limited:
+                    if message["type"] == "http.response.start":
+                        await send({
+                            **message, "status": 429,
+                            "headers": [(b"content-length", b"0"), (b"cache-control", b"no-store")],
+                        })
+                    elif message["type"] == "http.response.body" and not message.get("more_body", False):
+                        await send({"type": "http.response.body", "body": b"", "more_body": False})
+                    return
                 if message["type"] == "http.response.start":
                     message = {**message, "headers": [*message["headers"], (b"cache-control", b"no-store")]}
                 await send(message)
