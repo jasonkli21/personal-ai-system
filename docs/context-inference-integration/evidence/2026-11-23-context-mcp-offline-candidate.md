@@ -137,6 +137,9 @@ registration, deployment, live source, provider call or real credentials.
 
 ## Remediation follow-up · 2026-11-23
 
+Reviewed candidate base: `016a2ea249c220d533a2a0450781f7be28401fb3`.
+Author remediation result: `78b3e841d860766383b94a6a04d95c0a1a25e8e1`.
+
 The author remediation fixes the two independent-review source and wheel failures:
 the citation SDK test now creates a fresh app for each one-shot MCP session
 manager lifespan, and the eight-worker saturation witness waits asynchronously
