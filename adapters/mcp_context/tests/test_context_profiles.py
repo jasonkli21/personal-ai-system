@@ -37,6 +37,13 @@ def workspace_less():
     return WorkspaceLessHost()
 
 
+@pytest.mark.parametrize("tenant", [None, "", " tenant-a"])
+def test_workspace_registration_requires_exact_tenant(workspace_less, tenant):
+    registration = replace(TRAVEL_INSTALLATION, tenant=tenant)
+    with pytest.raises(ValueError, match="mcp_unavailable"):
+        workspace_less.app(workspace_less_sources=frozenset({registration}))
+
+
 @pytest.fixture
 def publications(monkeypatch):
     published = []

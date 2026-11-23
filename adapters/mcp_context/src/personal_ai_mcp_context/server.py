@@ -277,7 +277,7 @@ def context_mcp_app(
         or any(
             not isinstance(item, SourceInstallation)
             or not all(isinstance(part, str) and part and part.strip() == part for part in (
-                item.application_id, item.source_id, item.installation_id,
+                item.tenant, item.application_id, item.source_id, item.installation_id,
             ))
             for item in workspace_less_sources
         )
