@@ -264,6 +264,10 @@ class PlanAttempts:
             confirmation=preview.confirmation, expires=preview.expires_at,
         )
 
+    def binding_exists(self, *, owner, root):
+        with self.observations.transaction(owner_id=owner) as connection:
+            return self.roots.root(connection, root, owner) is not None
+
     def binding_current(
         self, *, owner, root, attempt, payload, confirmation, expires, archived=False,
     ):
@@ -339,7 +343,7 @@ class ApplicationPlanService:
         self, chat, assembler, conversation_id, incoming, *, expected_target=None,
         attest: Callable[[bytes, BoundPreviewMetadata], None] | None = None,
         require_current_operation: Callable[[], None] | None = None,
-        prepare_dispatch=None,
+        prepare_dispatch=None, dispatch_destination=None,
     ):
         if incoming.choice.confirmation is not None:
             raise ContextPreparationError(NO_AI)
@@ -349,6 +353,7 @@ class ApplicationPlanService:
             or (attest is None) != (require_current_operation is None)
             or (attest is not None and target.preview_source is None)
             or (prepare_dispatch is not None and attest is None)
+            or (prepare_dispatch is None) != (dispatch_destination is None)
         ):
             raise ContextPreparationError(NO_AI)
         binding = target.preview_binding(current_verified_principal(), conversation_id)
@@ -356,14 +361,14 @@ class ApplicationPlanService:
         try:
             return self._preview(
                 chat, assembler, conversation_id, incoming.request(), target, binding,
-                attest, require_current_operation, prepare_dispatch,
+                attest, require_current_operation, prepare_dispatch, dispatch_destination,
             )
         finally:
             application_plan_source_binding.reset(token)
 
     def _preview(
         self, chat, assembler, conversation_id, request, target, binding,
-        attest, require_current_operation, prepare_dispatch,
+        attest, require_current_operation, prepare_dispatch, dispatch_destination,
     ):
         assistant_id = continuation_message_id(
             conversation_id,
@@ -455,10 +460,16 @@ class ApplicationPlanService:
             selection = {
                 "destination": {
                     "application": target.scope.application_id,
-                    "provider": "fake" if prepare_dispatch else "ChatGPT",
-                    "model": "fake" if prepare_dispatch else target.model,
-                    "runtime": target.scope.local_recipient,
-                    "recipient": target.scope.model_recipient,
+                    "provider": dispatch_destination.provider if dispatch_destination else "ChatGPT",
+                    "model": dispatch_destination.model if dispatch_destination else target.model,
+                    "runtime": (
+                        dispatch_destination.runtime if dispatch_destination
+                        else target.scope.local_recipient
+                    ),
+                    "recipient": (
+                        dispatch_destination.account if dispatch_destination
+                        else target.scope.model_recipient
+                    ),
                 },
                 "purpose": "foreground_application_plan",
                 "selected_context": [

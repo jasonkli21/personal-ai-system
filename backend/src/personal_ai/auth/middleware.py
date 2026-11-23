@@ -66,6 +66,7 @@ from personal_ai.auth.verification import (
     InvalidIdentityToken,
     principal_from_google_token,
 )
+from personal_ai.contracts.private_dispatch import MEDIA_TYPE as PRIVATE_DISPATCH_MEDIA_TYPE
 from personal_ai.persistence.factory import persistence_factory
 from personal_ai.settings import ContextBudgetInvalidError, Settings, get_settings
 
@@ -306,8 +307,18 @@ async def authenticate_request(request: Request) -> Response | None:
         route.matches(request.scope)[0] == Match.FULL
         for route in getattr(request.app.state, "private_application_plan_routes", ())
     )
-    lookup_only_principal = private_application_plan and getattr(
-        request.app.state, "lookup_only_application_plan_principal", False
+    private_dispatch = any(
+        route.matches(request.scope)[0] == Match.FULL
+        for route in getattr(request.app.state, "private_dispatch_read_routes", ())
+    ) or (
+        request.headers.getlist("content-type") == [PRIVATE_DISPATCH_MEDIA_TYPE]
+        and any(
+            route.matches(request.scope)[0] == Match.FULL
+            for route in getattr(request.app.state, "private_dispatch_post_routes", ())
+        )
+    )
+    lookup_only_principal = private_application_plan and (
+        private_dispatch or getattr(request.app.state, "lookup_only_application_plan_principal", False)
     )
     if private_application_plan and not isolated_conversations:
         return _error(404, "not_found", "The requested resource was not found.")

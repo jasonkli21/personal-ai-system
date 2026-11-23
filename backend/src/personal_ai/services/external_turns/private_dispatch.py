@@ -28,6 +28,7 @@ from personal_ai.contracts.private_dispatch import (
     verify,
     wire_digest,
 )
+from personal_ai.local_bridge.application_plan import PairedApplicationRuntime
 from personal_ai.local_bridge.private_dispatch import RuntimeDispatch, fence_identity
 from personal_ai.local_bridge.runtime import BridgeDenied
 from personal_ai.local_bridge.store import LocalStoreError
@@ -112,6 +113,7 @@ class DispatchRegistration:
     verified_preview_expiry: Callable
     load_dependencies: Callable
     trust_current: Callable
+    receipt_authority: Callable | None = None
 
 
 @dataclass(frozen=True, repr=False)
@@ -175,6 +177,7 @@ class PrivateDispatch:
             target.preview_source is None
             or target.scope.application_id not in {"travel", "health"}
             or type(registration.runtime) is not RuntimeDispatch
+            or type(target.runtime) is not PairedApplicationRuntime
             or registration.runtime.pas_issuer != self.issuer
             or registration.trust_current() is not True
         ):
@@ -278,6 +281,21 @@ class PrivateDispatch:
             if entry is not None and entry[0] == expires:
                 self._packages.pop(key)
 
+    def retire_registration(self, registration):
+        """Discard cached bytes when an isolated composition observes logout or revocation."""
+        with self._lock:
+            self._packages = {
+                key: entry for key, entry in self._packages.items()
+                if (
+                    entry[1].binding.tenant, entry[1].binding.installation, entry[1].binding.app,
+                    entry[1].binding.client, entry[1].binding.owner,
+                ) != (
+                    registration.tenant, registration.installation,
+                    registration.target.scope.application_id,
+                    registration.target.scope.client_namespace, registration.target.scope.owner_id,
+                )
+            }
+
     def retire(self, registration, conversation, original_key):
         with self._lock:
             self._packages.pop(self.key(registration, conversation, original_key), None)
@@ -315,7 +333,9 @@ class PrivateDispatch:
             if not source_snapshots_current(
                 dependencies.snapshots, assembler.permission_revalidator,
                 now=datetime.fromtimestamp(self.clock(), UTC),
-            ) or not chat.current_bound_branch(conversation, expected_branch=binding.branch):
+            ) or not chat.current_bound_branch(
+                conversation, expected_branch=binding.branch, expected_policy=binding.policy,
+            ):
                 raise DispatchDenied
             registration.current.require(binding, phase, self.clock)
         except (ContextPreparationError, ResourceNotFoundError):
@@ -456,6 +476,10 @@ class PrivateDispatch:
         if row is None or row.binding != disclosed_binding:
             raise DispatchUnavailable
         if row.state in {"send_started", "completed"} and not self._fences_current(registration, row):
+            raise DispatchUnavailable
+        if row.state == "unknown" and self.plans.attempts.binding_exists(
+            owner=row.binding.owner, root=UUID(row.binding.root),
+        ):
             raise DispatchUnavailable
         terminal = None
         if row.state == "completed":

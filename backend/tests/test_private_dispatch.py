@@ -8,7 +8,6 @@ import http.client
 import json
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Barrier
@@ -176,7 +175,7 @@ def install(host, transport, tmp_path):
 
     dependencies = {}
     creates = {}
-    gates = {"continuity": True, "denied": None, "changed": None}
+    gates = {"continuity": True, "denied": None, "changed": None, "clock_offset": 0}
     phases = []
     preview_key = Ed25519PrivateKey.generate()
     release_key = Ed25519PrivateKey.generate()
@@ -191,7 +190,9 @@ def install(host, transport, tmp_path):
         pas_issuer="pas-test", release_kid="release", release_key=release_key.public_key(),
         issuer="runtime-test", terminal_kid="terminal", terminal_key=Ed25519PrivateKey.generate(),
     )
-    now = lambda: int(datetime.now(UTC).timestamp())
+    def now():
+        return int(host.now.timestamp()) + gates["clock_offset"]
+
     secret = b"synthetic-test-commitments"
 
     def current(binding, phase, nonce):
@@ -201,7 +202,7 @@ def install(host, transport, tmp_path):
         return Current(
             binding_sha256=wire_digest(canonical(binding)), phase=phase, nonce=nonce,
             current=phase != gates["denied"] and bool(host.current),
-            expires=now() + 1,
+            expires=now() + 5,
         )
 
     def commitments(frozen):
@@ -260,7 +261,12 @@ def pending(host, client, creates):
     assert reply.status_code == 200, (reply.status_code, reply.text, host.reverse.calls)
     envelope = json.loads(reply.headers[RECEIPT_HEADER])
     assert reply.headers["content-type"] == MEDIA_TYPE
-    assert reply.json()["destination"]["model"] == "fake"
+    destination = reply.json()["destination"]
+    installation = host.target.plan.runtime._bridge.installation
+    assert destination == {
+        "application": "health", "provider": "fake", "model": "fake",
+        "runtime": str(installation.runtime_id), "recipient": installation.registration_binding,
+    }
     request = canonical({
         "confirmation": wire_digest(canonical(envelope["claims"])),
         "original_key": raw["idempotency_key"], "preview_sig": envelope["signature"], "v": VERSION,
@@ -329,7 +335,9 @@ def test_receiver_ambiguity_never_completes_or_sends_again(outcome, setup, recei
         assert send(host, client, post, body).status_code == 503
         assert arrivals.poll(2)
         assert arrivals.recv()[0] == "/dispatch"
-        status = inspect(host, client, get).json()
+        observed = inspect(host, client, get)
+        assert observed.status_code == 200, (observed.status_code, observed.content)
+        status = observed.json()
         assert status["state"] == "send_started" and status["terminal"] is None
         detail = inspect(
             host, client, f"/v1/conversations/{cid}",
@@ -383,6 +391,8 @@ def test_duplicate_submit_one_winner_and_restore_gate(setup, receiver, tmp_path)
     dispatch, creates, gates, _ = install(host, transport, tmp_path)
     with TestClient(host.app) as client:
         _, post, get, body, _ = pending(host, client, creates)
+        database = dispatch.journal._path
+        before_send = database.read_bytes()
         start = Barrier(2)
 
         def confirm():
@@ -397,11 +407,87 @@ def test_duplicate_submit_one_winner_and_restore_gate(setup, receiver, tmp_path)
         assert len(issued) == 1 and not arrivals.poll()
         assert inspect(host, client, get).json()["state"] == "completed"
         store = host.target.plan.runtime._bridge.lifecycle.store
-        (store.directory / "send-fences").rename(store.directory / "restored-away")
+        fences = store.directory / "send-fences"
+        restored_fences = store.directory / "restored-away"
+        fences.rename(restored_fences)
+        assert inspect(host, client, get).status_code == 503
+        restored_fences.rename(fences)
+        database.write_bytes(before_send)
         assert inspect(host, client, get).status_code == 503
         gates["continuity"] = False
         assert send(host, client, post, body).status_code == 503
         assert not dispatch._packages and not arrivals.poll()
+
+
+@pytest.mark.parametrize("change", ["expiry", "memory", "received-then-revoked"])
+def test_source_and_memory_are_current_at_the_operation_boundary(
+    change, setup, receiver, tmp_path,
+):
+    host = setup()
+    transport, arrivals, issued = receiver()
+    dispatch, creates, gates, _ = install(host, transport, tmp_path)
+    with TestClient(host.app) as client:
+        cid, post, get, body, envelope = pending(host, client, creates)
+        if change == "expiry":
+            gates["clock_offset"] = envelope["claims"]["expires"] - dispatch.clock()
+        elif change == "memory":
+            host.fixture.disclosures.clear()
+        else:
+            def revoke(phase):
+                if phase == "disclose":
+                    gates["denied"] = "disclose"
+
+            gates["changed"] = revoke
+        reply = send(host, client, post, body)
+        assert reply.status_code == {
+            "expiry": 410, "memory": 404, "received-then-revoked": 503,
+        }[change]
+        assert reply.content == b""
+        if change == "received-then-revoked":
+            assert arrivals.poll(2)
+            arrivals.recv()
+            assert len(issued) == 1
+            assert inspect(host, client, get).status_code == 404
+            gates.update(changed=None, denied=None)
+            assert inspect(host, client, get).json()["state"] == "send_started"
+            detail = inspect(
+                host, client, f"/v1/conversations/{cid}",
+                **{ORIGINAL_KEY_HEADER: parse(body, Confirmation).original_key},
+            )
+            assert detail.status_code == 404 and detail.content == b""
+        else:
+            assert issued == []
+        assert not arrivals.poll()
+
+
+def test_wrong_runtime_terminal_cannot_publish_receiver_result(
+    setup, receiver, tmp_path, monkeypatch,
+):
+    host = setup()
+    transport, arrivals, issued = receiver()
+    dispatch, creates, _, _ = install(host, transport, tmp_path)
+    deliver = RuntimeDispatch.deliver
+
+    def wrong_root(runtime, **arguments):
+        body, _, result = deliver(runtime, **arguments)
+        claims = json.loads(body)
+        claims["root"] = str(uuid4())
+        changed = TerminalClaims.model_validate(claims)
+        from personal_ai.contracts.private_dispatch import sign
+
+        return canonical(changed), sign(runtime.terminal_key, changed), result
+
+    monkeypatch.setattr(RuntimeDispatch, "deliver", wrong_root)
+    with TestClient(host.app) as client:
+        _, post, get, body, _ = pending(host, client, creates)
+        assert send(host, client, post, body).status_code == 503
+        assert arrivals.poll(2)
+        arrivals.recv()
+        assert len(issued) == 1 and not arrivals.poll()
+        state = inspect(host, client, get).json()
+        assert state["state"] == "send_started"
+        assert state["terminal"] is None and state["message_id"] is None
+        assert not dispatch._packages
 
 
 def test_normal_startup_never_mounts_dispatch_profile():

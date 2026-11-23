@@ -193,7 +193,12 @@ def mount_application_plan(
         or getattr(app.state, "private_application_plan_routes", ())
         or app.middleware_stack is not None
         or (travel_receipt_key is not None and bound_receipts is not None)
-        or (dispatch is not None and (bound_receipts is None or dispatch.plans is not service))
+        or (dispatch is not None and (
+            dispatch.plans is not service or (
+                bound_receipts is None
+                and any(registration.receipt_authority is None for registration in dispatch.registrations)
+            )
+        ))
     ):
         raise ValueError("application_plan_requires_isolated_host")
 
@@ -292,10 +297,15 @@ def mount_application_plan(
                 create_binding = await sync_call(
                     dispatch.begin_preview, registration, conversation_id, incoming.idempotency_key,
                 )
-            if bound_receipts is not None:
+            receipt_authority = (
+                registration.receipt_authority
+                if registration is not None and registration.receipt_authority is not None
+                else bound_receipts
+            )
+            if receipt_authority is not None:
                 if target.preview_source is None:
                     raise ContextPreparationError("context_no_ai_route")
-                attestor = await sync_call(bound_receipts, request, target, conversation_id, raw)
+                attestor = await sync_call(receipt_authority, request, target, conversation_id, raw)
                 require_current_operation = attestor.require_current
 
                 def attest(body: bytes, frozen: BoundPreviewMetadata) -> None:
@@ -324,13 +334,14 @@ def mount_application_plan(
                     attest=attest,
                     require_current_operation=require_current_operation,
                     prepare_dispatch=prepare_dispatch,
+                    dispatch_destination=registration.runtime.destination if registration else None,
                 )
             response_body = (
                 attested_body if attested_body is not None else encode_preview_response(selection)
             )
             if len(response_body) > MAX_PREVIEW_BYTES:
                 raise ContextPreparationError("context_no_ai_route")
-            if travel_receipt_key is not None and target.preview_source is not None:
+            if not negotiated and travel_receipt_key is not None and target.preview_source is not None:
                 if target is not await sync_call(service.current_target):
                     raise ContextPreparationError("context_no_ai_route")
                 headers[RECEIPT_HEADER] = _signed_receipt(
@@ -478,6 +489,9 @@ def mount_application_plan(
         routes.append(app.router.routes[-1])
         app.state.lookup_only_application_plan_principal = True
     if dispatch is not None:
+        app.state.private_dispatch_post_routes = tuple(
+            route for route in routes if route.endpoint in (preview, continue_turn)
+        )
         for suffix, handler in (("/continuations/{original_key}", status), ("", detail)):
             app.router.add_api_route(
                 "/v1/conversations/{conversation_id}" + suffix, handler, methods=["GET"],

@@ -39,6 +39,7 @@ class LoopbackReceiver:
             sock.settimeout(2)
             sock.connect(("127.0.0.1", self.port))
             connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=2)
+            connection.auto_open = 0
             connection.sock = sock
             try:
                 authorize_write()
