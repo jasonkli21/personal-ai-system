@@ -389,6 +389,23 @@ class ChatTurnService:
             external_lane=False,
         )
 
+    def current_bound_branch(self, conversation_id, *, expected_branch):
+        """Reauthorize the conversation and compare its entire active path."""
+        if not external_conversation_namespace() or self._application_context is None:
+            return False
+        conversation = authorized_conversation(
+            self._conversations, owner_id=self._owner_id, conversation_id=conversation_id,
+        )
+        scope = self._application_context.scope
+        if (conversation.application_id, conversation.workspace_id) != (
+            scope.application_id, scope.workspace_id,
+        ):
+            return False
+        active = self._active(conversation_id)
+        self._require_prepared_authority(active)
+        authorize_base_disclosure(self._application_context)
+        return fingerprint(active, include_state=True) == expected_branch
+
     def preview_bound_context(
         self, conversation_id, content, *, assembler, prepare_sources, user_id,
         plan_source_selections=(),

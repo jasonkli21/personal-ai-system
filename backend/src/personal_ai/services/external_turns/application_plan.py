@@ -227,59 +227,54 @@ class PlanAttempts:
         self.claim_current = claim_current
 
     def claim(self, preview):
-        owner = preview.target.scope.owner_id
+        self.claim_binding(
+            owner=preview.target.scope.owner_id, root=preview.root_id,
+            attempt=preview.dispatch.attempt_id, payload=preview.package.fingerprint,
+            confirmation=preview.confirmation, expires=preview.expires_at,
+        )
+
+    def claim_binding(self, *, owner, root, attempt, payload, confirmation, expires):
         with self.observations.transaction(owner_id=owner) as connection:
             now = self.observations.current_time(connection)
-            if self.recovery_current() is not True or now >= preview.expires_at:
+            if self.recovery_current() is not True or now >= expires:
                 raise ContextPreparationError(NO_AI)
             row = self.roots.open_root(
-                connection,
-                root_id=preview.root_id,
-                owner_id=owner,
-                payload=preview.package.fingerprint,
-                plan=preview.confirmation,
-                deadline=preview.expires_at,
+                connection, root_id=root, owner_id=owner, payload=payload,
+                plan=confirmation, deadline=expires,
             )
             if row[3:] != (0, "open", None):
                 raise ConversationConflictError("continuation_exists_inspect_canonical_state")
             self.roots.change_root(
-                connection,
-                root_id=preview.root_id,
-                owner_id=owner,
-                candidate=0,
-                state="fenced",
-                attempt_id=preview.dispatch.attempt_id,
+                connection, root_id=root, owner_id=owner, candidate=0, state="fenced",
+                attempt_id=attempt,
             )
-        # A crash before this independent write cannot release a package. A
-        # restore after the write needs the same durable root to be present.
-        self.record_claim(
-            preview.root_id, owner, preview.dispatch.attempt_id, preview.package.fingerprint
-        )
-        if not self.current(preview):
+        # A restore must prove that the independent witness still agrees with
+        # its canonical root. No other claimant can pass the fenced root.
+        self.record_claim(root, owner, attempt, payload)
+        if not self.binding_current(
+            owner=owner, root=root, attempt=attempt, payload=payload,
+            confirmation=confirmation, expires=expires,
+        ):
             raise ContextPreparationError(NO_AI)
 
     def current(self, preview):
-        owner = preview.target.scope.owner_id
+        return self.binding_current(
+            owner=preview.target.scope.owner_id, root=preview.root_id,
+            attempt=preview.dispatch.attempt_id, payload=preview.package.fingerprint,
+            confirmation=preview.confirmation, expires=preview.expires_at,
+        )
+
+    def binding_current(
+        self, *, owner, root, attempt, payload, confirmation, expires, archived=False,
+    ):
         with self.observations.transaction(owner_id=owner) as connection:
             now = self.observations.current_time(connection)
             return (
                 self.recovery_current() is True
-                and self.claim_current(
-                    preview.root_id,
-                    owner,
-                    preview.dispatch.attempt_id,
-                    preview.package.fingerprint,
-                ) is True
-                and now < preview.expires_at
-                and self.roots.root(connection, preview.root_id, owner)
-                == (
-                    preview.package.fingerprint,
-                    preview.confirmation,
-                    preview.expires_at,
-                    0,
-                    "fenced",
-                    preview.dispatch.attempt_id,
-                )
+                and self.claim_current(root, owner, attempt, payload) is True
+                and (archived or now < expires)
+                and self.roots.root(connection, root, owner)
+                == (payload, confirmation, expires, 0, "fenced", attempt)
             )
 
 
@@ -344,6 +339,7 @@ class ApplicationPlanService:
         self, chat, assembler, conversation_id, incoming, *, expected_target=None,
         attest: Callable[[bytes, BoundPreviewMetadata], None] | None = None,
         require_current_operation: Callable[[], None] | None = None,
+        prepare_dispatch=None,
     ):
         if incoming.choice.confirmation is not None:
             raise ContextPreparationError(NO_AI)
@@ -352,6 +348,7 @@ class ApplicationPlanService:
             (expected_target is not None and target is not expected_target)
             or (attest is None) != (require_current_operation is None)
             or (attest is not None and target.preview_source is None)
+            or (prepare_dispatch is not None and attest is None)
         ):
             raise ContextPreparationError(NO_AI)
         binding = target.preview_binding(current_verified_principal(), conversation_id)
@@ -359,14 +356,14 @@ class ApplicationPlanService:
         try:
             return self._preview(
                 chat, assembler, conversation_id, incoming.request(), target, binding,
-                attest, require_current_operation,
+                attest, require_current_operation, prepare_dispatch,
             )
         finally:
             application_plan_source_binding.reset(token)
 
     def _preview(
         self, chat, assembler, conversation_id, request, target, binding,
-        attest, require_current_operation,
+        attest, require_current_operation, prepare_dispatch,
     ):
         assistant_id = continuation_message_id(
             conversation_id,
@@ -458,8 +455,8 @@ class ApplicationPlanService:
             selection = {
                 "destination": {
                     "application": target.scope.application_id,
-                    "provider": "ChatGPT",
-                    "model": target.model,
+                    "provider": "fake" if prepare_dispatch else "ChatGPT",
+                    "model": "fake" if prepare_dispatch else target.model,
                     "runtime": target.scope.local_recipient,
                     "recipient": target.scope.model_recipient,
                 },
@@ -499,6 +496,8 @@ class ApplicationPlanService:
                     preview, target, assembler.permission_revalidator, require_current_operation
                 )
                 attest(body, preview)
+                if prepare_dispatch is not None:
+                    prepare_dispatch(preview, context)
                 self._require_current_bound_preview(
                     preview, target, assembler.permission_revalidator, require_current_operation
                 )

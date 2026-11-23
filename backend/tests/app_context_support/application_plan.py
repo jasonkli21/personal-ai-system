@@ -295,7 +295,7 @@ class ApplicationPlanFixture:
             for recipient in (scope.local_recipient, scope.model_recipient)
         )
 
-    def mount(self, *, travel_receipt_key=None, bound_receipts=None):
+    def mount(self, *, travel_receipt_key=None, bound_receipts=None, dispatch=None):
         host = self.host
         service = self.service
         channel_tokens = MAX_CONTEXT_TOKENS // 2
@@ -354,6 +354,7 @@ class ApplicationPlanFixture:
             preview_recipient_scope=preview_recipients,
             travel_receipt_key=travel_receipt_key,
             bound_receipts=bound_receipts,
+            dispatch=dispatch,
         )
 
     def onboard(

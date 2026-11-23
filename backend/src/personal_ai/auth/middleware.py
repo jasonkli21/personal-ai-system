@@ -689,6 +689,11 @@ class AuthenticationMiddleware:
         request = Request(scope, receive=receive)
         started = time.monotonic()
         response = await authenticate_request(request)
+        if response is not None and 400 <= response.status_code < 500 and any(
+            route.matches(scope)[0] == Match.FULL
+            for route in getattr(request.app.state, "private_dispatch_read_routes", ())
+        ):
+            response = Response(status_code=404, headers={"cache-control": "no-store"})
         verified_user_token = getattr(request.state, "verified_user_identity_token", None)
         correlation_id = getattr(request.state, "correlation_id", str(uuid4()))
         status_code = 500

@@ -1,0 +1,410 @@
+"""PAS-only synthetic seam tests. No Travel/Health product process is started."""
+
+# ruff: noqa: F811 - pytest imports fixtures by their parameter names
+
+import base64
+import hmac
+import http.client
+import json
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from threading import Barrier
+from uuid import UUID, uuid4
+
+import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from fastapi.testclient import TestClient
+
+from personal_ai.api.private_application_plan import PROFILE_PREFIX
+from personal_ai.contracts.private_dispatch import (
+    MEDIA_TYPE,
+    ORIGINAL_KEY_HEADER,
+    RECEIPT_HEADER,
+    VERSION,
+    Binding,
+    Confirmation,
+    Current,
+    PreviewClaims,
+    TerminalClaims,
+    canonical,
+    parse,
+    verify,
+    wire_digest,
+)
+from personal_ai.local_bridge.private_dispatch import LoopbackReceiver, RuntimeDispatch
+from personal_ai.main import create_app
+from personal_ai.services.external_turns.dispatch_journal import SyntheticDispatchJournal
+from personal_ai.services.external_turns.private_dispatch import (
+    CreateBinding,
+    CurrentSource,
+    DispatchRegistration,
+    DispatchUnavailable,
+    PrivateDispatch,
+)
+from tests.app_context_support.application_plan import plan_request
+from tests.app_context_support.health_receipts import KEY_ID, decode, receipt_fields
+from tests.test_health_plan_preview import (
+    configure_preview,
+    create,
+    prepare,
+    receive,
+    setup,  # noqa: F401 - pytest fixture
+)
+
+VECTORS = {
+    "travel": "1dd87ee2e4a64fcae8f7c43146a8cc3752bce283d8bd4efb6a7460f40fc66a1f",
+    "health": "45fac57b1b5301b62efa20a247888fe183db25736393b384c5a063ce12a05676",
+}
+
+
+def public_key(value):
+    return Ed25519PublicKey.from_public_bytes(base64.urlsafe_b64decode(value + "="))
+
+
+@pytest.mark.parametrize("app", VECTORS)
+def test_frozen_transcript(app):
+    text = (Path(__file__).parent / "fixtures" / f"private-dispatch-{app}.txt").read_bytes()
+    assert wire_digest(text) == VECTORS[app]
+    keys, payload, binding, preview, confirmation, terminal, signature = text.splitlines()
+    pas, runtime = map(public_key, json.loads(keys))
+    bound = parse(binding, Binding)
+    body = parse(confirmation, Confirmation)
+    assert canonical(bound) == binding and bound.app == app
+    claims = verify(
+        pas, body.preview_sig, preview, PreviewClaims, issuer="pas-fixture",
+        audience=app, kid="p1", now=1000,
+    )
+    assert body.confirmation == wire_digest(preview)
+    assert claims.binding_sha256 == wire_digest(binding)
+    assert claims.payload_sha256 == wire_digest(payload)
+    assert claims.payload_sha256 != wire_digest(payload + b" ")
+    completed = verify(
+        runtime, signature.decode(), terminal, TerminalClaims, issuer="runtime-fixture",
+        audience="pas-fixture", kid="r1", now=1000,
+    )
+    assert (completed.root, completed.attempt, body.original_key) == (
+        bound.root, bound.attempt, bound.original_key,
+    )
+    assert completed.body_sha256 == wire_digest(confirmation)
+    assert completed.result_sha256 == wire_digest(b"ok")
+    with pytest.raises(ValueError):
+        verify(
+            pas, body.preview_sig, preview, PreviewClaims, issuer="pas-fixture",
+            audience=app, kid="p1", now=1060,
+        )
+
+
+@pytest.mark.parametrize("change", [
+    lambda base: base + b"\n",
+    lambda base: b"\xef\xbb\xbf" + base,
+    lambda base: base.replace(b'"confirmation":', b'"extra":1,"confirmation":'),
+    lambda base: base.replace(b'"confirmation":', b'"confirmation":null,"confirmation":'),
+    lambda base: base.replace(b'pas-dispatch/1', b'pas-dispatch/2'),
+])
+def test_confirmation_requires_exact_canonical_closed_input(change):
+    text = (Path(__file__).parent / "fixtures/private-dispatch-health.txt").read_bytes()
+    raw = text.splitlines()[4]
+    assert parse(raw, Confirmation).v == VERSION
+    with pytest.raises(ValueError):
+        parse(change(raw), Confirmation)
+
+
+def receiver_worker(pipe, key, outcome):
+    class Receiver(BaseHTTPRequestHandler):
+        def log_message(self, _format, *args):
+            pass
+
+        def do_POST(self):
+            raw = self.rfile.read(int(self.headers["Content-Length"]))
+            pipe.send((self.path, raw))
+            if outcome == "disconnect":
+                self.close_connection = True
+                return
+            attempt = self.headers["X-PAS-Attempt"]
+            response = canonical({
+                "attempt": str(uuid4()) if outcome == "wrong-attempt" else attempt,
+                "payload_sha256": wire_digest(raw),
+                "result": "ok",
+                "usage": 1 if outcome == "nonzero-usage" else 0,
+            })
+            self.send_response(200)
+            self.send_header("content-length", str(len(response)))
+            self.send_header("x-fixture-signature", key.sign(response).hex())
+            self.end_headers()
+            self.wfile.write(response)
+
+    with HTTPServer(("127.0.0.1", 0), Receiver) as server:
+        pipe.send(server.server_port)
+        server.serve_forever()
+
+
+@pytest.fixture
+def receiver(monkeypatch):
+    context = multiprocessing.get_context("fork")
+    children = []
+    issued = []
+    send = http.client.HTTPConnection.request
+
+    def capture(connection, method, url, body=None, headers=None, **kwargs):
+        issued.append((connection.host, method, url, body))
+        return send(connection, method, url, body=body, headers=headers, **kwargs)
+
+    monkeypatch.setattr(http.client.HTTPConnection, "request", capture)
+
+    def start(outcome="ok"):
+        read, write = context.Pipe(duplex=False)
+        key = Ed25519PrivateKey.generate()
+        child = context.Process(target=receiver_worker, args=(write, key, outcome), daemon=True)
+        child.start()
+        children.append((child, read, write))
+        assert read.poll(3), "receiving fixture did not start"
+        return LoopbackReceiver(read.recv(), key.public_key()), read, issued
+
+    yield start
+    for child, read, write in children:
+        child.terminate()
+        child.join(3)
+        read.close()
+        write.close()
+
+
+def install(host, transport, tmp_path):
+    from personal_ai.contracts.private_dispatch import Destination
+
+    dependencies = {}
+    creates = {}
+    gates = {"continuity": True, "denied": None, "changed": None}
+    phases = []
+    preview_key = Ed25519PrivateKey.generate()
+    release_key = Ed25519PrivateKey.generate()
+    paired = host.target.plan.runtime._bridge.installation
+    runtime = RuntimeDispatch(
+        destination=Destination(
+            account=paired.registration_binding, connection=str(paired.connection_id),
+            endpoint="loopback-fixture", model="fake", provider="fake",
+            revision=paired.connection_revision, runtime=str(paired.runtime_id),
+        ),
+        receiver=transport,
+        pas_issuer="pas-test", release_kid="release", release_key=release_key.public_key(),
+        issuer="runtime-test", terminal_kid="terminal", terminal_key=Ed25519PrivateKey.generate(),
+    )
+    now = lambda: int(datetime.now(UTC).timestamp())
+    secret = b"synthetic-test-commitments"
+
+    def current(binding, phase, nonce):
+        phases.append((phase, nonce))
+        if callable(gates["changed"]):
+            gates["changed"](phase)
+        return Current(
+            binding_sha256=wire_digest(canonical(binding)), phase=phase, nonce=nonce,
+            current=phase != gates["denied"] and bool(host.current),
+            expires=now() + 1,
+        )
+
+    def commitments(frozen):
+        dependencies[str(frozen.original_key)] = frozen
+        domain = next(s for s in frozen.snapshots if s.provider_id != "ai_memory")
+        memory = next(s for s in frozen.snapshots if s.provider_id == "ai_memory")
+        return tuple(
+            hmac.digest(secret, canonical(s.model_dump(mode="json")), "sha256").hex()
+            for s in (domain, memory)
+        )
+
+    def verify_legacy_header(receipt, frozen):
+        body, sig = (decode(item) for item in receipt.split("."))
+        host.verify_keys[KEY_ID].verify(sig, body)
+        claims = json.loads(body)
+        assert claims["response_digest"] == wire_digest(frozen.attested_body)
+        return claims["exp"]
+
+    registration = DispatchRegistration(
+        host.target.plan, "fixture-tenant", str(host.enrollment.installation_id), runtime,
+        CurrentSource(current),
+        verified_create=lambda conversation, key: creates.get(conversation),
+        source_commitments=commitments,
+        verified_preview_expiry=verify_legacy_header,
+        load_dependencies=lambda binding: dependencies.get(binding.original_key),
+        trust_current=lambda: True,
+    )
+    dispatch = PrivateDispatch(
+        plans=host.fixture.service, journal=SyntheticDispatchJournal(tmp_path / "journal"),
+        registrations=(registration,), issuer="pas-test", preview_kid="preview",
+        preview_key=preview_key, release_key=release_key,
+        continuity_current=lambda: gates["continuity"], clock=now,
+    )
+    for route in host.app.state.private_application_plan_routes:
+        host.app.router.routes.remove(route)
+    host.app.state.private_application_plan_routes = ()
+    host.fixture.mount(bound_receipts=host.authority, dispatch=dispatch)
+    return dispatch, creates, gates, phases
+
+
+def pending(host, client, creates):
+    create_key = uuid4()
+    first, operation, _ = create(host, client, create_key)
+    cid = UUID(first.json()["conversation_id"])
+    auth = receive(host, first, receipt_fields(operation, cid, first.content, 0))
+    creates[cid] = CreateBinding(
+        key=create_key, receipt=first.headers["x-application-plan-receipt"],
+        epoch=1, expires=auth["exp"],
+    )
+    branch = configure_preview(host, cid)
+    raw = plan_request()
+    operation, headers = prepare(host, raw, cid=cid, create_key=create_key, branch=branch)
+    reply = client.post(
+        operation.path, headers={**headers, "content-type": MEDIA_TYPE}, content=canonical(raw),
+    )
+    assert reply.status_code == 200, (reply.status_code, reply.text, host.reverse.calls)
+    envelope = json.loads(reply.headers[RECEIPT_HEADER])
+    assert reply.headers["content-type"] == MEDIA_TYPE
+    assert reply.json()["destination"]["model"] == "fake"
+    request = canonical({
+        "confirmation": wire_digest(canonical(envelope["claims"])),
+        "original_key": raw["idempotency_key"], "preview_sig": envelope["signature"], "v": VERSION,
+    })
+    post = f"{PROFILE_PREFIX}/{cid}/continue"
+    get = f"/v1/conversations/{cid}/continuations/{raw['idempotency_key']}"
+    return cid, post, get, request, envelope
+
+
+def send(host, client, path, body):
+    return client.post(path, headers={**host.headers, "content-type": MEDIA_TYPE}, content=body)
+
+
+def inspect(host, client, path, **headers):
+    return client.get(path, headers={**host.headers, "accept": MEDIA_TYPE, **headers})
+
+
+def test_synthetic_canonical_completion_and_current_filtered_reads(setup, receiver, tmp_path):
+    host = setup()
+    transport, arrivals, issued = receiver()
+    _, creates, gates, phases = install(host, transport, tmp_path)
+    with TestClient(host.app) as client:
+        cid, post, get, body, envelope = pending(host, client, creates)
+        assert inspect(host, client, get).json()["state"] == "unknown"
+        assert issued == [] and not arrivals.poll()
+        altered = json.loads(body)
+        altered["confirmation"] = "0" * 64
+        assert send(host, client, post, canonical(altered)).status_code == 409
+        assert send(host, client, post, body).status_code == 202
+        assert arrivals.poll(2)
+        endpoint, payload = arrivals.recv()
+        assert endpoint == "/dispatch"
+        assert issued == [("127.0.0.1", "POST", "/dispatch", payload)]
+        assert wire_digest(payload) == envelope["claims"]["payload_sha256"]
+        status = inspect(host, client, get)
+        assert status.json()["state"] == "completed"
+        assert status.json()["body_sha256"] == wire_digest(body)
+        assert status.headers["x-pas-committed-at"].isdigit()
+        detail_path = f"/v1/conversations/{cid}"
+        original_key = parse(body, Confirmation).original_key
+        detail = inspect(host, client, detail_path, **{ORIGINAL_KEY_HEADER: original_key})
+        assert detail.json() == {
+            "result": "ok", "message_id": status.json()["message_id"],
+            "attempt": status.json()["attempt"], "root": status.json()["root"],
+            "original_key": original_key,
+        }
+        assert send(host, client, post, body).status_code == 202
+        assert len(issued) == 1 and not arrivals.poll()
+        forged = client.get(get, headers={
+            **host.headers, "accept": MEDIA_TYPE, "x-user-id-token": "forged",
+        })
+        assert forged.status_code == 404 and forged.content == b""
+        gates["denied"] = "disclose"
+        assert inspect(host, client, get).status_code == 404
+        assert inspect(host, client, detail_path, **{ORIGINAL_KEY_HEADER: original_key}).content == b""
+        assert len({nonce for _, nonce in phases}) == len(phases)
+
+
+@pytest.mark.parametrize("outcome", ["disconnect", "wrong-attempt", "nonzero-usage"])
+def test_receiver_ambiguity_never_completes_or_sends_again(outcome, setup, receiver, tmp_path):
+    host = setup()
+    transport, arrivals, issued = receiver(outcome)
+    _, creates, _, _ = install(host, transport, tmp_path)
+    with TestClient(host.app) as client:
+        cid, post, get, body, _ = pending(host, client, creates)
+        assert send(host, client, post, body).status_code == 503
+        assert arrivals.poll(2)
+        assert arrivals.recv()[0] == "/dispatch"
+        status = inspect(host, client, get).json()
+        assert status["state"] == "send_started" and status["terminal"] is None
+        detail = inspect(
+            host, client, f"/v1/conversations/{cid}",
+            **{ORIGINAL_KEY_HEADER: parse(body, Confirmation).original_key},
+        )
+        assert detail.status_code == 404 and detail.content == b""
+        assert send(host, client, post, body).status_code == 202
+        assert len(issued) == 1 and not arrivals.poll()
+
+
+@pytest.mark.parametrize("failure", ["revoked", "lost-bytes", "root-commit", "fence-commit"])
+def test_denial_or_lost_commit_has_no_transport(failure, setup, receiver, tmp_path, monkeypatch):
+    host = setup()
+    transport, arrivals, issued = receiver()
+    dispatch, creates, gates, _ = install(host, transport, tmp_path)
+    with TestClient(host.app) as client:
+        _, post, get, body, _ = pending(host, client, creates)
+        if failure == "revoked":
+            gates["denied"] = "send"
+        elif failure == "lost-bytes":
+            dispatch._packages.clear()
+        else:
+            target, method = (
+                (dispatch.plans.attempts, "claim_binding") if failure == "root-commit"
+                else (host.target.plan.runtime._bridge.lifecycle.store, "mark_send_started")
+            )
+            original = getattr(target, method)
+
+            def commit_then_lose_worker(**kwargs):
+                original(**kwargs)
+                raise DispatchUnavailable
+
+            def fence_then_lose(*args, **kwargs):
+                original(*args, **kwargs)
+                raise DispatchUnavailable
+
+            monkeypatch.setattr(
+                target, method, commit_then_lose_worker if failure == "root-commit" else fence_then_lose,
+            )
+        first = send(host, client, post, body)
+        assert first.status_code == (410 if failure == "lost-bytes" else 503)
+        assert inspect(host, client, get).json()["terminal"] is None
+        again = send(host, client, post, body)
+        assert again.status_code == (410 if failure == "lost-bytes" else 202)
+        assert issued == [] and not arrivals.poll()
+
+
+def test_duplicate_submit_one_winner_and_restore_gate(setup, receiver, tmp_path):
+    host = setup()
+    transport, arrivals, issued = receiver()
+    dispatch, creates, gates, _ = install(host, transport, tmp_path)
+    with TestClient(host.app) as client:
+        _, post, get, body, _ = pending(host, client, creates)
+        start = Barrier(2)
+
+        def confirm():
+            start.wait(timeout=3)
+            return send(host, client, post, body).status_code
+
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            codes = list(workers.map(lambda _: confirm(), range(2)))
+        assert 202 in codes and set(codes) <= {202, 503}
+        assert arrivals.poll(2)
+        arrivals.recv()
+        assert len(issued) == 1 and not arrivals.poll()
+        assert inspect(host, client, get).json()["state"] == "completed"
+        store = host.target.plan.runtime._bridge.lifecycle.store
+        (store.directory / "send-fences").rename(store.directory / "restored-away")
+        assert inspect(host, client, get).status_code == 503
+        gates["continuity"] = False
+        assert send(host, client, post, body).status_code == 503
+        assert not dispatch._packages and not arrivals.poll()
+
+
+def test_normal_startup_never_mounts_dispatch_profile():
+    app = create_app()
+    assert not getattr(app.state, "private_application_plan_routes", ())
+    assert not getattr(app.state, "private_dispatch_read_routes", ())

@@ -14,6 +14,8 @@ The versioned path selects the request shape. A profile version that the SDK can
 
 Preview emits bounded destination, purpose, projected fields and categories, selected history count, an estimated input size, and an expiring confirmation. The exact assembly stays in PAS until confirmation. Continue uses the existing SSE event types and one guarded attempt. The SDK reports completion after a matching terminal, clean stream exhaustion and an agreeing original-key status. Deltas are provisional. Ambiguous requests keep their original key. Later revocation can withhold subsequent output and replay, while bytes already observed by an authorized recipient cannot be recalled.
 
+An independently enrolled test composition can select the additive [synthetic source-bound dispatch profile](private-source-dispatch-v1.md) through private media negotiation. The existing routes and SDK described here retain their original behavior.
+
 ## Install and recover
 
 From a prepared checkout, run `UV_OFFLINE=1 make sdk-build` and install the locally built wheel into the caller's own environment. Keep the private profile bound to the operator-provided synthetic host. The client accepts HTTPS and supports explicit numeric HTTP loopback for the disposable fixture. It ignores ambient proxies and refuses redirects. [SDK setup](../../sdk/python/README.md)

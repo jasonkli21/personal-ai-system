@@ -466,6 +466,8 @@ class ProtectedLocalStore:
         *,
         origin: str | None = None,
         now: int | None = None,
+        no_takeover: bool = False,
+        related_identity: str | None = None,
     ) -> str:
         if not re.fullmatch(r"[a-f0-9]{64}", identity) or not re.fullmatch(
             r"[a-f0-9]{64}", fingerprint
@@ -496,10 +498,13 @@ class ProtectedLocalStore:
                 if pruned:
                     tx.save()
                 previous = tx.state.receipts.get(identity)
-                if self._read_send_fence(identity) is not None:
+                if self._read_send_fence(identity) is not None or (
+                    related_identity is not None and self._read_send_fence(related_identity)
+                    is not None
+                ):
                     raise LocalStoreError("dispatch_already_claimed")
                 if previous is not None:
-                    if previous.status == "claimed_pre_send":
+                    if not no_takeover and previous.status == "claimed_pre_send":
                         # Holding the pre-send lock proves no live executor owns it.
                         del tx.state.receipts[identity]
                     else:
@@ -537,6 +542,7 @@ class ProtectedLocalStore:
         now: int,
         authorize=None,
         retain_fence: bool = False,
+        related_identity: str | None = None,
     ):
         with self._claim_fds_lock:
             descriptor = self._claim_fds.get(claim_token)
@@ -570,9 +576,10 @@ class ProtectedLocalStore:
                     if current >= expires_at:
                         raise LocalStoreError("dispatch_authority_expired")
                 except Exception:
-                    # Authorization failed before any send-start write was attempted.
-                    del tx.state.receipts[identity]
-                    tx.save()
+                    # The separately enrolled dispatch profile has no takeover.
+                    if related_identity is None:
+                        del tx.state.receipts[identity]
+                        tx.save()
                     raise
                 receipt.status = "send_started"
                 receipt.updated_at = current
@@ -581,10 +588,20 @@ class ProtectedLocalStore:
                 if retain_fence:
                     # Persist outside the replaceable receipt snapshot before
                     # enabling a physical send. A torn write can only deny reuse.
+                    if related_identity is not None:
+                        self._persist_send_fence(related_identity, receipt)
                     self._persist_send_fence(identity, receipt)
                 tx.save()
         finally:
             self._release_pre_send(descriptor, claim_token)
+
+    def retained_fence_current(self, identity, related_identity, fingerprint):
+        with self.transaction():
+            return all(
+                (fence := self._read_send_fence(key)) is not None
+                and fence["fingerprint"] == fingerprint
+                for key in (identity, related_identity)
+            )
 
     def release_pre_send(self, identity: str, fingerprint: str, claim_token: str):
         with self._claim_fds_lock:

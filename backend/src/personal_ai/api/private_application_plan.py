@@ -10,6 +10,9 @@ from uuid import UUID
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import Response
+from fastapi.routing import APIRoute
+from starlette.datastructures import Headers
+from starlette.routing import Match
 
 from personal_ai.api import dependencies as deps
 from personal_ai.api.routes import _request_id, _sse_response
@@ -18,6 +21,14 @@ from personal_ai.auth.application_clients import require_current_client_authorit
 from personal_ai.auth.scope import current_verified_principal
 from personal_ai.context import ContextAssembler
 from personal_ai.context.providers import ContextPreparationError
+from personal_ai.contracts.private_dispatch import (
+    MEDIA_TYPE,
+    ORIGINAL_KEY_HEADER,
+    canonical_object,
+)
+from personal_ai.contracts.private_dispatch import (
+    RECEIPT_HEADER as DISPATCH_RECEIPT_HEADER,
+)
 from personal_ai.services.chat.service import ChatTurnService
 from personal_ai.services.conversations import ConversationService
 from personal_ai.services.external_turns.application_plan import (
@@ -27,12 +38,35 @@ from personal_ai.services.external_turns.application_plan import (
     PlanTarget,
     encode_preview_response,
 )
+from personal_ai.services.external_turns.private_dispatch import DispatchDenied, PrivateDispatch
 from personal_ai.storage.async_io import sync_call
+from personal_ai.storage.errors import ResourceNotFoundError
 
 PROFILE_PREFIX = "/private/application-plan/v1/conversations"
 MAX_PREVIEW_BYTES = 8192
 MAX_RECEIPT_BYTES = 8192
 RECEIPT_HEADER = "x-application-plan-receipt"
+
+
+class _DispatchReadRoute(APIRoute):
+    def matches(self, scope):
+        if scope.get("type") != "http" or Headers(scope=scope).getlist("accept") != [MEDIA_TYPE]:
+            return Match.NONE, {}
+        return super().matches(scope)
+
+
+def _dispatch_response(status, *, body=b"", committed_at=None):
+    headers = {"cache-control": "no-store"}
+    if committed_at is not None:
+        headers["x-pas-committed-at"] = str(committed_at)
+    return Response(body, status_code=status, headers=headers, media_type=MEDIA_TYPE if body else None)
+
+
+def _canonical_path(request, conversation_id, original_key=None):
+    if request.path_params.get("conversation_id") != str(conversation_id) or (
+        original_key is not None and request.path_params.get("original_key") != str(original_key)
+    ):
+        raise DispatchDenied
 
 
 class BoundReceiptAttestor(Protocol):
@@ -103,11 +137,14 @@ def _unique_object(pairs):
     return result
 
 
-async def _json_body(request: Request, *, max_bytes: int) -> bytes:
+async def _json_body(request: Request, *, max_bytes: int, dispatch=False) -> bytes:
     media = request.headers.getlist("content-type")
     if (
         len(media) != 1
-        or media[0].split(";", 1)[0].strip().lower() != "application/json"
+        or (
+            media[0].split(";", 1)[0].strip().lower() != "application/json"
+            if not dispatch else media[0] != MEDIA_TYPE
+        )
         or request.url.query
     ):
         raise HTTPException(422, "validation_error")
@@ -119,14 +156,21 @@ async def _json_body(request: Request, *, max_bytes: int) -> bytes:
     return bytes(body)
 
 
-async def _intent(request: Request, *, confirmed: bool) -> tuple[PlanContinuation, bytes]:
-    body = await _json_body(request, max_bytes=128 * 1024)
+async def _intent(
+    request: Request, *, confirmed: bool, dispatch=False,
+) -> tuple[PlanContinuation, bytes]:
+    body = await _json_body(request, max_bytes=128 * 1024, dispatch=dispatch)
     try:
-        value = json.loads(body.decode("utf-8"), object_pairs_hook=_unique_object)
+        value = (
+            canonical_object(body) if dispatch else
+            json.loads(body.decode("utf-8"), object_pairs_hook=_unique_object)
+        )
         parsed = PlanContinuation.model_validate(value)
         present = "confirmation" in parsed.choice.model_fields_set
         if present != confirmed or (confirmed and parsed.choice.confirmation is None):
             raise ValueError("invalid confirmation")
+        if dispatch and value["idempotency_key"] != str(parsed.idempotency_key):
+            raise ValueError("noncanonical UUID")
         parsed.content.encode("utf-8")
         return parsed, body
     except (ValueError, RecursionError):
@@ -141,6 +185,7 @@ def mount_application_plan(
     preview_recipient_scope: Callable[[PlanTarget], AbstractContextManager[None]],
     travel_receipt_key: Ed25519PrivateKey | None = None,
     bound_receipts: BoundReceiptAuthority | None = None,
+    dispatch: PrivateDispatch | None = None,
 ) -> None:
     """Mount only on an explicitly isolated host before its middleware starts."""
     if (
@@ -148,6 +193,7 @@ def mount_application_plan(
         or getattr(app.state, "private_application_plan_routes", ())
         or app.middleware_stack is not None
         or (travel_receipt_key is not None and bound_receipts is not None)
+        or (dispatch is not None and (bound_receipts is None or dispatch.plans is not service))
     ):
         raise ValueError("application_plan_requires_isolated_host")
 
@@ -225,53 +271,88 @@ def mount_application_plan(
         chat: Annotated[ChatTurnService, Depends(deps.get_chat_turn_service)],
         assembler: Annotated[ContextAssembler, Depends(assembler_dependency)],
     ):
-        incoming, raw = await _intent(request, confirmed=False)
-        target = await sync_call(service.current_target)
+        negotiated = request.headers.getlist("content-type") == [MEDIA_TYPE]
+        if negotiated and dispatch is None:
+            return _dispatch_response(404)
+        incoming, raw = await _intent(request, confirmed=False, dispatch=negotiated)
         headers = {"cache-control": "no-store"}
         attest = None
         require_current_operation = None
+        prepare_dispatch = None
+        registration = None
         attested_body = None
-        if bound_receipts is not None:
-            if target.preview_source is None:
-                raise ContextPreparationError("context_no_ai_route")
-            attestor = await sync_call(bound_receipts, request, target, conversation_id, raw)
 
-            require_current_operation = attestor.require_current
+        try:
+            target = await sync_call(service.current_target)
+            if negotiated:
+                _canonical_path(request, conversation_id)
+                registration = await sync_call(dispatch.registration)
+                if registration.target is not target:
+                    raise DispatchDenied
+                create_binding = await sync_call(
+                    dispatch.begin_preview, registration, conversation_id, incoming.idempotency_key,
+                )
+            if bound_receipts is not None:
+                if target.preview_source is None:
+                    raise ContextPreparationError("context_no_ai_route")
+                attestor = await sync_call(bound_receipts, request, target, conversation_id, raw)
+                require_current_operation = attestor.require_current
 
-            def attest(body: bytes, frozen: BoundPreviewMetadata) -> None:
-                nonlocal attested_body
-                headers[RECEIPT_HEADER] = _checked_receipt(attestor(conversation_id, body, frozen))
-                attested_body = body
+                def attest(body: bytes, frozen: BoundPreviewMetadata) -> None:
+                    nonlocal attested_body
+                    headers[RECEIPT_HEADER] = _checked_receipt(
+                        attestor(conversation_id, body, frozen)
+                    )
+                    attested_body = body
 
-        with preview_recipient_scope(target):
-            selection, source_revision = await sync_call(
-                service.preview_with_source_revision,
-                chat,
-                assembler,
-                conversation_id,
-                incoming,
-                expected_target=target,
-                attest=attest,
-                require_current_operation=require_current_operation,
+                if negotiated:
+                    def prepare_dispatch(frozen, context):
+                        envelope = dispatch.prepare(
+                            registration, create_binding, headers[RECEIPT_HEADER], frozen,
+                            context, chat, assembler,
+                        )
+                        headers[DISPATCH_RECEIPT_HEADER] = envelope.decode("ascii")
+
+            with preview_recipient_scope(target):
+                selection, source_revision = await sync_call(
+                    service.preview_with_source_revision,
+                    chat,
+                    assembler,
+                    conversation_id,
+                    incoming,
+                    expected_target=target,
+                    attest=attest,
+                    require_current_operation=require_current_operation,
+                    prepare_dispatch=prepare_dispatch,
+                )
+            response_body = (
+                attested_body if attested_body is not None else encode_preview_response(selection)
             )
-        response_body = (
-            attested_body if attested_body is not None else encode_preview_response(selection)
-        )
-        if len(response_body) > MAX_PREVIEW_BYTES:
-            raise ContextPreparationError("context_no_ai_route")
-        if travel_receipt_key is not None and target.preview_source is not None:
-            if target is not await sync_call(service.current_target):
+            if len(response_body) > MAX_PREVIEW_BYTES:
                 raise ContextPreparationError("context_no_ai_route")
-            headers[RECEIPT_HEADER] = _signed_receipt(
-                travel_receipt_key,
-                target=target,
-                operation="preview",
-                conversation_id=conversation_id,
-                request_body=raw,
-                response_body=response_body,
-                source_revision=source_revision,
+            if travel_receipt_key is not None and target.preview_source is not None:
+                if target is not await sync_call(service.current_target):
+                    raise ContextPreparationError("context_no_ai_route")
+                headers[RECEIPT_HEADER] = _signed_receipt(
+                    travel_receipt_key,
+                    target=target,
+                    operation="preview",
+                    conversation_id=conversation_id,
+                    request_body=raw,
+                    response_body=response_body,
+                    source_revision=source_revision,
+                )
+            return Response(
+                response_body, media_type=MEDIA_TYPE if negotiated else "application/json",
+                headers=headers,
             )
-        return Response(response_body, media_type="application/json", headers=headers)
+        except (DispatchDenied, ContextPreparationError, ResourceNotFoundError) as error:
+            if not negotiated:
+                raise
+            if registration is not None:
+                await sync_call(dispatch.retire, registration, conversation_id, incoming.idempotency_key)
+            return _dispatch_response(error.status if isinstance(error, DispatchDenied) else 404)
+
 
     async def observe(
         conversation_id: UUID,
@@ -311,9 +392,69 @@ def mount_application_plan(
         chat: Annotated[ChatTurnService, Depends(deps.get_chat_turn_service)],
         assembler: Annotated[ContextAssembler, Depends(assembler_dependency)],
     ):
+        if request.headers.getlist("content-type") == [MEDIA_TYPE]:
+            if dispatch is None:
+                return _dispatch_response(404)
+            try:
+                _canonical_path(request, conversation_id)
+                registration = await sync_call(dispatch.registration)
+                body = await _json_body(request, max_bytes=512, dispatch=True)
+                with preview_recipient_scope(registration.target):
+                    await sync_call(dispatch.confirm, registration, conversation_id, body, chat, assembler)
+                return _dispatch_response(202)
+            except DispatchDenied as error:
+                return _dispatch_response(error.status)
+            except ValueError:
+                return _dispatch_response(422)
         incoming, _ = await _intent(request, confirmed=True)
         stream = await sync_call(service.continue_turn, chat, assembler, conversation_id, incoming)
         return _sse_response(stream, request_id=_request_id(request))
+
+    async def dispatch_read(conversation_id, original_key, request, chat, assembler, *, detail):
+        try:
+            if request.url.query:
+                raise DispatchDenied
+            _canonical_path(request, conversation_id, None if detail else original_key)
+            async for chunk in request.stream():
+                if chunk:
+                    raise DispatchDenied
+            registration = await sync_call(dispatch.registration)
+            with preview_recipient_scope(registration.target):
+                body, committed_at = await sync_call(
+                    dispatch.inspect, registration, conversation_id, original_key, chat, assembler,
+                    detail=detail,
+                )
+            return _dispatch_response(200, body=body, committed_at=committed_at)
+        except DispatchDenied as error:
+            return _dispatch_response(error.status)
+        except (ValueError, ContextPreparationError, ResourceNotFoundError):
+            return _dispatch_response(404)
+
+    async def status(
+        conversation_id: str, original_key: str, request: Request,
+        chat: Annotated[ChatTurnService, Depends(deps.get_chat_turn_service)],
+        assembler: Annotated[ContextAssembler, Depends(assembler_dependency)],
+    ):
+        try:
+            conversation, original = UUID(conversation_id), UUID(original_key)
+        except ValueError:
+            return _dispatch_response(404)
+        return await dispatch_read(conversation, original, request, chat, assembler, detail=False)
+
+    async def detail(
+        conversation_id: str, request: Request,
+        chat: Annotated[ChatTurnService, Depends(deps.get_chat_turn_service)],
+        assembler: Annotated[ContextAssembler, Depends(assembler_dependency)],
+    ):
+        values = request.headers.getlist(ORIGINAL_KEY_HEADER)
+        try:
+            conversation = UUID(conversation_id)
+            original_key = UUID(values[0])
+            if values != [str(original_key)]:
+                raise ValueError
+        except (IndexError, ValueError):
+            return _dispatch_response(404)
+        return await dispatch_read(conversation, original_key, request, chat, assembler, detail=True)
 
     routes = []
     if travel_receipt_key is not None or bound_receipts is not None:
@@ -336,4 +477,14 @@ def mount_application_plan(
         )
         routes.append(app.router.routes[-1])
         app.state.lookup_only_application_plan_principal = True
+    if dispatch is not None:
+        for suffix, handler in (("/continuations/{original_key}", status), ("", detail)):
+            app.router.add_api_route(
+                "/v1/conversations/{conversation_id}" + suffix, handler, methods=["GET"],
+                include_in_schema=False, route_class_override=_DispatchReadRoute,
+            )
+            route = app.router.routes.pop()
+            app.router.routes.insert(0, route)
+            routes.append(route)
+        app.state.private_dispatch_read_routes = tuple(routes[-2:])
     app.state.private_application_plan_routes = tuple(routes)
