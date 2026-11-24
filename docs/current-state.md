@@ -2,6 +2,8 @@
 
 Updated 2026-11-21. This page is the living implementation and release boundary. Code, executable contracts, migrations, and tests control behavior; dated reports preserve the evidence collected at their revisions. Local synthetic checks do not establish provider, cloud, deployment, or production behavior.
 
+The shared dispatch review is complete for the isolated Travel and Health test compositions. Scoped E1 results, named native stores, final R7 checks and remaining release holds are in the [five-step reconciliation](context-inference-integration/evidence/2026-11-24-dispatch-reconciliation.md).
+
 ## Product and safety boundary
 
 PAS is a reusable AI platform with optional reference applications. Routes and user interfaces remain thin; domain modules own authoritative application records and rules. Shared services own context assembly, provider-neutral inference, routing, evidence, memory, and evaluation contracts.
