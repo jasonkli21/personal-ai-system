@@ -1,0 +1,7 @@
+/.openai/hosting.json
+/.env*
+!/.env.example
+/.dev.vars*
+/dist/
+/node_modules/
+/*.tar.gz

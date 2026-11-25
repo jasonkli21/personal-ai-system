@@ -11,6 +11,10 @@ A learning and research project for reusable AI capabilities around chat, contex
 
 Hosted model adapters require provider credentials. The offline fake profile is for local development and tests; it does not prove real provider behavior or production readiness.
 
+## ChatGPT Sites integration
+
+[PAS Personal Context](integrations/chatgpt_sites/README.md) is an optional, owner-private ChatGPT Site with read-only MCP tools for a fabricated Travel itinerary. The Site runs in synthetic mode with PAS disconnected. See the [development and deployment guide](integrations/chatgpt_sites/DEPLOYMENT.md) for local checks and the Sites release workflow.
+
 ## Quick start: credential-free core
 
 Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/) 0.11.13, Node.js 22, and pnpm 11.19.0 for the web client. Docker Compose is optional for native persistence.
